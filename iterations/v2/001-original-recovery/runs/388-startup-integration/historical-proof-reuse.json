@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "summary": "iterations/v2/001-original-recovery/runs/305-file-pool-shutdown/summary.json",
+      "summary_sha256": "e00cc9b1942dc4ffb8b61b6b894375c91041401c2bf58702be813917fd9e3779",
+      "historical_audit": "iterations/v2/001-original-recovery/runs/305-file-pool-shutdown/audit.json",
+      "historical_audit_sha256": "bb801051bd7d19d0fbfb989c4848fb60e1116e3594be56d4104c44a7c3644b80",
+      "pins_checked": 94,
+      "changed": [
+        {
+          "path": "iterations/v2/001-original-recovery/source/recovered/functions.json",
+          "expected": "e6de4440d840104f57331ba0c169c7e584e75cfeee3dc9b01c3d12c060ed8740",
+          "actual": "ebee57450d29c165c54397aea659298ccd782874e6bb6a7574947236d6a06a7c"
+        }
+      ],
+      "changed_tools": [],
+      "prior_native_cases": 48,
+      "new_native_execution": false,
+      "reuse_verified": true,
+      "registry_git_blob": "9080096ac4050fb9b98412f4f2042f7a190d4535",
+      "registry_sha256": "e6de4440d840104f57331ba0c169c7e584e75cfeee3dc9b01c3d12c060ed8740",
+      "callee_identities_verified": [
+        "005322d0",
+        "0055f740",
+        "0055fb30",
+        "0055fc10",
+        "0055fc80",
+        "0056e640",
+        "005806c0",
+        "00580790",
+        "00592290"
+      ],
+      "boundary": "Historical registry changed; all other inputs/tools match. Exact old registry verified from Git; current relevant canonical identities unchanged. Historical audit not relabelled as current PASS."
+    },
+    {
+      "summary": "iterations/v2/001-original-recovery/runs/307-disk-slot-shutdown/summary.json",
+      "summary_sha256": "2c691f6bab307599136143a4be6cc0d3f810251b1a0facb33f9b97681d4d12f8",
+      "historical_audit": "iterations/v2/001-original-recovery/runs/307-disk-slot-shutdown/audit.json",
+      "historical_audit_sha256": "cbc50b36e8d2c44909b5b15c96f58d673eecd45a8f78c29a08556f64ca361040",
+      "pins_checked": 59,
+      "changed": [
+        {
+          "path": "iterations/v2/001-original-recovery/source/recovered/functions.json",
+          "expected": "e6de4440d840104f57331ba0c169c7e584e75cfeee3dc9b01c3d12c060ed8740",
+          "actual": "ebee57450d29c165c54397aea659298ccd782874e6bb6a7574947236d6a06a7c"
+        }
+      ],
+      "changed_tools": [],
+      "prior_native_cases": 48,
+      "new_native_execution": false,
+      "reuse_verified": true,
+      "registry_git_blob": "9080096ac4050fb9b98412f4f2042f7a190d4535",
+      "registry_sha256": "e6de4440d840104f57331ba0c169c7e584e75cfeee3dc9b01c3d12c060ed8740",
+      "callee_identities_verified": [
+        "005322b0",
+        "005322c0",
+        "005322d0",
+        "0056e640",
+        "00592290"
+      ],
+      "boundary": "Historical registry changed; all other inputs/tools match. Exact old registry verified from Git; current relevant canonical identities unchanged. Historical audit not relabelled as current PASS."
+    }
+  ],
+  "registry_check_stage": "Before historical registration intake; only relevant provider identities are compared."
+}

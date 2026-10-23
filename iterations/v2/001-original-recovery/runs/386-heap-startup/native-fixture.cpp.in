@@ -1,0 +1,199 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "porsche/application_heap.hpp"
+#include "porsche/application_pool.hpp"
+#include "porsche/disk_open.hpp"
+#include "porsche/file_device.hpp"
+#include "porsche/file_worker.hpp"
+#include "porsche/file_threads.hpp"
+#include "porsche/heap.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4&&sizeof(porsche::IoList)==28&&sizeof(porsche::FileDevice)==112&&sizeof(porsche::PhysicalFile)==32);
+static const B tail_raw[25]={@TAIL@},pool_raw[247]={@POOL@},disk_raw[149]={@DISK@},
+    alloc_raw[74]={@ALLOC@},init_raw[64]={@INIT@},prepend_raw[66]={@PREPEND@},exit_raw[12]={@EXIT@};
+static B *tail_code,*pool_code,*disk_code,*alloc_code,*init_code,*prepend_code,*exit_code;
+static U alloc_iat[2]{},requested_page=4096,alloc_count=0,lock_count=0,cases=0,checks=0,callback_count=0,mutation=0;
+alignas(4096) static B arenas[3][0x10000];
+struct Event{U kind,a,b,c,d,devices,physical,arena,shutdown,operations,auxiliary;};
+static Event events[4096];static U event_count;
+namespace porsche {
+// Fixture-only external storage; production owners are files.cpp, file_disk.cpp
+// and disk_open.cpp. Their raw BSS and accepted COFF ownership are pinned.
+std::int32_t physical_count_006af080=0;
+PhysicalFile* physical_files_006af084=nullptr;
+FileDevice* devices_006a5c7c=nullptr;
+IoList free_operations_006a5c58{},free_auxiliary_006a5c38{};
+void* disk_slot_mutex_006af07c=nullptr;
+void* disk_mutexes_006aeffc[32]{};
+}
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void die(const char* s,U v=0){std::printf("fixture %s %08x\n",s,v);std::fflush(stdout);ExitProcess(98);}
+static void rec(U kind,U a=0,U b=0,U c=0,U d=0){using namespace porsche;if(event_count>=4096)die("events");
+    events[event_count++]={kind,a,b,c,d,ptr(devices_006a5c7c),ptr(physical_files_006af084),ptr(free_operation_arena_006a5c54),application_pool_shutdown_state_006a5c74,
+        static_cast<U>(free_operations_006a5c58.count),static_cast<U>(free_auxiliary_006a5c38.count)};
+}
+static bool span(void* p,U n){for(auto& arena:arenas){auto x=ptr(p),a=ptr(arena);if(x>=a&&x-a<=sizeof arena&&n<=sizeof arena-(x-a))return true;}return false;}
+namespace porsche {
+void* __cdecl heap_lock_create_005321f0(){void* result=reinterpret_cast<void*>(0x04500000u+lock_count*0x100u);rec(0,ptr(result));++lock_count;return result;}
+void __cdecl heap_enter_005322b0(void* lock){rec(1,ptr(lock));
+    // Controlled lock callback side effects expose captured-lock/list ordering.
+    if(mutation&&free_operation_arena_006a5c54&&free_operations_006a5c58.count==0){
+        free_operations_006a5c58.flags|=0x80000000u;free_operations_006a5c58.lock=reinterpret_cast<void*>(0x04600000u);
+    }
+}
+void __cdecl heap_leave_005322c0(void* lock){rec(2,ptr(lock));}
+void __cdecl heap_fill_0053c290(void* output,U pattern,U n){rec(3,ptr(output),pattern,n);
+    if(pattern)die("fill-pattern");
+    if(output!=disk_mutexes_006aeffc&&!span(output,n))die("fill-span",n);
+    if(output==disk_mutexes_006aeffc&&n!=128)die("mutex-fill-span");std::memset(output,0,n);
+}
+void __stdcall platform_system_info(void* info){rec(4);auto* words=static_cast<U*>(info);words[1]=requested_page;}
+void* __stdcall platform_virtual_alloc(void* address,U bytes,U type,U protection){
+    if(address||alloc_count>=3||bytes>sizeof arenas[0]||!bytes||type!=0x3000||protection!=4)die("allocation-domain",bytes);
+    void* result=arenas[alloc_count];rec(5,bytes,type,protection,ptr(result));++alloc_count;return result;
+}
+U __stdcall platform_virtual_free(void*,U,U){die("unexpected-free");return 0;}
+void __cdecl application_callback_registry_insert_005a2400(void(__cdecl* callback)()){
+    rec(6,ptr(reinterpret_cast<const void*>(callback)));if(callback!=application_pool_shutdown_005678f0)die("callback-identity");++callback_count;
+    if(mutation)application_pool_shutdown_state_006a5c74^=0x76543210u;
+}
+void __cdecl application_pool_shutdown_005678f0(){die("unexpected-shutdown");}
+void __cdecl application_pool_disk_slots_release_005918c0(){die("unexpected-reinit");}
+// Unused services of the unchanged canonical component files fail closed.
+U __cdecl io_lock_00580ea0(IoList*){die("unused-io-lock");return 0;}
+void __cdecl io_unlock_00580ec0(IoList*,U){die("unused-io-unlock");}
+U __cdecl operation_key_005684c0(IoNode*,U){die("unused-key");return 0;}
+void __cdecl file_worker_00568530(U){die("unused-worker");}
+void* __cdecl file_auto_event_0055fb20(){die("unused-event");return nullptr;}
+void* __cdecl file_manual_event_0055fc20(){die("unused-event");return nullptr;}
+void* __cdecl file_wait_event_0055fc60(void*){die("unused-wait");return nullptr;}
+U __cdecl file_reset_event_0055fc40(void*){die("unused-reset");return 0;}
+std::int32_t __cdecl file_thread_start_0055f5f0(FileWorker,U,U,U,std::int32_t,void*){die("unused-thread");return 0;}
+U __cdecl io_remove_00580930(IoList*,IoNode*){die("unused-remove");return 0;}
+void diagnostic_file_005deb74_set(const char*)noexcept{die("unused-diagnostic");}
+U fixture_line_386=0;U& diagnostic_line_005deb78=fixture_line_386;
+static void __cdecl unused_diagnostic(const char*){die("unused-diagnostic-handler");}
+void (__cdecl* diagnostic_handler_005debf0)(const char*)=&unused_diagnostic;
+}
+static B* install(const B* raw,U n){auto* p=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!p)die("alloc");std::memcpy(p,raw,n);return p;}
+static void patch(B* p,U n,U before,U after,U expected){U count=0;for(U i=0;i+4<=n;++i)if(word(p+i)==before){std::memcpy(p+i,&after,4);++count;i+=3;}if(count!=expected)die("relocation-count",before);}
+static void call(B* p,U base,U n,U site,U target,const void* replacement){U o=site-base;
+    if(o+5>n||p[o]!=0xe8||site+5+word(p+o+1)!=target)die("call-target",site);U rel=ptr(replacement)-ptr(p+o+5);std::memcpy(p+o+1,&rel,4);
+}
+static void protect(B* p){DWORD old;if(!VirtualProtect(p,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),p,4096);}
+static void install_all(){using namespace porsche;
+    pool_code=install(pool_raw,247);disk_code=install(disk_raw,149);alloc_code=install(alloc_raw,74);init_code=install(init_raw,64);prepend_code=install(prepend_raw,66);exit_code=install(exit_raw,12);
+    // Fixture-only prefix reconstructs the tail's36B locals/savedESI/48B pending
+    // arguments. The25 pinned original bytes perform the actual3arg handoff,
+    // 0x3c cleanup, ESI restore,0x24 local cleanup and RET.
+    const B prefix[7]={0x83,0xec,0x24,0x56,0x83,0xec,0x30};tail_code=install(prefix,7);std::memcpy(tail_code+7,tail_raw,25);
+    call(tail_code+7,0x59eaef,25,0x59eafb,0x5679f0,pool_code);
+    patch(pool_code,247,0x6a5c7c,ptr(&devices_006a5c7c),2);patch(pool_code,247,0x6a5c58,ptr(&free_operations_006a5c58),2);
+    patch(pool_code,247,0x6a5c38,ptr(&free_auxiliary_006a5c38),1);patch(pool_code,247,0x6a5c54,ptr(&free_operation_arena_006a5c54),2);
+    patch(pool_code,247,0x6a5c78,ptr(&application_pool_lock_006a5c78),1);patch(pool_code,247,0x6a5c74,ptr(&application_pool_shutdown_state_006a5c74),1);
+    patch(pool_code,247,0x5678f0,ptr(reinterpret_cast<const void*>(&application_pool_shutdown_005678f0)),1);
+    call(pool_code,0x5679f0,247,0x567a19,0x591820,disk_code);
+    for(U site:{0x567a27u,0x567a35u})call(pool_code,0x5679f0,247,site,0x580630,init_code);
+    for(U site:{0x567a47u,0x567a6du})call(pool_code,0x5679f0,247,site,0x56e5f0,alloc_code);
+    for(U site:{0x567a59u,0x567a7fu})call(pool_code,0x5679f0,247,site,0x53c290,reinterpret_cast<const void*>(&heap_fill_0053c290));
+    call(pool_code,0x5679f0,247,0x567aaa,0x5806e0,prepend_code);call(pool_code,0x5679f0,247,0x567ab9,0x5321f0,reinterpret_cast<const void*>(&heap_lock_create_005321f0));
+    call(pool_code,0x5679f0,247,0x567ad2,0x557380,exit_code);
+    patch(disk_code,149,0x6af07c,ptr(&disk_slot_mutex_006af07c),4);patch(disk_code,149,0x6af084,ptr(&physical_files_006af084),2);
+    patch(disk_code,149,0x6af080,ptr(&physical_count_006af080),1);patch(disk_code,149,0x6aeffc,ptr(disk_mutexes_006aeffc),1);
+    call(disk_code,0x591820,149,0x59182a,0x5321f0,reinterpret_cast<const void*>(&heap_lock_create_005321f0));
+    call(disk_code,0x591820,149,0x59183d,0x5918c0,reinterpret_cast<const void*>(&application_pool_disk_slots_release_005918c0));
+    call(disk_code,0x591820,149,0x591849,0x5322b0,reinterpret_cast<const void*>(&heap_enter_005322b0));
+    call(disk_code,0x591820,149,0x59186c,0x56e5f0,alloc_code);
+    for(U site:{0x59188cu,0x59189du})call(disk_code,0x591820,149,site,0x53c290,reinterpret_cast<const void*>(&heap_fill_0053c290));
+    call(disk_code,0x591820,149,0x5918ac,0x5322c0,reinterpret_cast<const void*>(&heap_leave_005322c0));
+    patch(alloc_code,74,0x6a6418,ptr(&file_page_size_006a6418),2);
+    alloc_iat[0]=ptr(reinterpret_cast<const void*>(&platform_system_info));alloc_iat[1]=ptr(reinterpret_cast<const void*>(&platform_virtual_alloc));
+    patch(alloc_code,74,0x5b21b0,ptr(alloc_iat),1);patch(alloc_code,74,0x5b2144,ptr(alloc_iat+1),1);
+    call(init_code,0x580630,64,0x580630,0x5321f0,reinterpret_cast<const void*>(&heap_lock_create_005321f0));
+    patch(init_code,64,0x580670,ptr(reinterpret_cast<const void*>(&io_default_key_00580670)),1);
+    call(prepend_code,0x5806e0,66,0x5806ea,0x5322b0,reinterpret_cast<const void*>(&heap_enter_005322b0));
+    call(prepend_code,0x5806e0,66,0x580717,0x5322c0,reinterpret_cast<const void*>(&heap_leave_005322c0));
+    call(exit_code,0x557380,12,0x557385,0x5a2400,reinterpret_cast<const void*>(&application_callback_registry_insert_005a2400));
+    for(auto p:{tail_code,pool_code,disk_code,alloc_code,init_code,prepend_code,exit_code})protect(p);
+}
+// Synthetic native counterpart of the raw tail: earlierstartup arguments have
+// already been consumed. Only third/zero/fourth cross this exact call edge.
+static void __cdecl caller_cpp(U,U,U third,U fourth){porsche::application_heap_finish(third,0,fourth);}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1;};
+static Capture invoke(const void* fn,const U* args){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov edx,args
+        push dword ptr [edx+12]
+        push dword ptr [edx+8]
+        push dword ptr [edx+4]
+        push dword ptr [edx]
+        mov ecx,fn
+        call ecx
+        add esp,16
+        lea edx,r
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;
+}
+static bool abi(const Capture& c){return c.sp0==c.sp1&&c.bp0==c.bp1&&c.bx0==c.bx1&&c.si0==c.si1&&c.di0==c.di1&&c.bx0==0x13579bdfu&&c.si0==0x2468ace0u&&c.di0==0x6a31c5e7u;}
+struct State{B arenas[3][0x10000];porsche::IoList operations,auxiliary;U devices,physical,physical_count,op_arena,pool_lock,shutdown,disk_lock,page,alloc_count,lock_count,callback_count,event_count;void* mutexes[32];Event events[4096];};
+static State expected,actual;
+static void state(State& s){using namespace porsche;s={};std::memcpy(s.arenas,arenas,sizeof arenas);s.operations=free_operations_006a5c58;s.auxiliary=free_auxiliary_006a5c38;
+    s.devices=ptr(devices_006a5c7c);s.physical=ptr(physical_files_006af084);s.physical_count=static_cast<U>(physical_count_006af080);s.op_arena=ptr(free_operation_arena_006a5c54);
+    s.pool_lock=ptr(application_pool_lock_006a5c78);s.shutdown=application_pool_shutdown_state_006a5c74;s.disk_lock=ptr(disk_slot_mutex_006af07c);s.page=file_page_size_006a6418;
+    s.alloc_count=alloc_count;s.lock_count=lock_count;s.callback_count=callback_count;s.event_count=event_count;std::memcpy(s.mutexes,disk_mutexes_006aeffc,128);std::memcpy(s.events,events,sizeof events);
+}
+static void reset(U page,U cached,U effects){using namespace porsche;std::memset(arenas,0xa5,sizeof arenas);std::memset(events,0,sizeof events);std::memset(disk_mutexes_006aeffc,0,sizeof disk_mutexes_006aeffc);
+    devices_006a5c7c=nullptr;physical_files_006af084=nullptr;physical_count_006af080=0;disk_slot_mutex_006af07c=nullptr;
+    free_operations_006a5c58={};free_auxiliary_006a5c38={};free_operation_arena_006a5c54=nullptr;application_pool_lock_006a5c78=nullptr;application_pool_shutdown_state_006a5c74=0;
+    file_page_size_006a6418=cached;requested_page=page;alloc_count=lock_count=callback_count=event_count=0;mutation=effects;
+}
+static void validate(U requested_operations){using namespace porsche;const U count=(requested_operations?requested_operations:64u)*48u;
+    const U rounded=((count+requested_page-1)/requested_page)*requested_page,n=rounded/48u;
+    if(free_operations_006a5c58.count!=static_cast<std::int32_t>(n)||free_auxiliary_006a5c38.count||alloc_count!=3||callback_count!=1)die("post-init-count");
+    auto* node=free_operations_006a5c58.head;
+    for(U i=0;i<n;++i){if(node!=reinterpret_cast<IoNode*>(arenas[2]+(n-1-i)*48u))die("list-order");node=node->next;}
+    if(node||free_operations_006a5c58.tail!=reinterpret_cast<IoNode*>(arenas[2])||free_operations_006a5c58.key!=io_default_key_00580670||free_auxiliary_006a5c38.key!=io_default_key_00580670)die("list-metadata");
+}
+static void compare(U disk,U operations,U page,U cached,U effects,bool twice){
+    U args[4]={0x81234567u,0xfedcba98u,disk,operations};
+    reset(page,cached,effects);auto a=invoke(tail_code,args);if(!abi(a))die("original-caller-abi");validate(operations);
+    if(twice){U other[4]={0,0,1,1};a=invoke(tail_code,other);if(!abi(a))die("original-repeat-abi");}state(expected);
+    reset(page,cached,effects);auto b=invoke(reinterpret_cast<const void*>(&caller_cpp),args);
+    if(twice){U other[4]={0,0,1,1};auto c=invoke(reinterpret_cast<const void*>(&caller_cpp),other);if(!abi(c))die("native-repeat-abi");}state(actual);
+    ++cases;checks+=3;
+    if(!abi(b)||std::memcmp(&expected,&actual,sizeof actual)){
+        std::printf("divergence heap-startup case=%u disk=%u ops=%u page=%u counts=%d/%d events=%u/%u abi=%u\n",cases,disk,operations,page,expected.operations.count,actual.operations.count,expected.event_count,actual.event_count,abi(b));
+        const auto* x=reinterpret_cast<const B*>(&expected);const auto* y=reinterpret_cast<const B*>(&actual);
+        for(U i=0;i<sizeof(State);++i)if(x[i]!=y[i]){std::printf("first-state-offset=%u value=%02x/%02x\n",i,x[i],y[i]);break;}
+        std::fflush(stdout);ExitProcess(1);
+    }
+}
+int main(){using namespace porsche;
+    // Actual canonical pool/page owners plus explicit externalBSS views, before
+    // overrides. Original BSS/actual productionCOFF ownership is pinned in evidence.
+    if(free_operation_arena_006a5c54||application_pool_lock_006a5c78||application_pool_shutdown_state_006a5c74||file_page_size_006a6418||devices_006a5c7c||physical_files_006af084||physical_count_006af080||disk_slot_mutex_006af07c)die("initial-state");
+    const B* a=reinterpret_cast<const B*>(&free_operations_006a5c58);const B* b=reinterpret_cast<const B*>(&free_auxiliary_006a5c38);
+    for(U i=0;i<28;++i)if(a[i]||b[i])die("initial-lists");for(auto p:disk_mutexes_006aeffc)if(p)die("initial-mutexes");install_all();
+    for(U effects:{0u,1u})for(U cached:{0u,4096u})for(bool twice:{false,true})compare(256,256,4096,cached,effects,twice);
+    const U pairs[][2]={{0,0},{1,1},{64,13},{255,255},{257,257},{256,257},{257,256},{96,100},{2,512}};
+    for(const auto& p:pairs)for(U effects:{0u,1u})for(bool twice:{false,true})compare(p[0],p[1],4096,0,effects,twice);
+    std::printf("heap_startup_original_caller_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;
+}

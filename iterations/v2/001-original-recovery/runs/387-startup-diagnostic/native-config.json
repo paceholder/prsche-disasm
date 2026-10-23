@@ -1,0 +1,84 @@
+{
+  "run": 387,
+  "experiment": "local/experiments/v2-startup-diagnostic-native-387",
+  "timeout_seconds": 45,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+    "iterations/v2/001-original-recovery/runs/353-diagnostic-mono/diagnostic_mono.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/formatter_entry.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/shared_runtime_globals.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/387-startup-diagnostic",
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "headers": [
+    "research/binary-index/supplemental/startup-diagnostic-387.jsonl"
+  ],
+  "original_bodies": [
+    {
+      "token": "@CALLBACK@",
+      "va": "0059fbc0",
+      "bytes": 93,
+      "sha256": "8db78737b1db44d195cfd166e4140e00d7c1258408b51bfa2906b4dbba2683b7"
+    },
+    {
+      "token": "@CONTEXT@",
+      "va": "005e50b8",
+      "bytes": 20,
+      "sha256": "0d198cbc4b9d0d224b41859144fdc877bda610ecd97aca0abb99beebce5ba4ee"
+    },
+    {
+      "token": "@STATE@",
+      "va": "005deb74",
+      "bytes": 8,
+      "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc"
+    }
+  ],
+  "pass_marker": "startup_diagnostic_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "varargs-advance",
+      "source": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "old": "reinterpret_cast<const std::uint32_t*>(arguments));",
+      "new": "reinterpret_cast<const std::uint32_t*>(arguments)+1);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "context-argument-order",
+      "source": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "old": "startup_diagnostic_context_005e50b8,file,line);",
+      "new": "startup_diagnostic_context_005e50b8,line,file);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "premature-file-line-read",
+      "source": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "old": "    std::va_list arguments;va_start(arguments,format);\n    static_assert(sizeof(arguments)==sizeof(void*),\"Original x86 raw varargs\");\n    (void)application_diagnostic_mono_vsprintf_005a299e(buffer,format,\n        reinterpret_cast<const std::uint32_t*>(arguments));\n    va_end(arguments);\n    // Original reads both shared cells AFTER the first formatter has returned,\n    // then scans its output and appends at its terminatingNUL.\n    const auto line=diagnostic_line_005deb78;\n    const char* file=diagnostic_file_005deb74();\n",
+      "new": "    const auto line=diagnostic_line_005deb78;\n    const char* file=diagnostic_file_005deb74();\n    std::va_list arguments;va_start(arguments,format);\n    static_assert(sizeof(arguments)==sizeof(void*),\"Original x86 raw varargs\");\n    (void)application_diagnostic_mono_vsprintf_005a299e(buffer,format,\n        reinterpret_cast<const std::uint32_t*>(arguments));\n    va_end(arguments);\n    // Original reads both shared cells AFTER the first formatter has returned,\n    // then scans its output and appends at its terminatingNUL.\n",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "append-at-buffer-start",
+      "source": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "old": "formatter_entry_005a0fbf(buffer+length,",
+      "new": "formatter_entry_005a0fbf(buffer,",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "missing-terminal-call",
+      "source": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "old": "startup_diagnostic_sink_0059fc20(buffer);",
+      "new": "(void)buffer;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

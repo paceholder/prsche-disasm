@@ -1,0 +1,115 @@
+{
+  "tool": {
+    "path": "F:/claude/porsche disasm/local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+    "sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5"
+  },
+  "variants": [
+    {
+      "variant": "od",
+      "consumer_object": {
+        "path": "local/experiments/v2-startup-callback-binding-native-389/001/od-0.obj",
+        "sha256": "a9449a2a9529cdea699f4c8cc1c98df92e4526e9c6d55fc2c5e1f2cce81e993a"
+      },
+      "accepted387_provider_object": {
+        "path": "local/experiments/v2-startup-diagnostic-native-387/001/od-0.obj",
+        "sha256": "d1e8e08fb3d27440a788fa8beff03441a2ea2db269d156f417d9b53486514f0e"
+      },
+      "dumps": [
+        {
+          "kind": "consumer-symbols",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/od-consumer-symbols.txt",
+          "sha256": "369020595bb098adf637329378cda364318ca50a18c0a789823675026e593b09",
+          "relevant_lines": [
+            "009 00000000 SECT3  notype       External     | ?startup_network_00628c70@porsche@@3PAXA (void * porsche::startup_network_00628c70)",
+            "013 00000000 SECT6  notype ()    External     | ?startup_services_004a5410@porsche@@YAXXZ (void __cdecl porsche::startup_services_004a5410(void))",
+            "02A 00000000 UNDEF  notype ()    External     | ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))",
+            "02C 00000000 UNDEF  notype       External     | ?diagnostic_handler_005debf0@porsche@@3P6AXPBD@ZA (void (__cdecl* porsche::diagnostic_handler_005debf0)(char const *))"
+          ]
+        },
+        {
+          "kind": "consumer-relocations",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/od-consumer-relocations.txt",
+          "sha256": "8a1a0ea990171f5f472a4c4fec40150f8a51eff9e8487da82b595d1cfaf990f5",
+          "relevant_lines": [
+            " 00000006  DIR32                      00000000        2C  ?diagnostic_handler_005debf0@porsche@@3P6AXPBD@ZA (void (__cdecl* porsche::diagnostic_handler_005debf0)(char const *))",
+            " 0000000A  DIR32                      00000000        2A  ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))",
+            " 00000048  DIR32                      00000000         9  ?startup_network_00628c70@porsche@@3PAXA (void * porsche::startup_network_00628c70)"
+          ]
+        },
+        {
+          "kind": "consumer-disassembly",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/od-consumer-disassembly.txt",
+          "sha256": "370457878e50f2dd0e946c204941fc1a185ac6d60907c019ed94874162c077aa",
+          "relevant_lines": [
+            "?startup_services_004a5410@porsche@@YAXXZ (void __cdecl porsche::startup_services_004a5410(void)):",
+            "  00000004: C7 05 00 00 00 00  mov         dword ptr [?diagnostic_handler_005debf0@porsche@@3P6AXPBD@ZA],offset ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ",
+            "  00000046: 83 3D 00 00 00 00  cmp         dword ptr [?startup_network_00628c70@porsche@@3PAXA],0"
+          ]
+        },
+        {
+          "kind": "provider387-symbols",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/od-provider387-symbols.txt",
+          "sha256": "f0c8a2fc610a27b12eda53d670f889ddb0c01e428d59064f970fbd8bc879800b",
+          "relevant_lines": [
+            "00C 00000000 SECT4  notype ()    External     | ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))"
+          ]
+        }
+      ],
+      "matched_canonical_callback_symbol": "?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))"
+    },
+    {
+      "variant": "o2",
+      "consumer_object": {
+        "path": "local/experiments/v2-startup-callback-binding-native-389/001/o2-0.obj",
+        "sha256": "8d49555d2ca439cee68081e21262719bd8a61218cedb0b9a4fad14b916848055"
+      },
+      "accepted387_provider_object": {
+        "path": "local/experiments/v2-startup-diagnostic-native-387/001/o2-0.obj",
+        "sha256": "afe9904f5fc2d9367bc1d54ba71ab6522bcc5b677562b2cfe89523d143b869cb"
+      },
+      "dumps": [
+        {
+          "kind": "consumer-symbols",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/o2-consumer-symbols.txt",
+          "sha256": "af7562c817f8e90f85aac961cf4e515a7e8c64a26217883444c1a5f41d6def91",
+          "relevant_lines": [
+            "009 00000000 SECT3  notype       External     | ?startup_network_00628c70@porsche@@3PAXA (void * porsche::startup_network_00628c70)",
+            "012 00000000 SECT6  notype ()    External     | ?startup_services_004a5410@porsche@@YAXXZ (void __cdecl porsche::startup_services_004a5410(void))",
+            "029 00000000 UNDEF  notype ()    External     | ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))",
+            "02C 00000000 UNDEF  notype       External     | ?diagnostic_handler_005debf0@porsche@@3P6AXPBD@ZA (void (__cdecl* porsche::diagnostic_handler_005debf0)(char const *))"
+          ]
+        },
+        {
+          "kind": "consumer-relocations",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/o2-consumer-relocations.txt",
+          "sha256": "9d1a90929fb2a337e616fb7d2b07cd761b982d0b4873a21a4797880d4b5cf236",
+          "relevant_lines": [
+            " 00000016  DIR32                      00000000        2C  ?diagnostic_handler_005debf0@porsche@@3P6AXPBD@ZA (void (__cdecl* porsche::diagnostic_handler_005debf0)(char const *))",
+            " 0000001A  DIR32                      00000000        29  ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))",
+            " 0000003E  DIR32                      00000000         9  ?startup_network_00628c70@porsche@@3PAXA (void * porsche::startup_network_00628c70)",
+            " 00000000  DIR32NB                    00000000        12  ?startup_services_004a5410@porsche@@YAXXZ (void __cdecl porsche::startup_services_004a5410(void))"
+          ]
+        },
+        {
+          "kind": "consumer-disassembly",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/o2-consumer-disassembly.txt",
+          "sha256": "f6b231ad872c774776382a630014383a6c815fbcdb8313e4c97ab9f6039c3522",
+          "relevant_lines": [
+            "?startup_services_004a5410@porsche@@YAXXZ (void __cdecl porsche::startup_services_004a5410(void)):",
+            "  00000014: C7 05 00 00 00 00  mov         dword ptr [?diagnostic_handler_005debf0@porsche@@3P6AXPBD@ZA],offset ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ",
+            "  0000003C: 83 3D 00 00 00 00  cmp         dword ptr [?startup_network_00628c70@porsche@@3PAXA],0"
+          ]
+        },
+        {
+          "kind": "provider387-symbols",
+          "path": "local/experiments/v2-startup-callback-binding-native-389/coff-001/o2-provider387-symbols.txt",
+          "sha256": "6fb5300b5e81370f174e7a98f6991c08d93c24f4dfd6c4d799cdcad10a5fa219",
+          "relevant_lines": [
+            "00E 00000000 SECT4  notype ()    External     | ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))"
+          ]
+        }
+      ],
+      "matched_canonical_callback_symbol": "?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "run": 389,
+  "experiment": "local/experiments/v2-startup-callback-binding-native-389",
+  "timeout_seconds": 45,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/389-startup-callback-binding/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.hpp",
+    "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+    "local/experiments/v2-startup-callback-binding-native-389/baseline/startup_services.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@DISPATCH@",
+      "va": "004a5410",
+      "bytes": 157,
+      "sha256": "c55f201048ac1ae45c183ab39b628121fab145f0b88b154b7dcd1de76682aa31"
+    },
+    {
+      "token": "@CALLBACK_CELL@",
+      "va": "005debf0",
+      "bytes": 4,
+      "sha256": "62cd855e45d89681aaf5da5656f2f3ac25ed5d946b782f6a90c7e18be85c143b"
+    }
+  ],
+  "pass_marker": "startup_callback_binding_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "raw-callback-address",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "old": "reinterpret_cast<void(__cdecl*)(const char*)>(&startup_diagnostic_callback_0059fbc0)",
+      "new": "reinterpret_cast<void(__cdecl*)(const char*)>(0x59fbc0)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "late-callback-store",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "old": "    diagnostic_handler_005debf0=reinterpret_cast<void(__cdecl*)(const char*)>(&startup_diagnostic_callback_0059fbc0);\n    startup_heap_0059e9d0(0x1800000,0x400000,0x100,0x100);\n",
+      "new": "    startup_heap_0059e9d0(0x1800000,0x400000,0x100,0x100);\n    diagnostic_handler_005debf0=reinterpret_cast<void(__cdecl*)(const char*)>(&startup_diagnostic_callback_0059fbc0);\n",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "heap-argument",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "old": "startup_heap_0059e9d0(0x1800000,0x400000,0x100,0x100);",
+      "new": "startup_heap_0059e9d0(0x1800000,0x400001,0x100,0x100);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "queue-before-heap",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "old": "    startup_heap_0059e9d0(0x1800000,0x400000,0x100,0x100);\n    startup_queue_0059edb0(400,0);\n",
+      "new": "    startup_queue_0059edb0(400,0);\n    startup_heap_0059e9d0(0x1800000,0x400000,0x100,0x100);\n",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "network-size",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "old": "startup_network_allocate_0059ef90(0x268)",
+      "new": "startup_network_allocate_0059ef90(0x264)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "constructor-on-failed-allocation",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "old": "if(void* network=startup_network_allocate_0059ef90(0x268))startup_network_construct_0048fc80(network);",
+      "new": "auto* network=startup_network_allocate_0059ef90(0x268);startup_network_construct_0048fc80(network);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

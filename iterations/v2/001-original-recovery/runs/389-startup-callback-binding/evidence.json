@@ -1,0 +1,274 @@
+{
+  "kind": "justified-frozen-consumer-callback-binding",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [],
+  "new_state": [],
+  "changed_original_source": {
+    "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+    "sha256": "fe8dfc0ba7b7ee9d3e530c2a5dad97d8554a342694e6df18141e2ef57d9759b9"
+  },
+  "preserved_baseline": {
+    "path": "local/experiments/v2-startup-callback-binding-native-389/baseline/startup_services.cpp",
+    "sha256": "a8841d6a709fea89bcbaba3e693daf978bfb6e698049fa70bdf5e7df7ab16388"
+  },
+  "source_delta": "Exactlynamespaceforwarddeclaration plusraw0x59fbc0 replacedwithaddressofcanonicalvarargsfunction, cast toexistingcelltype; nootheroldsourceedit.",
+  "original_dispatch": {
+    "va": "004a5410",
+    "bytes": 157,
+    "sha256": "c55f201048ac1ae45c183ab39b628121fab145f0b88b154b7dcd1de76682aa31",
+    "instructions": [
+      {
+        "va": "004a5410",
+        "bytes": "6800010000",
+        "instruction": "push 0x100"
+      },
+      {
+        "va": "004a5415",
+        "bytes": "6800010000",
+        "instruction": "push 0x100"
+      },
+      {
+        "va": "004a541a",
+        "bytes": "6800004000",
+        "instruction": "push 0x400000"
+      },
+      {
+        "va": "004a541f",
+        "bytes": "6800008001",
+        "instruction": "push 0x1800000"
+      },
+      {
+        "va": "004a5424",
+        "bytes": "c705f0eb5d00c0fb5900",
+        "instruction": "mov dword ptr [0x5debf0], 0x59fbc0"
+      },
+      {
+        "va": "004a542e",
+        "bytes": "e89d950f00",
+        "instruction": "call 0x59e9d0"
+      },
+      {
+        "va": "004a5433",
+        "bytes": "6a00",
+        "instruction": "push 0"
+      },
+      {
+        "va": "004a5435",
+        "bytes": "6890010000",
+        "instruction": "push 0x190"
+      },
+      {
+        "va": "004a543a",
+        "bytes": "e871990f00",
+        "instruction": "call 0x59edb0"
+      },
+      {
+        "va": "004a543f",
+        "bytes": "6880000000",
+        "instruction": "push 0x80"
+      },
+      {
+        "va": "004a5444",
+        "bytes": "e8e7fb0b00",
+        "instruction": "call 0x565030"
+      },
+      {
+        "va": "004a5449",
+        "bytes": "a1708c6200",
+        "instruction": "mov eax, dword ptr [0x628c70]"
+      },
+      {
+        "va": "004a544e",
+        "bytes": "83c41c",
+        "instruction": "add esp, 0x1c"
+      },
+      {
+        "va": "004a5451",
+        "bytes": "85c0",
+        "instruction": "test eax, eax"
+      },
+      {
+        "va": "004a5453",
+        "bytes": "7518",
+        "instruction": "jne 0x4a546d"
+      },
+      {
+        "va": "004a5455",
+        "bytes": "6868020000",
+        "instruction": "push 0x268"
+      },
+      {
+        "va": "004a545a",
+        "bytes": "e8319b0f00",
+        "instruction": "call 0x59ef90"
+      },
+      {
+        "va": "004a545f",
+        "bytes": "83c404",
+        "instruction": "add esp, 4"
+      },
+      {
+        "va": "004a5462",
+        "bytes": "85c0",
+        "instruction": "test eax, eax"
+      },
+      {
+        "va": "004a5464",
+        "bytes": "7407",
+        "instruction": "je 0x4a546d"
+      },
+      {
+        "va": "004a5466",
+        "bytes": "8bc8",
+        "instruction": "mov ecx, eax"
+      },
+      {
+        "va": "004a5468",
+        "bytes": "e813a8feff",
+        "instruction": "call 0x48fc80"
+      },
+      {
+        "va": "004a546d",
+        "bytes": "e87ea80b00",
+        "instruction": "call 0x55fcf0"
+      },
+      {
+        "va": "004a5472",
+        "bytes": "e8f9f90b00",
+        "instruction": "call 0x564e70"
+      },
+      {
+        "va": "004a5477",
+        "bytes": "e834f60b00",
+        "instruction": "call 0x564ab0"
+      },
+      {
+        "va": "004a547c",
+        "bytes": "6a02",
+        "instruction": "push 2"
+      },
+      {
+        "va": "004a547e",
+        "bytes": "e8cdf30b00",
+        "instruction": "call 0x564850"
+      },
+      {
+        "va": "004a5483",
+        "bytes": "e8c8190900",
+        "instruction": "call 0x536e50"
+      },
+      {
+        "va": "004a5488",
+        "bytes": "6a01",
+        "instruction": "push 1"
+      },
+      {
+        "va": "004a548a",
+        "bytes": "68e8030000",
+        "instruction": "push 0x3e8"
+      },
+      {
+        "va": "004a548f",
+        "bytes": "6a00",
+        "instruction": "push 0"
+      },
+      {
+        "va": "004a5491",
+        "bytes": "e81a130900",
+        "instruction": "call 0x5367b0"
+      },
+      {
+        "va": "004a5496",
+        "bytes": "e8551b0100",
+        "instruction": "call 0x4b6ff0"
+      },
+      {
+        "va": "004a549b",
+        "bytes": "6a00",
+        "instruction": "push 0"
+      },
+      {
+        "va": "004a549d",
+        "bytes": "6800200000",
+        "instruction": "push 0x2000"
+      },
+      {
+        "va": "004a54a2",
+        "bytes": "6a1e",
+        "instruction": "push 0x1e"
+      },
+      {
+        "va": "004a54a4",
+        "bytes": "e827e60b00",
+        "instruction": "call 0x563ad0"
+      },
+      {
+        "va": "004a54a9",
+        "bytes": "83c41c",
+        "instruction": "add esp, 0x1c"
+      },
+      {
+        "va": "004a54ac",
+        "bytes": "c3",
+        "instruction": "ret "
+      }
+    ]
+  },
+  "callback_provenance": {
+    "original_immediate_va": "004a542a",
+    "original_immediate_target": "0059fbc0",
+    "original_store_destination": "005debf0",
+    "original_cell_initial_va": "005debf0",
+    "original_cell_initial_hex": "40535600",
+    "relocated_oracle_target": "&fixture-only startup_diagnostic_callback_0059fbc0, same compiled targetasnewsourceassignment",
+    "provider_body": "Actual38793Bcallback separatelyproved; notinvoked/nativecomposedin389",
+    "accepted_body_receipt": {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/receipt.json",
+      "sha256": "a9732904c85de27e1e064ac792f35b7331d01d563a634a61e07f2949507cc82c"
+    },
+    "coff_identity": "NewconsumerundefinedDIR32functionreferenceexactlymatchesactual387definedcanonicalsymbolat/Odand/O2; actualgame388mustproveuniqueprovider."
+  },
+  "network_initial_state": {
+    "va": "00628c70",
+    "owner": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+    "original_section": {
+      "name": ".data",
+      "va": 6074368,
+      "virtual_size": 1008952,
+      "raw_size": 114688
+    },
+    "initial": "PEloaderzero-fill; actualsourceownernullassertedbeforefixtureoverrides"
+  },
+  "native_domain": {
+    "cases": 36,
+    "checks_per_variant": 108,
+    "mutations": 6,
+    "branches": [
+      "Existingnetworkskipsallocation/constructor",
+      "Nullnetwork+allocationfailure",
+      "Nullnetwork+allocationsuccess"
+    ],
+    "endpoint_effects": [
+      "Heapcanresetnetworkandreplacecallback",
+      "Capacitycanreplacenetworkbeforetheoriginalbranchload",
+      "Allocatorcanchangenetworkindependentlyofitsreturn",
+      "Constructorandinputeventcanreplacefinalnetwork"
+    ],
+    "comparison": "Completeorderedendpointlogwith4argumentwords,callbackaddress/networkateachcall,finalglobals,ESP,EBP/EBX/ESI/EDI",
+    "all_other_services": "Controlledtypedendpoints only,unusedCDservicesfailclosed"
+  },
+  "network_abi_boundary": {
+    "original_callsite": "004a5466 MOV ECX,EAX;004a5468 CALL0048fc80",
+    "harness": "Explicit __fastcall(receiver,unusedEDX) endpointfororiginalECXcallforwardstocontrolledexistingcdeclfacade",
+    "production": "Existing void __cdecl startup_network_construct_0048fc80(void*) remainsunresolved. Noaliasorconstructorimplementationadded."
+  },
+  "boundaries": [
+    "Actualfiles.cppdiagnosticcellownerisnotlinkedinnativefixture; fixturecellcontrolled,gameownershipseparate",
+    "Callbackpointerisrecordedandcompared,butneverinvoked;387provesbodyseparately",
+    "Noactualheap/input/async/networkprovidercomposition orliveOS/deviceacceptance",
+    "CDrelaunchbodyunchanged/unexecuted",
+    "No diagnosticrawfile/stringVAautomap",
+    "NoEXEgameexecutionorfullstartupacceptance"
+  ]
+}

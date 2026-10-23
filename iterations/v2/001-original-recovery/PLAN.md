@@ -1,40 +1,36 @@
 # v2 / 001 - original source recovery plan
 
-Current384,2026-10-23:382 rectangle656B +383 three original inputAPI facades
-integrated; unchanged221 two-cell readonlyowner added once. Native63720 comparisons/
-14mutations, shared524-input audit PASS. Game002:209TUs/8projects,194names/201refs,
-noEXE; four names close/no new ones.001 exposed missing221scalar integration;
-002 adds actualacceptedowner, not a duplicate. No nativeproof rerun/sourcechange.
-Passed382/383 sources/nativeproof frozen. Geometryfinite/defaultFP only; live
-OS/quad, nonfinite/denormal/extreme/ambientFP/concurrency remain explicitHOLD.
+Current388,2026-10-24: currentstartupbatch complete, fulliteration NOT complete.
+386 boundedheapfinish binding +387 diagnostic93B +389 actualstartupcallbackpointer
+andfull157Bconsumerregression integrated.1504 comparisons/15mutations,528-input
+audit PASS. Game001:211TUs/8projects,194names/201refs,noEXE. One heapbindingcloses,
+terminal0059fc20opens. Onlyoldsourceedit is startup_services.cpp forwarddecl+
+actualfunctionaddress replacingraw0x59fbc0; fresh389proof preservescallsemantics.
+Passed386/387/389 inputs frozen; bothworkers complete, noactiveassignments.
 
-385 evidence-only startupreuse audit: four exactregistryhits all unsafealiases;
-no body/binding/state/build acceptance. Source/manifest pinned at baseline379,
-not regenerated cosmetically for384 counts. Audit finds raw0059fbc0 callback
-assignment, ECX0048fc80 networkconstructor behind cdeclfacade, partial005679f0
-and earlier conditionalCD/duplicateinstance OSgaps. Do notsilentlyalias these.
+NEXT USER TASK: review andprocess newgithub.com/xfynx/prsche-disasm/pulls before
+another recoverybatch. Read descriptions/diffs/evidence, decide suitability,
+fix/integrate/merge only justifiedchanges, and record decisions in PRs asauthorized.
+Do not mislabel v2/001complete: linkedgame/startup/display/menu still unachieved.
 
-Active386: input_platform_367(Sol6.1/high) owns new386-heap-startup only: concrete
-0059eafb caller(256,0,256), EAXunused, rawpool/disk/page/list/exit?actualcanonical
-provider composition with unchanged oldsources. InitialBSS/startup domain must be
-proved; oldpartialpoolstatus/failure/reinit/shutdown stayHOLD. Root decides exact
-binding intake afterproof; never promote partialbody byalias or successfulcases.
-Active387: cursor_snapshot_371(Sol6.1/high) owns new387-startup-diagnostic andnew
-supplementalindexfile only:93B0059fbc0 varargscallback using canonicalformatter/
-vsprintf/sharedstate.356B0059fc20 terminal stays external; opaque253rdbyte and
-thread/debugger/exit behavior need separatefulltrace. No sharedstartupsourceedit.
-Root owns integration/registry/docs and later actualfunctionpointerbinding+fresh
-startupdispatch proof. RawfileVAtokens require genuinecallertransport, no automap.
+388 checks: sharedbuild-v2-game-batch.py with388/build-config.json configure/build001;
+audit-v2-native-game-batch.py with388/acceptance.json. Native386/001+387/001+389/001.
+Originalcallbacknavigation new supplemental/startup-diagnostic-387.jsonl,93B/RET.
+Canonical COFF consumerDIR32 matches actual387varargsprovider.386 wraps existing
+partialpool unchanged; no originalVA/state count added, no partialstatuspromotion.
+RawerrorfileVAtokens/network0048fc80/terminal0059fc20/fullpartialfailure/reinit/
+teardown/OS/renderer composition and nonfiniteFP/concurrency remain HOLD.
 
-384 check: sharedbuild-v2-game-batch.py with384/build-config.json configure/build002;
-audit-v2-native-game-batch.py with384/acceptance.json. Native382/001+383/001 reuse.
-Game linkswinmm.lib/user32.lib; SDK/importCOFF/nativePE evidencepinned. Actual
-221scalar+357quad reused, no guessedgeometry/platform replacement or newrunner.
+Historical305/307 were accepted/compiled but absentfromregistry; records repaired,
+0newrecoverycount. Reusecheck388 verifies94/59 oldpins, alltoolhashes andcallee
+identities; onlyglobalregistry hash changed. Exact historicalregistry Gitblobs
+verified, oldnative96cases NOT repeated, legacy whole-registry audit NOT relabelled
+currentPASS. Allothercode/proofinputhashes match. See historical-proof-reuse.json.
 
-379 accepted/pushed27b0a6c: fivepixel-pathVAs639B,1067246 comparisons/21mutations,
-519-input audit;206TUs/198names205refs.377constructor/heap772B,25288comparisons/
-13mutations likewise frozen. Default6.1Sol; Astra only after2failedattempts on a
-specific ambiguoushypothesis. Prioritize realstartupchain; originals read-only.
+384 accepted7b8eece: clipping656B+3inputbindings,63720cases/14mutations,524pins,
+209TUs/194names201refs.37927b0a6c and377edd96ad likewiseaccepted/pushed.385 evidence
+finds no safealiases among4registryhits. Default6.1Sol; Astra only after2same
+hypothesis failures. Sharedtools/reusedproof, compacthandoffs, immutable originals.
 
 Repo skill .agents/skills/porsche-recovery/SKILL.md validated/pushed4e9f2b4.
 Project-local rules allow five named shared scripts; no blanket Python/shell rule.

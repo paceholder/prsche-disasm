@@ -4,12 +4,13 @@
 #include <cstring>
 
 namespace porsche {
+void __cdecl startup_diagnostic_callback_0059fbc0(const char*,...);
 void* startup_network_00628c70=nullptr;
 
 // 004a5410..004a54ac: ordered startup dispatch. Callee implementations are
 // intentionally outside this bounded consumer.
 void __cdecl startup_services_004a5410(){
-    diagnostic_handler_005debf0=reinterpret_cast<void(__cdecl*)(const char*)>(0x59fbc0);
+    diagnostic_handler_005debf0=reinterpret_cast<void(__cdecl*)(const char*)>(&startup_diagnostic_callback_0059fbc0);
     startup_heap_0059e9d0(0x1800000,0x400000,0x100,0x100);
     startup_queue_0059edb0(400,0);
     startup_capacity_00565030(0x80);

@@ -1,0 +1,114 @@
+{
+  "tool": "F:/claude/porsche disasm/local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+  "tool_sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5",
+  "objects": [
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/od-0.obj",
+      "sha256": "d1e8e08fb3d27440a788fa8beff03441a2ea2db269d156f417d9b53486514f0e",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/od-0-symbols.txt",
+      "symbols_sha256": "f0c8a2fc610a27b12eda53d670f889ddb0c01e428d59064f970fbd8bc879800b",
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?startup_diagnostic_context_005e50b8@porsche@@3QBDB (char const * const porsche::startup_diagnostic_context_005e50b8)",
+        "00C 00000000 SECT4  notype ()    External     | ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))",
+        "00D 00000000 UNDEF  notype ()    External     | ?startup_diagnostic_sink_0059fc20@porsche@@YAXPBD@Z (void __cdecl porsche::startup_diagnostic_sink_0059fc20(char const *))",
+        "00E 00000000 UNDEF  notype ()    External     | ?application_diagnostic_mono_vsprintf_005a299e@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::application_diagnostic_mono_vsprintf_005a299e(char *,char const *,unsigned int const *))",
+        "00F 00000000 UNDEF  notype ()    External     | ?formatter_entry_005a0fbf@porsche@@YAHPADPBDZZ (int __cdecl porsche::formatter_entry_005a0fbf(char *,char const *,...))",
+        "010 00000000 UNDEF  notype ()    External     | ?diagnostic_file_005deb74@porsche@@YAPBDXZ (char const * __cdecl porsche::diagnostic_file_005deb74(void))",
+        "011 00000000 UNDEF  notype       External     | ?diagnostic_line_005deb78@porsche@@3AAIA (unsigned int & porsche::diagnostic_line_005deb78)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/od-1.obj",
+      "sha256": "e047b4a393835d647110a11631f58fec30dd35f8cdf73abe1ebfcd194f4f9c2b",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/od-1-symbols.txt",
+      "symbols_sha256": "c6f65875e469d23d41f324e45a0e8224c5a4279b3fbc5f5830f5bf4b92b6479b",
+      "relevant_symbols": [
+        "030 00000000 SECTA  notype ()    External     | ?application_diagnostic_mono_vsprintf_005a299e@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::application_diagnostic_mono_vsprintf_005a299e(char *,char const *,unsigned int const *))",
+        "031 00000000 UNDEF  notype ()    External     | ?formatter_entry_raw_005a0fbf@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::formatter_entry_raw_005a0fbf(char *,char const *,unsigned int const *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/od-2.obj",
+      "sha256": "b31adf24b5caf259d1c45883b85e3d405a182efe3456eafef3ff7f449641e27b",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/od-2-symbols.txt",
+      "symbols_sha256": "9bb850ebd2ff4c76efa49a881e6558c23660349556f73b67818b709198191427",
+      "relevant_symbols": [
+        "00D 00000000 SECT3  notype ()    External     | ?formatter_entry_005a0fbf@porsche@@YAHPADPBDZZ (int __cdecl porsche::formatter_entry_005a0fbf(char *,char const *,...))",
+        "00E 00000000 SECT4  notype ()    External     | ?formatter_entry_raw_005a0fbf@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::formatter_entry_raw_005a0fbf(char *,char const *,unsigned int const *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/od-3.obj",
+      "sha256": "83b45e506204b459e48d0da53ac49f49282ba8673b37fbaf76fe9c14c01dc7fb",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/od-3-symbols.txt",
+      "symbols_sha256": "e3cdd1498522e867a570b12969c473bc9b873aaf224677f652bdcd8e97cc4e26",
+      "relevant_symbols": [
+        "00E 00000004 SECT3  notype       External     | ?shared_runtime_word_005deb74@porsche@@3IA (unsigned int porsche::shared_runtime_word_005deb74)",
+        "00F 00000008 SECT4  notype       External     | ?application_diagnostic_source_005deb74@porsche@@3AAIA (unsigned int & porsche::application_diagnostic_source_005deb74)",
+        "010 0000000C SECT4  notype       External     | ?render_error_file_005deb74@porsche@@3AAIA (unsigned int & porsche::render_error_file_005deb74)",
+        "011 00000010 SECT4  notype       External     | ?class_error_file_005deb74@porsche@@3AAIA (unsigned int & porsche::class_error_file_005deb74)",
+        "012 00000008 SECT3  notype       External     | ?shared_runtime_word_005deb78@porsche@@3IA (unsigned int porsche::shared_runtime_word_005deb78)",
+        "013 00000014 SECT4  notype       External     | ?application_diagnostic_line_005deb78@porsche@@3AAIA (unsigned int & porsche::application_diagnostic_line_005deb78)",
+        "014 00000018 SECT4  notype       External     | ?diagnostic_line_005deb78@porsche@@3AAIA (unsigned int & porsche::diagnostic_line_005deb78)",
+        "015 0000001C SECT4  notype       External     | ?render_error_line_005deb78@porsche@@3AAIA (unsigned int & porsche::render_error_line_005deb78)",
+        "016 00000020 SECT4  notype       External     | ?class_error_line_005deb78@porsche@@3AAIA (unsigned int & porsche::class_error_line_005deb78)",
+        "01B 00000000 SECT5  notype ()    External     | ?diagnostic_file_005deb74@porsche@@YAPBDXZ (char const * __cdecl porsche::diagnostic_file_005deb74(void))",
+        "01C 00000000 SECT6  notype ()    External     | ?diagnostic_file_005deb74_set@porsche@@YAXPBD@Z (void __cdecl porsche::diagnostic_file_005deb74_set(char const *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/o2-0.obj",
+      "sha256": "afe9904f5fc2d9367bc1d54ba71ab6522bcc5b677562b2cfe89523d143b869cb",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/o2-0-symbols.txt",
+      "symbols_sha256": "6fb5300b5e81370f174e7a98f6991c08d93c24f4dfd6c4d799cdcad10a5fa219",
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?startup_diagnostic_context_005e50b8@porsche@@3QBDB (char const * const porsche::startup_diagnostic_context_005e50b8)",
+        "00E 00000000 SECT4  notype ()    External     | ?startup_diagnostic_callback_0059fbc0@porsche@@YAXPBDZZ (void __cdecl porsche::startup_diagnostic_callback_0059fbc0(char const *,...))",
+        "00F 00000000 UNDEF  notype ()    External     | ?startup_diagnostic_sink_0059fc20@porsche@@YAXPBD@Z (void __cdecl porsche::startup_diagnostic_sink_0059fc20(char const *))",
+        "010 00000000 UNDEF  notype ()    External     | ?application_diagnostic_mono_vsprintf_005a299e@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::application_diagnostic_mono_vsprintf_005a299e(char *,char const *,unsigned int const *))",
+        "011 00000000 UNDEF  notype ()    External     | ?formatter_entry_005a0fbf@porsche@@YAHPADPBDZZ (int __cdecl porsche::formatter_entry_005a0fbf(char *,char const *,...))",
+        "012 00000000 UNDEF  notype ()    External     | ?diagnostic_file_005deb74@porsche@@YAPBDXZ (char const * __cdecl porsche::diagnostic_file_005deb74(void))",
+        "014 00000000 UNDEF  notype       External     | ?diagnostic_line_005deb78@porsche@@3AAIA (unsigned int & porsche::diagnostic_line_005deb78)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/o2-1.obj",
+      "sha256": "61cccc1f70ac0907848a2538e80a29c3da9745d41dac5e9aa23dcafc5e5545c8",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/o2-1-symbols.txt",
+      "symbols_sha256": "5ded4d7d5df45806b66f666d863bb380f2cfb8a8171561a767c832751453c768",
+      "relevant_symbols": [
+        "04C 00000000 SECTF  notype ()    External     | ?application_diagnostic_mono_vsprintf_005a299e@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::application_diagnostic_mono_vsprintf_005a299e(char *,char const *,unsigned int const *))",
+        "04D 00000000 UNDEF  notype ()    External     | ?formatter_entry_raw_005a0fbf@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::formatter_entry_raw_005a0fbf(char *,char const *,unsigned int const *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/o2-2.obj",
+      "sha256": "907302f26f4a156d8e7061402afa25fd2a1cacf82e8887c3cbb5abdc41b24f08",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/o2-2-symbols.txt",
+      "symbols_sha256": "4bde372c8226c27c1aff757c4a9391befe5132654e318b1f506998b79e39339d",
+      "relevant_symbols": [
+        "011 00000000 SECT3  notype ()    External     | ?formatter_entry_005a0fbf@porsche@@YAHPADPBDZZ (int __cdecl porsche::formatter_entry_005a0fbf(char *,char const *,...))",
+        "012 00000000 SECT5  notype ()    External     | ?formatter_entry_raw_005a0fbf@porsche@@YAHPADPBDPBI@Z (int __cdecl porsche::formatter_entry_raw_005a0fbf(char *,char const *,unsigned int const *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-startup-diagnostic-native-387/001/o2-3.obj",
+      "sha256": "f6def75eb857899a1e074ae3a20fe81ff738e7db28fff99786cdb65650bf6e76",
+      "symbols": "local/experiments/v2-startup-diagnostic-native-387/coff-001/o2-3-symbols.txt",
+      "symbols_sha256": "eef607791680ce43d513d250264af305a7eec330a75eb93597311e3d116bc8ef",
+      "relevant_symbols": [
+        "00E 00000004 SECT3  notype       External     | ?shared_runtime_word_005deb74@porsche@@3IA (unsigned int porsche::shared_runtime_word_005deb74)",
+        "00F 00000008 SECT4  notype       External     | ?application_diagnostic_source_005deb74@porsche@@3AAIA (unsigned int & porsche::application_diagnostic_source_005deb74)",
+        "010 0000000C SECT4  notype       External     | ?render_error_file_005deb74@porsche@@3AAIA (unsigned int & porsche::render_error_file_005deb74)",
+        "011 00000010 SECT4  notype       External     | ?class_error_file_005deb74@porsche@@3AAIA (unsigned int & porsche::class_error_file_005deb74)",
+        "012 00000008 SECT3  notype       External     | ?shared_runtime_word_005deb78@porsche@@3IA (unsigned int porsche::shared_runtime_word_005deb78)",
+        "013 00000014 SECT4  notype       External     | ?application_diagnostic_line_005deb78@porsche@@3AAIA (unsigned int & porsche::application_diagnostic_line_005deb78)",
+        "014 00000018 SECT4  notype       External     | ?diagnostic_line_005deb78@porsche@@3AAIA (unsigned int & porsche::diagnostic_line_005deb78)",
+        "015 0000001C SECT4  notype       External     | ?render_error_line_005deb78@porsche@@3AAIA (unsigned int & porsche::render_error_line_005deb78)",
+        "016 00000020 SECT4  notype       External     | ?class_error_line_005deb78@porsche@@3AAIA (unsigned int & porsche::class_error_line_005deb78)",
+        "01F 00000000 SECT5  notype ()    External     | ?diagnostic_file_005deb74@porsche@@YAPBDXZ (char const * __cdecl porsche::diagnostic_file_005deb74(void))",
+        "020 00000000 SECT7  notype ()    External     | ?diagnostic_file_005deb74_set@porsche@@YAXPBD@Z (void __cdecl porsche::diagnostic_file_005deb74_set(char const *))"
+      ]
+    }
+  ]
+}

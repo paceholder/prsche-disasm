@@ -1993,9 +1993,7 @@
       "status": "native-differential-verified",
       "calling_convention": "x86 typed C++ adapter; original ECX/stack ABI documented in source",
       "unrecovered_dependencies": [
-        "0048fc80",
-        "00536e50",
-        "00563ad0"
+        "0048fc80"
       ],
       "recovered_dependencies": [
         "004b6ff0",
@@ -2007,13 +2005,17 @@
         "00565030",
         "0059e9d0",
         "0059edb0",
-        "0059ef90"
+        "0059ef90",
+        "00536e50",
+        "00563ad0",
+        "0059fbc0"
       ],
       "binary_matched": false,
-      "verification": "scripts/research/verify-v2-startup-services.py",
-      "verification_report": "iterations/v2/001-original-recovery/runs/078-shared-runtime-integration/startup-services/verification.json",
-      "verification_boundary": "All 004a5410 subsystem initializers, CRT formatter/drive predicate/name, Win32 filename/drive/process and exit are recording endpoints; no callee behavior or actual process launch is claimed.",
-      "dependency_scope": "Indexed direct calls only; indirect/platform boundaries remain as documented in run README."
+      "verification": "scripts/research/verify-v2-native-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/validation.json",
+      "verification_boundary": "389 rechecks actualfull157B consumer after replacing rawcallbackVA by canonicalhostfunctionaddress. Controlled subsystem/constructor endpoints, exact13calls/order/args/networkbranches/initialBSS and ABI. Actual387body separatelyproved; networkECXconstructor, subsystemcomposition and fullstartup remain open.",
+      "dependency_scope": "Indexed direct calls only; indirect/platform boundaries remain as documented in run README.",
+      "prior_verification_report": "iterations/v2/001-original-recovery/runs/078-shared-runtime-integration/startup-services/verification.json"
     },
     {
       "module": "Porsche.exe",
@@ -10513,6 +10515,73 @@
       "verification": "scripts/research/verify-v2-native-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/384-startup-render-integration/validation.json",
       "verification_boundary": "Full656B clipping/UV/vertex body in bounded finite masked/defaultnearest FP domain. Small x87 primitives retain80bit live intermediates/FSTP32 stores; actual381 chain compared. Canonical357 quad transport/221scalar reused. Nonfinite/denormal/extreme/ambientFP, computedaliases/concurrency/live renderer remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0059fbc0",
+      "source": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdeclvarargs; format then rawDWORD arguments; EAXunused",
+      "recovered_dependencies": [
+        "005a299e",
+        "005a0fbf"
+      ],
+      "unrecovered_dependencies": [
+        "0059fc20"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/verify-v2-native-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/validation.json",
+      "verification_boundary": "Full93B callback; actualaccepted formatter entry/vsprintf/shared aliases, post-formatter file/line rereads and exactcontextappend. Boundedvalid formatter outputs within1024B buffer; rawfileVAtokens are not auto mapped. Terminal behavior and full startup remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "005678f0",
+      "source": "iterations/v2/001-original-recovery/runs/305-file-pool-shutdown/005678f0.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0args; EAXunused",
+      "recovered_dependencies": [
+        "005322d0",
+        "0055f740",
+        "0055fb30",
+        "0055fc10",
+        "0055fc80",
+        "0056e640",
+        "005806c0",
+        "00580790",
+        "00592290"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-pool-shutdown-305.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/305-file-pool-shutdown/audit.json",
+      "reuse_verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/historical-proof-reuse.json",
+      "registration_note": "Historical accepted provider already in game; registry gap repaired388. No new body/state/recovery count.",
+      "verification_boundary": "Historical48case finite native comparison with controlled accepted callees, exactstate/callback/ABI behavior. All code/tool inputs unchanged; historicalregistry blob/currentcanonical identities verified388. Real worker/teardown composition, malformed memory and unbounded races unaccepted."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "005918c0",
+      "source": "iterations/v2/001-original-recovery/runs/307-disk-slot-shutdown/005918c0.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0args; EAXunused",
+      "recovered_dependencies": [
+        "005322b0",
+        "005322c0",
+        "005322d0",
+        "0056e640",
+        "00592290"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-disk-shutdown-307.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/307-disk-slot-shutdown/audit.json",
+      "reuse_verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/historical-proof-reuse.json",
+      "registration_note": "Historical accepted provider already in game; registry gap repaired388. No new body/state/recovery count.",
+      "verification_boundary": "Historical48case finite native comparison with controlled accepted callees, exactstate/callback/ABI behavior. All code/tool inputs unchanged; historicalregistry blob/currentcanonical identities verified388. Real worker/teardown composition, malformed memory and unbounded races unaccepted."
     }
   ]
 }

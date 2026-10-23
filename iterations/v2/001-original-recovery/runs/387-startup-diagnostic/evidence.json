@@ -1,0 +1,3117 @@
+{
+  "kind": "bounded-original-cdecl-varargs-callback",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [
+    "0059fbc0"
+  ],
+  "new_body_bytes": 93,
+  "new_mutable_state": [],
+  "readonly_literal": {
+    "va": "005e50b8",
+    "bytes": 20,
+    "raw_hex": "205b46494c453d25732c204c494e453d25645d00",
+    "sha256": "0d198cbc4b9d0d224b41859144fdc877bda610ecd97aca0abb99beebce5ba4ee",
+    "host_owner": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp"
+  },
+  "supplement": {
+    "path": "research/binary-index/supplemental/startup-diagnostic-387.jsonl",
+    "sha256": "8a5326d0c942c8036a0c0470bf6564c316053fff0a188376635a895436df4548"
+  },
+  "registry": {
+    "path": "iterations/v2/001-original-recovery/source/recovered/functions.json",
+    "sha256": "ebee57450d29c165c54397aea659298ccd782874e6bb6a7574947236d6a06a7c"
+  },
+  "registry_overlap_hits": [],
+  "index_queries": [
+    "0059fbc0",
+    "0059fc20",
+    "005deb74",
+    "005deb78",
+    "005e50b8",
+    "004a5424"
+  ],
+  "indexed_references": [
+    {
+      "from_va": "0044919f",
+      "to_va": "005deb74",
+      "from_function": "00448f80",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "004491a9",
+      "to_va": "005deb78",
+      "from_function": "00448f80",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00449748",
+      "to_va": "005deb74",
+      "from_function": "00449390",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00449752",
+      "to_va": "005deb78",
+      "from_function": "00449390",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00449954",
+      "to_va": "005deb74",
+      "from_function": "00449910",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0044995e",
+      "to_va": "005deb78",
+      "from_function": "00449910",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00449a24",
+      "to_va": "005deb74",
+      "from_function": "004499e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00449a2e",
+      "to_va": "005deb78",
+      "from_function": "004499e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0044f6ff",
+      "to_va": "005deb74",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0044f705",
+      "to_va": "005deb78",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0044f728",
+      "to_va": "005deb74",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0044f72e",
+      "to_va": "005deb78",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0044f751",
+      "to_va": "005deb74",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0044f757",
+      "to_va": "005deb78",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0044f77a",
+      "to_va": "005deb74",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0044f780",
+      "to_va": "005deb78",
+      "from_function": "0044f6e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "004a5424",
+      "to_va": "0059fbc0",
+      "from_function": "004a5410",
+      "type": "DATA",
+      "source": "ANALYSIS",
+      "target_symbol": "LAB_0059fbc0"
+    },
+    {
+      "from_va": "004dba91",
+      "to_va": "005deb74",
+      "from_function": "004dba70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "004dba9c",
+      "to_va": "005deb78",
+      "from_function": "004dba70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "004dc194",
+      "to_va": "005deb74",
+      "from_function": "004dc180",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "004dc19e",
+      "to_va": "005deb78",
+      "from_function": "004dc180",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "004dc92a",
+      "to_va": "005deb74",
+      "from_function": "004dc850",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "004dc934",
+      "to_va": "005deb78",
+      "from_function": "004dc850",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00528729",
+      "to_va": "005deb74",
+      "from_function": "005284a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00528733",
+      "to_va": "005deb78",
+      "from_function": "005284a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00532c14",
+      "to_va": "005deb74",
+      "from_function": "00532b80",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00532c1e",
+      "to_va": "005deb78",
+      "from_function": "00532b80",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00532eb3",
+      "to_va": "005deb74",
+      "from_function": "00532e10",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00532ebd",
+      "to_va": "005deb78",
+      "from_function": "00532e10",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00532f12",
+      "to_va": "005deb74",
+      "from_function": "00532e10",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00532f1c",
+      "to_va": "005deb78",
+      "from_function": "00532e10",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00534809",
+      "to_va": "005deb74",
+      "from_function": "005346d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00534813",
+      "to_va": "005deb78",
+      "from_function": "005346d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00534984",
+      "to_va": "005deb74",
+      "from_function": "00534830",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053498e",
+      "to_va": "005deb78",
+      "from_function": "00534830",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00534b40",
+      "to_va": "005deb74",
+      "from_function": "005349e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00534b4a",
+      "to_va": "005deb78",
+      "from_function": "005349e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00534dd9",
+      "to_va": "005deb74",
+      "from_function": "00534d40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00534de9",
+      "to_va": "005deb78",
+      "from_function": "00534d40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00535038",
+      "to_va": "005deb74",
+      "from_function": "00534d40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053504c",
+      "to_va": "005deb78",
+      "from_function": "00534d40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005351c1",
+      "to_va": "005deb74",
+      "from_function": "005350e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005351cb",
+      "to_va": "005deb78",
+      "from_function": "005350e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005357a5",
+      "to_va": "005deb74",
+      "from_function": "00535700",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005357af",
+      "to_va": "005deb78",
+      "from_function": "00535700",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00535830",
+      "to_va": "005deb74",
+      "from_function": "00535700",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053583b",
+      "to_va": "005deb78",
+      "from_function": "00535700",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00535921",
+      "to_va": "005deb74",
+      "from_function": "00535700",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053592b",
+      "to_va": "005deb78",
+      "from_function": "00535700",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053666c",
+      "to_va": "005deb74",
+      "from_function": "005365e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00536676",
+      "to_va": "005deb78",
+      "from_function": "005365e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00537164",
+      "to_va": "005deb74",
+      "from_function": "005370c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053716e",
+      "to_va": "005deb78",
+      "from_function": "005370c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053725d",
+      "to_va": "005deb74",
+      "from_function": "005370c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00537267",
+      "to_va": "005deb78",
+      "from_function": "005370c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00537566",
+      "to_va": "005deb74",
+      "from_function": "005372a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00537570",
+      "to_va": "005deb78",
+      "from_function": "005372a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005375b4",
+      "to_va": "005deb74",
+      "from_function": "005372a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005375be",
+      "to_va": "005deb78",
+      "from_function": "005372a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00537fc8",
+      "to_va": "005deb74",
+      "from_function": "00537fb0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00537fd7",
+      "to_va": "005deb78",
+      "from_function": "00537fb0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053aceb",
+      "to_va": "005deb74",
+      "from_function": "0053ac20",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053acf5",
+      "to_va": "005deb78",
+      "from_function": "0053ac20",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053c0ba",
+      "to_va": "005deb74",
+      "from_function": "0053c060",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053c0c4",
+      "to_va": "005deb78",
+      "from_function": "0053c060",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053ceea",
+      "to_va": "005deb74",
+      "from_function": "0053ced0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053cef0",
+      "to_va": "005deb78",
+      "from_function": "0053ced0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053cf1d",
+      "to_va": "005deb74",
+      "from_function": "0053ced0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053cf23",
+      "to_va": "005deb78",
+      "from_function": "0053ced0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053e4d2",
+      "to_va": "005deb74",
+      "from_function": "0053e4c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053e4dc",
+      "to_va": "005deb78",
+      "from_function": "0053e4c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053e54e",
+      "to_va": "005deb74",
+      "from_function": "0053e540",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053e558",
+      "to_va": "005deb78",
+      "from_function": "0053e540",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053e822",
+      "to_va": "005deb74",
+      "from_function": "0053e5c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053e82c",
+      "to_va": "005deb78",
+      "from_function": "0053e5c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053e952",
+      "to_va": "005deb74",
+      "from_function": "0053e890",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053e95c",
+      "to_va": "005deb78",
+      "from_function": "0053e890",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053eb4a",
+      "to_va": "005deb74",
+      "from_function": "0053e9c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053eb54",
+      "to_va": "005deb78",
+      "from_function": "0053e9c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0053ec79",
+      "to_va": "005deb74",
+      "from_function": "0053ebd0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0053ec83",
+      "to_va": "005deb78",
+      "from_function": "0053ebd0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00554d3a",
+      "to_va": "005deb74",
+      "from_function": "00554cc0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00554d44",
+      "to_va": "005deb78",
+      "from_function": "00554cc0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00554f6f",
+      "to_va": "005deb74",
+      "from_function": "00554f60",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00554f7f",
+      "to_va": "005deb78",
+      "from_function": "00554f60",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0055524f",
+      "to_va": "005deb74",
+      "from_function": "005550e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00555259",
+      "to_va": "005deb78",
+      "from_function": "005550e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0055de8b",
+      "to_va": "005deb74",
+      "from_function": "0055de70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0055de95",
+      "to_va": "005deb78",
+      "from_function": "0055de70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0055e491",
+      "to_va": "005deb74",
+      "from_function": "0055e470",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0055e49b",
+      "to_va": "005deb78",
+      "from_function": "0055e470",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0055fe6a",
+      "to_va": "005deb74",
+      "from_function": "0055fe50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0055fe74",
+      "to_va": "005deb78",
+      "from_function": "0055fe50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0055fec9",
+      "to_va": "005deb74",
+      "from_function": "0055feb0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0055fed3",
+      "to_va": "005deb78",
+      "from_function": "0055feb0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00561c33",
+      "to_va": "005deb74",
+      "from_function": "00561be0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00561c3d",
+      "to_va": "005deb78",
+      "from_function": "00561be0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00561d89",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00561d99",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00561dcf",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00561dd9",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00561ef6",
+      "to_va": "005deb74",
+      "from_function": "00561e90",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00561f00",
+      "to_va": "005deb78",
+      "from_function": "00561e90",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056217c",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00562186",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056223b",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056224b",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00562289",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00562293",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005622cc",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005622d6",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005623f7",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00562407",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056242e",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00562438",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056333c",
+      "to_va": "005deb74",
+      "from_function": "00563320",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00563348",
+      "to_va": "005deb78",
+      "from_function": "00563320",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056338b",
+      "to_va": "005deb74",
+      "from_function": "00563320",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00563391",
+      "to_va": "005deb78",
+      "from_function": "00563320",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00563ae2",
+      "to_va": "005deb74",
+      "from_function": "00563ad0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00563aec",
+      "to_va": "005deb78",
+      "from_function": "00563ad0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00563b13",
+      "to_va": "005deb74",
+      "from_function": "00563ad0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00563b1d",
+      "to_va": "005deb78",
+      "from_function": "00563ad0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00565073",
+      "to_va": "005deb74",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00565079",
+      "to_va": "005deb78",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005650c8",
+      "to_va": "005deb74",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005650ce",
+      "to_va": "005deb78",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00565114",
+      "to_va": "005deb74",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056511a",
+      "to_va": "005deb78",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00565146",
+      "to_va": "005deb74",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056514c",
+      "to_va": "005deb78",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056518b",
+      "to_va": "005deb74",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00565191",
+      "to_va": "005deb78",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00565249",
+      "to_va": "005deb74",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00565253",
+      "to_va": "005deb78",
+      "from_function": "00565030",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005653be",
+      "to_va": "005deb74",
+      "from_function": "00565340",
+      "type": "READ",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005653c7",
+      "to_va": "005deb78",
+      "from_function": "00565340",
+      "type": "READ",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00566725",
+      "to_va": "005deb74",
+      "from_function": "005666f0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00566737",
+      "to_va": "005deb78",
+      "from_function": "005666f0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00566756",
+      "to_va": "005deb78",
+      "from_function": "005666f0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00567e32",
+      "to_va": "005deb74",
+      "from_function": "00567df0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00567e3c",
+      "to_va": "005deb78",
+      "from_function": "00567df0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005680ee",
+      "to_va": "005deb74",
+      "from_function": "005680c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005680f8",
+      "to_va": "005deb78",
+      "from_function": "005680c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568173",
+      "to_va": "005deb74",
+      "from_function": "005680c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056817d",
+      "to_va": "005deb78",
+      "from_function": "005680c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568226",
+      "to_va": "005deb74",
+      "from_function": "00568200",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00568230",
+      "to_va": "005deb78",
+      "from_function": "00568200",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005682d6",
+      "to_va": "005deb74",
+      "from_function": "005682a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005682e0",
+      "to_va": "005deb78",
+      "from_function": "005682a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568483",
+      "to_va": "005deb74",
+      "from_function": "00568390",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056848d",
+      "to_va": "005deb78",
+      "from_function": "00568390",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568818",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00568828",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568d61",
+      "to_va": "005deb74",
+      "from_function": "00568d50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00568d6b",
+      "to_va": "005deb78",
+      "from_function": "00568d50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568df3",
+      "to_va": "005deb74",
+      "from_function": "00568d50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00568dfd",
+      "to_va": "005deb78",
+      "from_function": "00568d50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00568e26",
+      "to_va": "005deb74",
+      "from_function": "00568d50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00568e30",
+      "to_va": "005deb78",
+      "from_function": "00568d50",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056a0a3",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056a0ad",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056a6ff",
+      "to_va": "005deb74",
+      "from_function": "0056a6d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056a709",
+      "to_va": "005deb78",
+      "from_function": "0056a6d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b01d",
+      "to_va": "005deb74",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b027",
+      "to_va": "005deb78",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b04a",
+      "to_va": "005deb74",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b054",
+      "to_va": "005deb78",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b07b",
+      "to_va": "005deb74",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b085",
+      "to_va": "005deb78",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b1d8",
+      "to_va": "005deb74",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b1e2",
+      "to_va": "005deb78",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b201",
+      "to_va": "005deb74",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b20b",
+      "to_va": "005deb78",
+      "from_function": "0056aff0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b254",
+      "to_va": "005deb74",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b25e",
+      "to_va": "005deb78",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b2a7",
+      "to_va": "005deb74",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b2b1",
+      "to_va": "005deb78",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b2e6",
+      "to_va": "005deb74",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b2f0",
+      "to_va": "005deb78",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b314",
+      "to_va": "005deb74",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b31e",
+      "to_va": "005deb78",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b352",
+      "to_va": "005deb74",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b35c",
+      "to_va": "005deb78",
+      "from_function": "0056b230",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b3d2",
+      "to_va": "005deb74",
+      "from_function": "0056b3b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b3dc",
+      "to_va": "005deb78",
+      "from_function": "0056b3b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b4e2",
+      "to_va": "005deb74",
+      "from_function": "0056b4c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b4ec",
+      "to_va": "005deb78",
+      "from_function": "0056b4c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b561",
+      "to_va": "005deb74",
+      "from_function": "0056b540",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b56b",
+      "to_va": "005deb78",
+      "from_function": "0056b540",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b5d1",
+      "to_va": "005deb74",
+      "from_function": "0056b5b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b5db",
+      "to_va": "005deb78",
+      "from_function": "0056b5b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b615",
+      "to_va": "005deb74",
+      "from_function": "0056b5b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b61f",
+      "to_va": "005deb78",
+      "from_function": "0056b5b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b6b2",
+      "to_va": "005deb74",
+      "from_function": "0056b690",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b6bc",
+      "to_va": "005deb78",
+      "from_function": "0056b690",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b977",
+      "to_va": "005deb74",
+      "from_function": "0056b860",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b981",
+      "to_va": "005deb78",
+      "from_function": "0056b860",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056b9c9",
+      "to_va": "005deb74",
+      "from_function": "0056b860",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056b9d3",
+      "to_va": "005deb78",
+      "from_function": "0056b860",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056ba41",
+      "to_va": "005deb74",
+      "from_function": "0056ba20",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056ba51",
+      "to_va": "005deb78",
+      "from_function": "0056ba20",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056bab4",
+      "to_va": "005deb74",
+      "from_function": "0056ba80",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056babe",
+      "to_va": "005deb78",
+      "from_function": "0056ba80",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056bca8",
+      "to_va": "005deb74",
+      "from_function": "0056baf0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056bcb2",
+      "to_va": "005deb78",
+      "from_function": "0056baf0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056be97",
+      "to_va": "005deb74",
+      "from_function": "0056be40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056bea1",
+      "to_va": "005deb78",
+      "from_function": "0056be40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056bfc3",
+      "to_va": "005deb74",
+      "from_function": "0056be40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056bfcd",
+      "to_va": "005deb78",
+      "from_function": "0056be40",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c062",
+      "to_va": "005deb74",
+      "from_function": "0056c040",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c06c",
+      "to_va": "005deb78",
+      "from_function": "0056c040",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c166",
+      "to_va": "005deb74",
+      "from_function": "0056c140",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c170",
+      "to_va": "005deb78",
+      "from_function": "0056c140",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c442",
+      "to_va": "005deb74",
+      "from_function": "0056c420",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c44c",
+      "to_va": "005deb78",
+      "from_function": "0056c420",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c561",
+      "to_va": "005deb74",
+      "from_function": "0056c540",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c56b",
+      "to_va": "005deb78",
+      "from_function": "0056c540",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c641",
+      "to_va": "005deb74",
+      "from_function": "0056c620",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c64b",
+      "to_va": "005deb78",
+      "from_function": "0056c620",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c689",
+      "to_va": "005deb74",
+      "from_function": "0056c620",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c693",
+      "to_va": "005deb78",
+      "from_function": "0056c620",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c720",
+      "to_va": "005deb74",
+      "from_function": "0056c620",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c72a",
+      "to_va": "005deb78",
+      "from_function": "0056c620",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c761",
+      "to_va": "005deb74",
+      "from_function": "0056c740",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c76b",
+      "to_va": "005deb78",
+      "from_function": "0056c740",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c7b1",
+      "to_va": "005deb74",
+      "from_function": "0056c790",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c7bb",
+      "to_va": "005deb78",
+      "from_function": "0056c790",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c801",
+      "to_va": "005deb74",
+      "from_function": "0056c7e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c80b",
+      "to_va": "005deb78",
+      "from_function": "0056c7e0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c861",
+      "to_va": "005deb74",
+      "from_function": "0056c840",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c86b",
+      "to_va": "005deb78",
+      "from_function": "0056c840",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056c8b1",
+      "to_va": "005deb74",
+      "from_function": "0056c890",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056c8bb",
+      "to_va": "005deb78",
+      "from_function": "0056c890",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0056e4c0",
+      "to_va": "005deb74",
+      "from_function": "0056e4a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0056e4ca",
+      "to_va": "005deb78",
+      "from_function": "0056e4a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00571651",
+      "to_va": "005deb74",
+      "from_function": "00571630",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00571660",
+      "to_va": "005deb78",
+      "from_function": "00571630",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00571bf0",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00571bfa",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0057230e",
+      "to_va": "005deb74",
+      "from_function": "005722c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00572318",
+      "to_va": "005deb78",
+      "from_function": "005722c0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00574d08",
+      "to_va": "005deb74",
+      "from_function": "00574c70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00574d12",
+      "to_va": "005deb78",
+      "from_function": "00574c70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00574d8c",
+      "to_va": "005deb74",
+      "from_function": "00574c70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00574d97",
+      "to_va": "005deb78",
+      "from_function": "00574c70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00574e1a",
+      "to_va": "005deb74",
+      "from_function": "00574c70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00574e24",
+      "to_va": "005deb78",
+      "from_function": "00574c70",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00574fba",
+      "to_va": "005deb74",
+      "from_function": "00574fa0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00574fc4",
+      "to_va": "005deb78",
+      "from_function": "00574fa0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005754f0",
+      "to_va": "005deb74",
+      "from_function": "00574fa0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005754fa",
+      "to_va": "005deb78",
+      "from_function": "00574fa0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00575584",
+      "to_va": "005deb74",
+      "from_function": "00574fa0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0057558f",
+      "to_va": "005deb78",
+      "from_function": "00574fa0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00581484",
+      "to_va": "005deb74",
+      "from_function": "00581460",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0058148e",
+      "to_va": "005deb78",
+      "from_function": "00581460",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005859b1",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005859bb",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0058662a",
+      "to_va": "005deb74",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00586634",
+      "to_va": "005deb78",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0058886d",
+      "to_va": "005deb74",
+      "from_function": "00588800",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00588877",
+      "to_va": "005deb78",
+      "from_function": "00588800",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "00595427",
+      "to_va": "005deb74",
+      "from_function": "005951a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00595431",
+      "to_va": "005deb78",
+      "from_function": "005951a0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0059570d",
+      "to_va": "005deb74",
+      "from_function": "005956b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "00595717",
+      "to_va": "005deb78",
+      "from_function": "005956b0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0059ea89",
+      "to_va": "005deb74",
+      "from_function": "0059e9d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0059ea95",
+      "to_va": "005deb78",
+      "from_function": "0059e9d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0059fbde",
+      "to_va": "005deb78",
+      "type": "READ",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "0059fbe3",
+      "to_va": "005deb74",
+      "type": "READ",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "0059fbf4",
+      "to_va": "005e50b8",
+      "type": "DATA",
+      "source": "ANALYSIS",
+      "target_symbol": "s_[FILE=%s,_LINE=%d]_005e50b8"
+    },
+    {
+      "from_va": "0059fc0d",
+      "to_va": "0059fc20",
+      "to_function": "0059fc20",
+      "type": "UNCONDITIONAL_CALL",
+      "source": "DEFAULT",
+      "target_symbol": "FUN_0059fc20"
+    },
+    {
+      "from_va": "0059fdb2",
+      "to_va": "0059fc20",
+      "from_function": "0059fd90",
+      "to_function": "0059fc20",
+      "type": "UNCONDITIONAL_CALL",
+      "source": "DEFAULT",
+      "target_symbol": "FUN_0059fc20"
+    },
+    {
+      "from_va": "005aee71",
+      "to_va": "005deb74",
+      "from_function": "005aed60",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005aee7b",
+      "to_va": "005deb78",
+      "from_function": "005aed60",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    },
+    {
+      "from_va": "005aeeb1",
+      "to_va": "005deb74",
+      "from_function": "005aed60",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb74"
+    },
+    {
+      "from_va": "005aeec1",
+      "to_va": "005deb78",
+      "from_function": "005aed60",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_005deb78"
+    }
+  ],
+  "raw_evidence": [
+    {
+      "va": "0059fbc0",
+      "bytes": 93,
+      "purpose": "Newcompletecallback",
+      "sha256": "8db78737b1db44d195cfd166e4140e00d7c1258408b51bfa2906b4dbba2683b7",
+      "instructions": [
+        {
+          "va": "0059fbc0",
+          "bytes": "8b4c2404",
+          "instruction": "mov ecx, dword ptr [esp + 4]"
+        },
+        {
+          "va": "0059fbc4",
+          "bytes": "81ec00040000",
+          "instruction": "sub esp, 0x400"
+        },
+        {
+          "va": "0059fbca",
+          "bytes": "8d842408040000",
+          "instruction": "lea eax, [esp + 0x408]"
+        },
+        {
+          "va": "0059fbd1",
+          "bytes": "8d542400",
+          "instruction": "lea edx, [esp]"
+        },
+        {
+          "va": "0059fbd5",
+          "bytes": "57",
+          "instruction": "push edi"
+        },
+        {
+          "va": "0059fbd6",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fbd7",
+          "bytes": "51",
+          "instruction": "push ecx"
+        },
+        {
+          "va": "0059fbd8",
+          "bytes": "52",
+          "instruction": "push edx"
+        },
+        {
+          "va": "0059fbd9",
+          "bytes": "e8c02d0000",
+          "instruction": "call 0x5a299e"
+        },
+        {
+          "va": "0059fbde",
+          "bytes": "a178eb5d00",
+          "instruction": "mov eax, dword ptr [0x5deb78]"
+        },
+        {
+          "va": "0059fbe3",
+          "bytes": "8b0d74eb5d00",
+          "instruction": "mov ecx, dword ptr [0x5deb74]"
+        },
+        {
+          "va": "0059fbe9",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fbea",
+          "bytes": "51",
+          "instruction": "push ecx"
+        },
+        {
+          "va": "0059fbeb",
+          "bytes": "8d7c2418",
+          "instruction": "lea edi, [esp + 0x18]"
+        },
+        {
+          "va": "0059fbef",
+          "bytes": "83c9ff",
+          "instruction": "or ecx, 0xffffffff"
+        },
+        {
+          "va": "0059fbf2",
+          "bytes": "33c0",
+          "instruction": "xor eax, eax"
+        },
+        {
+          "va": "0059fbf4",
+          "bytes": "68b8505e00",
+          "instruction": "push 0x5e50b8"
+        },
+        {
+          "va": "0059fbf9",
+          "bytes": "f2ae",
+          "instruction": "repne scasb al, byte ptr es:[edi]"
+        },
+        {
+          "va": "0059fbfb",
+          "bytes": "f7d1",
+          "instruction": "not ecx"
+        },
+        {
+          "va": "0059fbfd",
+          "bytes": "49",
+          "instruction": "dec ecx"
+        },
+        {
+          "va": "0059fbfe",
+          "bytes": "8d540c1c",
+          "instruction": "lea edx, [esp + ecx + 0x1c]"
+        },
+        {
+          "va": "0059fc02",
+          "bytes": "52",
+          "instruction": "push edx"
+        },
+        {
+          "va": "0059fc03",
+          "bytes": "e8b7130000",
+          "instruction": "call 0x5a0fbf"
+        },
+        {
+          "va": "0059fc08",
+          "bytes": "8d442420",
+          "instruction": "lea eax, [esp + 0x20]"
+        },
+        {
+          "va": "0059fc0c",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fc0d",
+          "bytes": "e80e000000",
+          "instruction": "call 0x59fc20"
+        },
+        {
+          "va": "0059fc12",
+          "bytes": "83c420",
+          "instruction": "add esp, 0x20"
+        },
+        {
+          "va": "0059fc15",
+          "bytes": "5f",
+          "instruction": "pop edi"
+        },
+        {
+          "va": "0059fc16",
+          "bytes": "81c400040000",
+          "instruction": "add esp, 0x400"
+        },
+        {
+          "va": "0059fc1c",
+          "bytes": "c3",
+          "instruction": "ret "
+        }
+      ]
+    },
+    {
+      "va": "0059fc20",
+      "bytes": 356,
+      "purpose": "Explicitexternalterminalbody,notimplemented",
+      "sha256": "9b250b0431cf3681a5ab0b8d07b5889e3842d600e4027ef64182eacda92f2d01",
+      "instructions": [
+        {
+          "va": "0059fc20",
+          "bytes": "a1e4fb6a00",
+          "instruction": "mov eax, dword ptr [0x6afbe4]"
+        },
+        {
+          "va": "0059fc25",
+          "bytes": "81ec00010000",
+          "instruction": "sub esp, 0x100"
+        },
+        {
+          "va": "0059fc2b",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fc2d",
+          "bytes": "53",
+          "instruction": "push ebx"
+        },
+        {
+          "va": "0059fc2e",
+          "bytes": "56",
+          "instruction": "push esi"
+        },
+        {
+          "va": "0059fc2f",
+          "bytes": "8bb4240c010000",
+          "instruction": "mov esi, dword ptr [esp + 0x10c]"
+        },
+        {
+          "va": "0059fc36",
+          "bytes": "57",
+          "instruction": "push edi"
+        },
+        {
+          "va": "0059fc37",
+          "bytes": "7408",
+          "instruction": "je 0x59fc41"
+        },
+        {
+          "va": "0059fc39",
+          "bytes": "6afe",
+          "instruction": "push -2"
+        },
+        {
+          "va": "0059fc3b",
+          "bytes": "56",
+          "instruction": "push esi"
+        },
+        {
+          "va": "0059fc3c",
+          "bytes": "ffd0",
+          "instruction": "call eax"
+        },
+        {
+          "va": "0059fc3e",
+          "bytes": "83c408",
+          "instruction": "add esp, 8"
+        },
+        {
+          "va": "0059fc41",
+          "bytes": "68fd000000",
+          "instruction": "push 0xfd"
+        },
+        {
+          "va": "0059fc46",
+          "bytes": "8d442410",
+          "instruction": "lea eax, [esp + 0x10]"
+        },
+        {
+          "va": "0059fc4a",
+          "bytes": "56",
+          "instruction": "push esi"
+        },
+        {
+          "va": "0059fc4b",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fc4c",
+          "bytes": "e84f2c0000",
+          "instruction": "call 0x5a28a0"
+        },
+        {
+          "va": "0059fc51",
+          "bytes": "bf1c0b5d00",
+          "instruction": "mov edi, 0x5d0b1c"
+        },
+        {
+          "va": "0059fc56",
+          "bytes": "83c9ff",
+          "instruction": "or ecx, 0xffffffff"
+        },
+        {
+          "va": "0059fc59",
+          "bytes": "33c0",
+          "instruction": "xor eax, eax"
+        },
+        {
+          "va": "0059fc5b",
+          "bytes": "83c40c",
+          "instruction": "add esp, 0xc"
+        },
+        {
+          "va": "0059fc5e",
+          "bytes": "f2ae",
+          "instruction": "repne scasb al, byte ptr es:[edi]"
+        },
+        {
+          "va": "0059fc60",
+          "bytes": "f7d1",
+          "instruction": "not ecx"
+        },
+        {
+          "va": "0059fc62",
+          "bytes": "2bf9",
+          "instruction": "sub edi, ecx"
+        },
+        {
+          "va": "0059fc64",
+          "bytes": "8d54240c",
+          "instruction": "lea edx, [esp + 0xc]"
+        },
+        {
+          "va": "0059fc68",
+          "bytes": "8bf7",
+          "instruction": "mov esi, edi"
+        },
+        {
+          "va": "0059fc6a",
+          "bytes": "8bd9",
+          "instruction": "mov ebx, ecx"
+        },
+        {
+          "va": "0059fc6c",
+          "bytes": "8bfa",
+          "instruction": "mov edi, edx"
+        },
+        {
+          "va": "0059fc6e",
+          "bytes": "83c9ff",
+          "instruction": "or ecx, 0xffffffff"
+        },
+        {
+          "va": "0059fc71",
+          "bytes": "c684240a01000000",
+          "instruction": "mov byte ptr [esp + 0x10a], 0"
+        },
+        {
+          "va": "0059fc79",
+          "bytes": "f2ae",
+          "instruction": "repne scasb al, byte ptr es:[edi]"
+        },
+        {
+          "va": "0059fc7b",
+          "bytes": "8bcb",
+          "instruction": "mov ecx, ebx"
+        },
+        {
+          "va": "0059fc7d",
+          "bytes": "4f",
+          "instruction": "dec edi"
+        },
+        {
+          "va": "0059fc7e",
+          "bytes": "c1e902",
+          "instruction": "shr ecx, 2"
+        },
+        {
+          "va": "0059fc81",
+          "bytes": "f3a5",
+          "instruction": "rep movsd dword ptr es:[edi], dword ptr [esi]"
+        },
+        {
+          "va": "0059fc83",
+          "bytes": "a1b4505e00",
+          "instruction": "mov eax, dword ptr [0x5e50b4]"
+        },
+        {
+          "va": "0059fc88",
+          "bytes": "8bcb",
+          "instruction": "mov ecx, ebx"
+        },
+        {
+          "va": "0059fc8a",
+          "bytes": "83e103",
+          "instruction": "and ecx, 3"
+        },
+        {
+          "va": "0059fc8d",
+          "bytes": "83f803",
+          "instruction": "cmp eax, 3"
+        },
+        {
+          "va": "0059fc90",
+          "bytes": "f3a4",
+          "instruction": "rep movsb byte ptr es:[edi], byte ptr [esi]"
+        },
+        {
+          "va": "0059fc92",
+          "bytes": "5f",
+          "instruction": "pop edi"
+        },
+        {
+          "va": "0059fc93",
+          "bytes": "5e",
+          "instruction": "pop esi"
+        },
+        {
+          "va": "0059fc94",
+          "bytes": "5b",
+          "instruction": "pop ebx"
+        },
+        {
+          "va": "0059fc95",
+          "bytes": "7517",
+          "instruction": "jne 0x59fcae"
+        },
+        {
+          "va": "0059fc97",
+          "bytes": "8d442400",
+          "instruction": "lea eax, [esp]"
+        },
+        {
+          "va": "0059fc9b",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fc9c",
+          "bytes": "ff1508225b00",
+          "instruction": "call dword ptr [0x5b2208]"
+        },
+        {
+          "va": "0059fca2",
+          "bytes": "e819f40000",
+          "instruction": "call 0x5af0c0"
+        },
+        {
+          "va": "0059fca7",
+          "bytes": "81c400010000",
+          "instruction": "add esp, 0x100"
+        },
+        {
+          "va": "0059fcad",
+          "bytes": "c3",
+          "instruction": "ret "
+        },
+        {
+          "va": "0059fcae",
+          "bytes": "83f801",
+          "instruction": "cmp eax, 1"
+        },
+        {
+          "va": "0059fcb1",
+          "bytes": "7512",
+          "instruction": "jne 0x59fcc5"
+        },
+        {
+          "va": "0059fcb3",
+          "bytes": "8d4c2400",
+          "instruction": "lea ecx, [esp]"
+        },
+        {
+          "va": "0059fcb7",
+          "bytes": "51",
+          "instruction": "push ecx"
+        },
+        {
+          "va": "0059fcb8",
+          "bytes": "ff1508225b00",
+          "instruction": "call dword ptr [0x5b2208]"
+        },
+        {
+          "va": "0059fcbe",
+          "bytes": "81c400010000",
+          "instruction": "add esp, 0x100"
+        },
+        {
+          "va": "0059fcc4",
+          "bytes": "c3",
+          "instruction": "ret "
+        },
+        {
+          "va": "0059fcc5",
+          "bytes": "83f802",
+          "instruction": "cmp eax, 2"
+        },
+        {
+          "va": "0059fcc8",
+          "bytes": "0f85af000000",
+          "instruction": "jne 0x59fd7d"
+        },
+        {
+          "va": "0059fcce",
+          "bytes": "6a00",
+          "instruction": "push 0"
+        },
+        {
+          "va": "0059fcd0",
+          "bytes": "e8abfafbff",
+          "instruction": "call 0x55f780"
+        },
+        {
+          "va": "0059fcd5",
+          "bytes": "83c404",
+          "instruction": "add esp, 4"
+        },
+        {
+          "va": "0059fcd8",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fcda",
+          "bytes": "7466",
+          "instruction": "je 0x59fd42"
+        },
+        {
+          "va": "0059fcdc",
+          "bytes": "6834100500",
+          "instruction": "push 0x51034"
+        },
+        {
+          "va": "0059fce1",
+          "bytes": "8d542404",
+          "instruction": "lea edx, [esp + 4]"
+        },
+        {
+          "va": "0059fce5",
+          "bytes": "6810515e00",
+          "instruction": "push 0x5e5110"
+        },
+        {
+          "va": "0059fcea",
+          "bytes": "52",
+          "instruction": "push edx"
+        },
+        {
+          "va": "0059fceb",
+          "bytes": "6a00",
+          "instruction": "push 0"
+        },
+        {
+          "va": "0059fced",
+          "bytes": "ff1570225b00",
+          "instruction": "call dword ptr [0x5b2270]"
+        },
+        {
+          "va": "0059fcf3",
+          "bytes": "83f807",
+          "instruction": "cmp eax, 7"
+        },
+        {
+          "va": "0059fcf6",
+          "bytes": "0f8481000000",
+          "instruction": "je 0x59fd7d"
+        },
+        {
+          "va": "0059fcfc",
+          "bytes": "6800515e00",
+          "instruction": "push 0x5e5100"
+        },
+        {
+          "va": "0059fd01",
+          "bytes": "ff1550205b00",
+          "instruction": "call dword ptr [0x5b2050]"
+        },
+        {
+          "va": "0059fd07",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fd09",
+          "bytes": "7417",
+          "instruction": "je 0x59fd22"
+        },
+        {
+          "va": "0059fd0b",
+          "bytes": "68ec505e00",
+          "instruction": "push 0x5e50ec"
+        },
+        {
+          "va": "0059fd10",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fd11",
+          "bytes": "ff155c205b00",
+          "instruction": "call dword ptr [0x5b205c]"
+        },
+        {
+          "va": "0059fd17",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fd19",
+          "bytes": "7407",
+          "instruction": "je 0x59fd22"
+        },
+        {
+          "va": "0059fd1b",
+          "bytes": "ffd0",
+          "instruction": "call eax"
+        },
+        {
+          "va": "0059fd1d",
+          "bytes": "a368eb5d00",
+          "instruction": "mov dword ptr [0x5deb68], eax"
+        },
+        {
+          "va": "0059fd22",
+          "bytes": "a168eb5d00",
+          "instruction": "mov eax, dword ptr [0x5deb68]"
+        },
+        {
+          "va": "0059fd27",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fd29",
+          "bytes": "7410",
+          "instruction": "je 0x59fd3b"
+        },
+        {
+          "va": "0059fd2b",
+          "bytes": "8d442400",
+          "instruction": "lea eax, [esp]"
+        },
+        {
+          "va": "0059fd2f",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fd30",
+          "bytes": "ff1508225b00",
+          "instruction": "call dword ptr [0x5b2208]"
+        },
+        {
+          "va": "0059fd36",
+          "bytes": "e885f30000",
+          "instruction": "call 0x5af0c0"
+        },
+        {
+          "va": "0059fd3b",
+          "bytes": "6a01",
+          "instruction": "push 1"
+        },
+        {
+          "va": "0059fd3d",
+          "bytes": "e82c270000",
+          "instruction": "call 0x5a246e"
+        },
+        {
+          "va": "0059fd42",
+          "bytes": "a1d8576a00",
+          "instruction": "mov eax, dword ptr [0x6a57d8]"
+        },
+        {
+          "va": "0059fd47",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fd49",
+          "bytes": "7409",
+          "instruction": "je 0x59fd54"
+        },
+        {
+          "va": "0059fd4b",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fd4c",
+          "bytes": "e85f25f9ff",
+          "instruction": "call 0x5322b0"
+        },
+        {
+          "va": "0059fd51",
+          "bytes": "83c404",
+          "instruction": "add esp, 4"
+        },
+        {
+          "va": "0059fd54",
+          "bytes": "6830100500",
+          "instruction": "push 0x51030"
+        },
+        {
+          "va": "0059fd59",
+          "bytes": "8d4c2404",
+          "instruction": "lea ecx, [esp + 4]"
+        },
+        {
+          "va": "0059fd5d",
+          "bytes": "68cc505e00",
+          "instruction": "push 0x5e50cc"
+        },
+        {
+          "va": "0059fd62",
+          "bytes": "51",
+          "instruction": "push ecx"
+        },
+        {
+          "va": "0059fd63",
+          "bytes": "6a00",
+          "instruction": "push 0"
+        },
+        {
+          "va": "0059fd65",
+          "bytes": "ff1570225b00",
+          "instruction": "call dword ptr [0x5b2270]"
+        },
+        {
+          "va": "0059fd6b",
+          "bytes": "a1d8576a00",
+          "instruction": "mov eax, dword ptr [0x6a57d8]"
+        },
+        {
+          "va": "0059fd70",
+          "bytes": "85c0",
+          "instruction": "test eax, eax"
+        },
+        {
+          "va": "0059fd72",
+          "bytes": "7409",
+          "instruction": "je 0x59fd7d"
+        },
+        {
+          "va": "0059fd74",
+          "bytes": "50",
+          "instruction": "push eax"
+        },
+        {
+          "va": "0059fd75",
+          "bytes": "e84625f9ff",
+          "instruction": "call 0x5322c0"
+        },
+        {
+          "va": "0059fd7a",
+          "bytes": "83c404",
+          "instruction": "add esp, 4"
+        },
+        {
+          "va": "0059fd7d",
+          "bytes": "81c400010000",
+          "instruction": "add esp, 0x100"
+        },
+        {
+          "va": "0059fd83",
+          "bytes": "c3",
+          "instruction": "ret "
+        }
+      ]
+    },
+    {
+      "va": "004a5424",
+      "bytes": 10,
+      "purpose": "Unchangedrawaddressassignment",
+      "sha256": "3023a82a2e4b4fc4a663cfdc9317edf627e52e8423baabb7b83720df863d76c4",
+      "instructions": [
+        {
+          "va": "004a5424",
+          "bytes": "c705f0eb5d00c0fb5900",
+          "instruction": "mov dword ptr [0x5debf0], 0x59fbc0"
+        }
+      ]
+    },
+    {
+      "va": "0059ea85",
+      "bytes": 41,
+      "purpose": "Failurecallsitepushesformatandvalueintodiagnosticcell",
+      "sha256": "24fcd3781b1816b1f986526de0bd8846305eb15757abaf9b58f9971a39a2deba",
+      "instructions": [
+        {
+          "va": "0059ea85",
+          "bytes": "8b54242c",
+          "instruction": "mov edx, dword ptr [esp + 0x2c]"
+        },
+        {
+          "va": "0059ea89",
+          "bytes": "c70574eb5d0034505e00",
+          "instruction": "mov dword ptr [0x5deb74], 0x5e5034"
+        },
+        {
+          "va": "0059ea93",
+          "bytes": "03d6",
+          "instruction": "add edx, esi"
+        },
+        {
+          "va": "0059ea95",
+          "bytes": "c70578eb5d00a0000000",
+          "instruction": "mov dword ptr [0x5deb78], 0xa0"
+        },
+        {
+          "va": "0059ea9f",
+          "bytes": "c1ea14",
+          "instruction": "shr edx, 0x14"
+        },
+        {
+          "va": "0059eaa2",
+          "bytes": "52",
+          "instruction": "push edx"
+        },
+        {
+          "va": "0059eaa3",
+          "bytes": "68fc4f5e00",
+          "instruction": "push 0x5e4ffc"
+        },
+        {
+          "va": "0059eaa8",
+          "bytes": "ff15f0eb5d00",
+          "instruction": "call dword ptr [0x5debf0]"
+        }
+      ]
+    }
+  ],
+  "canonical_source_pins": [
+    {
+      "path": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.cpp",
+      "sha256": "afa8300c6197c1843429a4bce8bed0677c5c30739dfc38220503eae803de3d36"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/387-startup-diagnostic/startup_diagnostic.hpp",
+      "sha256": "db998ffb5a413e8cc5947f39906f88b8863c08159652c816183bfd9c2799ba22"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/353-diagnostic-mono/diagnostic_mono.cpp",
+      "sha256": "9ba90864b3fd1d082a76ff0a222554ccc560e3c9c56bdde8c66ea249dafdb6b0"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/353-diagnostic-mono/diagnostic_mono.hpp",
+      "sha256": "b8f94fce89eef61d5e9a145f4521ad8805766552556b3ee5514bc8f8cce59799"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/formatter_entry.cpp",
+      "sha256": "3c81a98b979195c05e8541d8a0b46bcc8c28fed9f0257ab4e8383135de4c451c"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/shared_runtime_globals.cpp",
+      "sha256": "fa56877fdc040c687823d4e67eb25fc3d8a3738205bdf20c41492135f7086314"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+      "sha256": "a8841d6a709fea89bcbaba3e693daf978bfb6e698049fa70bdf5e7df7ab16388"
+    }
+  ],
+  "shared_state": {
+    "owner": "source/recovered/Porsche.exe/shared_runtime_globals.cpp",
+    "source_va": "005deb74",
+    "line_va": "005deb78",
+    "raw_initial_hex": "0000000000000000",
+    "views": [
+      "diagnostic_file_005deb74()",
+      "diagnostic_line_005deb78",
+      "application_diagnostic_source_005deb74",
+      "application_diagnostic_line_005deb78"
+    ],
+    "contract": "Raw32-bit sourcepointerword/line bits shared bycanonicalaliases. Callbackforwardsfilepointerverbatim withoutautomap/dereference."
+  },
+  "confirmed_semantics": [
+    "cdeclvarargs starts immediatelyafterformat stackword; passrawpointertoreused353vsprintf",
+    "Firstformatteroutputis1024Blocal; originalformatterwrapperlimitremainsINTMAX,not1024",
+    "Ignorebothformatterreturnvalues, includingnegativebits",
+    "Afterfirstformatterreturns, readline thenfile, scanfirstoutput andappendcontext atterminatingNUL",
+    "Call0059fc20 once withcombinedtext; originalcallbackdoesnotexplicitlysetstatus/EAX; existingconsumercontractvoid",
+    "No diagnostic state reset or pointer substitution"
+  ],
+  "native_domain": {
+    "cases": 672,
+    "checks_per_variant": 2016,
+    "optimization_variants": [
+      "/Od",
+      "/O2"
+    ],
+    "raw_argument_words": 8,
+    "first_output_lengths": [
+      0,
+      1,
+      31,
+      200,
+      252,
+      700,
+      1001
+    ],
+    "max_combined_text_bytes": 1023,
+    "formatter": "Actual353vsprintf andcanonicalformatter_entry wrappers linked; core/cleanup controlledexacttyped endpoints. Coreoutputstringsare synthetic, not hostprintf or a newformatteralgorithm.",
+    "late_state_effects": "Firstcore rewritesfile/line; secondcore canrewritethembeforeterminalcall. Event/combinedtext/finalaliasstate/ESP/nonvolatile registers compared.",
+    "opaque_raw_source_test": "NULL and005e5034 pass throughrecordingcore only; no hoststringresolution/validdereference claimed."
+  },
+  "external_sink_contract": {
+    "va": "0059fc20",
+    "bytes": 356,
+    "signature": "void __cdecl startup_diagnostic_sink_0059fc20(constchar*text)",
+    "input": "BorrowedNULterminatedcombinedtextvalidduringcall. No ownershiptransfer orreturnstatusasserted.",
+    "opaque_truncation": "Copies253bytes with005a28a0, thenforcesbuffer[254]=0. Forinputlength>=253,byte253isuninitialized andobservablebyscan; neverzero-filledbythisbatch.",
+    "unrecovered_state": {
+      "005e50b4": 2,
+      "005deb68": 1
+    },
+    "canonical_related_state": [
+      "missing_file_006afbe4 in files.cpp",
+      "thread_start_lock_006a57d8"
+    ],
+    "unrecovered_effects": [
+      "Optional missing-file callback(-2)",
+      "253-bytecopy,newlineappend/truncation",
+      "Modes/debugoutput/debugbreak/threadguard",
+      "MessageBoxA/LoadLibraryA/GetProcAddress/IsDebuggerPresent",
+      "Threadlockreload,CRTexit005a246e"
+    ],
+    "decision": "Externalonly; no approximation,hostterminalsuccess,ornewstateowner."
+  },
+  "unresolved_boundaries": [
+    "Combinedoutput>=1024 ornonterminatedformatteroutput",
+    "Actualfullparser/terminal0059fc20 composition",
+    "RaworiginalVAtokensasactualhoststrings; nopointerautomap",
+    "Uninitializedformatterdescriptor tail remainscanonicalopaquecontract",
+    "Concurrentstatewrites/arbitrarybufferaliases",
+    "Root must separatelybindactualcallbackpointer andfreshlyreprovefrozenstartupdispatch; startup_services.cpp unchanged"
+  ]
+}

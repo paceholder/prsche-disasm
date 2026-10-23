@@ -1,0 +1,120 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "porsche/startup_services.hpp"
+#include "porsche/files.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+static const B original[157]={@DISPATCH@},callback_cell_raw[4]={@CALLBACK_CELL@};
+static B* code;static U cases,checks,count,effects;static void* allocation_result;
+struct Event{U kind,a,b,c,d,callback,network;};static Event events[16];
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void die(const char* text){std::printf("fixture %s\n",text);std::fflush(stdout);ExitProcess(98);}
+static void __cdecl initial_diagnostic(const char*){die("initial-diagnostic-invoked");}
+static void __cdecl alternate_diagnostic(const char*){die("alternate-diagnostic-invoked");}
+namespace porsche {
+// Fixture cell only; actual game files.cpp owns this cell. No duplicategame state.
+void (__cdecl* diagnostic_handler_005debf0)(const char*)=&initial_diagnostic;
+// Address endpoint only. Actual387 body has its own accepted native proof.
+void __cdecl startup_diagnostic_callback_0059fbc0(const char*,...){die("callback-invoked");}
+}
+static void rec(U kind,U a=0,U b=0,U c=0,U d=0){using namespace porsche;
+    if(count>=16)die("events");events[count++]={kind,a,b,c,d,ptr(reinterpret_cast<const void*>(diagnostic_handler_005debf0)),ptr(startup_network_00628c70)};
+}
+namespace porsche {
+void __cdecl startup_heap_0059e9d0(U a,U b,U c,U d){rec(0,a,b,c,d);if(effects&2)startup_network_00628c70=nullptr;if(effects&4)diagnostic_handler_005debf0=&alternate_diagnostic;}
+void __cdecl startup_queue_0059edb0(U a,U b){rec(1,a,b);}
+void __cdecl startup_capacity_00565030(U value){rec(2,value);if(effects&1)startup_network_00628c70=reinterpret_cast<void*>(0x13335577u);}
+void* __cdecl startup_network_allocate_0059ef90(U bytes){rec(3,bytes);if(effects&8)startup_network_00628c70=reinterpret_cast<void*>(0x35557799u);return allocation_result;}
+void __cdecl startup_network_construct_0048fc80(void* receiver){rec(4,ptr(receiver));startup_network_00628c70=effects&16?reinterpret_cast<void*>(0x577799bbu):receiver;}
+void __cdecl startup_event_0055fcf0(){rec(5);if(effects&32)startup_network_00628c70=reinterpret_cast<void*>(0x799bbddfu);}
+void __cdecl startup_subsystem_00564e70(){rec(6);}
+void __cdecl startup_subsystem_00564ab0(){rec(7);}
+void __cdecl startup_subsystem_00564850(U value){rec(8,value);}
+void __cdecl startup_subsystem_00536e50(){rec(9);}
+void __cdecl startup_subsystem_005367b0(U a,U b,U c){rec(10,a,b,c);}
+void __cdecl startup_subsystem_004b6ff0(){rec(11);}
+void __cdecl startup_subsystem_00563ad0(U a,U b,U c){rec(12,a,b,c);}
+// Unexecuted CDrelaunch services of the unchangedowner fail closed.
+void __cdecl startup_name_005655f0(const char*){die("unexpected-cd-name");}
+U __stdcall startup_module_filename(void*,char*,U){die("unexpected-cd-module");return 0;}
+std::int32_t __cdecl startup_drive_character_005a2c24(std::int32_t){die("unexpected-cd-classify");return 0;}
+void __cdecl startup_drive_format_005a0fbf(char*,const char*,std::int32_t){die("unexpected-cd-format");}
+void __cdecl startup_command_format_005a0fbf(char*,const char*,const char*){die("unexpected-cd-command");}
+U __stdcall startup_drive_type(const char*){die("unexpected-cd-drive");return 0;}
+U __stdcall startup_create_process(const char*,char*,void*,void*,std::int32_t,U,void*,const char*,void*,void*){die("unexpected-cd-process");return 0;}
+void __cdecl startup_exit_005a246e(U){die("unexpected-cd-exit");}
+}
+// Harness only: original caller sets ECX, with no stackreceiver; existing source
+// facade iscdecl(receiver). This explicitly bridges the controlled endpoints,
+// never aliases or implements the unowned original network constructor.
+extern "C" void __fastcall network_receiver_ecx(void* receiver,void*){
+    porsche::startup_network_construct_0048fc80(receiver);
+}
+static void patch(U before,U after,U expected){U n=0;for(U i=0;i+4<=157;++i)if(word(code+i)==before){std::memcpy(code+i,&after,4);++n;i+=3;}if(n!=expected)die("absolute-relocation");}
+static void call(U site,U target,const void* destination){U off=site-0x4a5410;
+    if(off+5>157||code[off]!=0xe8||site+5+word(code+off+1)!=target)die("direct-call");
+    const U rel=ptr(destination)-ptr(code+off+5);std::memcpy(code+off+1,&rel,4);
+}
+static void install(){using namespace porsche;
+    if(original[0x14]!=0xc7||original[0x15]!=0x05||word(original+0x16)!=0x5debf0||word(original+0x1a)!=0x59fbc0||word(callback_cell_raw)!=0x565340)die("raw-callback-identity");
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");std::memcpy(code,original,157);
+    patch(0x5debf0,ptr(&diagnostic_handler_005debf0),1);patch(0x59fbc0,ptr(reinterpret_cast<const void*>(&startup_diagnostic_callback_0059fbc0)),1);patch(0x628c70,ptr(&startup_network_00628c70),1);
+    call(0x4a542e,0x59e9d0,reinterpret_cast<const void*>(&startup_heap_0059e9d0));
+    call(0x4a543a,0x59edb0,reinterpret_cast<const void*>(&startup_queue_0059edb0));
+    call(0x4a5444,0x565030,reinterpret_cast<const void*>(&startup_capacity_00565030));
+    call(0x4a545a,0x59ef90,reinterpret_cast<const void*>(&startup_network_allocate_0059ef90));
+    call(0x4a5468,0x48fc80,reinterpret_cast<const void*>(&network_receiver_ecx));
+    call(0x4a546d,0x55fcf0,reinterpret_cast<const void*>(&startup_event_0055fcf0));
+    call(0x4a5472,0x564e70,reinterpret_cast<const void*>(&startup_subsystem_00564e70));
+    call(0x4a5477,0x564ab0,reinterpret_cast<const void*>(&startup_subsystem_00564ab0));
+    call(0x4a547e,0x564850,reinterpret_cast<const void*>(&startup_subsystem_00564850));
+    call(0x4a5483,0x536e50,reinterpret_cast<const void*>(&startup_subsystem_00536e50));
+    call(0x4a5491,0x5367b0,reinterpret_cast<const void*>(&startup_subsystem_005367b0));
+    call(0x4a5496,0x4b6ff0,reinterpret_cast<const void*>(&startup_subsystem_004b6ff0));
+    call(0x4a54a4,0x563ad0,reinterpret_cast<const void*>(&startup_subsystem_00563ad0));
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1;};
+static Capture invoke(const void* fn){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,fn
+        call ecx
+        lea edx,r
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+struct State{U network,callback,count;Event events[16];};
+static State state(){using namespace porsche;State s{};s.network=ptr(startup_network_00628c70);s.callback=ptr(reinterpret_cast<const void*>(diagnostic_handler_005debf0));s.count=count;std::memcpy(s.events,events,sizeof events);return s;}
+static void reset(U initial){porsche::startup_network_00628c70=reinterpret_cast<void*>(initial);porsche::diagnostic_handler_005debf0=&initial_diagnostic;count=0;std::memset(events,0,sizeof events);}
+static void compare(U initial){reset(initial);auto a=invoke(code);auto expected=state();reset(initial);auto b=invoke(reinterpret_cast<const void*>(&porsche::startup_services_004a5410));auto actual=state();++cases;checks+=3;
+    if(!abi(a)||!abi(b)||std::memcmp(&expected,&actual,sizeof actual)){
+        std::printf("divergence startup-dispatch case=%u initial=%08x allocation=%08x effects=%u count=%u/%u abi=%u/%u\n",cases,initial,ptr(allocation_result),effects,expected.count,actual.count,abi(a),abi(b));std::fflush(stdout);ExitProcess(1);
+    }
+}
+int main(){
+    // Actual startup_services owner, beforeanyoverride. Original00628c70 isBSS.
+    if(porsche::startup_network_00628c70)die("production-network-initial-state");
+    install();for(U initial:{0u,0x11223344u})for(U allocated:{0u,0x88112233u})for(U change:{0u,1u,2u,4u,8u,16u,32u,13u,54u}){
+        effects=change;allocation_result=reinterpret_cast<void*>(allocated);compare(initial);
+    }
+    std::printf("startup_callback_binding_original_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;
+}

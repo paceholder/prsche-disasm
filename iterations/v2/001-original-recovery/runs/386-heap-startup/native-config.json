@@ -1,0 +1,98 @@
+{
+  "run": 386,
+  "experiment": "local/experiments/v2-heap-startup-native-386",
+  "timeout_seconds": 90,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/386-heap-startup/heap_startup.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/application_pool.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_pages.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_device.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/io_worker_lists.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/386-heap-startup/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/files.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/disk_open.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_disk.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@TAIL@",
+      "va": "0059eaef",
+      "bytes": 25,
+      "sha256": "efc431817395590f89b23992272ea73fe4067dd4a6e6c1f7d6372b772280f968"
+    },
+    {
+      "token": "@POOL@",
+      "va": "005679f0",
+      "bytes": 247,
+      "sha256": "641d372428d1060cdc8fb90458e45aaafe617e4068970dac4a3f9bbe859ab569"
+    },
+    {
+      "token": "@DISK@",
+      "va": "00591820",
+      "bytes": 149,
+      "sha256": "4962e6c8a7ca1f1451f9a2fd0594ead53ac9b972ba61e6fad4ed36068659ca11"
+    },
+    {
+      "token": "@ALLOC@",
+      "va": "0056e5f0",
+      "bytes": 74,
+      "sha256": "82f162ca494db71251245387b53401ddcf312c42282a8997435606072e81209c"
+    },
+    {
+      "token": "@INIT@",
+      "va": "00580630",
+      "bytes": 64,
+      "sha256": "28c426d43a1162dccce6b4d4f8d5f977a65c14d3309376fa76a39f2615bd20b6"
+    },
+    {
+      "token": "@PREPEND@",
+      "va": "005806e0",
+      "bytes": 66,
+      "sha256": "f733ad9cc547c719038cf294e9186fac497f0df462811a8b1ba5d0a5f0c7dd55"
+    },
+    {
+      "token": "@EXIT@",
+      "va": "00557380",
+      "bytes": 12,
+      "sha256": "e1bc19e502bc2d673040530fc79487542671ac9c76c234e715799cfa697e25bd"
+    }
+  ],
+  "pass_marker": "heap_startup_original_caller_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "disk-count-lost",
+      "source": "iterations/v2/001-original-recovery/runs/386-heap-startup/heap_startup.cpp",
+      "old": "application_pool_initialize_005679f0(disk_slots,unused,",
+      "new": "application_pool_initialize_005679f0(0,unused,",
+      "expected_exit": 1
+    },
+    {
+      "name": "operation-count-lost",
+      "source": "iterations/v2/001-original-recovery/runs/386-heap-startup/heap_startup.cpp",
+      "old": "static_cast<std::int32_t>(operation_slots));",
+      "new": "static_cast<std::int32_t>(0));",
+      "expected_exit": 1
+    },
+    {
+      "name": "counts-swapped",
+      "source": "iterations/v2/001-original-recovery/runs/386-heap-startup/heap_startup.cpp",
+      "old": "application_pool_initialize_005679f0(disk_slots,unused,\n        static_cast<std::int32_t>(operation_slots));",
+      "new": "application_pool_initialize_005679f0(operation_slots,unused,\n        static_cast<std::int32_t>(disk_slots));",
+      "expected_exit": 1
+    },
+    {
+      "name": "operation-count-treated-as-bytes",
+      "source": "iterations/v2/001-original-recovery/runs/386-heap-startup/heap_startup.cpp",
+      "old": "static_cast<std::int32_t>(operation_slots));",
+      "new": "static_cast<std::int32_t>(operation_slots/0x30u));",
+      "expected_exit": 1
+    }
+  ]
+}

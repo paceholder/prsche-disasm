@@ -1,0 +1,119 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "startup_diagnostic.hpp"
+#include "../353-diagnostic-mono/diagnostic_mono.hpp"
+#include "porsche/formatter_entry.hpp"
+#include "porsche/shared_runtime_globals.hpp"
+#include "porsche/heap.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+static const B original[93]={@CALLBACK@},context_raw[20]={@CONTEXT@},state_raw[8]={@STATE@};
+static B* code;static U cases,checks,count,effects,first_length,first_result,append_result;
+static const char first_format[]="%d/%p/%s/%f/%I64x/%x";
+static const char source_before[]="before.c",source_after[]="after.c",source_final[]="final.c";
+static const char payload[]="raw-vararg-payload",append_text[]=" [FILE=case.c, LINE=1]";
+static U next_line;static char* buffer_origin;
+struct Event{U kind,offset,remaining,flags,source,line,args[8];char format[40],text[1024];};
+static Event events[4];
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void die(const char* what,U detail=0){std::printf("fixture %s %08x\n",what,detail);std::fflush(stdout);ExitProcess(98);}
+static Event& event(U kind){if(count>=4)die("events");auto& e=events[count++];e={};e.kind=kind;return e;}
+namespace porsche {
+std::int32_t __cdecl formatter_core_005a4371(FormatterDescriptor005a0fbf* descriptor,const char* format,const U* args){
+    const bool first=count==0;if(first)buffer_origin=descriptor->base;
+    auto& e=event(first?1:2);e.offset=ptr(descriptor->cursor)-ptr(buffer_origin);e.remaining=static_cast<U>(descriptor->remaining);e.flags=descriptor->flags;
+    e.source=shared_runtime_word_005deb74;e.line=shared_runtime_word_005deb78;
+    const U format_length=static_cast<U>(std::strlen(format));if(format_length>=sizeof e.format)die("format-size");std::memcpy(e.format,format,format_length+1);
+    if(!args)die("raw-arguments");for(U i=0;i<(first?8u:2u);++i)e.args[i]=args[i];
+    U length=first?first_length:static_cast<U>(std::strlen(append_text));
+    if(e.offset+length>=1024||descriptor->cursor!=descriptor->base||descriptor->remaining!=0x7fffffff||descriptor->flags!=0x42)die("formatter-prefix-domain");
+    if(first){for(U i=0;i<length;++i)descriptor->cursor[i]=static_cast<char>('A'+i%23);}
+    else std::memcpy(descriptor->cursor,append_text,length);
+    descriptor->cursor+=length;descriptor->remaining-=static_cast<std::int32_t>(length);
+    if(first&&(effects&1)){diagnostic_file_005deb74_set(source_after);diagnostic_line_005deb78=next_line;}
+    if(!first&&(effects&2)){diagnostic_file_005deb74_set(source_final);diagnostic_line_005deb78^=0x9ab3c5e1u;}
+    return static_cast<std::int32_t>(first?first_result:append_result);
+}
+std::int32_t __cdecl formatter_cleanup_005a4259(U,FormatterOriginalDescriptor32*){die("unexpected-formatter-exhaustion");return 0;}
+void __cdecl startup_diagnostic_sink_0059fc20(const char* text){
+    auto& e=event(3);e.offset=ptr(text)-ptr(buffer_origin);e.source=shared_runtime_word_005deb74;e.line=shared_runtime_word_005deb78;
+    const U length=static_cast<U>(std::strlen(text));if(length>=1024)die("sink-size");std::memcpy(e.text,text,length+1);
+}
+// Linking actual353 vsprintf retains its other functions; unused services fail closed.
+void* __cdecl heap_lock_create_005321f0(){die("unexpected-mono-lock");return nullptr;}
+void __cdecl heap_enter_005322b0(void*){die("unexpected-mono-enter");}
+void __cdecl heap_leave_005322c0(void*){die("unexpected-mono-leave");}
+void __cdecl heap_copy_dispatch_005323e0(void*,const void*,U){die("unexpected-mono-copy");}
+void __cdecl heap_fill_0053c290(void*,U,U){die("unexpected-mono-fill");}
+}
+static void patch(U old,U replacement,U expected){U seen=0;for(U i=0;i+4<=93;++i)if(word(code+i)==old){std::memcpy(code+i,&replacement,4);++seen;i+=3;}if(seen!=expected)die("relocation-count",old);}
+static void call(U site,U target,const void* replacement){U off=site-0x59fbc0;
+    if(off+5>93||code[off]!=0xe8||site+5+word(code+off+1)!=target)die("call-target",site);
+    const U rel=ptr(replacement)-ptr(code+off+5);std::memcpy(code+off+1,&rel,4);
+}
+static void install(){using namespace porsche;
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");std::memcpy(code,original,93);
+    patch(0x5deb74,ptr(&shared_runtime_word_005deb74),1);patch(0x5deb78,ptr(&shared_runtime_word_005deb78),1);
+    patch(0x5e50b8,ptr(startup_diagnostic_context_005e50b8),1);
+    call(0x59fbd9,0x5a299e,reinterpret_cast<const void*>(&application_diagnostic_mono_vsprintf_005a299e));
+    call(0x59fc03,0x5a0fbf,reinterpret_cast<const void*>(&formatter_entry_005a0fbf));
+    call(0x59fc0d,0x59fc20,reinterpret_cast<const void*>(&startup_diagnostic_sink_0059fc20));
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1;};
+static Capture invoke(const void* fn,const U* args){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,9
+        mov edx,args
+    pushing:
+        dec ecx
+        push dword ptr [edx+ecx*4]
+        test ecx,ecx
+        jnz pushing
+        mov ecx,fn
+        call ecx
+        add esp,36
+        lea edx,r
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+struct State{U source,line,count;Event events[4];};
+static void reset(U source,U line){using namespace porsche;shared_runtime_word_005deb74=source;shared_runtime_word_005deb78=line;count=0;buffer_origin=nullptr;std::memset(events,0,sizeof events);}
+static State state(){State s{};s.source=porsche::shared_runtime_word_005deb74;s.line=porsche::shared_runtime_word_005deb78;s.count=count;std::memcpy(s.events,events,sizeof events);return s;}
+static void compare(U source,U line,U salt){
+    U args[9]={ptr(first_format),0x80000000u^salt,0x12345678u^salt,ptr(payload),0x89abcdefu,0x7ff12345u,0xfedcba98u,0x76543210u,0xffffffffu^salt};
+    reset(source,line);auto a=invoke(code,args);auto expected=state();reset(source,line);auto b=invoke(reinterpret_cast<const void*>(&porsche::startup_diagnostic_callback_0059fbc0),args);auto actual=state();++cases;checks+=3;
+    if(!abi(a)||!abi(b)||std::memcmp(&expected,&actual,sizeof actual)){
+        std::printf("divergence startup-diagnostic case=%u len=%u effects=%u count=%u/%u abi=%u/%u\n",cases,first_length,effects,expected.count,actual.count,abi(a),abi(b));std::fflush(stdout);ExitProcess(1);
+    }
+}
+int main(){using namespace porsche;
+    if(std::memcmp(startup_diagnostic_context_005e50b8,context_raw,20))die("raw-context-literal");
+    if(word(state_raw)||word(state_raw+4)||shared_runtime_word_005deb1c||shared_runtime_word_005deb74||shared_runtime_word_005deb78)die("production-initial-state");
+    if(&application_diagnostic_source_005deb74!=&shared_runtime_word_005deb74||&application_diagnostic_line_005deb78!=&shared_runtime_word_005deb78||&diagnostic_line_005deb78!=&shared_runtime_word_005deb78)die("canonical-aliases");
+    install();
+    const U limit=1023u-static_cast<U>(std::strlen(append_text));
+    for(U source:{ptr(source_before),ptr(payload),0u,0x005e5034u})for(U line:{0u,1u,0x80000000u,0xffffffffu})for(U result:{0u,0xffffffffu})for(U change:{0u,1u,3u})for(U length:{0u,1u,31u,200u,252u,700u,limit}){
+        first_length=length;first_result=result;append_result=result^0x80000000u;effects=change;next_line=line^0x159ad37fu;compare(source,line,cases);
+    }
+    std::printf("startup_diagnostic_original_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;
+}

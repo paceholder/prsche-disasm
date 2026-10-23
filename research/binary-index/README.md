@@ -1,5 +1,9 @@
 # Индекс оригинальных бинарников
 
+Run387: [startup-diagnostic-387.jsonl](supplemental/startup-diagnostic-387.jsonl)
+adds omitted0059fbc0..0059fc1c (93B/fullRET), rawPE/SHA, callers andstate evidence.
+388 integrates its actualhostpointer; terminal0059fc20 remains unrecovered.
+
 Run368: [mouse-callbacks-368.jsonl](supplemental/mouse-callbacks-368.jsonl) adds
 omitted00537020 completeRET24 and005370b0 exit against SHA-checked raw PE bytes.
 Native callback/typed-window ABI and exact wheel arithmetic are accepted in

@@ -1,5 +1,13 @@
 # Отложенные проверки восстановления v2
 
+Run388 closes currentstartupbatch (1504comparisons/15mutations,528pins);211TUs,
+194names201refs,noEXE. Realcallbackpointer fixesruntimehole invisibletooldlinkcounts.
+Terminal0059fc20, rawfileVAtokens, ECXnetworkconstructor and partialpoolfailure/
+reinit/teardown/livecomposition remain HOLD.305/307 oldnative48each reused after
+allnonregistry/toolpins andhistoricalregistry Gitblob/currentcalleeidentity check;
+legacy whole-registry audits stoponregistrygrowth, not currentcode failure. No
+nativeproof rerun/partialpromotion. NewPRreview is nextuser task, iteration open.
+
 Run384 accepts finite/defaultFP clipping and exactinputimports (63720comparisons/
 14mutations,524-input audit). Geometrynonfinite/denormal/extreme/ambientFP, actual
 OS/THRASH/concurrency and full startup/menu remain HOLD. Unchanged221readonlyowner
