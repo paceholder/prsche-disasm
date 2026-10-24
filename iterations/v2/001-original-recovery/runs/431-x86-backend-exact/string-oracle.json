@@ -1,0 +1,82 @@
+{
+ "schema": 1,
+ "cpu": "Intel(R) Core(TM) i3-3220 CPU @ 3.30GHz",
+ "forms": 14,
+ "failed": [],
+ "cases_per_form": 300,
+ "exit_code": 0,
+ "untranslated": [],
+ "tail": "forms 14 failed 0 cases 4200",
+ "results": [
+  {
+   "form": "movsb byte ptr es:[edi], byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsd dword ptr es:[edi], dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsw word ptr es:[edi], word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rep movsb byte ptr es:[edi], byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rep movsd dword ptr es:[edi], dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rep stosb byte ptr es:[edi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rep stosd dword ptr es:[edi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rep stosw word ptr es:[edi], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "repe cmpsb byte ptr [esi], byte ptr es:[edi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "repe cmpsd dword ptr [esi], dword ptr es:[edi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "repne scasb al, byte ptr es:[edi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "stosb byte ptr es:[edi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "stosd dword ptr es:[edi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "stosw word ptr es:[edi], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  }
+ ]
+}

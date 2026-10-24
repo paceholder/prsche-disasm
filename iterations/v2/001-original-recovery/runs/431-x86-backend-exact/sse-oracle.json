@@ -1,0 +1,872 @@
+{
+ "schema": 1,
+ "cpu": "Intel(R) Core(TM) i3-3220 CPU @ 3.30GHz",
+ "forms": 172,
+ "failed": [],
+ "cases_per_form": 300,
+ "exit_code": 0,
+ "untranslated": [],
+ "tail": "forms 172 failed 0 cases 51600",
+ "results": [
+  {
+   "form": "addps xmm0, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm0, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm1, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm1, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm1, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm1, xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm1, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm2, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm2, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm3, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm3, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm4, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm4, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm4, xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm5, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm6, xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addps xmm6, xmm5",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm0, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm1, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm1, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm1, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm1, xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm1, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm4, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm4, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm4, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm4, xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm5, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm6, xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "addss xmm6, xmm5",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtpi2ps xmm5, qword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtpi2ps xmm5, qword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtpi2ps xmm6, qword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtpi2ps xmm6, qword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtpi2ps xmm7, qword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtpi2ps xmm7, qword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cvtsi2ss xmm6, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "ldmxcsr dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "ldmxcsr dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi + ebx*2 + 0x10], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi], xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi + ebx*2 + 0x10], xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi], xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi + ebx*2 + 0x10], xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi], xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi + ebx*2 + 0x10], xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi], xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmmword ptr [esi + ebx*2 + 0x10], xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm0, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm0, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm0, xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm1, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm1, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm2, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm2, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm2, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm3, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm3, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm4, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm4, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm4, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm5, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm5, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm6, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm6, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm6, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm7, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movaps xmm7, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movlps qword ptr [esi], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movlps qword ptr [esi + ebx*2 + 0x10], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movlps xmm0, qword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movlps xmm0, qword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movntps xmmword ptr [esi], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movntps xmmword ptr [esi + ebx*2 + 0x10], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movntps xmmword ptr [esi], xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movntps xmmword ptr [esi + ebx*2 + 0x10], xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi + ebx*2 + 0x10], xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi], xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi + ebx*2 + 0x10], xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi], xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi + ebx*2 + 0x10], xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi], xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi + ebx*2 + 0x10], xmm3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi], xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss dword ptr [esi + ebx*2 + 0x10], xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm0, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm0, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm1, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm1, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm2, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm2, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm2, xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm3, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm3, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm3, xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm4, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm4, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm5, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm5, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm6, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm6, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movss xmm6, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movups xmm0, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movups xmm0, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movups xmm1, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movups xmm1, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm0, xmm4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm1, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm1, xmm5",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm1, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm2, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm2, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm3, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm3, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm3, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm3, xmm5",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm4, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm4, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm4, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm4, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm5, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm5, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm6, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm6, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm6, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm6, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm7, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm7, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulps xmm7, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm0, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm1, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm1, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm2, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm2, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm3, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm3, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm4, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm4, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm4, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm5, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm5, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm6, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm6, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm6, xmm1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm6, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mulss xmm7, xmm7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm0, xmm0, 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm1, xmm1, 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm2, xmm2, 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm3, xmm3, 0xaa",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm5, xmm5, 0x40",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm6, xmm6, 0x40",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shufps xmm7, xmm7, 0x40",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "stmxcsr dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "stmxcsr dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm1, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm1, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm3, xmmword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm3, xmmword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm4, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm4, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm5, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subps xmm6, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm1, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm2, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm2, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm4, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm4, xmm2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm5, xmm6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "subss xmm6, xmm0",
+   "result": "PASS",
+   "cases": "300/300"
+  }
+ ]
+}

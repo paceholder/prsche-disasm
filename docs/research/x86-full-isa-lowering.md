@@ -1,5 +1,9 @@
 # Experimental x86 lowering tool
 
+[Run431/PR24](../../iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md)
+adds a separately reviewed integer-flags/DF/LOCK32 backend and fail-closed
+verifiers. Frozen PR20 sources and their proofs below remain unchanged.
+
 Imported from PR #20, head 1bfa0145f7dcc78f4f525cf6046694bb48888cd1, with maintainer corrections from review. This is a research and differential-checking tool. It is not connected to the production game build and does not replace canonical original-function recovery.
 
 The extension inherits the frozen Run277 backend with a checked SHA. It adds integer operations, a limited x87 model, SSE register/MXCSR handling and MMX operations. Unsupported instructions raise an error instead of becoming no-ops. Generated C++ still needs ABI, memory, dependency and original-behavior validation before any production use.

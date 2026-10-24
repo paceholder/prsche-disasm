@@ -3,7 +3,8 @@
 Current [Run388](iterations/v2/001-original-recovery/runs/388-startup-integration/README.md):
 211 TUs/8 projects compile;194 names/201 refs,noEXE. Real diagnostic callback
 pointer and boundedheap handoff integrated after1504 comparisons/15 mutations;
-528-input audit PASS. Currentbatch done; next newPRreview per user2026-10-24.
+528-input audit PASS. PR24/Run431 research tooling accepted with bounded native proof; game graph unchanged.
+Next original startup terminal/network dependencies; details in active PLAN.
 Older checkpoints below are historical.
 
 Checkpoint2026-10-20 Run332: constructor329 and drive331 recovered (2VAs/162B),

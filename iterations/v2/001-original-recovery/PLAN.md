@@ -8,10 +8,15 @@ terminal0059fc20opens. Onlyoldsourceedit is startup_services.cpp forwarddecl+
 actualfunctionaddress replacingraw0x59fbc0; fresh389proof preservescallsemantics.
 Passed386/387/389 inputs frozen; bothworkers complete, noactiveassignments.
 
-NEXT USER TASK: review andprocess newgithub.com/xfynx/prsche-disasm/pulls before
-another recoverybatch. Read descriptions/diffs/evidence, decide suitability,
-fix/integrate/merge only justifiedchanges, and record decisions in PRs asauthorized.
-Do not mislabel v2/001complete: linkedgame/startup/display/menu still unachieved.
+PR24/Run431 intake2026-10-24: separate research backend hardened and accepted.
+348900 instruction comparisons +6DIV8 edges +200000LOCK cases,4 detected mutations;
+injected crash/stop and malformed receipts reject. See431/README.md and the single
+maintainer-validation.json. Original Intel receipts preserved as historical;
+undefined CPU flags, x87 and host-memory/intrinsic bounds remain explicit.
+Two named verifier approvals added/tested in local .codex rules per user.
+No game graph/source/proof changed; fulliteration still open. No active workers.
+Next recovery: original diagnostic terminal0059fc20 and network0048fc80 using
+existing index/REA and canonical state; no guessed stubs or rawVA remapping.
 
 388 checks: sharedbuild-v2-game-batch.py with388/build-config.json configure/build001;
 audit-v2-native-game-batch.py with388/acceptance.json. Native386/001+387/001+389/001.

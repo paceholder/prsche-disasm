@@ -11,6 +11,12 @@
 
 ## Текущий результат
 
+Current2026-10-24: [Run388](iterations/v2/001-original-recovery/runs/388-startup-integration/README.md)
+compiles211TUs;194 unresolved names/201refs,no gameEXE.
+[PR24/Run431](iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md)
+adds reviewed research lowering, outside the game graph. Older checkpoints below
+are historical; active work is tracked in the iteration PLAN.
+
 [PR20 research tooling](docs/research/pr20-acceptance-2026-10-20.md) adds an
 experimental x86 lowering/oracle tool after review corrections.107 supported
 fragments/109568 native cases pass; unsupported x87 boundaries are explicit.

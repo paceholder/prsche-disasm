@@ -1,0 +1,531 @@
+{
+  "schema": 1,
+  "pr": "https://github.com/xfynx/prsche-disasm/pull/24",
+  "reviewed_head": "747c49534cf128bb6c105254910ec4bc69e21fd2",
+  "scope": "Research-only MSVC x86 lowering, no production graph change",
+  "cpu": "AMD Ryzen 7 5700X 8-Core Processor",
+  "flag_policy": "architecturally defined/preserved flags; undefined bits require explicit cpu-profile",
+  "runs": [
+    {
+      "name": "int",
+      "receipt": "local/reports/pr-review-20261024/final-int-001/receipt.json",
+      "sha256": "a7dff4fa9cd73138530b34be2fce1bc9ebe6ff5fdb939dcd6e741cb8869f5977",
+      "forms": 961,
+      "completed": 288300,
+      "expected": 288300,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 0,
+      "failed_forms": 0,
+      "div8_edges": 6,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-int-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-int-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "30ccbb93fc624c89b128941a3a4003fc2dd18c33000ced2acab56f6f74c91c2a",
+        "harness.cpp": "7b4b185b71aa246e93df1ed08ccd2e2c70624b72dc7f3b5ebaae410760a220a2",
+        "fragments.cpp": "14a2de9b2663c2b9ea2daf5f3c5bfdec971abef49d2e60d6ba552a863bcf1419",
+        "oracle.exe": "aed1e376a7ad5db45c2632bb8b0995fe0489d0afdfebcf1aee8f89fb90fb210a",
+        "oracle.log": "78450eb64040d35eb01ef95068ecc577c74e1a75b87f9fa89490b7e894d511c2",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "branch",
+      "receipt": "local/reports/pr-review-20261024/final-branch-001/receipt.json",
+      "sha256": "b0873cde2f0b6c69efb57924937db6f420cd58c88780daed5f017ce5fa6f8e07",
+      "forms": 16,
+      "completed": 4800,
+      "expected": 4800,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 0,
+      "failed_forms": 0,
+      "div8_edges": 0,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-branch-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-branch-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "30ccbb93fc624c89b128941a3a4003fc2dd18c33000ced2acab56f6f74c91c2a",
+        "harness.cpp": "47ce1419fa744b3e495768ee346bdb48ed38877f37676cbf9670a51d2defe207",
+        "fragments.cpp": "af6eaa159023c0f883584bc2aabf692d1e7343c9278fae17fbe916e26377ff41",
+        "oracle.exe": "7fd2616523217b97a0bcf5db4b481bca0bffbdf7750b591e086d762c11f66e99",
+        "oracle.log": "471e0f17a2803baefcf187c9d9174a85c64098b0b8034f2eb03d0fed0fa2646c",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "sse",
+      "receipt": "local/reports/pr-review-20261024/final-sse-001/receipt.json",
+      "sha256": "8eb48a4ee5cfb97335011ecec82d2bf78bf9fc30ae9b5e3abdc59fc37224fad5",
+      "forms": 172,
+      "completed": 51600,
+      "expected": 51600,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 0,
+      "failed_forms": 0,
+      "div8_edges": 0,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-sse-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-sse-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "30ccbb93fc624c89b128941a3a4003fc2dd18c33000ced2acab56f6f74c91c2a",
+        "harness.cpp": "51e1f97cc11ef3688834451df4013b41f470c61779438d413c1292ec20447231",
+        "fragments.cpp": "d05d8b823c2f44ba949f8162e54ae622496f89679edcc8a72ecf6847daf07682",
+        "oracle.exe": "e25bae23e3a16618d81fadfe8d949779b5d622888a2e83dde0ae2f351f6b0415",
+        "oracle.log": "6dabe7043f2fc14cfd93daf5c196a1f5443b14b38c96a5711eb51737a22fa0a0",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "string",
+      "receipt": "local/reports/pr-review-20261024/final-string-001/receipt.json",
+      "sha256": "7b63e06a053152b11da992e66977f1270d4f3cf893dacf932f87c995fb9e8ec8",
+      "forms": 14,
+      "completed": 4200,
+      "expected": 4200,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 0,
+      "failed_forms": 0,
+      "div8_edges": 0,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-string-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-string-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "30ccbb93fc624c89b128941a3a4003fc2dd18c33000ced2acab56f6f74c91c2a",
+        "harness.cpp": "1b43f498fc29dae999892b28b200f9043934e436c74d1964ab84dd7fcbdd1995",
+        "fragments.cpp": "016f8ad860600b68e2cf0eb4737e1b07569cfd1c1cedbb586737f260722cf919",
+        "oracle.exe": "5af2d390bbbbf3ddfed266e8c2d3119d09f75c9bcb976970cbe755fdf28ce6c1",
+        "oracle.log": "1e7921117abb70f54209db96de71272cebd94681824dddd2e73a3c871d03ba41",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "no-parity",
+      "receipt": "local/reports/pr-review-20261024/final-no-parity-001/receipt.json",
+      "sha256": "4f14f7acd7ed762dd0f3d14e912c74e3a160e1d541b088ecf702ba8452ad5d12",
+      "forms": 961,
+      "completed": 288300,
+      "expected": 288300,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 1,
+      "failed_forms": 571,
+      "div8_edges": 6,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-no-parity-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-no-parity-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "9a3e03984dc8fc15ce90aee01ee6a87b33105140daa715121ddbd96187f4bf5f",
+        "harness.cpp": "7b4b185b71aa246e93df1ed08ccd2e2c70624b72dc7f3b5ebaae410760a220a2",
+        "fragments.cpp": "14a2de9b2663c2b9ea2daf5f3c5bfdec971abef49d2e60d6ba552a863bcf1419",
+        "oracle.exe": "48aca6d182f304c1835062444c6206b44f7568b7cc0a673b00b846b806d5d4d8",
+        "oracle.log": "113fd8cd2b312ad14aeac26af449c477df09e72d9608b6326bae434278f6602f",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "no-af",
+      "receipt": "local/reports/pr-review-20261024/final-no-af-001/receipt.json",
+      "sha256": "01a7a8930f79d413fdabe50c7bfc6cdcd839d8339088f39fd6ebadfd1ad63f22",
+      "forms": 961,
+      "completed": 288300,
+      "expected": 288300,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 1,
+      "failed_forms": 224,
+      "div8_edges": 6,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-no-af-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-no-af-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "02acd117261544d4610a868f77df8942ff0550eaaef76ea196d07b98ded2eb8e",
+        "harness.cpp": "7b4b185b71aa246e93df1ed08ccd2e2c70624b72dc7f3b5ebaae410760a220a2",
+        "fragments.cpp": "14a2de9b2663c2b9ea2daf5f3c5bfdec971abef49d2e60d6ba552a863bcf1419",
+        "oracle.exe": "fd34272478985ebea9541626fbecfb0ee12d68413bcabcf92f670be85b05e067",
+        "oracle.log": "00ac7392ca26efe986f2f4b9007e5d4f26d2d30e8f4e5dac19f83b108c6ec14d",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "rot-of",
+      "receipt": "local/reports/pr-review-20261024/final-rot-of-001/receipt.json",
+      "sha256": "232d00be9f98736acf8d820a686e6f78c8790b17f487716acbd171c38d37102d",
+      "forms": 961,
+      "completed": 288300,
+      "expected": 288300,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 1,
+      "failed_forms": 1,
+      "div8_edges": 6,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-rot-of-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-rot-of-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "c64abb4ad4e75d0484005328f075fe6ba3800c0c1c12a0f907672583d05a25c5",
+        "harness.cpp": "7b4b185b71aa246e93df1ed08ccd2e2c70624b72dc7f3b5ebaae410760a220a2",
+        "fragments.cpp": "14a2de9b2663c2b9ea2daf5f3c5bfdec971abef49d2e60d6ba552a863bcf1419",
+        "oracle.exe": "9fb517bc5fe672a6580641732a3f4f955a4d94afa2cc8049df6fbe4b0a0a40ae",
+        "oracle.log": "7ad0276be623707025d95be0ccd5390857fedb7ca5bb9e62c4274edca1096e30",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "no-df",
+      "receipt": "local/reports/pr-review-20261024/final-no-df-001/receipt.json",
+      "sha256": "f9e8de6b0e8263f7c5bf6aefd03fdd0fa6d1f7a52e51c7d4216f382fa59ea68c",
+      "forms": 14,
+      "completed": 4200,
+      "expected": 4200,
+      "complete": true,
+      "accepted": true,
+      "native_exit": 1,
+      "failed_forms": 7,
+      "div8_edges": 0,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-no-df-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-no-df-001\\oracle.exe",
+          "300"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "dec3c21a831d2a8367f54b641d2c01a27656d26cc40a0c03ab165c4861011b62",
+        "harness.cpp": "1b43f498fc29dae999892b28b200f9043934e436c74d1964ab84dd7fcbdd1995",
+        "fragments.cpp": "016f8ad860600b68e2cf0eb4737e1b07569cfd1c1cedbb586737f260722cf919",
+        "oracle.exe": "fb744b1a134b6af61999c1c915fb2cfe4a09a69687175358ef2fa14de02ab686",
+        "oracle.log": "7db4bfd408dd8ffac15d1be1e1d22cc99f0a174c4ff6ebb40dd5e5ce1f5fa100",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "inject-crash",
+      "receipt": "local/reports/pr-review-20261024/final-inject-crash-001/receipt.json",
+      "sha256": "b8dbd66fd0c83162608f4962de91d28abcb584d3438c576e90d04ef15d9cb9ad",
+      "forms": 16,
+      "completed": 0,
+      "expected": 16,
+      "complete": false,
+      "accepted": false,
+      "native_exit": 1,
+      "failed_forms": 16,
+      "div8_edges": 0,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-inject-crash-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-inject-crash-001\\oracle.exe",
+          "1"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "dec3c21a831d2a8367f54b641d2c01a27656d26cc40a0c03ab165c4861011b62",
+        "harness.cpp": "06dfb29490b7c3739830ef9c17129a6a572bf79ac0cdd125686fc505fb4412d4",
+        "fragments.cpp": "af6eaa159023c0f883584bc2aabf692d1e7343c9278fae17fbe916e26377ff41",
+        "oracle.exe": "1a409e529fe73fb1cb7c2c28eb6f7900919b5b80e7d727978c329ff50deef0ba",
+        "oracle.log": "33b542d204f75caa284f0fb53e15e62cadf714526cf7ed49e2af92d6ba05483d",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    },
+    {
+      "name": "inject-stop",
+      "receipt": "local/reports/pr-review-20261024/final-inject-stop-001/receipt.json",
+      "sha256": "f3a8b4da38557acf2b9dcdc22b631c58d91d10888d28ca83ab809db6c5753cbf",
+      "forms": 16,
+      "completed": 0,
+      "expected": 16,
+      "complete": false,
+      "accepted": false,
+      "native_exit": 1,
+      "failed_forms": 16,
+      "div8_edges": 0,
+      "commands": [
+        [
+          "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+          "/nologo",
+          "/TP",
+          "/std:c++17",
+          "/O2",
+          "/GS-",
+          "/EHs-c-",
+          "/W0",
+          "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-inject-stop-001",
+          "harness.cpp",
+          "fragments.cpp",
+          "/Fe:oracle.exe",
+          "/link",
+          "user32.lib"
+        ],
+        [
+          "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-inject-stop-001\\oracle.exe",
+          "1"
+        ]
+      ],
+      "generated_sha256": {
+        "machine257.h": "dec3c21a831d2a8367f54b641d2c01a27656d26cc40a0c03ab165c4861011b62",
+        "harness.cpp": "c16b03f95eb4f0451af92d8a52d2ce5a67e508a9b00db015479d4cf47e445a8a",
+        "fragments.cpp": "af6eaa159023c0f883584bc2aabf692d1e7343c9278fae17fbe916e26377ff41",
+        "oracle.exe": "eaa6753d9d02c1c36f50392d422f2016dd8266332c97ce3d0c1fef755fdeb4ee",
+        "oracle.log": "5ca7cb173cf0221fecc07588c7754d26a595d6549a15bc3ae7174527206bccdf",
+        "compile.log": "3f420c1d2fdac653e1543dfe6585018834cb7e01acda43fc56e5aae83dc2de34"
+      }
+    }
+  ],
+  "source_sha256": {
+    "scripts/research/verify-v2-x86-exact.py": "de4ced016971e48ada461ab4154639f1173f0ee1adce44ffe7c60135dcaf8344",
+    "scripts/research/x86-cpp-backend-exact.py": "83b677762a350bd62af871ac754a8df4bd87d791f67d6d982f20898b7dd5fe0e",
+    "scripts/research/x86-cpp-backend-fpu.py": "651faf47f14a432dcb7652d17b93ecbcfb3bf70d53d2dd6d21005afae7012a32",
+    "scripts/research/x86-cpp-backend-277.py": "7dd257f43dc304ad183f25dd483a33dd9f76f285b8a7478dd3c9762debbab42b",
+    "scripts/research/x86-cpp-backend-257.py": "fd4edaa76a75a07ded0aac11e44e63741ca67a1889bf846fdf3f843ec98d72dc",
+    "local/game/Porsche.exe": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+    "research/v2/binaries/Porsche.exe-ddd748fdbe6d/functions.jsonl": "8f95f5ce43aaf8c6f748ff3007bb6593efeb0f1d9d1193d5bf23ef687e9a648b",
+    "scripts/research/verify-v2-x86-exact-lock.py": "06b90835c51d0a48848278fe0f952ea1b806fbfeed88fd505c22516815de77aa"
+  },
+  "failure_checks": {
+    "zero_cases": {
+      "exit_code": 2,
+      "error": "verify-v2-x86-exact.py: error: --cases must be positive"
+    },
+    "existing_output": {
+      "exit_code": 2,
+      "error": "verify-v2-x86-exact.py: error: output directory already exists: F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\fixed-branch-001"
+    },
+    "lock_parser": {
+      "valid": 1,
+      "rejected": 6
+    }
+  },
+  "ci_head_checks": "4/4 successful before intake",
+  "lock": {
+    "receipt": "local/reports/pr-review-20261024/final-lock-001/lock-oracle.json",
+    "sha256": "e78268c29a22bcd9d6b26ab06a3c9e7716f2e6c46265a21fc1e4453b8583c156",
+    "checks": {
+      "flags_memory_cases": 200000,
+      "lowered": 4000000,
+      "plain": 2470152
+    },
+    "toolchain": {
+      "compiler": {
+        "path": "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+        "sha256": "303bfbe5523af2e925871a1bc7fd2ec5f199a69208a3b6716724c3e6d6b6962d"
+      },
+      "linker": {
+        "path": "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\link.exe",
+        "sha256": "83b11a6a9b1674472fe069a8d315a6ac6d6dfe3670d39cb55c2cda303544b1d6"
+      }
+    },
+    "commands": {
+      "compile": [
+        "F:\\claude\\porsche disasm\\local\\tools\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x86\\cl.exe",
+        "/nologo",
+        "/TP",
+        "/std:c++17",
+        "/O2",
+        "/GS-",
+        "/EHs-c-",
+        "/W0",
+        "/IF:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-lock-001",
+        "harness.cpp",
+        "fragments.cpp",
+        "/Fe:lock.exe"
+      ],
+      "native": [
+        "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-lock-001\\lock.exe"
+      ]
+    },
+    "generated": {
+      "machine257.h": "30ccbb93fc624c89b128941a3a4003fc2dd18c33000ced2acab56f6f74c91c2a",
+      "fragments.cpp": "0b7f01604945f87d45791901ab68c51182d53f27ed2c65872c9a3678623f3eb4",
+      "harness.cpp": "ad89689a462749a381cc18272d226545aa6ca18f7e47e8c82df240ab9910179c"
+    },
+    "executable": {
+      "path": "F:\\claude\\porsche disasm\\local\\reports\\pr-review-20261024\\final-lock-001\\lock.exe",
+      "sha256": "5bc6b315507b53279e70b1a0c8702706adfdd46c0e2642860e6237f4f943c0b5"
+    }
+  },
+  "positive_instruction_cases": 348900,
+  "div8_native_edge_cases": 6,
+  "lock_flag_cases": 200000,
+  "historical_upstream_receipts": {
+    "branch-oracle.json": "dfd52f8034f95c3211ee8dbee14ec60f3b5f5004b8cbbfd6ca41704222a50c8a",
+    "int-oracle.json": "6062810be8e88b39dd8c9476add31d06aa1fe6a49aff5c989984cf5c85055264",
+    "lock-oracle.json": "5f3e5061e571964fbf9ce83d789c22d7a47919d3b3f1e8ee9fe8d5774814153e",
+    "sse-oracle.json": "604401ad37089df6fe9a65312d7bbcc0ead037b832e3d985de2d410c9c33e8ce",
+    "string-oracle.json": "a279da9df6e6ba43d56307bef621c23fe8a5332e5e515ba17e34dfb79d813fe4"
+  },
+  "limitations": [
+    "Not a whole-game or arbitrary-ISA proof",
+    "x87 remains the inherited binary64 model and prior unsupported operations stay rejected",
+    "Undefined flags from the Intel i3 profile are not portable CPU semantics",
+    "LOCK32 requires MSVC-compatible intrinsics and identity-mapped native memory",
+    "16-bit BT/BTS, LOCK8/16 and SHLD/SHRD16 are rejected",
+    "DIV8 UnsupportedInput is a tooling stop, not architectural #DE emulation; general division faults remain unmodeled",
+    "No ABI, memory-owner, callback, scheduling or full-game integration acceptance"
+  ]
+}

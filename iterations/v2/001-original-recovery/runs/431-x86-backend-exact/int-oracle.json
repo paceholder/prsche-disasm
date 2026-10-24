@@ -1,0 +1,4817 @@
+{
+ "schema": 1,
+ "cpu": "Intel(R) Core(TM) i3-3220 CPU @ 3.30GHz",
+ "forms": 961,
+ "failed": [],
+ "cases_per_form": 300,
+ "exit_code": 0,
+ "untranslated": [],
+ "tail": "forms 961 failed 0 cases 286500",
+ "results": [
+  {
+   "form": "adc eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "adc ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "adc ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "adc ecx, 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "adc edx, 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "adc dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "adc dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ax, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ax, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ax, dx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, 6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebp, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ebx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, 0xe3c",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add byte ptr [esi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add byte ptr [esi + ebx*2 + 0x10], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add word ptr [esi], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add word ptr [esi + ebx*2 + 0x10], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add word ptr [esi], dx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add word ptr [esi + ebx*2 + 0x10], dx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi], -0x14",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add dword ptr [esi + ebx*2 + 0x10], -0x14",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add al, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add al, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add al, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "add al, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ax, 0x7ff0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, 0xffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebp, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebx, 0xfffffffe",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ebx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, 0xfffffffe",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, 0xff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, 0xfffffff0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and esi, 0xffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and byte ptr [esi], 0xf7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and byte ptr [esi + ebx*2 + 0x10], 0xf7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and byte ptr [esi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and byte ptr [esi + ebx*2 + 0x10], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and word ptr [esi], 0xfffe",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and word ptr [esi + ebx*2 + 0x10], 0xfffe",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi + ebx*2 + 0x10], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi + ebx*2 + 0x10], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi + ebx*2 + 0x10], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi], 0xfffffffd",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and dword ptr [esi + ebx*2 + 0x10], 0xfffffffd",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and al, 0xfe",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "and al, dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "bswap eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "bswap edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "bt dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "bt dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "bts dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "bts dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cdq ",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cld ",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ax, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ax, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ax, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ax, dx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, 0x10000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, -2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebp, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, 3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ebx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, 7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, 0xc",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp byte ptr [esi], 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp byte ptr [esi + ebx*2 + 0x10], 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp byte ptr [esi], dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp byte ptr [esi + ebx*2 + 0x10], dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp word ptr [esi], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp word ptr [esi + ebx*2 + 0x10], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp word ptr [esi], 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp word ptr [esi + ebx*2 + 0x10], 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp word ptr [esi], di",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp word ptr [esi + ebx*2 + 0x10], di",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dword ptr [esi + ebx*2 + 0x10], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp dx, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp cl, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp bl, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp bl, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp bx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp bx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "cmp al, bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "dec al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "div bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "idiv dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, eax, 0xe666",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, ebp, 0x5556",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebp, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, ebx, 0x5556",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ebx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, ecx, 0x5556",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, edx, 0x5556",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, esi, 0x5556",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "imul dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "inc al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lahf ",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea eax, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea eax, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea ebp, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea ebp, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea ebx, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea ebx, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea ecx, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea ecx, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea edi, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea edi, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea edx, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea edx, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea esi, [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "lea esi, [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ax, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ax, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ax, bx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, 0x5e8b34",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebp, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, 6",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ebx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, 7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, 5",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, 0x5e66bc",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov byte ptr [esi], 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov byte ptr [esi + ebx*2 + 0x10], 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov byte ptr [esi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov byte ptr [esi + ebx*2 + 0x10], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov word ptr [esi], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov word ptr [esi + ebx*2 + 0x10], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov word ptr [esi], 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov word ptr [esi + ebx*2 + 0x10], 0",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov word ptr [esi], cx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov word ptr [esi + ebx*2 + 0x10], cx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi], 0x40a00000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov dword ptr [esi + ebx*2 + 0x10], 0x40a00000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov bx, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov al, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov cl, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov cl, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov bx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov bx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mov cl, bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ax, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ax, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx eax, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx eax, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx eax, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx eax, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx eax, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx eax, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebp, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebp, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebp, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebp, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebp, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebp, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ebx, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ecx, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ecx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ecx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ecx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ecx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx ecx, bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edi, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edi, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edi, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edi, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edi, si",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edx, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx edx, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx esi, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx esi, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx esi, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx esi, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx esi, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx esi, bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx cx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx cx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movsx cx, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ax, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ax, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ax, ah",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx eax, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx eax, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx eax, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx eax, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx eax, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx eax, bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ebx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ebx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ebx, dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ecx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ecx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ecx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ecx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx ecx, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx edi, dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx edx, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx esi, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx esi, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx esi, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx esi, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx esi, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx dx, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx dx, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "movzx bx, bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "mul dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "neg cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "not dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ax, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, 0xffffffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebp, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebp, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebp, 0xffffffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ebx, 0xffffffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edi, 0xffffffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, 0xffffffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, 0x100",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or byte ptr [esi], 0x80",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or byte ptr [esi + ebx*2 + 0x10], 0x80",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or byte ptr [esi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or byte ptr [esi + ebx*2 + 0x10], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or word ptr [esi], 0x1102",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or word ptr [esi + ebx*2 + 0x10], 0x1102",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi], 0xff000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or dword ptr [esi + ebx*2 + 0x10], 0xff000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or al, 8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "or cl, al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "prefetcht0 byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "prefetcht0 byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "prefetchw byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "prefetchw byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rcr eax, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rcr ebx, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rol edx, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "rol cl, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "ror eax, 8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sahf ",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar eax, 3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar ebp, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar ebx, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar ecx, 7",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar edi, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar edx, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar edx, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar esi, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar esi, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar dword ptr [esi], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar dword ptr [esi + ebx*2 + 0x10], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sar cx, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb eax, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb eax, -1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb ebp, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb ebp, -1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb ebx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb ebx, -1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb ecx, -1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb edi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb edx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb edx, -1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb esi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb al, 0xff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sbb cl, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "seta byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "seta byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "seta al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setb al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sete dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setg cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setge cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setl cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setle bl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setne byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setne byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setne al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "setns al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sets cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl eax, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl eax, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl ebp, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl ebp, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl ebx, 0x18",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl ebx, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl ecx, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl edi, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl edi, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl edx, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl edx, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl esi, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl esi, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl dword ptr [esi], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl dword ptr [esi + ebx*2 + 0x10], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl al, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shl al, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shld eax, ebx, 0xb",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shld eax, ecx, 0xb",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shld edx, eax, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr eax, 8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr eax, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr ebp, 5",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr ebx, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr ebx, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr ecx, 0x1f",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr edi, 3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr edi, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr edx, 0x1f",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr edx, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr esi, 3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr esi, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr dword ptr [esi], 8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr dword ptr [esi + ebx*2 + 0x10], 8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shr al, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "shrd eax, edx, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "std ",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ax, cx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, 2",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub eax, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebp, 3",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ebx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub ecx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, 0x3e8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, 8",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub esi, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub byte ptr [esi], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub byte ptr [esi + ebx*2 + 0x10], al",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub word ptr [esi], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub word ptr [esi + ebx*2 + 0x10], ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub word ptr [esi], bx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub word ptr [esi + ebx*2 + 0x10], bx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi + ebx*2 + 0x10], ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi + ebx*2 + 0x10], edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi + ebx*2 + 0x10], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dword ptr [esi + ebx*2 + 0x10], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dx, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub dl, 0x40",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub bx, word ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub bx, word ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "sub al, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ax, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ax, 0x10c",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test eax, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test eax, 0xffff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebp, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebp, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebp, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebp, 0x20000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ebx, 0x80000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test ecx, 0x80",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edi, 0xffffff0f",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test edx, 0x1ff",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test esi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test esi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test esi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test esi, 0x4000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test byte ptr [esi], 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test byte ptr [esi + ebx*2 + 0x10], 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test byte ptr [esi], dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test byte ptr [esi + ebx*2 + 0x10], dl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test word ptr [esi], 0x10c",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test word ptr [esi + ebx*2 + 0x10], 0x10c",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi + ebx*2 + 0x10], eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi + ebx*2 + 0x10], edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi + ebx*2 + 0x10], esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi], 0xff000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test dword ptr [esi + ebx*2 + 0x10], 0xff000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test cl, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "test cl, cl",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xchg ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xchg dx, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xchg al, ah",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ax, ax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ax, bx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor eax, 0x10",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebp, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebp, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebp, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebp, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ebx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, ebp",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor ecx, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edi, ebx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edi, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edi, 4",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, edi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, 0x80000000",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, dword ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor edx, dword ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor esi, eax",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor esi, ecx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor esi, edx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor esi, esi",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor esi, 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor word ptr [esi], dx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor word ptr [esi + ebx*2 + 0x10], dx",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor dword ptr [esi], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor dword ptr [esi + ebx*2 + 0x10], 1",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor al, 0x3d",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor al, byte ptr [esi]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor al, byte ptr [esi + ebx*2 + 0x10]",
+   "result": "PASS",
+   "cases": "300/300"
+  },
+  {
+   "form": "xor dl, dl",
+   "result": "PASS",
+   "cases": "300/300"
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "schema": 1,
+ "output": [
+  "flags_memory_cases 200000 bad 0",
+  "atomicity lowered 4000000 of 4000000",
+  "atomicity plain 2378530 of 4000000",
+  "PASS"
+ ],
+ "exit_code": 0
+}
