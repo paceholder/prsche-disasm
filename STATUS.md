@@ -1,10 +1,11 @@
 # Состояние проекта
 
-Current [Run388](iterations/v2/001-original-recovery/runs/388-startup-integration/README.md):
-211 TUs/8 projects compile;194 names/201 refs,noEXE. Real diagnostic callback
-pointer and boundedheap handoff integrated after1504 comparisons/15 mutations;
-528-input audit PASS. PR24/Run431 research tooling accepted with bounded native proof; game graph unchanged.
-Next original startup terminal/network dependencies; details in active PLAN.
+Current [Run392](iterations/v2/001-original-recovery/runs/392-startup-integration/README.md):
+215TUs/8projects compile;197 unresolved names/205refs,noEXE. Network constructor,
+file callback/word initializer, bounded diagnostic terminal and exact clock import
+integrated after38948cases/23mutations; shared535-pin auditPASS.395/396 remain separate
+nextwork; GitHub MCP/search discoverability queued aftercurrentiteration checkpoint.
+
 Older entries below describe historical checkpoints.
 
 Run332 compiles171 current C++ TUs/8 projects, leaving261 unresolved names/

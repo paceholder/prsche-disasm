@@ -1,0 +1,58 @@
+{
+  "tool": {
+    "path": "local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+    "sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5"
+  },
+  "objects": [
+    {
+      "path": "local/experiments/v2-diagnostic-terminal-native-390/004/od-0.obj",
+      "sha256": "d35691d7da414cc8ba8495eb62f9d72c8e52bd98f9c7a38ada3e8486a3ff9899",
+      "symbols": {
+        "path": "local/experiments/v2-diagnostic-terminal-native-390/coff-004/od-0-symbols.txt",
+        "sha256": "7b6459ec2adc7cf829f03d283214714d171c58ddbfa0f55842d90ab83f9b82c3"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?startup_diagnostic_mode_005e50b4@porsche@@3HA (int porsche::startup_diagnostic_mode_005e50b4)",
+        "00A 00000004 SECT3  notype       External     | ?startup_debugger_present_005deb68@porsche@@3HA (int porsche::startup_debugger_present_005deb68)",
+        "014 00000000 UNDEF  notype       External     | __imp__OutputDebugStringA@4",
+        "015 00000000 UNDEF  notype       External     | __imp__GetProcAddress@8",
+        "016 00000000 UNDEF  notype       External     | __imp__LoadLibraryA@4",
+        "017 00000000 UNDEF  notype       External     | __imp__MessageBoxA@16",
+        "018 00000000 SECT5  notype ()    External     | ?startup_diagnostic_sink_0059fc20@porsche@@YAXPBD@Z (void __cdecl porsche::startup_diagnostic_sink_0059fc20(char const *))",
+        "019 00000000 UNDEF  notype ()    External     | ?startup_debug_break_005af0c0@porsche@@YAXXZ (void __cdecl porsche::startup_debug_break_005af0c0(void))",
+        "01A 00000000 UNDEF  notype ()    External     | ?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z (char * __cdecl porsche::formatter_error_copy_n_005a28a0(char *,char const *,unsigned int))",
+        "01B 00000000 UNDEF  notype ()    External     | ?process_exit_005a246e@porsche@@YAXI@Z (void __cdecl porsche::process_exit_005a246e(unsigned int))",
+        "01C 00000000 UNDEF  notype ()    External     | ?heap_enter_005322b0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_enter_005322b0(void *))",
+        "01D 00000000 UNDEF  notype ()    External     | ?heap_leave_005322c0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_leave_005322c0(void *))",
+        "01E 00000000 UNDEF  notype ()    External     | ?file_current_thread_0055f780@porsche@@YAHI@Z (int __cdecl porsche::file_current_thread_0055f780(unsigned int))",
+        "01F 00000000 UNDEF  notype       External     | ?missing_file_006afbe4@porsche@@3P6AXPBDH@ZA (void (__cdecl* porsche::missing_file_006afbe4)(char const *,int))",
+        "020 00000000 UNDEF  notype       External     | ?thread_start_lock_006a57d8@porsche@@3PAXA (void * porsche::thread_start_lock_006a57d8)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-diagnostic-terminal-native-390/004/o2-0.obj",
+      "sha256": "a34f223d4858da1f7c01ec97f7c0f860f63808b73109ac4d2e0958ccd8e96ca1",
+      "symbols": {
+        "path": "local/experiments/v2-diagnostic-terminal-native-390/coff-004/o2-0-symbols.txt",
+        "sha256": "564e66addb5c47cea30465f286ee838d31e49d11f3db3c2fa553e7d094f3c8aa"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?startup_diagnostic_mode_005e50b4@porsche@@3HA (int porsche::startup_diagnostic_mode_005e50b4)",
+        "00A 00000004 SECT3  notype       External     | ?startup_debugger_present_005deb68@porsche@@3HA (int porsche::startup_debugger_present_005deb68)",
+        "00F 00000000 UNDEF  notype       External     | __imp__OutputDebugStringA@4",
+        "010 00000000 UNDEF  notype       External     | __imp__GetProcAddress@8",
+        "011 00000000 UNDEF  notype       External     | __imp__LoadLibraryA@4",
+        "012 00000000 UNDEF  notype       External     | __imp__MessageBoxA@16",
+        "013 00000000 SECT4  notype ()    External     | ?startup_diagnostic_sink_0059fc20@porsche@@YAXPBD@Z (void __cdecl porsche::startup_diagnostic_sink_0059fc20(char const *))",
+        "014 00000000 UNDEF  notype ()    External     | ?startup_debug_break_005af0c0@porsche@@YAXXZ (void __cdecl porsche::startup_debug_break_005af0c0(void))",
+        "015 00000000 UNDEF  notype ()    External     | ?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z (char * __cdecl porsche::formatter_error_copy_n_005a28a0(char *,char const *,unsigned int))",
+        "016 00000000 UNDEF  notype ()    External     | ?process_exit_005a246e@porsche@@YAXI@Z (void __cdecl porsche::process_exit_005a246e(unsigned int))",
+        "017 00000000 UNDEF  notype ()    External     | ?heap_enter_005322b0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_enter_005322b0(void *))",
+        "018 00000000 UNDEF  notype ()    External     | ?heap_leave_005322c0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_leave_005322c0(void *))",
+        "019 00000000 UNDEF  notype ()    External     | ?file_current_thread_0055f780@porsche@@YAHI@Z (int __cdecl porsche::file_current_thread_0055f780(unsigned int))",
+        "01C 00000000 UNDEF  notype       External     | ?missing_file_006afbe4@porsche@@3P6AXPBDH@ZA (void (__cdecl* porsche::missing_file_006afbe4)(char const *,int))",
+        "01D 00000000 UNDEF  notype       External     | ?thread_start_lock_006a57d8@porsche@@3PAXA (void * porsche::thread_start_lock_006a57d8)"
+      ]
+    }
+  ]
+}

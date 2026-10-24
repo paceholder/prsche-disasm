@@ -1,5 +1,14 @@
 # Отложенные проверки восстановления v2
 
+Run392: networkctor686B, filecallback57B/word9B, shortdiagnostic356B and exact6Bclock
+import accepted with38948nativecases/23mutations/535pins.215TUs197names205refs,noEXE.
+Longdiagnostic>=253 retainsopaque stackbyte253 and remainsPARTIAL; liveOS, callback/
+childcomposition, realdestructor, old5e8e50 aliases, failure/reinit/concurrency and
+fullstartup/menu/gameplay remainHOLD.395driverdescriptor ownership is separate
+research;3961296cases/variantpassed butnotyetintaken. No oldacceptedproofrerun for
+cosmetic metadata; no guessed storage/hostpointer mapping or partialpromotion.
+The paragraphs below are historical acceptance checkpoints.
+
 Run388 closes currentstartupbatch (1504comparisons/15mutations,528pins);211TUs,
 194names201refs,noEXE. Realcallbackpointer fixesruntimehole invisibletooldlinkcounts.
 Terminal0059fc20, rawfileVAtokens, ECXnetworkconstructor and partialpoolfailure/

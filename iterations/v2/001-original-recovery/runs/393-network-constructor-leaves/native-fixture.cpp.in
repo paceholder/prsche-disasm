@@ -1,0 +1,110 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "../391-network-constructor/network_constructor.hpp"
+#include "porsche/network_services.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+static const B word_raw[9]={@WORD@},callback_raw[57]={@CALLBACK@};
+static B *code,*word_code,*callback_code;static B object_arena[0x2a8],word_arena[48];
+static B* object;static U cases,word_cases,callback_cases,checks;
+static U address(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U read_word(const void* p){U value;std::memcpy(&value,p,4);return value;}
+static void put(void* p,U value){std::memcpy(p,&value,4);}
+static void* pointer(U token){return reinterpret_cast<void*>(static_cast<std::uintptr_t>(token));}
+static void die(const char* why,U detail=0){std::printf("fixture %s %08x\n",why,detail);std::fflush(stdout);ExitProcess(98);}
+struct Message{U count,receiver,message,first,second,third,fourth,network;B object[0x2a8];};static Message message;
+namespace porsche {
+// Controlled external cell. Production owner remains startup_services.cpp;
+// source and originalzero-fill evidence are pinned separately, no new state.
+void* startup_network_00628c70=nullptr;
+void __fastcall application_network_message_0048c870(void* receiver,void*,U code,U first,U second,U third,U fourth){
+    if(message.count)die("multiple-message-calls");message.count=1;message.receiver=address(receiver);message.message=code;
+    message.first=first;message.second=second;message.third=third;message.fourth=fourth;message.network=address(startup_network_00628c70);
+    std::memcpy(message.object,object_arena,sizeof object_arena);
+}
+}
+static void install(){
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");
+    word_code=code;callback_code=code+128;std::memcpy(word_code,word_raw,9);std::memcpy(callback_code,callback_raw,57);
+    if(callback_code[0]!=0xa1||read_word(callback_code+1)!=0x628c70)die("global-load");put(callback_code+1,address(&porsche::startup_network_00628c70));
+    U offset=0x48d9e3-0x48d9b0;
+    if(callback_code[offset]!=0xe8||0x48d9e8+read_word(callback_code+offset+1)!=0x48c870)die("callsite");
+    put(callback_code+offset+1,address(reinterpret_cast<const void*>(&porsche::application_network_message_0048c870))-address(callback_code+offset+5));
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static Capture invoke(const void* fn,bool callback,void* receiver,U filename,U error){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,receiver
+        cmp callback,0
+        je callit
+        push error
+        push filename
+    callit:
+        call fn
+        cmp callback,0
+        je capture
+        add esp,8
+    capture:
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;}
+static bool abi(const Capture& r){++checks;return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1;}
+static bool word_case(U alignment,U seed){B before[48],expected[48],actual[48];for(U i=0;i<48;++i)before[i]=static_cast<B>(seed+29*i);
+    std::memcpy(word_arena,before,48);void* receiver=word_arena+16+alignment;
+    auto original=invoke(word_code,false,receiver,0,0);std::memcpy(expected,word_arena,48);
+    std::memcpy(word_arena,before,48);auto recovered=invoke(reinterpret_cast<const void*>(&porsche::network_word_construct_0052df00),false,receiver,0,0);
+    std::memcpy(actual,word_arena,48);if(!abi(original)||!abi(recovered)||original.eax!=recovered.eax||std::memcmp(expected,actual,48))return false;
+    if(original.eax!=address(receiver)||read_word(receiver)!=0)return false;
+    for(U i=0;i<48;++i)if((i<16+alignment||i>=20+alignment)&&actual[i]!=before[i])return false;
+    checks+=3;++word_cases;++cases;return true;
+}
+struct Result{Message message;B object[0x2a8];U network,abi;};
+static void reset(U alignment,U seed,U present,U enabled,U suppressed,U sender){
+    for(U i=0;i<sizeof object_arena;++i)object_arena[i]=static_cast<B>(seed+37*i);
+    object=object_arena+16+alignment;put(object+8,enabled);object[0xbf]=static_cast<B>(suppressed);put(object+0x0c,sender);
+    porsche::startup_network_00628c70=present?object:nullptr;message={};
+}
+static Result execute(const void* fn,U alignment,U seed,U present,U enabled,U suppressed,U sender,U filename,U error){
+    reset(alignment,seed,present,enabled,suppressed,sender);B before[sizeof object_arena];std::memcpy(before,object_arena,sizeof before);
+    auto capture=invoke(fn,true,pointer(0x76543210),filename,error);Result result{};result.message=message;
+    std::memcpy(result.object,object_arena,sizeof object_arena);result.network=address(porsche::startup_network_00628c70);result.abi=abi(capture);
+    if(std::memcmp(before,object_arena,sizeof before)||result.network!=(present?address(object):0))result.abi=false;
+    return result;
+}
+int main(){using namespace porsche;install();if(startup_network_00628c70)die("controlled-initial-state");
+    for(U alignment=0;alignment<4;++alignment)for(U seed:{0u,1u,127u,255u})if(!word_case(alignment,seed)){
+        std::printf("divergence word alignment=%u seed=%u\n",alignment,seed);return 1;}
+    const U gates[][3]={{0,0,0},{1,0,0},{1,0,1},{1,1,0},{1,0x100,0},{1,0x80000000,0},{1,1,1},{1,1,0x80},{1,1,0xff}};
+    const U pointers[]={0,1,0xffffffffu,0x80000000u,address(word_arena)};
+    const U errors[]={0,1,0xfffffffeu,0xffffffffu,0x80000000u,0x7fffffffu};
+    for(U alignment=0;alignment<4;++alignment)for(U seed:{0u,255u})for(const auto& gate:gates)
+    for(U sender:pointers)for(U filename:pointers)for(U error:errors){
+        auto original=execute(callback_code,alignment,seed,gate[0],gate[1],gate[2],sender,filename,error);
+        auto recovered=execute(reinterpret_cast<const void*>(&network_missing_file_0048d9b0),alignment,seed,gate[0],gate[1],gate[2],sender,filename,error);
+        bool called=gate[0]&&gate[1]&&!gate[2];
+        if(!original.abi||!recovered.abi||std::memcmp(&original,&recovered,sizeof original)||original.message.count!=static_cast<U>(called)){
+            std::printf("divergence callback alignment=%u seed=%u present=%u enabled=%08x byte=%02x sender=%08x filename=%08x error=%08x\n",alignment,seed,gate[0],gate[1],gate[2],sender,filename,error);return 1;}
+        if(called&&(original.message.receiver!=sender||original.message.message!=0xbb||original.message.first!=error||original.message.second!=0x80000000u||original.message.third!=filename||original.message.fourth))die("original-message-contract");
+        ++callback_cases;++cases;checks+=3;
+    }
+    std::printf("network_constructor_leaves_original_vs_cpp=PASS cases=%u word=%u callback=%u checks=%u\n",cases,word_cases,callback_cases,checks);return 0;
+}

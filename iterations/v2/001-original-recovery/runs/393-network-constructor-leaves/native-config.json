@@ -1,0 +1,85 @@
+{
+  "run": 393,
+  "experiment": "local/experiments/v2-network-constructor-leaves-native-393",
+  "timeout_seconds": 90,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves",
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/network_services.cpp",
+    "iterations/v2/001-original-recovery/runs/153-services-integration/network-services/verification.json"
+  ],
+  "original_bodies": [
+    {
+      "token": "@WORD@",
+      "va": "0052df00",
+      "bytes": 9,
+      "sha256": "cda72abcdbb1efdc80edc8549a889c40e93418986336d31914aa9a2d9e967cc7"
+    },
+    {
+      "token": "@CALLBACK@",
+      "va": "0048d9b0",
+      "bytes": 57,
+      "sha256": "0cd36d55455f86a68adcb423a83d16909c8029726cbaa6df88a2ada67ec67333"
+    }
+  ],
+  "pass_marker": "network_constructor_leaves_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "word-byte-width",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "old": "std::memcpy(receiver,&zero,4);",
+      "new": "std::memcpy(receiver,&zero,1);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "word-return",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "old": "return receiver;",
+      "new": "return static_cast<B*>(receiver)+1;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "enabled-byte-width",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "old": "word(network,8)==0",
+      "new": "static_cast<const B*>(network)[8]==0",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "suppressed-word-width",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "old": "static_cast<const B*>(network)[0xbf]!=0",
+      "new": "word(network,0xbf)!=0",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "error-argument",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "old": "static_cast<U>(error),0x80000000u",
+      "new": "0,0x80000000u",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "filename-argument",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "old": "0x80000000u,filename_token,0",
+      "new": "0x80000000u,0,0",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

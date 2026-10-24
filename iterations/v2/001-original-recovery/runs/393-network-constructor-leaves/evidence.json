@@ -1,0 +1,179 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "query": [
+    "0052df00",
+    "0048d9b0",
+    "0048c870",
+    "00628c70",
+    "0048fc80..0048ff2d"
+  ],
+  "bodies": [
+    {
+      "va": "0052df00",
+      "bytes": 9,
+      "sha256": "cda72abcdbb1efdc80edc8549a889c40e93418986336d31914aa9a2d9e967cc7",
+      "raw_hex": "8bc1c70000000000c3",
+      "indexed": {
+        "entry_va": "0052df00",
+        "name": "FUN_0052df00",
+        "signature": "undefined FUN_0052df00(void)",
+        "ranges": [
+          [
+            "0052df00",
+            "0052df08"
+          ]
+        ],
+        "body_bytes": 9,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "0052df00  8bc1  MOV EAX,ECX",
+        "0052df02  c70000000000  MOV dword ptr [EAX],0x0",
+        "0052df08  c3  RET"
+      ]
+    },
+    {
+      "va": "0048d9b0",
+      "bytes": 57,
+      "sha256": "0cd36d55455f86a68adcb423a83d16909c8029726cbaa6df88a2ada67ec67333",
+      "raw_hex": "a1708c620085c0742f8b480885c974288a88bf00000084c9751e8b4c24048b5424086a00518b480c68000000805268bb000000e888eeffffc3",
+      "indexed": {
+        "entry_va": "0048d9b0",
+        "name": "FUN_0048d9b0",
+        "signature": "undefined FUN_0048d9b0(void)",
+        "ranges": [
+          [
+            "0048d9b0",
+            "0048d9e8"
+          ]
+        ],
+        "body_bytes": 57,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "0048d9b0  a1708c6200  MOV EAX,[0x00628c70]",
+        "0048d9b5  85c0  TEST EAX,EAX",
+        "0048d9b7  742f  JZ 0x0048d9e8",
+        "0048d9b9  8b4808  MOV ECX,dword ptr [EAX + 0x8]",
+        "0048d9bc  85c9  TEST ECX,ECX",
+        "0048d9be  7428  JZ 0x0048d9e8",
+        "0048d9c0  8a88bf000000  MOV CL,byte ptr [EAX + 0xbf]",
+        "0048d9c6  84c9  TEST CL,CL",
+        "0048d9c8  751e  JNZ 0x0048d9e8",
+        "0048d9ca  8b4c2404  MOV ECX,dword ptr [ESP + 0x4]",
+        "0048d9ce  8b542408  MOV EDX,dword ptr [ESP + 0x8]",
+        "0048d9d2  6a00  PUSH 0x0",
+        "0048d9d4  51  PUSH ECX",
+        "0048d9d5  8b480c  MOV ECX,dword ptr [EAX + 0xc]",
+        "0048d9d8  6800000080  PUSH 0x80000000",
+        "0048d9dd  52  PUSH EDX",
+        "0048d9de  68bb000000  PUSH 0xbb",
+        "0048d9e3  e888eeffff  CALL 0x0048c870",
+        "0048d9e8  c3  RET"
+      ]
+    }
+  ],
+  "ownership": {
+    "registry_snapshot_sha256": "1574a6d7de8947a97c0ac9207e834ff2f08c1e0fd5e8968b88b6a2e540ca0c97",
+    "both_new_entries_unowned": true,
+    "new_state": false,
+    "existing_global_owner": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp startup_network_00628c70",
+    "canonical_message_provider": {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0048c870",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/network_services.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "ECX members via fastcall facade; action cdecl",
+      "binary_matched": false,
+      "verification": "scripts/research/verify-v2-network-services.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/153-services-integration/network-services/verification.json",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [],
+      "unrecovered_indirect_dependencies": [],
+      "verification_boundary": "Complete indexed bodies with original state/return/effect comparisons. Remaining typed callees are explicit recording seams; no live game or unknown-callee parity. Sign005a3edb uses actual original native x86 hardware oracle; Unicorn flag discrepancies remain documented."
+    },
+    "consumer": "Run391 exact declarations and installed compiled callback pointer; its passed source inputs stay unchanged"
+  },
+  "rea": {
+    "path": "local/experiments/v2-startup-390-rea/002/function-0048d9b0.json",
+    "sha256": "fe9015ba5f28f350c020cbc0f67fbdd6f62b39c3682d8124e2095d4ac79c7b5e",
+    "evidence_id": "ev_c4fcdadc3a9f4cd048394aeb3d5e315270f584e53c5f6012439bf84b5ba09c04",
+    "session": "shared390/002 auditedPASS; no new session"
+  },
+  "abi": [
+    {
+      "va": "0052df00",
+      "declaration": "void* __fastcall network_word_construct_0052df00(void*,void*)",
+      "original": "ECX receiver; MOV[EAX],0 writes4B; EAX=self; RET0, no stack arguments"
+    },
+    {
+      "va": "0048d9b0",
+      "declaration": "void __cdecl network_missing_file_0048d9b0(const char*,int32_t)",
+      "original": "filename=[ESP+4],error=[ESP+8],RET0; child message originalECX plus5stackarguments,calleeRET20",
+      "message": "receiver=u32(network+0xc),0xbb,errorbits,0x80000000,filenamebits,0",
+      "gates": "network!=NULL && u32(network+8)!=0 && u8(network+0xbf)==0"
+    }
+  ],
+  "native": {
+    "receipt": "local/experiments/v2-network-constructor-leaves-native-393/001/receipt.json",
+    "receipt_sha256": "95f4615fb8ff1df0acd48b855ee29d0ba21b737f0b30a26e80d546ff8295920b",
+    "status": "PASS",
+    "inputs": 209,
+    "variants": [
+      "/Od",
+      "/O2"
+    ],
+    "cases_per_variant": 10816,
+    "word_cases_per_variant": 16,
+    "callback_cases_per_variant": 10800,
+    "checks_per_variant": 54080,
+    "detected_mutations": [
+      "word-byte-width",
+      "word-return",
+      "enabled-byte-width",
+      "suppressed-word-width",
+      "error-argument",
+      "filename-argument"
+    ],
+    "coverage": [
+      "word fouralignments, fourbytepatterns,alladjacentguardbytes and exactselfreturn",
+      "callback fourobjectalignments,twoobjectpatterns,9gatecombinations",
+      "32-bit enable field includes0x100 and0x80000000; suppressionbyte includes0x80/0xff with nonzero neighboring bytes",
+      "five rawsender and filenamepointertokens includeNULL,1,ffffffff,80000000,borrowedvalidaddress",
+      "sixerrorbitpatterns,all5messagearguments,receivertoken,callcountandorderedprecallobjectsnapshot",
+      "full0x268B object+canariesunchanged; globalpointerunchanged; callback incomingECX deliberately unrelated",
+      "ESP,EBP,EBX,ESI,EDI checked; wordEAX exact; callbackEAX ignored pervoidcallbackcontract"
+    ]
+  },
+  "lowering": {
+    "backend": "scripts/research/x86-cpp-backend-exact.py",
+    "backend_sha256": "83b677762a350bd62af871ac754a8df4bd87d791f67d6d982f20898b7dd5fe0e",
+    "status": "both tinybodies accepted as inspectiononly; no ISA fullrerun or Machine257 production runtime",
+    "candidates": [
+      {
+        "va": "0052df00",
+        "path": "local/experiments/v2-network-constructor-leaves-native-393/inspection-0052df00.cpp",
+        "sha256": "23b0ccc4d2ac883de0cd683fe8f92c23df644a0366a74e21602352a67996cb5b"
+      },
+      {
+        "va": "0048d9b0",
+        "path": "local/experiments/v2-network-constructor-leaves-native-393/inspection-0048d9b0.cpp",
+        "sha256": "9340086f366112d82315c9d61996e09fb7f69e698af5f5d899aea6ce2fd530bc"
+      }
+    ]
+  },
+  "boundaries": [
+    "0052df00 requires validwritable4B receiver, including unaligned; NULL/invalid receiver retains originalfault behavior and is outside this proof.",
+    "0048d9b0 requires NULLglobal or validreadable objectthrough0xbf; sender/filename tokens are never dereferenced/mapped by this callback.",
+    "0048c870 uses canonicalproductionprovider but is a controlled recording endpoint here; no livepacket/network proof.",
+    "Statecell is fixtureprivatecontrolled; actualoldowner source pinned, finalgameCOFFowner verified by coordinator.",
+    "Existing311destructor0048ff30 remains unrecoveredtypedexternal, not a recoveredcanonicalbody.",
+    "No new dataowner,gamefixtureprovider,callbackapproximation,live startup orfullgameacceptance."
+  ]
+}

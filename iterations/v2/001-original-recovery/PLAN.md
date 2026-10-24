@@ -1,13 +1,26 @@
 # v2 / 001 - original source recovery plan
 
-Active2026-10-24 batch: coordinator390 diagnosticterminal0059fc20; worker391
-networkconstructor0048fc80. Both have new lowering inspection candidates, not
-accepted production sources. Shared REA390/002 audited5dossiersPASS;001 sandbox
-spawnEPERM preserved.392 will integrate ready original/native batches once.
-Recovery skill now records bounded backend reuse without mandatory per-function
-census runs. Frontmatter/link checks pass; standalone validator lacks PyYAML.
-Current game is still388; no new game acceptance claimed. Older completion and
-no-active-worker statements below describe the preceding checkpoint.
+Current392,2026-10-24: accepted networkctor391 +leaves393 +boundedterminal390
+and exactGetTickCount binding394. SharedauditPASS38948cases/23mutations/535pins;
+215TUs/8projects compile,197names205refs,noEXE. Exact3oldnamesclose/6childrenopen.
+390longmessage>=253 remainspartial; defaultmode/cache/timeout2/1/400 verified.
+Canonicalstate/import/COFFproviders checked; originals and passednativeinputs frozen.
+Game001/002 retained; onlyunnecessaryclockheader changed between builds. See392README
+andacceptance.json for exactcommands andboundaries. Rootiteration NOT complete.
+
+Separate nextwork: worker395 transportdriverinitializers00560a90/005607d0
+(legacyoptionfacade names), extern-only descriptors/unknowncallbackownership;
+no guessedtable/storage intake. Worker396 memberconstructor004902c0 nowPASS2592cases/
+7mutations, actualcanonicalheapstateowner linked; separateintakepending.
+No furtherworker subtask starts after these handoffs. Coordinator owns nextintake.
+
+USER QUEUE2026-10-24, aftercurrentrecoveryiteration checkpoint: verify/connect
+GitHub MCP in this environment, then improve public search discoverability of
+https://github.com/xfynx/prsche-disasm for PorscheUnleashed/NFS decompilation and
+source-recovery queries. This is search-indexing/discovery work, not merely general
+repo cleanup; keep deferred whilecurrentrecoverywork finishes. No visibility/ranking
+or index-time guarantee. Skillupdate a4d0faa records boundedlowering reuse.
+Older checkpoint statements below are historical.
 
 Current388,2026-10-24: currentstartupbatch complete, fulliteration NOT complete.
 386 boundedheapfinish binding +387 diagnostic93B +389 actualstartupcallbackpointer

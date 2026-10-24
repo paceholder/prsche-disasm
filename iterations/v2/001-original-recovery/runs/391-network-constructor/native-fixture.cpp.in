@@ -1,0 +1,181 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "network_constructor.hpp"
+#include "../311-pr4-shutdown-helpers/shutdown_helpers_311.hpp"
+#include "porsche/application_context_base.hpp"
+#include "porsche/application_heap.hpp"
+#include "porsche/application_heap_init.hpp"
+#include "porsche/file_events.hpp"
+#include "porsche/files.hpp"
+#include "porsche/network_lifecycle.hpp"
+#include "porsche/network_services.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+static const B constructor_raw[686]={@CONSTRUCTOR@},labels_raw[44]={@LABELS@},timeout_raw[4]={@TIMEOUT@},timer_raw[4]={@TIMER@};
+static B *code;static B arena[0x2a8],blocks[8][32];static B* object=arena+32;
+static U option_integer,option_present,environment_value,tick_value,mode,alias_mode,small_failure,context_count,small_count,cases,checks;
+static U address(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static void die(const char* why,U detail=0){std::printf("fixture %s %08x\n",why,detail);std::fflush(stdout);ExitProcess(98);}
+struct State{B arena[0x2a8],blocks[8][32];U network,timeout,timer,missing;char name[32];};
+static State state(){using namespace porsche;State s{};std::memcpy(s.arena,arena,sizeof arena);std::memcpy(s.blocks,blocks,sizeof blocks);
+    s.network=address(startup_network_00628c70);s.timeout=startup_network_timeout_005df6a8;s.timer=timer_rate_005deb48;
+    s.missing=address(reinterpret_cast<const void*>(missing_file_006afbe4));std::memcpy(s.name,application_object_heap_name_005e8e50,32);return s;}
+struct Event{U kind,a,b;State before;};static Event events[24];static U event_count;
+static void event(U kind,U a=0,U b=0){if(event_count==24)die("events");events[event_count++]={kind,a,b,state()};}
+extern "C" void __cdecl previous_callback(const char*,std::int32_t){die("previous-callback-invoked");}
+namespace porsche {
+// Controlled external state for this bounded constructor proof. Actual owner
+// sources and their immutable proofs are pinned; this fixture never supplies
+// a provider to the game graph. New constructor-owned data is compiled above.
+void* startup_network_00628c70=nullptr;
+U timer_rate_005deb48=0;
+char application_object_heap_name_005e8e50[32]{};
+void (__cdecl* missing_file_006afbe4)(const char*,std::int32_t)=nullptr;
+U __cdecl network_option_integer_00560a90(const char* name){if(name!=startup_network_labels_005d079c+40)die("integer-label");event(1,address(name));
+    if(mode&1){put(object+0x18,0x32517698u);timer_rate_005deb48^=0x93758121u;}return option_integer;}
+U __cdecl network_option_present_005607d0(const char* name){if(name!=startup_network_labels_005d079c+36)die("present-label");event(2,address(name));
+    if(mode&1){object[0xbe]^=0x78;startup_network_timeout_005df6a8^=0x12345678u;}return option_present;}
+void* __fastcall network_member_construct_004902c0(void* receiver,void*,const void* opaque){
+    if(receiver!=object+0x150||!opaque)die("member-transport");
+    // Opaque pointer has distinct stack locations in each caller. Its value is
+    // never read by the complete original4902c0; record only nonnull transport.
+    event(3,address(receiver),1);put(receiver,address(blocks[7]));put(blocks[7],address(blocks[7]));put(blocks[7]+4,address(blocks[7]));
+    if(mode&1){put(object+0x154,0x77551331u);object[0xc7]=0x96;}return receiver;
+}
+void* __cdecl application_context_member_storage_004211d0(U bytes,U allocation_mode){event(4,bytes,allocation_mode);
+    if(bytes!=12||allocation_mode||context_count==5)die("sentinel-allocator");U index=context_count++;
+    if(mode&1){put(object+0x20,word(object+0x20)+0x127u);object[0xc0]^=0xe7;timer_rate_005deb48+=3;}
+    if(index==0&&alias_mode==1)return object;
+    if(index==0&&alias_mode==2)return object+0x254;
+    return blocks[index];
+}
+U __stdcall network_lifecycle_tick_count_0048a9a0(){event(5);if(mode&1){put(object+0x24,0xe573c912u);object[0xc2]=0xf5;}return tick_value;}
+U __cdecl network_environment_0055eb70(U zero){event(6,zero);if(zero)die("environment-argument");
+    if(mode&1){put(object+0x0c,0x34f2be19u);startup_network_00628c70=blocks[7];}return environment_value;}
+void __thiscall ShutdownNetwork311::destroy_0048ff30(){event(7,address(this));if(this!=reinterpret_cast<ShutdownNetwork311*>(object))die("destructor-this");
+    if(mode&1){put(object+0x20,0x84739215u);startup_network_00628c70=blocks[6];}}
+U __cdecl application_release_0059f050(void* p){event(8,address(p));if(p!=object)die("free-argument");if(mode&1)object[0x14]^=0xd3;return 0x12345678u;}
+void* __cdecl startup_network_allocate_0059ef90(U bytes){event(9,bytes);if(bytes!=4||small_count==2)die("small-allocator");U index=small_count++;
+    if(mode&1){timer_rate_005deb48+=0x254;startup_network_timeout_005df6a8^=0x92713569u;}
+    return (small_failure&(1u<<index))?nullptr:blocks[5+index];}
+void* __fastcall network_word_construct_0052df00(void* receiver,void*){event(10,address(receiver));if(receiver!=blocks[5])die("word-this");put(receiver,0);
+    return (mode&2)?blocks[7]:receiver;}
+void* __cdecl heap_lock_create_005321f0(){event(11);if(mode&1){put(object+0x18,0x3564a723u);timer_rate_005deb48^=0x80000001u;}return blocks[7]+16;}
+void __cdecl application_queue_kind(U index,U enabled){event(12,index,enabled);if(index!=2||enabled!=1)die("queue-kind");
+    if(mode&1){timer_rate_005deb48+=0x76543210u;std::memcpy(application_object_heap_name_005e8e50,"after-copy",11);object[0x160]=0x33;}}
+void __cdecl application_heap_kind(U index,U enabled){event(13,index,enabled);if(index!=5||enabled!=1)die("heap-kind");if(mode&1){timer_rate_005deb48^=0x89abcdefu;object[0x161]=0x78;}}
+void __cdecl network_callbacks_start_00560340(){event(14);if(mode&1){startup_network_timeout_005df6a8^=0x96852347u;object[0x162]=0x12;}}
+void __fastcall network_lifecycle_clear_lists_0048e790(void* receiver,void*){event(15,address(receiver));if(receiver!=object)die("clear-this");
+    if(mode&1){timer_rate_005deb48+=0x79;missing_file_006afbe4=&previous_callback;object[0x163]=0xe5;}}
+void __cdecl network_missing_file_0048d9b0(const char*,std::int32_t){die("callback-invoked");}
+}
+static void patch(U before,U after,U expected){U n=0;for(U i=0;i+4<=686;++i)if(word(code+i)==before){put(code+i,after);++n;i+=3;}if(n!=expected)die("relocation",before);}
+static void call(U site,U target,const void* replacement){U offset=site-0x48fc80;
+    if(offset+5>686||code[offset]!=0xe8||site+5+word(code+offset+1)!=target)die("callsite",site);
+    put(code+offset+1,address(replacement)-address(code+offset+5));}
+static void __fastcall destroy_shim(void* receiver,void*);
+static void install(){using namespace porsche;
+    if(std::memcmp(labels_raw,startup_network_labels_005d079c,44)||word(timeout_raw)!=startup_network_timeout_005df6a8||word(timer_raw)!=timer_rate_005deb48)die("production-initial-data");
+    if(startup_network_00628c70||missing_file_006afbe4)die("production-initial-pointers");
+    for(char c:application_object_heap_name_005e8e50)if(c)die("production-initial-name");
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");std::memcpy(code,constructor_raw,686);
+    patch(0x5d07c4,address(startup_network_labels_005d079c+40),1);patch(0x5d07c0,address(startup_network_labels_005d079c+36),1);
+    patch(0x628c70,address(&startup_network_00628c70),1);patch(0x5d07a0,address(startup_network_labels_005d079c+4),2);
+    patch(0x5d07b8,address(startup_network_labels_005d079c+28),1);patch(0x5d079c,address(startup_network_labels_005d079c),1);
+    patch(0x5e8e50,address(application_object_heap_name_005e8e50),1);patch(0x5deb48,address(&timer_rate_005deb48),1);
+    patch(0x5df6a8,address(&startup_network_timeout_005df6a8),1);patch(0x6afbe4,address(&missing_file_006afbe4),1);
+    patch(0x48d9b0,address(reinterpret_cast<const void*>(&network_missing_file_0048d9b0)),1);
+    call(0x48fc8a,0x560a90,reinterpret_cast<const void*>(&network_option_integer_00560a90));
+    call(0x48fc97,0x5607d0,reinterpret_cast<const void*>(&network_option_present_005607d0));
+    call(0x48fcd9,0x4902c0,reinterpret_cast<const void*>(&network_member_construct_004902c0));
+    for(U site:{0x48fcf1u,0x48fd0au,0x48fd23u,0x48fd3cu,0x48fd55u})call(site,0x4211d0,reinterpret_cast<const void*>(&application_context_member_storage_004211d0));
+    call(0x48fd92,0x48a9a0,reinterpret_cast<const void*>(&network_lifecycle_tick_count_0048a9a0));
+    call(0x48fdaa,0x55eb70,reinterpret_cast<const void*>(&network_environment_0055eb70));
+    // This helper owns the existing thiscall symbol; an explicit harness shim
+    // transports ECX to that exact canonical member declaration.
+    call(0x48fdbc,0x48ff30,reinterpret_cast<const void*>(&destroy_shim));
+    call(0x48fdc2,0x59f050,reinterpret_cast<const void*>(&application_release_0059f050));
+    for(U site:{0x48fdd8u,0x48fdf6u})call(site,0x59ef90,reinterpret_cast<const void*>(&startup_network_allocate_0059ef90));
+    call(0x48fde6,0x52df00,reinterpret_cast<const void*>(&network_word_construct_0052df00));
+    call(0x48fe04,0x5321f0,reinterpret_cast<const void*>(&heap_lock_create_005321f0));
+    call(0x48fed5,0x55ecd0,reinterpret_cast<const void*>(&application_queue_kind));call(0x48fede,0x55ef90,reinterpret_cast<const void*>(&application_heap_kind));
+    call(0x48ff10,0x560340,reinterpret_cast<const void*>(&network_callbacks_start_00560340));
+    call(0x48ff17,0x48e790,reinterpret_cast<const void*>(&network_lifecycle_clear_lists_0048e790));
+}
+static void __fastcall destroy_shim(void* receiver,void*){reinterpret_cast<porsche::ShutdownNetwork311*>(receiver)->destroy_0048ff30();}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static Capture invoke(const void* fn,bool cdecl_facade){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,object
+        cmp cdecl_facade,0
+        je callit
+        push ecx
+    callit:
+        call fn
+        cmp cdecl_facade,0
+        je capture
+        add esp,4
+    capture:
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;}
+static void abi(const Capture& r,bool returns){if(r.sp0!=r.sp1||r.bp0!=r.bp1||r.bx0!=r.bx1||r.si0!=r.si1||r.di0!=r.di1||(returns&&r.eax!=address(object)))die("ABI");++checks;}
+static void reset(U seed,U name_mode){using namespace porsche;for(U i=0;i<sizeof arena;++i)arena[i]=static_cast<B>(seed+17*i);
+    for(U i=0;i<sizeof blocks;++i)reinterpret_cast<B*>(blocks)[i]=static_cast<B>(seed+0x7d+11*i);
+    startup_network_00628c70=blocks[7]+8;startup_network_timeout_005df6a8=0xc8592713u;timer_rate_005deb48=seed*0x81234567u;
+    missing_file_006afbe4=&previous_callback;std::memset(application_object_heap_name_005e8e50,0,32);
+    if(name_mode==1)std::memcpy(application_object_heap_name_005e8e50,"mutable-shared-name",20);
+    if(name_mode==2){for(U i=0;i<31;++i)application_object_heap_name_005e8e50[i]=static_cast<char>('A'+i%26);}
+    context_count=small_count=event_count=0;std::memset(events,0,sizeof events);
+}
+struct Result{State final_state;Event events[24];U count,context_count,small_count;};
+static Result execute(const void* fn,bool facade,U seed,U name_mode){reset(seed,name_mode);abi(invoke(fn,facade),!facade);Result r{};r.final_state=state();r.count=event_count;
+    r.context_count=context_count;r.small_count=small_count;std::memcpy(r.events,events,sizeof events);return r;}
+static void original_zero_fill(const char* path,U va,U bytes){
+    FILE* f=nullptr;if(fopen_s(&f,path,"rb")||!f)die("original-open");IMAGE_DOS_HEADER dos{};IMAGE_NT_HEADERS32 nt{};
+    if(fread(&dos,1,sizeof dos,f)!=sizeof dos||dos.e_magic!=IMAGE_DOS_SIGNATURE||fseek(f,dos.e_lfanew,SEEK_SET)||fread(&nt,1,sizeof nt,f)!=sizeof nt||nt.Signature!=IMAGE_NT_SIGNATURE)die("original-PE");
+    const U section_offset=static_cast<U>(dos.e_lfanew)+24+nt.FileHeader.SizeOfOptionalHeader;bool found=false;
+    for(U i=0;i<nt.FileHeader.NumberOfSections;++i){IMAGE_SECTION_HEADER section{};
+        if(fseek(f,section_offset+i*sizeof section,SEEK_SET)||fread(&section,1,sizeof section,f)!=sizeof section)die("original-section");
+        U start=nt.OptionalHeader.ImageBase+section.VirtualAddress;
+        if(va>=start&&va+bytes<=start+section.Misc.VirtualSize){
+            if(va<start+section.SizeOfRawData)die("not-zero-fill",va);found=true;
+        }
+    }fclose(f);if(!found)die("zero-fill-range",va);++checks;
+}
+int main(int argc,char** argv){using namespace porsche;if(argc!=2)die("original-argument");
+    original_zero_fill(argv[1],0x628c70,4);original_zero_fill(argv[1],0x6afbe4,4);original_zero_fill(argv[1],0x5e8e50,32);install();
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+    for(U flags=0;flags<8;++flags)for(U failures=0;failures<4;++failures)for(U child_mode=0;child_mode<4;++child_mode)
+    for(U aliases=0;aliases<3;++aliases)for(U seed:{0u,1u,255u})for(U name_mode=0;name_mode<3;++name_mode){
+        option_integer=(flags&1)?0x80000000u:0;option_present=(flags&2)?7:0;environment_value=(flags&4)?0x1234:0;
+        tick_value=seed==0?0:seed==1?0xffffffffu:0x80000001u;mode=child_mode;alias_mode=aliases;small_failure=failures;
+        auto original=execute(code,false,seed,name_mode);
+        auto recovered=execute(reinterpret_cast<const void*>(&network_construct_0048fc80),false,seed,name_mode);
+        auto facade=execute(reinterpret_cast<const void*>(&startup_network_construct_0048fc80),true,seed,name_mode);
+        if(std::memcmp(&original,&recovered,sizeof original)||std::memcmp(&original,&facade,sizeof original)){
+            std::printf("divergence flags=%u fail=%u child=%u alias=%u seed=%u name=%u events=%u/%u/%u\n",flags,failures,child_mode,aliases,seed,name_mode,original.count,recovered.count,facade.count);return 1;}
+        ++cases;checks+=2;
+    }
+    std::printf("network_constructor_original_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;
+}

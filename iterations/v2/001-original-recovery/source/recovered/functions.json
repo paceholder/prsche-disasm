@@ -1992,9 +1992,7 @@
       "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
       "status": "native-differential-verified",
       "calling_convention": "x86 typed C++ adapter; original ECX/stack ABI documented in source",
-      "unrecovered_dependencies": [
-        "0048fc80"
-      ],
+      "unrecovered_dependencies": [],
       "recovered_dependencies": [
         "004b6ff0",
         "005367b0",
@@ -2008,14 +2006,16 @@
         "0059ef90",
         "00536e50",
         "00563ad0",
-        "0059fbc0"
+        "0059fbc0",
+        "0048fc80"
       ],
       "binary_matched": false,
       "verification": "scripts/research/verify-v2-native-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/validation.json",
       "verification_boundary": "389 rechecks actualfull157B consumer after replacing rawcallbackVA by canonicalhostfunctionaddress. Controlled subsystem/constructor endpoints, exact13calls/order/args/networkbranches/initialBSS and ABI. Actual387body separatelyproved; networkECXconstructor, subsystemcomposition and fullstartup remain open.",
       "dependency_scope": "Indexed direct calls only; indirect/platform boundaries remain as documented in run README.",
-      "prior_verification_report": "iterations/v2/001-original-recovery/runs/078-shared-runtime-integration/startup-services/verification.json"
+      "prior_verification_report": "iterations/v2/001-original-recovery/runs/078-shared-runtime-integration/startup-services/verification.json",
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10533,7 +10533,11 @@
       "binary_matched": false,
       "verification": "scripts/research/verify-v2-native-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/validation.json",
-      "verification_boundary": "Full93B callback; actualaccepted formatter entry/vsprintf/shared aliases, post-formatter file/line rereads and exactcontextappend. Boundedvalid formatter outputs within1024B buffer; rawfileVAtokens are not auto mapped. Terminal behavior and full startup remain open."
+      "verification_boundary": "Full93B callback; actualaccepted formatter entry/vsprintf/shared aliases, post-formatter file/line rereads and exactcontextappend. Boundedvalid formatter outputs within1024B buffer; rawfileVAtokens are not auto mapped. Terminal behavior and full startup remain open.",
+      "linked_partial_dependencies": [
+        "0059fc20"
+      ],
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10582,6 +10586,111 @@
       "reuse_verification_report": "iterations/v2/001-original-recovery/runs/388-startup-integration/historical-proof-reuse.json",
       "registration_note": "Historical accepted provider already in game; registry gap repaired388. No new body/state/recovery count.",
       "verification_boundary": "Historical48case finite native comparison with controlled accepted callees, exactstate/callback/ABI behavior. All code/tool inputs unchanged; historicalregistry blob/currentcanonical identities verified388. Real worker/teardown composition, malformed memory and unbounded races unaccepted."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0048fc80",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "original ECX receiver/RET0/EAX=self; explicit fastcall entry +cdecl startup facade",
+      "recovered_dependencies": [
+        "004211d0",
+        "0059ef90",
+        "0059f050",
+        "005321f0",
+        "0055ecd0",
+        "0055ef90",
+        "0048e790",
+        "0052df00",
+        "0048d9b0",
+        "0048a9a0"
+      ],
+      "unrecovered_dependencies": [
+        "0048ff30",
+        "00560a90",
+        "005607d0",
+        "004902c0",
+        "0055eb70",
+        "00560340"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
+      "verification_boundary": "Full686B compared with both actual entry and facade at /Od,/O2; valid0x268B receiver, writable nonnull sentinel allocations and NULterminated canonical text<=31; controlled children/state, exact sparse writes/order/late reloads. Actual child composition/destructor/provider/callback behavior, alias consolidation and live startup remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0059fc20",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "status": "partial-native-differential-verified",
+      "calling_convention": "cdecl borrowed constchar*, RET0/EAXunused",
+      "recovered_dependencies": [
+        "005a28a0",
+        "0055f780",
+        "005a246e",
+        "005322b0",
+        "005322c0"
+      ],
+      "unrecovered_dependencies": [
+        "005af0c0"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
+      "verification_boundary": "Complete356B control flow, native short-input domain length0..252, initial2/1 mode/cache, callback/mode/cache/lock rereads, exact Win32IAT boundaries and actual copy/exit wrappers. For length>=253 byte253 remains opaque/uninitialized and is NOT accepted. Concurrency/live platform/full terminal composition remain HOLD."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0048d9b0",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl borrowed filename token +signedDWORD error, RET0/EAXunused",
+      "recovered_dependencies": [
+        "0048c870"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
+      "verification_boundary": "Full57B original comparison, fullwidth+8 gate/byte+bf gate/+c receiver; exact message arguments, raw pointer transport incl invalid tokens without dereference, object bytes and ABI. Real downstream message behavior remains separate canonical proof."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0052df00",
+      "source": "iterations/v2/001-original-recovery/runs/393-network-constructor-leaves/network_constructor_leaves.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "ECX receiver,RET0,EAX=self; explicit fastcall adapter",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
+      "verification_boundary": "Full9B raw-body comparison; exactly four zero bytes, neighboring guards and unaligned receiver offsets, EAX/stack/nonvolatile transport."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0048a9a0",
+      "source": "iterations/v2/001-original-recovery/runs/394-network-clock-binding/network_clock.cpp",
+      "status": "native-import-thunk-verified",
+      "calling_convention": "stdcall0,DWORD EAX return",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
+      "verification_boundary": "Exact6B raw JMP thunk versus actual game COFF sole DIR32 relocation to original KERNEL32!GetTickCount. No native timing-value comparisons or new clock algorithm claimed.",
+      "verification_kind": "original-to-game-COFF import identity",
+      "original_import": {
+        "path": "Porsche.exe",
+        "dll": "KERNEL32.dll",
+        "symbol": "GetTickCount",
+        "iat_rva": "0x1b2080"
+      }
     }
   ]
 }

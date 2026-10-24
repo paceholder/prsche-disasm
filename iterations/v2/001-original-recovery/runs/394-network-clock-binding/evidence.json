@@ -1,0 +1,18 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "query": "0048a9a0 / GetTickCount / IAT005b2080",
+  "va": "0048a9a0",
+  "bytes": 6,
+  "raw_hex": "ff2580205b00",
+  "body_sha256": "52e4633af663cec3883338ddbe3d57bb7d1035951e2e667d63dfb5adcb060912",
+  "original_import": {
+    "path": "Porsche.exe",
+    "dll": "KERNEL32.dll",
+    "symbol": "GetTickCount",
+    "iat_rva": "0x1b2080"
+  },
+  "abi": "stdcall, zero arguments, DWORD EAX return",
+  "proof": "392 shared audit requires exactly one6B JMP with sole DIR32 relocation to __imp__GetTickCount@0 and exact original import identity; no timing-value comparison is claimed",
+  "new_state": false
+}

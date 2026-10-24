@@ -1,0 +1,126 @@
+{
+  "run": 391,
+  "experiment": "local/experiments/v2-network-constructor-native-391",
+  "timeout_seconds": 90,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/391-network-constructor/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/391-network-constructor",
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/context_effects.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/heap_locks.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/network_services.cpp",
+    "iterations/v2/001-original-recovery/runs/345-diagnostic-devices/diagnostic_devices.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_events.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/application_heap_init.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/files.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@CONSTRUCTOR@",
+      "va": "0048fc80",
+      "bytes": 686,
+      "sha256": "15cd85ea8d7458ec4a2c2ee5db6052460e6703ad68415e5c951c6977b072a9af"
+    },
+    {
+      "token": "@LABELS@",
+      "va": "005d079c",
+      "bytes": 44,
+      "sha256": "fd12c84b8e257d8884d540d20a304196c5c7f9efb2451d3ba01bcfc40c490f42"
+    },
+    {
+      "token": "@TIMEOUT@",
+      "va": "005df6a8",
+      "bytes": 4,
+      "sha256": "67f3b78be1abcf789ba8e3b174a41e54b417c8b3c1041dadd5e3db19d01730fb"
+    },
+    {
+      "token": "@TIMER@",
+      "va": "005deb48",
+      "bytes": 4,
+      "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+    }
+  ],
+  "pass_marker": "network_constructor_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "sparse-zero",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "put(object,0x154,0);put(object,0x250,4);",
+      "new": "put(object,0x154,1);put(object,0x250,4);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "sentinel-self",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "put(node,4,address(node));",
+      "new": "put(node,4,0);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "tick-scale",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "_0048a9a0()<<5u",
+      "new": "_0048a9a0()<<4u",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "failure-gate",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "get(object,0)==0&&get(object,4)==0",
+      "new": "get(object,0)==0||get(object,4)==0",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "publish-network",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "startup_network_00628c70=receiver;",
+      "new": "startup_network_00628c70=nullptr;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "constructor-return",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "member=network_word_construct_0052df00(member,nullptr);",
+      "new": "network_word_construct_0052df00(member,nullptr);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "shared-name-offset",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "text(object,0x98,application_object_heap_name",
+      "new": "text(object,0x99,application_object_heap_name",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "timeout-scale",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "timer_rate_005deb48*15u",
+      "new": "timer_rate_005deb48*14u",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "callback-assignment",
+      "source": "iterations/v2/001-original-recovery/runs/391-network-constructor/network_constructor.cpp",
+      "old": "missing_file_006afbe4=&network_missing_file_0048d9b0;",
+      "new": "missing_file_006afbe4=nullptr;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

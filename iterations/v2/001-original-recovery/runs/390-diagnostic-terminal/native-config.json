@@ -1,0 +1,142 @@
+{
+  "run": 390,
+  "experiment": "local/experiments/v2-diagnostic-terminal-native-390",
+  "timeout_seconds": 60,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/formatter_strings.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/process_exit.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/source/include",
+    "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal"
+  ],
+  "extra_libraries": [
+    "user32.lib"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/files.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_threads.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/heap.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@BODY@",
+      "va": "0059fc20",
+      "bytes": 356,
+      "sha256": "9b250b0431cf3681a5ab0b8d07b5889e3842d600e4027ef64182eacda92f2d01"
+    },
+    {
+      "token": "@MODE@",
+      "va": "005e50b4",
+      "bytes": 4,
+      "sha256": "26b25d457597a7b0463f9620f666dd10aa2c4373a505967c7c8d70922a2d6ece"
+    },
+    {
+      "token": "@CACHE@",
+      "va": "005deb68",
+      "bytes": 4,
+      "sha256": "67abdd721024f0ff4e0b3f4c2fc13bc5bad42d0b7851d456d88d203d15aaa450"
+    },
+    {
+      "token": "@NEWLINE@",
+      "va": "005d0b1c",
+      "bytes": 2,
+      "sha256": "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604"
+    },
+    {
+      "token": "@MAIN@",
+      "va": "005e5110",
+      "bytes": 27,
+      "sha256": "d1ee8e510dfb5d0f483006a83cf47c609a384ab1e13c7b4792a7fb6d00b2906e"
+    },
+    {
+      "token": "@OTHER@",
+      "va": "005e50cc",
+      "bytes": 30,
+      "sha256": "372aba045fa3c691edab86db61b7519e75137d37221441deb04c15d6a122397d"
+    },
+    {
+      "token": "@KERNEL@",
+      "va": "005e5100",
+      "bytes": 13,
+      "sha256": "d89b4bfe0229ab034c8597fbd9c4b70af3690382b8c700ec05d6923da518275c"
+    },
+    {
+      "token": "@QUERY@",
+      "va": "005e50ec",
+      "bytes": 18,
+      "sha256": "a2f601560f754c96071c069c4b5139eab9044cbe790add7ab59eba02ac4ca5f8"
+    }
+  ],
+  "pass_marker": "diagnostic_terminal_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "callback-reason",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "callback(text, -2)",
+      "new": "callback(text, -1)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "copy-source",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "buffer, text, 253)",
+      "new": "buffer, text + 1, 253)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "newline",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "std::strcat(buffer, \"\\n\")",
+      "new": "std::strcat(buffer, \"!\")",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "mode-three",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "if (mode == 3)",
+      "new": "if (mode == 4)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "main-answer",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "0x51034) == 7",
+      "new": "0x51034) == 6",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "cache-result",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "startup_debugger_present_005deb68 = query();",
+      "new": "startup_debugger_present_005deb68 = !query();",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "exit-code",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "process_exit_005a246e(1)",
+      "new": "process_exit_005a246e(0)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "lock-reread",
+      "source": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+      "old": "if (thread_start_lock_006a57d8) heap_leave_005322c0(thread_start_lock_006a57d8);",
+      "new": "heap_leave_005322c0(nullptr);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

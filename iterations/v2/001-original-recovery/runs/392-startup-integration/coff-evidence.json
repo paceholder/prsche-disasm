@@ -1,0 +1,111 @@
+{
+  "network_clock": {
+    "path": "local/builds/v2/startup-392/entry-289/porsche_game_entry_bridges.dir/Release/network_clock.obj",
+    "sha256": "c1d6cc708a3d2c7f9f5e28422f44f10393db58f164f03ee193a62474a3ee6d8b",
+    "symbols": {
+      "defined": [
+        "?network_lifecycle_tick_count_0048a9a0@porsche@@YGIXZ"
+      ],
+      "undefined": [
+        "__imp__GetTickCount@0"
+      ],
+      "common": [],
+      "weak": []
+    },
+    "jmp_hex": "ff2500000000"
+  },
+  "diagnostic_terminal": {
+    "path": "local/builds/v2/startup-392/entry-289/porsche_game_entry_bridges.dir/Release/diagnostic_terminal.obj",
+    "sha256": "975df0580ed48b350624146fdc15d9746a928687313f062fad41adb8416bb2db",
+    "symbols": {
+      "defined": [
+        "??_C@_01EEMJAFIK@?6@",
+        "??_C@_0BC@KNBMEBEO@IsDebuggerPresent@",
+        "??_C@_0BM@OMMDLAFD@Error?3?5terminate?5execution?$DP@",
+        "??_C@_0BP@GNCJPIGE@Error?3?5execution?5may?5continue?4@",
+        "??_C@_0N@MDJJJHMB@kernel32?4dll@",
+        "?startup_debugger_present_005deb68@porsche@@3HA",
+        "?startup_diagnostic_mode_005e50b4@porsche@@3HA",
+        "?startup_diagnostic_sink_0059fc20@porsche@@YAXPBD@Z"
+      ],
+      "undefined": [
+        "?file_current_thread_0055f780@porsche@@YAHI@Z",
+        "?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z",
+        "?heap_enter_005322b0@porsche@@YAXPAX@Z",
+        "?heap_leave_005322c0@porsche@@YAXPAX@Z",
+        "?missing_file_006afbe4@porsche@@3P6AXPBDH@ZA",
+        "?process_exit_005a246e@porsche@@YAXI@Z",
+        "?startup_debug_break_005af0c0@porsche@@YAXXZ",
+        "?thread_start_lock_006a57d8@porsche@@3PAXA",
+        "@__security_check_cookie@4",
+        "___security_cookie",
+        "__imp__GetProcAddress@8",
+        "__imp__LoadLibraryA@4",
+        "__imp__MessageBoxA@16",
+        "__imp__OutputDebugStringA@4"
+      ],
+      "common": [],
+      "weak": []
+    }
+  },
+  "network_constructor": {
+    "path": "local/builds/v2/startup-392/entry-289/porsche_game_entry_bridges.dir/Release/network_constructor.obj",
+    "sha256": "01af46737f619d2f48738a49a94f3735407ec012f819da9c87483b67be1602c2",
+    "symbols": {
+      "defined": [
+        "??0?$initializer_list@I@std@@QAE@PBI0@Z",
+        "?begin@?$initializer_list@I@std@@QBEPBIXZ",
+        "?end@?$initializer_list@I@std@@QBEPBIXZ",
+        "?network_construct_0048fc80@porsche@@YIPAXPAX0@Z",
+        "?startup_network_construct_0048fc80@porsche@@YAXPAX@Z",
+        "?startup_network_labels_005d079c@porsche@@3QBDB",
+        "?startup_network_timeout_005df6a8@porsche@@3IA",
+        "__Avx2WmemEnabledWeakValue"
+      ],
+      "undefined": [
+        "?application_context_member_storage_004211d0@porsche@@YAPAXII@Z",
+        "?application_heap_kind@porsche@@YAXII@Z",
+        "?application_object_heap_name_005e8e50@porsche@@3PADA",
+        "?application_queue_kind@porsche@@YAXII@Z",
+        "?application_release_0059f050@porsche@@YAIPAX@Z",
+        "?destroy_0048ff30@ShutdownNetwork311@porsche@@QAEXXZ",
+        "?heap_lock_create_005321f0@porsche@@YAPAXXZ",
+        "?missing_file_006afbe4@porsche@@3P6AXPBDH@ZA",
+        "?network_callbacks_start_00560340@porsche@@YAXXZ",
+        "?network_environment_0055eb70@porsche@@YAII@Z",
+        "?network_lifecycle_clear_lists_0048e790@porsche@@YIXPAX0@Z",
+        "?network_lifecycle_tick_count_0048a9a0@porsche@@YGIXZ",
+        "?network_member_construct_004902c0@porsche@@YIPAXPAX0PBX@Z",
+        "?network_missing_file_0048d9b0@porsche@@YAXPBDH@Z",
+        "?network_option_integer_00560a90@porsche@@YAIPBD@Z",
+        "?network_option_present_005607d0@porsche@@YAIPBD@Z",
+        "?network_word_construct_0052df00@porsche@@YIPAXPAX0@Z",
+        "?startup_network_00628c70@porsche@@3PAXA",
+        "?startup_network_allocate_0059ef90@porsche@@YAPAXI@Z",
+        "?timer_rate_005deb48@porsche@@3IA",
+        "@__security_check_cookie@4",
+        "___security_cookie",
+        "_memcpy"
+      ],
+      "common": [],
+      "weak": []
+    }
+  },
+  "network_constructor_leaves": {
+    "path": "local/builds/v2/startup-392/entry-289/porsche_game_entry_bridges.dir/Release/network_constructor_leaves.obj",
+    "sha256": "7894e33ee88987db5a39f9a14268c62877c71668821a5173cc45c99f2f6863a1",
+    "symbols": {
+      "defined": [
+        "?network_missing_file_0048d9b0@porsche@@YAXPBDH@Z",
+        "?network_word_construct_0052df00@porsche@@YIPAXPAX0@Z",
+        "__Avx2WmemEnabledWeakValue"
+      ],
+      "undefined": [
+        "?application_network_message_0048c870@porsche@@YIXPAX0IIIII@Z",
+        "?startup_network_00628c70@porsche@@3PAXA"
+      ],
+      "common": [],
+      "weak": []
+    }
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "kind": "bounded-original-diagnostic-terminal",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [
+    "0059fc20"
+  ],
+  "body_bytes": 356,
+  "acceptance": "partial: complete body recovered; short terminated text transport and controlled platform/callee effects verified; long opaque stack domain and live system remain HOLD",
+  "body": {
+    "token": "@BODY@",
+    "va": "0059fc20",
+    "bytes": 356,
+    "sha256": "9b250b0431cf3681a5ab0b8d07b5889e3842d600e4027ef64182eacda92f2d01"
+  },
+  "source": {
+    "path": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.cpp",
+    "sha256": "a5066f40b61ffd475f9649bde115dc0928d5cefb2b305335779493944497f92b"
+  },
+  "header": {
+    "path": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/diagnostic_terminal.hpp",
+    "sha256": "b44aaeda504b34106c1cf0b1960257109caeacbc2378b059c97b2ecfa95a6b7b"
+  },
+  "native_receipt": {
+    "path": "local/experiments/v2-diagnostic-terminal-native-390/004/receipt.json",
+    "sha256": "162c09c3ff53a340425a303fc6042dfe69fcc3224146182d606ee53430ce593d"
+  },
+  "native_counts": {
+    "per_optimization": 5202,
+    "optimizations": [
+      "/Od",
+      "/O2"
+    ],
+    "total": 10404,
+    "checks_per_optimization": 20808,
+    "mutation_controls": 8
+  },
+  "tested_lengths": [
+    0,
+    1,
+    31,
+    200,
+    251,
+    252
+  ],
+  "valid_domain": "NUL-terminated readable text length<=252; buffer/text nonaliasing beyond documented callback input edits; single-thread controlled effects",
+  "new_mutable_cells": [
+    {
+      "va": "005e50b4",
+      "symbol": "startup_diagnostic_mode_005e50b4",
+      "initial": 2,
+      "size": 4
+    },
+    {
+      "va": "005deb68",
+      "symbol": "startup_debugger_present_005deb68",
+      "initial": 1,
+      "size": 4
+    }
+  ],
+  "raw_data": [
+    {
+      "token": "@MODE@",
+      "va": "005e50b4",
+      "bytes": 4,
+      "sha256": "26b25d457597a7b0463f9620f666dd10aa2c4373a505967c7c8d70922a2d6ece",
+      "raw_hex": "02000000"
+    },
+    {
+      "token": "@CACHE@",
+      "va": "005deb68",
+      "bytes": 4,
+      "sha256": "67abdd721024f0ff4e0b3f4c2fc13bc5bad42d0b7851d456d88d203d15aaa450",
+      "raw_hex": "01000000"
+    },
+    {
+      "token": "@NEWLINE@",
+      "va": "005d0b1c",
+      "bytes": 2,
+      "sha256": "102b51b9765a56a3e899f7cf0ee38e5251f9c503b357b330a49183eb7b155604",
+      "raw_hex": "0a00"
+    },
+    {
+      "token": "@MAIN@",
+      "va": "005e5110",
+      "bytes": 27,
+      "sha256": "d1ee8e510dfb5d0f483006a83cf47c609a384ab1e13c7b4792a7fb6d00b2906e",
+      "raw_hex": "4572726f723a207465726d696e61746520657865637574696f6e3f"
+    },
+    {
+      "token": "@OTHER@",
+      "va": "005e50cc",
+      "bytes": 30,
+      "sha256": "372aba045fa3c691edab86db61b7519e75137d37221441deb04c15d6a122397d",
+      "raw_hex": "4572726f723a20657865637574696f6e206d617920636f6e74696e75652e"
+    },
+    {
+      "token": "@KERNEL@",
+      "va": "005e5100",
+      "bytes": 13,
+      "sha256": "d89b4bfe0229ab034c8597fbd9c4b70af3690382b8c700ec05d6923da518275c",
+      "raw_hex": "6b65726e656c33322e646c6c00"
+    },
+    {
+      "token": "@QUERY@",
+      "va": "005e50ec",
+      "bytes": 18,
+      "sha256": "a2f601560f754c96071c069c4b5139eab9044cbe790add7ab59eba02ac4ca5f8",
+      "raw_hex": "4973446562756767657250726573656e7400"
+    }
+  ],
+  "ownership": {
+    "missing_file_006afbe4": {
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/files.cpp",
+      "line": 12,
+      "fixture": "controlled callback state; production symbol UNDEF in390COFF",
+      "sha256": "0874f9e6470e977c4907992bbae00192144df0467047b0436859ce73a99ee69c"
+    },
+    "thread_start_lock_006a57d8": {
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_threads.cpp",
+      "line": 4,
+      "fixture": "controlled lock state; production symbol UNDEF in390COFF",
+      "sha256": "a9ea49f8fa11de3bf599e37f9cace5b2a220069dbb92f5502faf1ee44814a4a8"
+    },
+    "file_current_thread_0055f780": {
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_threads.cpp",
+      "line": 57,
+      "fixture": "controlled cdecl return endpoint; actual algorithm has prior canonical proof",
+      "sha256": "a9ea49f8fa11de3bf599e37f9cace5b2a220069dbb92f5502faf1ee44814a4a8"
+    },
+    "heap_enter_005322b0 / heap_leave_005322c0": {
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/heap.cpp",
+      "fixture": "controlled lock endpoints; no new production providers",
+      "sha256": "3a84557a6443a13712ea7aef0747a1cdf5da0d55f24b8b166271cb361fe607ca"
+    },
+    "formatter_error_copy_n_005a28a0": {
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/formatter_strings.cpp",
+      "fixture": "actual canonical source linked on both sides",
+      "sha256": "eb435f4bdae721c818b0265db0e1ee0488ae4d0e4281e2a0dfbf4fad7cb60c9d"
+    },
+    "process_exit_005a246e": {
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/process_exit.cpp",
+      "fixture": "actual canonical source linked; exit_shutdown_execute records(code=1,policy=0,quick=0) then controlled terminal SEH",
+      "sha256": "fcd0c40e547ef0319b0a2dfdc3959a6a36bb20aa9214a18f0c42b608bed97174"
+    }
+  },
+  "registry_inspection": {
+    "baseline_sha256": "1574a6d7de8947a97c0ac9207e834ff2f08c1e0fd5e8968b88b6a2e540ca0c97",
+    "candidate_entry_body_hits_when_recorded": [],
+    "new_cell_owner_hits_before390": [],
+    "note": "Ever-growing registry deliberately not pinned by final native receipt; production owner proof is390COFF and integration392COFF."
+  },
+  "indexed_cell_consumers": [
+    {
+      "line": 511922,
+      "instruction": "0059fc83  a1b4505e00  MOV EAX,[0x005e50b4]"
+    },
+    {
+      "line": 511969,
+      "instruction": "0059fd1d  a368eb5d00  MOV [0x005deb68],EAX"
+    },
+    {
+      "line": 511970,
+      "instruction": "0059fd22  a168eb5d00  MOV EAX,[0x005deb68]"
+    }
+  ],
+  "data_owner_boundary": "Indexed direct absolute consumers are terminal0059fc83 mode read and0059fd1d/22 cache write/read only. Computed aliases/concurrency remain HOLD; raw PE defaults pinned before relocation/reset.",
+  "index_queries": [
+    "0059fc20",
+    "005a28a0",
+    "0055f780",
+    "005af0c0",
+    "005e50b4",
+    "005deb68",
+    "006afbe4",
+    "006a57d8"
+  ],
+  "original_imports": [
+    {
+      "path": "Porsche.exe",
+      "dll": "KERNEL32.dll",
+      "symbol": "LoadLibraryA",
+      "iat_rva": "0x1b2050"
+    },
+    {
+      "path": "Porsche.exe",
+      "dll": "KERNEL32.dll",
+      "symbol": "GetProcAddress",
+      "iat_rva": "0x1b205c"
+    },
+    {
+      "path": "Porsche.exe",
+      "dll": "KERNEL32.dll",
+      "symbol": "OutputDebugStringA",
+      "iat_rva": "0x1b2208"
+    },
+    {
+      "path": "Porsche.exe",
+      "dll": "USER32.dll",
+      "symbol": "MessageBoxA",
+      "iat_rva": "0x1b2270"
+    }
+  ],
+  "rea_validation": {
+    "path": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/validation.json",
+    "sha256": "5bec1469a4bf186faf308617c73c23afe9a2369a5f5362f30cf812e32e833de0"
+  },
+  "rea_dossier": {
+    "path": "local/experiments/v2-startup-390-rea/002/function-0059fc20.json",
+    "sha256": "105eb247b4bbce2f502a11a3940b397a7f9f7b20d93c3717ec703306043b8903"
+  },
+  "lowering_inspection": {
+    "path": "local/experiments/v2-diagnostic-lowering-390/receipt.json",
+    "sha256": "9fcd1eec94fad6f4839e36c22825713c2d560374827d4e4936d37453b5a97037"
+  },
+  "oracle": "All356 original bytes retained, checked7direct-call relocations, checked state/literal operands and7IAT operand occurrences. Own EXE exact import hooks; raw literals/defaults checked before relocation/reset.",
+  "checks": [
+    "callback single load and(reason=-2), original pointer and callback edits before copy/mode read",
+    "modes0/1/2/3/4/-1/INT_MIN",
+    "main return0/1/-1 andMessageBox0/6/7/-1",
+    "LoadLibrary/GetProcAddress success/failure; signed query0/1/-1 andcache reread afterAPI effects",
+    "null/non-null lock plusenter/MessageBox lock edits andpostMessageBox leave reload",
+    "event strings,args,order,mode/cache/lock/callback snapshots,input effects,terminal exit edge",
+    "ESP andEBP/EBX/ESI/EDI preserved on normal returns; SEH terminal path checked separately"
+  ],
+  "unrecovered_dependencies": [
+    {
+      "va": "005af0c0",
+      "symbol": "startup_debug_break_005af0c0",
+      "signature": "void __cdecl()",
+      "bytes": 26,
+      "reason": "Original reads005de020, calls005af090, INT3 or tailJMP imported endpoint; a host DebugBreak substitute would invent semantics. Fixture records transport only."
+    }
+  ],
+  "holds": [
+    "Input length>=253: original copy writes0..252, forces254=0, leaves253 uninitialized andscan-observable; source deliberately does notinitializebyte253. No long-domain acceptance orclamp.",
+    "Concurrent state changes,computed aliases/arbitrary buffer aliases",
+    "Actual GUI/debugger/dynamic-library/threadlock/shutdown execution andfullstartup/game/visual acceptance",
+    "Canonical file/thread/heap algorithms retain priorproof; fixture isolates terminaltransport; production owner COFF is separately checked at392"
+  ],
+  "attempt_notes": {
+    "001": "unused canonicalformatter TU unresolved dialog seams; fixture failclosed unused endpoints added",
+    "002": "baselineOd/O2PASS; copycount253->252 mutation survived shortdomain; rejected as an invalid shortdomain sensitivity control",
+    "003": "PASS10404+8mutationcontrols; included whole registry pin",
+    "004": "finalPASS10404+8mutationcontrols; growingregistry pin removed before run; unchanged source/config/fixture frozen"
+  },
+  "coff_evidence": {
+    "path": "iterations/v2/001-original-recovery/runs/390-diagnostic-terminal/coff-evidence.json",
+    "sha256": "dc702bcdbc01e87c8d732ec3b5616c07726a97347189bf9981d5241605f42626"
+  }
+}

@@ -11,8 +11,8 @@
 
 ## Текущий результат
 
-Current2026-10-24: [Run388](iterations/v2/001-original-recovery/runs/388-startup-integration/README.md)
-compiles211TUs;194 unresolved names/201refs,no gameEXE.
+Current2026-10-24: [Run392](iterations/v2/001-original-recovery/runs/392-startup-integration/README.md)
+compiles215TUs;197 unresolved names/205refs,no gameEXE.
 [PR24/Run431](iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md)
 adds reviewed research lowering, outside the game graph. Older checkpoints below
 are historical; active work is tracked in the iteration PLAN.

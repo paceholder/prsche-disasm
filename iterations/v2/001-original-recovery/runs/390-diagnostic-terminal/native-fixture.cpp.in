@@ -1,0 +1,188 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "diagnostic_terminal.hpp"
+#include "porsche/files.hpp"
+#include "porsche/file_threads.hpp"
+#include "porsche/formatter_bootstrap.hpp"
+#include "porsche/process_exit.hpp"
+#include "porsche/exit_shutdown.hpp"
+using U=std::uint32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+static const B original[356]={@BODY@};
+static const B raw_mode[4]={@MODE@},raw_cache[4]={@CACHE@};
+static const B raw_newline[2]={@NEWLINE@},raw_main[27]={@MAIN@},raw_other[30]={@OTHER@};
+static const B raw_kernel[13]={@KERNEL@},raw_query[18]={@QUERY@};
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void die(const char* s){std::printf("fixture %s\n",s);std::fflush(stdout);ExitProcess(98);}
+struct Event {U kind,a,b,c,mode,cache,lock,callback;char text[260],title[64];};
+struct State {U count,terminal;Event events[16];U mode,cache,lock,callback;char text[260];};
+struct Case {U length;std::int32_t mode,main,msg,cache,load,proc,query;U callback,lock,effect,enter_effect,load_effect,proc_effect;};
+static Case cfg;static State observed;static char input[260];static U cases,checks;
+static B *code;static DWORD import_values[4],*import_cells[4],old_imports[4];
+namespace porsche {
+// Fixture-only controlled endpoints for canonical owners; no production copies.
+void (__cdecl* missing_file_006afbe4)(const char*,std::int32_t)=nullptr;
+void* thread_start_lock_006a57d8=nullptr;
+}
+static Event& record(U kind,U a=0,U b=0,U c=0,const char* text=nullptr,const char* title=nullptr){
+    if(observed.count>=16)die("event-limit");auto& e=observed.events[observed.count++];
+    e.kind=kind;e.a=a;e.b=b;e.c=c;e.mode=static_cast<U>(porsche::startup_diagnostic_mode_005e50b4);
+    e.cache=static_cast<U>(porsche::startup_debugger_present_005deb68);e.lock=ptr(porsche::thread_start_lock_006a57d8);
+    e.callback=ptr(reinterpret_cast<const void*>(porsche::missing_file_006afbe4));
+    if(text){if(std::strlen(text)>=sizeof e.text)die("text-overrun");std::strcpy(e.text,text);}
+    if(title){if(std::strlen(title)>=sizeof e.title)die("title-overrun");std::strcpy(e.title,title);}return e;
+}
+static void __cdecl callback_endpoint(const char* text,std::int32_t reason){
+    record(1,ptr(text),static_cast<U>(reason),0,text);
+    if(cfg.callback==2){input[0]='Z';porsche::startup_diagnostic_mode_005e50b4=3;}
+    if(cfg.callback==3){porsche::missing_file_006afbe4=nullptr;porsche::startup_diagnostic_mode_005e50b4=2;}
+    if(cfg.callback==4)porsche::startup_diagnostic_mode_005e50b4=1;
+}
+extern "C" void WINAPI output_endpoint(LPCSTR text){record(3,0,0,0,text);}
+extern "C" int WINAPI message_endpoint(HWND hwnd,LPCSTR text,LPCSTR title,UINT flags){
+    record(5,ptr(hwnd),flags,0,text,title);
+    if(cfg.effect==1)porsche::thread_start_lock_006a57d8=nullptr;
+    if(cfg.effect==2)porsche::thread_start_lock_006a57d8=reinterpret_cast<void*>(0x12341000u);
+    return cfg.msg;
+}
+extern "C" BOOL WINAPI query_endpoint(){record(8);return cfg.query;}
+extern "C" HMODULE WINAPI load_endpoint(LPCSTR name){
+    record(6,0,0,0,name);if(cfg.load_effect)porsche::startup_debugger_present_005deb68=cfg.load_effect==1?0:-1;
+    return cfg.load?reinterpret_cast<HMODULE>(0x23456000u):nullptr;
+}
+extern "C" FARPROC WINAPI proc_endpoint(HMODULE module,LPCSTR name){
+    record(7,ptr(module),0,0,name);if(cfg.proc_effect)porsche::startup_debugger_present_005deb68=cfg.proc_effect==1?0:-1;
+    return cfg.proc?reinterpret_cast<FARPROC>(&query_endpoint):nullptr;
+}
+namespace porsche {
+// Unused branches in the linked canonical formatter TU fail closed.
+void* __stdcall formatter_dialog_load_library(const char*){die("unexpected-formatter-dialog-load");return nullptr;}
+void* __stdcall formatter_dialog_get_proc_address(void*,const char*){die("unexpected-formatter-dialog-proc");return nullptr;}
+std::int32_t __cdecl file_current_thread_0055f780(U identity){record(2,identity);return cfg.main;}
+void __cdecl startup_debug_break_005af0c0(){record(4);}
+void __cdecl heap_enter_005322b0(void* lock){record(9,ptr(lock));
+    if(cfg.enter_effect==1)thread_start_lock_006a57d8=nullptr;
+    if(cfg.enter_effect==2)thread_start_lock_006a57d8=reinterpret_cast<void*>(0x34567000u);
+}
+void __cdecl heap_leave_005322c0(void* lock){record(10,ptr(lock));}
+void __cdecl exit_shutdown_execute_005a2490(U value,std::int32_t policy,U quick){
+    record(11,value,policy,quick);RaiseException(0xe1390001u,0,0,nullptr);die("terminal-return");
+}
+}
+static void patch_imports(){
+    auto* base=reinterpret_cast<B*>(GetModuleHandleW(nullptr));auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
+    if(dos->e_magic!=IMAGE_DOS_SIGNATURE||nt->Signature!=IMAGE_NT_SIGNATURE||nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR32_MAGIC)die("pe");
+    const char* dlls[4]={"KERNEL32.dll","USER32.dll","KERNEL32.dll","KERNEL32.dll"};
+    const char* names[4]={"OutputDebugStringA","MessageBoxA","LoadLibraryA","GetProcAddress"};bool seen[4]{};
+    auto* desc=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+    for(;desc->Name;++desc){if(!desc->OriginalFirstThunk)die("original-thunks");
+        auto* name=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->OriginalFirstThunk);
+        auto* iat=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->FirstThunk);
+        for(;name->u1.AddressOfData;++name,++iat){if(IMAGE_SNAP_BY_ORDINAL32(name->u1.Ordinal))continue;
+            auto* item=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+name->u1.AddressOfData);
+            for(U i=0;i<4;++i)if(!_stricmp(reinterpret_cast<const char*>(base+desc->Name),dlls[i])&&!std::strcmp(reinterpret_cast<const char*>(item->Name),names[i])){
+                if(seen[i])die("duplicate-import");DWORD old,ignored;import_cells[i]=&iat->u1.Function;old_imports[i]=iat->u1.Function;
+                if(!old_imports[i]||!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("protect");
+                *import_cells[i]=import_values[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("protect-mode");seen[i]=true;
+            }
+        }
+    }for(bool found:seen)if(!found)die("missing-exact-import");
+}
+static void restore_imports(){for(U i=0;i<4;++i){DWORD old,ignored;if(!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("restore");
+    *import_cells[i]=old_imports[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("restore-mode");}}
+static void absolute(U offset,U expected,U target){if(word(original+offset)!=expected)die("absolute-original");std::memcpy(code+offset,&target,4);}
+static void relative(U offset,U expected,const void* target){
+    if(original[offset]!=0xe8||0x59fc20u+offset+5+word(original+offset+1)!=expected)die("relative-original");
+    U value=ptr(target)-ptr(code+offset+5);std::memcpy(code+offset+1,&value,4);
+}
+static void install(){
+    if(word(raw_mode)!=2||word(raw_cache)!=1||porsche::startup_diagnostic_mode_005e50b4!=2||porsche::startup_debugger_present_005deb68!=1)die("initial-state");
+    if(std::memcmp(raw_newline,"\n",2)||std::memcmp(raw_main,"Error: terminate execution?",27)||std::memcmp(raw_other,"Error: execution may continue.",30)||std::memcmp(raw_kernel,"kernel32.dll",13)||std::memcmp(raw_query,"IsDebuggerPresent",18))die("raw-literal");
+    import_values[0]=ptr(reinterpret_cast<const void*>(&output_endpoint));import_values[1]=ptr(reinterpret_cast<const void*>(&message_endpoint));
+    import_values[2]=ptr(reinterpret_cast<const void*>(&load_endpoint));import_values[3]=ptr(reinterpret_cast<const void*>(&proc_endpoint));
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");std::memcpy(code,original,356);
+    absolute(1,0x6afbe4,ptr(&porsche::missing_file_006afbe4));absolute(0x32,0x5d0b1c,ptr(raw_newline));
+    absolute(0x64,0x5e50b4,ptr(&porsche::startup_diagnostic_mode_005e50b4));
+    absolute(0xc6,0x5e5110,ptr(raw_main));absolute(0xdd,0x5e5100,ptr(raw_kernel));absolute(0xec,0x5e50ec,ptr(raw_query));
+    absolute(0xfe,0x5deb68,ptr(&porsche::startup_debugger_present_005deb68));absolute(0x103,0x5deb68,ptr(&porsche::startup_debugger_present_005deb68));
+    absolute(0x123,0x6a57d8,ptr(&porsche::thread_start_lock_006a57d8));absolute(0x13e,0x5e50cc,ptr(raw_other));absolute(0x14c,0x6a57d8,ptr(&porsche::thread_start_lock_006a57d8));
+    for(U off:{0x7eu,0x9au,0x112u})absolute(off,0x5b2208,ptr(import_values));
+    for(U off:{0xcfu,0x147u})absolute(off,0x5b2270,ptr(import_values+1));
+    absolute(0xe3,0x5b2050,ptr(import_values+2));absolute(0xf3,0x5b205c,ptr(import_values+3));
+    relative(0x2c,0x5a28a0,reinterpret_cast<const void*>(&porsche::formatter_error_copy_n_005a28a0));
+    relative(0x82,0x5af0c0,reinterpret_cast<const void*>(&porsche::startup_debug_break_005af0c0));
+    relative(0xb0,0x55f780,reinterpret_cast<const void*>(&porsche::file_current_thread_0055f780));
+    relative(0x116,0x5af0c0,reinterpret_cast<const void*>(&porsche::startup_debug_break_005af0c0));
+    relative(0x11d,0x5a246e,reinterpret_cast<const void*>(&porsche::process_exit_005a246e));
+    relative(0x12c,0x5322b0,reinterpret_cast<const void*>(&porsche::heap_enter_005322b0));
+    relative(0x155,0x5322c0,reinterpret_cast<const void*>(&porsche::heap_leave_005322c0));
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),code,4096);patch_imports();
+}
+struct Capture {U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1;};
+static Capture invoke(const void* fn){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        lea eax,input
+        push eax
+        mov ecx,fn
+        call ecx
+        add esp,4
+        lea edx,r
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+static void reset(){observed={};std::memset(input,0,sizeof input);for(U i=0;i<cfg.length;++i)input[i]=static_cast<char>('a'+i%26);
+    porsche::startup_diagnostic_mode_005e50b4=cfg.mode;porsche::startup_debugger_present_005deb68=cfg.cache;
+    porsche::missing_file_006afbe4=cfg.callback?&callback_endpoint:nullptr;
+    porsche::thread_start_lock_006a57d8=cfg.lock?reinterpret_cast<void*>(0x45678000u):nullptr;
+}
+static int exception_filter(DWORD code){return code==0xe1390001u?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH;}
+static State execute(const void* fn){reset();__try {auto result=invoke(fn);if(!abi(result))die("ABI divergence");}
+    __except(exception_filter(GetExceptionCode())){observed.terminal=1;}
+    observed.mode=static_cast<U>(porsche::startup_diagnostic_mode_005e50b4);observed.cache=static_cast<U>(porsche::startup_debugger_present_005deb68);
+    observed.lock=ptr(porsche::thread_start_lock_006a57d8);observed.callback=ptr(reinterpret_cast<const void*>(porsche::missing_file_006afbe4));
+    std::strcpy(observed.text,input);return observed;
+}
+static void compare(){auto expected=execute(code);auto actual=execute(reinterpret_cast<const void*>(&porsche::startup_diagnostic_sink_0059fc20));++cases;checks+=4;
+    if(std::memcmp(&expected,&actual,sizeof actual)){
+        std::printf("divergence terminal case=%u length=%u mode=%d main=%d msg=%d callback=%u lock=%u effect=%u count=%u/%u terminal=%u/%u\n",cases,cfg.length,cfg.mode,cfg.main,cfg.msg,cfg.callback,cfg.lock,cfg.effect,expected.count,actual.count,expected.terminal,actual.terminal);
+        for(U i=0;i<expected.count||i<actual.count;++i)std::printf(" event%u kind=%u/%u a=%x/%x b=%x/%x cache=%x/%x text=%s/%s\n",i,expected.events[i].kind,actual.events[i].kind,expected.events[i].a,actual.events[i].a,expected.events[i].b,actual.events[i].b,expected.events[i].cache,actual.events[i].cache,expected.events[i].text,actual.events[i].text);
+        std::fflush(stdout);ExitProcess(1);
+    }
+}
+int main(){install();
+    for(U length:{0u,1u,31u,200u,251u,252u})for(std::int32_t mode:{0,1,2,3,4,-1,static_cast<std::int32_t>(0x80000000u)})
+    for(U callback:{0u,1u,2u,3u,4u})for(std::int32_t main:{0,1,-1})for(U lock:{0u,1u})for(U effect:{0u,1u,2u}){
+        cfg={length,mode,main,6,1,1,1,1,callback,lock,effect,0,0,0};compare();
+    }
+    for(U length:{0u,1u,252u})for(std::int32_t main:{0,1,-1})for(std::int32_t msg:{0,6,7,-1})
+    for(std::int32_t cache:{0,1,-1})for(std::int32_t load:{0,1})for(std::int32_t proc:{0,1})for(std::int32_t query:{0,1,-1}){
+        cfg={length,2,main,msg,cache,load,proc,query,1,1,0,0,0,0};compare();
+    }
+    for(U enter_effect:{0u,1u,2u})for(U effect:{0u,1u,2u})for(U lock:{0u,1u}){
+        cfg={31,2,0,6,1,1,1,1,1,lock,effect,enter_effect,0,0};compare();
+    }
+    for(U load_effect:{0u,1u,2u})for(U proc_effect:{0u,1u,2u})for(std::int32_t load:{0,1})for(std::int32_t proc:{0,1})for(std::int32_t cache:{0,1,-1}){
+        cfg={31,2,1,6,cache,load,proc,0,1,0,0,0,load_effect,proc_effect};compare();
+    }
+    restore_imports();std::printf("diagnostic_terminal_original_vs_cpp=PASS cases=%u checks=%u short_domain=0..252 long_opaque=HOLD\n",cases,checks);return 0;
+}

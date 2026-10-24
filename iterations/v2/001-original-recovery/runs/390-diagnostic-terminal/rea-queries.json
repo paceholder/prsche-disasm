@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "experiment": "local/experiments/v2-startup-390-rea",
+  "queries": [
+    {
+      "label": "function-0059fc20",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0059fc20"
+      }
+    },
+    {
+      "label": "function-0055f780",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0055f780"
+      }
+    },
+    {
+      "label": "function-0048fc80",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0048fc80"
+      }
+    },
+    {
+      "label": "function-0048ff30",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0048ff30"
+      }
+    },
+    {
+      "label": "function-0048d9b0",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0048d9b0"
+      }
+    }
+  ]
+}
