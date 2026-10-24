@@ -1,0 +1,125 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "porsche/files.hpp"
+#include "porsche/startup_services.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+static const B error_call[6]={@ERROR_CALL@},drive_call[6]={@DRIVE_CALL@},process_call[6]={@PROCESS_CALL@};
+static DWORD *iat[3],saved_iat[3];static B *code,*oracle[3];static B command[64],startup[96],process[48];
+static U cases,checks,return_bits,write_mode,error_state;
+static U address(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static void* pointer(U value){return reinterpret_cast<void*>(static_cast<std::uintptr_t>(value));}
+static void die(const char* why,U detail=0){std::printf("fixture %s %08x\n",why,detail);std::fflush(stdout);ExitProcess(98);}
+struct State{B command[64],startup[96],process[48];U error;};
+static State state(){State s{};std::memcpy(s.command,command,sizeof command);std::memcpy(s.startup,startup,sizeof startup);std::memcpy(s.process,process,sizeof process);s.error=error_state;return s;}
+struct Event{U count,kind,args[10];State before;};static Event event;
+static void record(U kind,const U* args,U count){if(event.count)die("multiple-calls");event={};event.count=1;event.kind=kind;event.before=state();for(U i=0;i<count;++i)event.args[i]=args[i];}
+extern "C" void WINAPI error_endpoint(DWORD error){U arg=error;record(0,&arg,1);error_state=error;}
+extern "C" UINT WINAPI drive_endpoint(LPCSTR root){U arg=address(root);record(1,&arg,1);return return_bits;}
+extern "C" BOOL WINAPI process_endpoint(LPCSTR application,LPSTR line,LPSECURITY_ATTRIBUTES pa,LPSECURITY_ATTRIBUTES ta,
+    BOOL inherit,DWORD flags,LPVOID environment,LPCSTR directory,LPSTARTUPINFOA info,LPPROCESS_INFORMATION output){
+    U args[]={address(application),address(line),address(pa),address(ta),static_cast<U>(inherit),flags,address(environment),address(directory),address(info),address(output)};record(2,args,10);
+    // Only explicitly backed fixture pointers can be written. Controlled
+    // writes also occur on failure to prove unfiltered argument/alias transport;
+    // they are not a statement about real CreateProcess failure semantics.
+    if(write_mode&&line==reinterpret_cast<char*>(command+8)){command[8]^=0xe7;command[23]^=0x59;}
+    B* out=reinterpret_cast<B*>(output);
+    if(write_mode&&(out==process+8||out==command+8||out==startup+8)){
+        U n=write_mode==1?3:16;for(U i=0;i<n;++i)out[i]=static_cast<B>(0x93+17*i);
+    }
+    return static_cast<BOOL>(return_bits);
+}
+static void set_iat(DWORD* cell,DWORD value){DWORD old,ignored;if(!VirtualProtect(cell,4,PAGE_READWRITE,&old))die("protect-iat");*cell=value;if(!VirtualProtect(cell,4,old,&ignored))die("restore-protection");}
+static void patch_imports(){
+    auto* base=reinterpret_cast<B*>(GetModuleHandleW(nullptr));auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    if(dos->e_magic!=IMAGE_DOS_SIGNATURE)die("dos");auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
+    if(nt->Signature!=IMAGE_NT_SIGNATURE||nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR32_MAGIC)die("PE32");
+    auto* desc=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+    const char* names[]={"SetLastError","GetDriveTypeA","CreateProcessA"};const void* targets[]={reinterpret_cast<const void*>(&error_endpoint),reinterpret_cast<const void*>(&drive_endpoint),reinterpret_cast<const void*>(&process_endpoint)};
+    for(;desc->Name;++desc){if(_stricmp(reinterpret_cast<const char*>(base+desc->Name),"KERNEL32.dll"))continue;if(!desc->OriginalFirstThunk)die("original-thunk");
+        auto* name=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->OriginalFirstThunk);auto* cell=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->FirstThunk);
+        for(;name->u1.AddressOfData;++name,++cell){if(IMAGE_SNAP_BY_ORDINAL32(name->u1.Ordinal))continue;
+            auto* symbol=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+name->u1.AddressOfData);
+            for(U i=0;i<3;++i)if(!std::strcmp(reinterpret_cast<const char*>(symbol->Name),names[i])){
+                if(iat[i])die("duplicate-import");iat[i]=&cell->u1.Function;saved_iat[i]=cell->u1.Function;if(!saved_iat[i])die("missing-address");set_iat(iat[i],address(targets[i]));
+            }
+        }
+    }for(auto* cell:iat)if(!cell)die("missing-exact-import");
+}
+static void install(){
+    const B* raw[]={error_call,drive_call,process_call};const U original_cells[]={0x5b21a4,0x5b2060,0x5b204c},arity[]={1,1,10};patch_imports();
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");
+    for(U i=0;i<3;++i){if(raw[i][0]!=0xff||raw[i][1]!=0x15||word(raw[i]+2)!=original_cells[i])die("original-callsite",i);oracle[i]=code+256*i;U n=0;
+        // Argument forwarding and outerRET are harness. Only the original
+        // six-byte IAT CALL is copied, with its operand bound to our exact IAT.
+        for(U a=0;a<arity[i];++a){oracle[i][n++]=0xff;oracle[i][n++]=0x74;oracle[i][n++]=0x24;oracle[i][n++]=static_cast<B>(arity[i]*4);}
+        std::memcpy(oracle[i]+n,raw[i],6);put(oracle[i]+n+2,address(iat[i]));n+=6;
+        if(i==0)oracle[i][n++]=0xc3;else{oracle[i][n++]=0xc2;oracle[i][n++]=static_cast<B>(arity[i]*4);oracle[i][n++]=0;}
+    }
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static Capture invoke(const void* fn,U argc,bool callee_pop,const U* args){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,argc
+        mov edx,args
+    nextarg:
+        test ecx,ecx
+        jz callit
+        push dword ptr [edx+ecx*4-4]
+        dec ecx
+        jmp nextarg
+    callit:
+        call fn
+        cmp callee_pop,0
+        jne capture
+        mov ecx,argc
+        lea esp,[esp+ecx*4]
+    capture:
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;}
+static bool abi(const Capture& r){++checks;return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1;}
+static void reset(){for(U i=0;i<sizeof command;++i)command[i]=static_cast<B>(0x23+17*i);for(U i=0;i<sizeof startup;++i)startup[i]=static_cast<B>(0x81+23*i);for(U i=0;i<sizeof process;++i)process[i]=static_cast<B>(0x49+29*i);error_state=0x79653421;event={};}
+struct Result{Event event;State after;U eax,abi;};
+static Result execute(const void* fn,U kind,const U* args){reset();auto capture=invoke(fn,kind==2?10:1,kind!=0,args);Result r{};r.event=event;r.after=state();r.eax=kind?capture.eax:0;r.abi=abi(capture);return r;}
+static bool test(U kind,const U* args){using namespace porsche;const void* functions[]={reinterpret_cast<const void*>(&file_set_last_error),reinterpret_cast<const void*>(&startup_drive_type),reinterpret_cast<const void*>(&startup_create_process)};
+    auto original=execute(oracle[kind],kind,args);auto recovered=execute(functions[kind],kind,args);
+    if(!original.abi||!recovered.abi||original.event.count!=1||std::memcmp(&original,&recovered,sizeof original)){std::printf("divergence kind=%u result=%08x write=%u\n",kind,return_bits,write_mode);return false;}
+    ++cases;checks+=2;return true;
+}
+int main(){install();
+    const U values[]={0,1,6,0x7fffffffu,0x80000000u,0xffffffffu,0x12345678u};
+    for(U error:values){return_bits=0;write_mode=0;if(!test(0,&error))return 1;}
+    const U roots[]={0,1,0xffffffffu,0x80000000u,address(command+8),address(startup+8)};
+    for(U root:roots)for(U result:values){return_bits=result;write_mode=0;if(!test(1,&root))return 1;}
+    for(U pattern=0;pattern<8;++pattern)for(U result:values)for(U writes=0;writes<3;++writes){U args[10];
+        for(U i=0;i<10;++i)args[i]=(0x91735421u+0x1020304u*i)^(pattern*0x18273645u);
+        if(pattern==0)std::memset(args,0,sizeof args);
+        if(pattern&1){args[0]=address(command+32);args[1]=address(command+8);args[7]=address(startup+80);args[8]=address(startup+8);args[9]=address(process+8);}
+        if(pattern==3)args[9]=address(command+8);if(pattern==5)args[9]=address(startup+8);
+        args[4]=pattern==0?0:pattern==1?1:pattern==2?0xffffffffu:0x80000000u;args[5]^=0x82736451;
+        return_bits=result;write_mode=writes;if(!test(2,args))return 1;
+    }
+    for(U i=0;i<3;++i)set_iat(iat[i],saved_iat[i]);std::printf("platform_facades_original_iat_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;
+}

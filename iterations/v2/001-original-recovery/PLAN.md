@@ -1,5 +1,17 @@
 # v2 / 001 - original source recovery plan
 
+Current406,2026-10-24:405 originalfiledelete/view73B and404threeWin32facades
+integrated.8570nativecases/11mutations and547-pin audit PASS.220TUs/8projects
+compile;190names198refs,noEXE. Fiveoldnamesclose/no newdependency; canonical
+physicalstate andSetLastError provider reused. Facades add0originalalgorithmcount.
+404/405 inputsfrozen, no passedproof rerun. RealOS/process/delete/fullgame remainHOLD.
+403 worker finished522B modemconsumer native002:5904cases/8mutations; finalhandoff
+pending. It stays separate from frozen406; coordinator owns next407 intake after
+ownership/COFF review.399/404 worker complete, no further assignment. Rootiteration
+stillopen; GitHub MCP/search remains queued aftercurrentiteration.
+
+Historical402 checkpoint follows.
+
 Current402,2026-10-24: debug400(68B) andmodemtable401(129B) integrated.
 36188 nativecases/13mutations,3REA dossiers and543-pin audit PASS. Actual218TUs/
 8projects compile;195names203refs,noEXE. Two frontiernamesclose; real522B modem
@@ -10,7 +22,8 @@ config/audit evidence is preserved.400 sourceproof002 remainsunchanged.
 400/401 native inputs frozen. Diagnostic0059fc20 staysPARTIAL; game/visual holdsopen.
 Active: diagnostic_terminal_390 owns403 modeminitializer/callback; network_constructor_391
 completed399 transportownership evidence and now owns404 platformfacade bindings;
-coordinator owns sharedacceptance/commits.
+coordinator completed405 filedelete/view73B (8136nativecases/6mutations) and owns
+shared406 intake after404handoff.403 modem enumeration remains independent.
 Next: original modeminitializer using401 owners/REA002; no guessed TAPI backend.
 GitHub MCP/search work remains deferred until aftercurrentiteration peruser.
 

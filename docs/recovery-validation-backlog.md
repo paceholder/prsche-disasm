@@ -1,5 +1,11 @@
 # Отложенные проверки восстановления v2
 
+Run406: originalfiledelete/view73B +3exactWin32facades integrated;8570nativecases/
+11mutations,547pins;220TUs190names198refs,noEXE. Real OS deletion/CreateProcess,
+TLS last-error/physicaltable concurrent lifetime/fullfilesystem remain open;
+controlled endpoints perform no external file/process effects. All earlier modem,
+diagnostic, transport, exception and fullgame holds remain.403 is next separateintake.
+
 Run402: debugpredicate/gate68B +modemaccessor/cleanup129B accepted after36188
 nativecases/13mutations and543-pin audit;218TUs195names203refs,noEXE. RealINT3
 continued-return ABI and exactimports are bounded proof, not live debugger/internal

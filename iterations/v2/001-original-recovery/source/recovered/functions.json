@@ -1081,18 +1081,19 @@
         "00591ce0",
         "00591df0",
         "00592140",
-        "00592290"
+        "00592290",
+        "00591980",
+        "00592490"
       ],
       "unrecovered_dependencies": [
         "00568900",
-        "00591980",
         "00591fa0",
-        "00592490",
         "005924d0"
       ],
       "unrecovered_indirect_dependencies": [
         "operation callback +20; diagnostic handler005debf0"
-      ]
+      ],
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/406-platform-file-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10776,6 +10777,39 @@
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json",
       "verification_boundary": "Original83B; valid bounded12B records, sparse strings, count/table changes by controlled free, table reloads and pointer-only final clear. Actual allocator/TAPI/teardown/concurrency and arbitrary aliases remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00591980",
+      "source": "iterations/v2/001-original-recovery/runs/405-file-backends/file_backends.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl borrowed pointerbits, RET0/uint32 EAX",
+      "recovered_dependencies": [
+        "SetLastError",
+        "DeleteFileA"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/406-platform-file-integration/validation.json",
+      "verification_boundary": "Original20B; exact SetLastError(0)/DeleteFileA import operands, borrowed pointer/fullBOOL and ordered API state, cdecl ABI. Controlled ownIAT endpoint deletes nothing; real OS deletion/TLS/concurrency/fullfilesystem remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00592490",
+      "source": "iterations/v2/001-original-recovery/runs/405-file-backends/file_backends.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl borrowed pointerbits, RET0/uint32 EAX",
+      "recovered_dependencies": [
+        "SetLastError"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/406-platform-file-integration/validation.json",
+      "verification_boundary": "Original53B; complement32 encoding, signed bounds, canonical PhysicalFile32B active/view+20 and existing files.cpp scalar owners; invalidSetLastError6, validerrorretention, fullresult/state/ABI. Bounded records and controlled API state; concurrent lifetime/aliases/fullfilesystem remain open."
     }
   ]
 }

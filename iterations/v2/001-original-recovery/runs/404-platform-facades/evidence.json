@@ -1,0 +1,118 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "kind": "three platformfacades, ZERO neworiginalbody/functioncount, no newstate",
+  "query": [
+    "00592600",
+    "004a5ca7",
+    "004a5d01",
+    "005b21a4",
+    "005b2060",
+    "005b204c"
+  ],
+  "original_imports": [
+    {
+      "dll": "KERNEL32.dll",
+      "name": "CreateProcessA",
+      "iat_va": "005b204c",
+      "raw_iat": "daa01c00"
+    },
+    {
+      "dll": "KERNEL32.dll",
+      "name": "GetDriveTypeA",
+      "iat_va": "005b2060",
+      "raw_iat": "16a11c00"
+    },
+    {
+      "dll": "KERNEL32.dll",
+      "name": "SetLastError",
+      "iat_va": "005b21a4",
+      "raw_iat": "aaa51c00"
+    }
+  ],
+  "consumer_spans": [
+    {
+      "va": "005925fe",
+      "bytes": 8,
+      "raw_hex": "6a06ff15a4215b00",
+      "sha256": "6509cb0b8f024ac0f1911f85d44c1b8f1c5a3a984f9bd2e5efd97aad24c6c727",
+      "purpose": "fileconsumer PUSH6/CALL SetLastError"
+    },
+    {
+      "va": "004a5ca2",
+      "bytes": 11,
+      "raw_hex": "8d54240852ff1560205b00",
+      "sha256": "24f88a046e2670e13ff3e6604f00e2a763a6ebea17ba343d695379c1c5b59766",
+      "purpose": "startup GetDriveTypeA argument/CALL"
+    },
+    {
+      "va": "004a5cd9",
+      "bytes": 46,
+      "raw_hex": "8d54241c8d44242c52506a006a006a006a006a008d8c24900100006a00516a00c744245444000000ff154c205b00",
+      "sha256": "a3381f3fbae2ec25995d836d22f2e12c77b0a871457d07ed815d468d50c06e1a",
+      "purpose": "startup CreateProcessA tenarguments/STARTUPINFOcb44/CALL"
+    }
+  ],
+  "facades": [
+    {
+      "symbol": "porsche::file_set_last_error(uint32)",
+      "abi": "cdecl1,voidreturn; explicitadapter to existingstdcall1 formatter_crt_set_last_error",
+      "provider": "iterations/v2/001-original-recovery/source/platform/formatter_crt_links.cpp",
+      "provider_sha256": "ccd611d613a4dd653404b5893049ac9a32f7149b1c5244db326075fec3a85287",
+      "excluded": "file_disk.cpp os_set_last_error isanonymous andmutable platform_disk_set_last_error isnot the originaldirectIATconsumer"
+    },
+    {
+      "symbol": "porsche::startup_drive_type(constchar*)",
+      "abi": "stdcall1,fullUINT32return",
+      "provider": "KERNEL32!GetDriveTypeA"
+    },
+    {
+      "symbol": "porsche::startup_create_process(constchar*,char*,void*,void*,int32,uint32,void*,constchar*,void*,void*)",
+      "abi": "stdcall10/fullBOOL32return; originalbitpatterns/pointers preserved",
+      "provider": "KERNEL32!CreateProcessA",
+      "layout": "x86 STARTUPINFOA68B,PROCESS_INFORMATION16B; no wrapperclear/copy/defaulting"
+    }
+  ],
+  "ownership": {
+    "existing_platform_provider": "formatter_crt_links.cpp already in activeCMake atplatform target; compiledactualsource inthisproof",
+    "original_algorithm_count": 0,
+    "new_shared_state": false,
+    "game_intake": "only platform_facades.cpp, canonicalproviderexisting; coordinator ownsactualCOFF/frontier/buildaudit"
+  },
+  "native": {
+    "receipt": "local/experiments/v2-platform-facades-native-404/001/receipt.json",
+    "receipt_sha256": "35e51702d3c428d3bb648a68f1627aaf5132210723f4aaf50a8d1bc7cf0160e1",
+    "inputs": 175,
+    "status": "PASS",
+    "variants": [
+      "/Od",
+      "/O2"
+    ],
+    "cases_per_variant": 217,
+    "checks_per_variant": 868,
+    "detected_mutations": [
+      "error-value",
+      "drive-return-bits",
+      "create-inherit-bits",
+      "create-flags",
+      "create-return-bits"
+    ],
+    "coverage": [
+      "exact threeKERNEL32 imports found in nativePEoriginalthunks andownliveIAT beforecontrolledsubstitution",
+      "raworiginal6B CALLs operandchecked/relocated tothoseactualIATcells",
+      "argumentforwarding andouterRET explicitlysynthetic harness, notrecoveredbytes",
+      "cdecl/stdcall cleanup,ESP/EBP/EBX/ESI/EDI; fullEAX drive/processreturnbits",
+      "SetLastError7values incl6/highbits; drive6pointertokens x7returnvalues",
+      "CreateProcessA8distinct10argumentpatterns x7returns x3writepatterns",
+      "NULL/invalid/borrowedpointertokens; BOOLinherit andflagsallbits preserved",
+      "controlledpartial/fulloutputwrites includingfailure, aliascommand/startup/output pointers; guardbytes unchangedexceptendpointwrites",
+      "canonicalformatterSetLastErrorprovidercompiledactual; no fixturedefinitionreplaces productionfacades"
+    ]
+  },
+  "boundaries": [
+    "No process waslaunched; IAT endpoints controlledallCreateProcess/GetDriveType/SetLastError calls.",
+    "Proof isABI/import/pointertransport, notactualWindowsfilesystem/drivetype/processlaunch orOSfailuresemantics.",
+    "Wholefiles/startup consumers notrerun; their unchangedacceptedproofs andcurrentactualsourcehashes pinned.",
+    "No originalfunctionVAownershipcount,fixtureprovider,mutableAPIcache or raworiginalVAhostmapping added."
+  ]
+}

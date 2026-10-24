@@ -1,0 +1,86 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "file_backends.hpp"
+#include "porsche/files.hpp"
+using U=std::uint32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+static const B delete_raw[20]={@DELETE@},view_raw[53]={@VIEW@};
+static B *code,*memory;static DWORD import_values[2],*import_cells[2],old_imports[2];static U cases,checks,last_error;
+struct Case{U table,count,index,active,view,error,result,effect;};static Case cfg;
+struct Event{U kind,arg,error,count,table;};
+struct State{U used,result,error,count,table;Event events[4];B memory[1024];};static State seen,want,got;
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U x;std::memcpy(&x,p,4);return x;}
+static void put(void* p,U x){std::memcpy(p,&x,4);}
+static void die(const char* what){std::printf("divergence fixture %s\n",what);std::fflush(stdout);ExitProcess(1);}
+namespace porsche {PhysicalFile* physical_files_006af084=nullptr;std::int32_t physical_count_006af080=0;}
+static void record(U kind,U arg){if(seen.used>=4)die("event-limit");seen.events[seen.used++]={kind,arg,last_error,static_cast<U>(porsche::physical_count_006af080),ptr(porsche::physical_files_006af084)};}
+static void effects(){if(cfg.effect==1){porsche::physical_files_006af084=reinterpret_cast<porsche::PhysicalFile*>(memory+512);porsche::physical_count_006af080=1;}
+ if(cfg.effect==2){porsche::physical_files_006af084=nullptr;porsche::physical_count_006af080=-1;}}
+extern "C" void WINAPI error_endpoint(DWORD value){record(1,value);last_error=value;effects();}
+extern "C" BOOL WINAPI delete_endpoint(LPCSTR value){record(2,ptr(value));last_error=cfg.result^0x12345678u;effects();return static_cast<BOOL>(cfg.result);}
+static void patch_imports(){
+    auto* base=reinterpret_cast<B*>(GetModuleHandleW(nullptr));auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
+    if(dos->e_magic!=IMAGE_DOS_SIGNATURE||nt->Signature!=IMAGE_NT_SIGNATURE||nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR32_MAGIC)die("pe");
+    const char* names[2]={"SetLastError","DeleteFileA"};bool seen[2]{};
+    auto* desc=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+    for(;desc->Name;++desc){if(!desc->OriginalFirstThunk)die("original-thunks");
+        auto* name=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->OriginalFirstThunk);auto* iat=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->FirstThunk);
+        for(;name->u1.AddressOfData;++name,++iat){if(IMAGE_SNAP_BY_ORDINAL32(name->u1.Ordinal))continue;
+            auto* item=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+name->u1.AddressOfData);
+            for(U i=0;i<2;++i)if(!_stricmp(reinterpret_cast<const char*>(base+desc->Name),"KERNEL32.dll")&&!std::strcmp(reinterpret_cast<const char*>(item->Name),names[i])){
+                if(seen[i])die("duplicate-import");DWORD old,ignored;import_cells[i]=&iat->u1.Function;old_imports[i]=iat->u1.Function;
+                if(!old_imports[i]||!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("protect");*import_cells[i]=import_values[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("protect-mode");seen[i]=true;
+            }
+        }
+    }for(bool found:seen)if(!found)die("missing-exact-import");
+}
+static void restore_imports(){for(U i=0;i<2;++i){DWORD old,ignored;if(!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("restore-protect");*import_cells[i]=old_imports[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("restore-mode");}}
+
+static void absolute(B* target,const B* raw,U off,U expected,const void* cell){if(word(raw+off)!=expected)die("original-operand");put(target+off,ptr(cell));}
+static void install(){if(porsche::physical_files_006af084||porsche::physical_count_006af080)die("fixture-initial-state");
+ memory=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!memory||!code)die("alloc");
+ import_values[0]=ptr(reinterpret_cast<const void*>(&error_endpoint));import_values[1]=ptr(reinterpret_cast<const void*>(&delete_endpoint));
+ std::memcpy(code,delete_raw,20);std::memcpy(code+128,view_raw,53);
+ absolute(code,delete_raw,4,0x5b21a4,import_values);absolute(code,delete_raw,15,0x5b2234,import_values+1);
+ absolute(code+128,view_raw,2,0x6af084,&porsche::physical_files_006af084);absolute(code+128,view_raw,22,0x6af080,&porsche::physical_count_006af080);absolute(code+128,view_raw,46,0x5b21a4,import_values);
+ DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),code,4096);patch_imports();}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,result;};
+static Capture invoke(const void* fn){Capture r{};U arg=cfg.index;
+ __asm {
+ mov ebx,13579bdfh
+ mov esi,2468ace0h
+ mov edi,6a31c5e7h
+ lea edx,r
+ mov [edx],esp
+ mov [edx+8],ebp
+ mov [edx+16],ebx
+ mov [edx+24],esi
+ mov [edx+32],edi
+ push arg
+ mov eax,fn
+ call eax
+ add esp,4
+ lea edx,r
+ mov [edx+40],eax
+ mov [edx+4],esp
+ mov [edx+12],ebp
+ mov [edx+20],ebx
+ mov [edx+28],esi
+ mov [edx+36],edi
+ }return r;}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+static void reset(){seen={};last_error=cfg.error;for(U i=0;i<1024;++i)memory[i]=static_cast<B>(i*13+0x52);
+ for(U i=0;i<32;++i){memory[i*32]=static_cast<B>(cfg.active);put(memory+i*32+20,cfg.view+i);}
+ porsche::physical_files_006af084=cfg.table?reinterpret_cast<porsche::PhysicalFile*>(memory+(cfg.table==2?512:0)):nullptr;porsche::physical_count_006af080=static_cast<std::int32_t>(cfg.count);}
+static void execute(const void* fn,State& s){reset();auto r=invoke(fn);if(!abi(r))die("ABI");seen.result=r.result;seen.error=last_error;seen.count=static_cast<U>(porsche::physical_count_006af080);seen.table=ptr(porsche::physical_files_006af084);std::memcpy(seen.memory,memory,1024);s=seen;}
+static void compare(bool remove){execute(code+(remove?0:128),want);execute(remove?reinterpret_cast<const void*>(&porsche::file_backend_00591980):reinterpret_cast<const void*>(&porsche::file_backend_00592490),got);++cases;checks+=4;
+ if(std::memcmp(&want,&got,sizeof got)){std::printf("divergence case=%u remove=%u table=%u count=%x encoded=%x active=%x view=%x error=%x result=%x effect=%u\n",cases,remove,cfg.table,cfg.count,cfg.index,cfg.active,cfg.view,cfg.error,cfg.result,cfg.effect);std::fflush(stdout);ExitProcess(1);}}
+int main(){install();
+ for(U table:{0u,1u,2u})for(U n:{0u,1u,3u,8u,0x80000000u,0xffffffffu})for(U handle:{0u,1u,0x7fffffffu,0x80000000u,0xfffffff7u,0xfffffffdu,0xfffffffeu,0xffffffffu})for(U active:{0u,1u,0x80u})for(U view:{0u,0x12345678u,0xffffffffu})for(U effect:{0u,1u,2u}){cfg={table,n,handle,active,view,0x6bad1234u,0,effect};compare(false);}
+ for(U name:{0u,1u,ptr(memory),ptr(memory+1),0xffffffffu})for(U result:{0u,1u,0x80000000u,0xffffffffu})for(U err:{0u,6u,0xffffffffu})for(U effect:{0u,1u,2u}){cfg={1,3,name,1,0x1234u,err,result,effect};compare(true);}
+ restore_imports();std::printf("file_backends_original_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;}

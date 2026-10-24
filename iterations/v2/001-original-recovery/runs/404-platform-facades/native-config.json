@@ -1,0 +1,84 @@
+{
+  "run": 404,
+  "experiment": "local/experiments/v2-platform-facades-native-404",
+  "timeout_seconds": 90,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/404-platform-facades/platform_facades.cpp",
+    "iterations/v2/001-original-recovery/source/platform/formatter_crt_links.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/404-platform-facades/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/404-platform-facades",
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/files.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_services.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_disk.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@ERROR_CALL@",
+      "va": "00592600",
+      "bytes": 6,
+      "sha256": "32040ae391b60bc288b18878eb193e158b7310d5d54393d812d436918d109742"
+    },
+    {
+      "token": "@DRIVE_CALL@",
+      "va": "004a5ca7",
+      "bytes": 6,
+      "sha256": "bfac51f3daacd1e295010a3d185e1672562f51db33a0bb39ad6fcde0a8b9cf4f"
+    },
+    {
+      "token": "@PROCESS_CALL@",
+      "va": "004a5d01",
+      "bytes": 6,
+      "sha256": "e62bf2d91e7059befbafa653b0ca960a6683317b4706fd892ed9a17f77db9643"
+    }
+  ],
+  "pass_marker": "platform_facades_original_iat_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "error-value",
+      "source": "iterations/v2/001-original-recovery/runs/404-platform-facades/platform_facades.cpp",
+      "old": "formatter_crt_set_last_error(error);",
+      "new": "formatter_crt_set_last_error(0);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "drive-return-bits",
+      "source": "iterations/v2/001-original-recovery/runs/404-platform-facades/platform_facades.cpp",
+      "old": "return ::GetDriveTypeA(root);",
+      "new": "return !!::GetDriveTypeA(root);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "create-inherit-bits",
+      "source": "iterations/v2/001-original-recovery/runs/404-platform-facades/platform_facades.cpp",
+      "old": "inherit_handles,creation_flags",
+      "new": "!!inherit_handles,creation_flags",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "create-flags",
+      "source": "iterations/v2/001-original-recovery/runs/404-platform-facades/platform_facades.cpp",
+      "old": "inherit_handles,creation_flags",
+      "new": "inherit_handles,0",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "create-return-bits",
+      "source": "iterations/v2/001-original-recovery/runs/404-platform-facades/platform_facades.cpp",
+      "old": "static_cast<std::uint32_t>(::CreateProcessA(",
+      "new": "static_cast<std::uint32_t>(!!::CreateProcessA(",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

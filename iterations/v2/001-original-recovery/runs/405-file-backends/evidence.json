@@ -1,0 +1,64 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "queries": [
+    "00591980",
+    "00592490",
+    "006af080",
+    "006af084",
+    "005b21a4",
+    "005b2234"
+  ],
+  "bodies": [
+    {
+      "token": "@DELETE@",
+      "va": "00591980",
+      "bytes": 20,
+      "sha256": "8fc1a35c985dd11fabecf9f9a79ec7722189ab2bdace8cd57fab7d9e2f8436f9"
+    },
+    {
+      "token": "@VIEW@",
+      "va": "00592490",
+      "bytes": 53,
+      "sha256": "ac8133bd22a567e377e78cd5a317205829aa3fc0a648e7b6ce214fa3a955e6d0"
+    }
+  ],
+  "semantics": {
+    "00591980": "cdecl borrowed filename token: SetLastError(0), DeleteFileA(name), complete BOOL bits as uint32 EAX; no extra handle/filename validation.",
+    "00592490": "cdecl encoded token: complement32; require canonical table nonnull and signedindex>=0/<signedcount; 32B record active byte nonzero returns +0x14 viewDWORD. Invalid calls SetLastError(6) then returns0; valid path does not clear last-error."
+  },
+  "ownership": {
+    "new_mutable_state": false,
+    "canonical_source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/files.cpp",
+    "canonical_header": "iterations/v2/001-original-recovery/source/include/porsche/files.hpp",
+    "fields": [
+      "physical_count_006af080",
+      "physical_files_006af084"
+    ],
+    "layout": "Existing PhysicalFile32B; viewoffsetof20/activeoffsetof0; source static_assert. Both scalar defaults correspond to PEloader zero-fill.",
+    "fixture": "Controlled private instances of the same extern cells; immutable canonical source/header pins plus actual game COFF ownership at integration. Actual old files TU is not substituted in game."
+  },
+  "imports": [
+    {
+      "iat": "005b21a4",
+      "dll": "KERNEL32.dll",
+      "symbol": "SetLastError"
+    },
+    {
+      "iat": "005b2234",
+      "dll": "KERNEL32.dll",
+      "symbol": "DeleteFileA"
+    }
+  ],
+  "native": {
+    "receipt": "local/experiments/v2-file-backends-native-405/003/receipt.json",
+    "cases_per_variant": 4068,
+    "total_cases": 8136,
+    "checks_per_variant": 16272,
+    "mutations": 6,
+    "input_pins": 162,
+    "proof": "Full raw73B, operands validated before relocation, actual ownPE IAT patched by exact DLL/name, restored beforeexit. Ordered error/delete effects, final physical cells/memory, full EAX and cdecl ESP/nonvolatile registers.",
+    "attempts": "001 rejected wrong original IAT operand offset beforeexecution.002 rejected leftover three-slot import presence check in reused two-import fixture.003 corrects fixture only; production source unchanged since001."
+  },
+  "boundaries": "No filedeleted: controlled DeleteFileA endpoint. OS deletion/TLS last-error semantics, concurrent table mutation, allocator/lifetime/full filesystem and gamecomposition remain HOLD. Valid lookup records limited to allocated fixture domain; invalid/wrapping token cases reject beforedereference."
+}
