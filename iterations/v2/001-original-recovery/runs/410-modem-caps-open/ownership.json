@@ -1,0 +1,80 @@
+{
+  "va": "006a57a8",
+  "bytes": 4,
+  "symbol": "modem_configuration_006a57a8",
+  "semantic": "Opaque configuration-pointer token, only truth-tested by this batch; original producer0055e44c writes006a46ac, not a forced boolean.",
+  "initial": {
+    "value": 0,
+    "kind": "PE loader zero-fill",
+    "section": {
+      "name": ".data",
+      "virtual": 1008952,
+      "rva": 1880064,
+      "raw": 114688,
+      "rawptr": 1880064
+    },
+    "offset_in_section": 894888
+  },
+  "builds": [
+    {
+      "build": {
+        "path": "iterations/v2/001-original-recovery/runs/406-platform-file-integration/build-001.json",
+        "sha256": "0eb68a6d58523045728861662c19d3c66d7e74efa25e1d684e48c8b06f5dcdc9"
+      },
+      "manifest": {
+        "path": "research/v2/proof-manifests/sha256/03c3ce6ed44531087f65a15e8bf17502cd5375e1b8e9be714fff37aa840c4ef6.json",
+        "sha256": "03c3ce6ed44531087f65a15e8bf17502cd5375e1b8e9be714fff37aa840c4ef6"
+      },
+      "compiled_roots": 220
+    }
+  ],
+  "compiled_source_header_files": 344,
+  "all_active_files": 612,
+  "hits": [
+    {
+      "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "sha256": "f5e15c8ce8ae4976dd20fe0b346707b148949d4efa6fa1160b2920734ca17121",
+      "compiled_closure": false,
+      "lines": [
+        {
+          "line": 5,
+          "text": "std::uint32_t modem_configuration_006a57a8=0;"
+        },
+        {
+          "line": 51,
+          "text": "    if(modem_configuration_006a57a8){"
+        }
+      ]
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.hpp",
+      "sha256": "380c1142cf3d4060a7bbd8b41e50bf31b0053077061129187b91ebb9c34ec4ad",
+      "compiled_closure": false,
+      "lines": [
+        {
+          "line": 5,
+          "text": "extern std::uint32_t modem_configuration_006a57a8;"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "from_va": "0055e2f4",
+      "to_va": "006a57a8",
+      "from_function": "0055e270",
+      "type": "READ",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_006a57a8"
+    },
+    {
+      "from_va": "0055e44c",
+      "to_va": "006a57a8",
+      "from_function": "0055e3d0",
+      "type": "WRITE",
+      "source": "DEFAULT",
+      "target_symbol": "DAT_006a57a8"
+    }
+  ],
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39"
+}

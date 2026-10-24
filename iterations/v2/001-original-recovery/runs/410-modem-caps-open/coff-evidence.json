@@ -1,0 +1,182 @@
+{
+  "tool": {
+    "path": "local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+    "sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5"
+  },
+  "objects": [
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/od-0.obj",
+      "sha256": "0c327ef739a6a83b49b66935173cb30e5146759893d5c5a2d1f336a8b9cc2d51",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/od-0-symbols.txt",
+        "sha256": "8f8f8a62ffb6cd8fbc391e6192f02d15c7aa8aae8f72a14f321a8dcb5264c1e3"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?modem_configuration_006a57a8@porsche@@3IA (unsigned int porsche::modem_configuration_006a57a8)",
+        "01B 00000000 UNDEF  notype ()    External     | ?modem_line_negotiate_00584d7c@porsche@@YGHIIIIPAIPAX@Z (int __stdcall porsche::modem_line_negotiate_00584d7c(unsigned int,unsigned int,unsigned int,unsigned int,unsigned int *,void *))",
+        "01C 00000000 SECT7  notype ()    External     | ?modem_device_capabilities_0055e6e0@porsche@@YAHI@Z (int __cdecl porsche::modem_device_capabilities_0055e6e0(unsigned int))",
+        "01D 00000000 SECT8  notype ()    External     | ?modem_line_open_0055e270@porsche@@YAHXZ (int __cdecl porsche::modem_line_open_0055e270(void))",
+        "01E 00000000 SECT6  notype ()    External     | ?modem_capabilities_clear_0055de50@porsche@@YAXXZ (void __cdecl porsche::modem_capabilities_clear_0055de50(void))",
+        "01F 00000000 UNDEF  notype ()    External     | ?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z (int __stdcall porsche::modem_line_get_capabilities_00584bb7(unsigned int,unsigned int,unsigned int,unsigned int,void *))",
+        "020 00000000 UNDEF  notype ()    External     | ?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z (int __stdcall porsche::modem_tapi_line_open_00584dcd(unsigned int,unsigned int,unsigned int *,unsigned int,unsigned int,unsigned int,unsigned int,unsigned int,void const *))",
+        "021 00000000 UNDEF  notype ()    External     | ?modem_line_set_status_00584e72@porsche@@YGHIII@Z (int __stdcall porsche::modem_line_set_status_00584e72(unsigned int,unsigned int,unsigned int))",
+        "022 00000000 UNDEF  notype ()    External     | ?modem_line_configure_0055e340@porsche@@YAII@Z (unsigned int __cdecl porsche::modem_line_configure_0055e340(unsigned int))",
+        "023 00000000 UNDEF  notype ()    External     | ?allocate_00531ca0@porsche@@YAPAXPBDHI@Z (void * __cdecl porsche::allocate_00531ca0(char const *,int,unsigned int))",
+        "024 00000000 UNDEF  notype ()    External     | ?free_00531f90@porsche@@YAIPAX@Z (unsigned int __cdecl porsche::free_00531f90(void *))",
+        "029 00000000 UNDEF  notype       External     | ?render_descriptor_flags_005deb60@porsche@@3IA (unsigned int porsche::render_descriptor_flags_005deb60)",
+        "02A 00000000 UNDEF  notype       External     | ?modem_selected_device_005df478@porsche@@3IA (unsigned int porsche::modem_selected_device_005df478)",
+        "02B 00000000 UNDEF  notype       External     | ?modem_line_006a4668@porsche@@3IA (unsigned int porsche::modem_line_006a4668)",
+        "02C 00000000 UNDEF  notype       External     | ?modem_application_006a5670@porsche@@3IA (unsigned int porsche::modem_application_006a5670)",
+        "02D 00000000 UNDEF  notype       External     | ?modem_open_mode_006a579c@porsche@@3IA (unsigned int porsche::modem_open_mode_006a579c)",
+        "02E 00000000 UNDEF  notype       External     | ?modem_api_version_006a57a4@porsche@@3IA (unsigned int porsche::modem_api_version_006a57a4)",
+        "02F 00000000 UNDEF  notype       External     | ?modem_capabilities_006a57b4@porsche@@3IA (unsigned int porsche::modem_capabilities_006a57b4)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/od-1.obj",
+      "sha256": "a349480bc304565a6db529e886ba6437f9f2a572029ec402bbcc6b1a44f43bc5",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/od-1-symbols.txt",
+        "sha256": "2f5a41f98bd6c3703def12c3ed3e4f0a797410cb9bf3ebc97469cbb06b592194"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?modem_selected_device_005df478@porsche@@3IA (unsigned int porsche::modem_selected_device_005df478)",
+        "00C 00000000 SECT4  notype       External     | ?modem_line_006a4668@porsche@@3IA (unsigned int porsche::modem_line_006a4668)",
+        "00D 00000004 SECT4  notype       External     | ?modem_application_006a5670@porsche@@3IA (unsigned int porsche::modem_application_006a5670)",
+        "00F 0000000C SECT4  notype       External     | ?modem_open_mode_006a579c@porsche@@3IA (unsigned int porsche::modem_open_mode_006a579c)",
+        "010 00000010 SECT4  notype       External     | ?modem_api_version_006a57a4@porsche@@3IA (unsigned int porsche::modem_api_version_006a57a4)",
+        "011 00000014 SECT4  notype       External     | ?modem_capabilities_006a57b4@porsche@@3IA (unsigned int porsche::modem_capabilities_006a57b4)",
+        "029 00000000 UNDEF  notype ()    External     | ?modem_line_negotiate_00584d7c@porsche@@YGHIIIIPAIPAX@Z (int __stdcall porsche::modem_line_negotiate_00584d7c(unsigned int,unsigned int,unsigned int,unsigned int,unsigned int *,void *))",
+        "02D 00000000 UNDEF  notype ()    External     | ?modem_device_capabilities_0055e6e0@porsche@@YAHI@Z (int __cdecl porsche::modem_device_capabilities_0055e6e0(unsigned int))",
+        "02E 00000000 UNDEF  notype ()    External     | ?modem_line_open_0055e270@porsche@@YAHXZ (int __cdecl porsche::modem_line_open_0055e270(void))",
+        "02F 00000000 UNDEF  notype ()    External     | ?allocate_00531ca0@porsche@@YAPAXPBDHI@Z (void * __cdecl porsche::allocate_00531ca0(char const *,int,unsigned int))",
+        "030 00000000 UNDEF  notype ()    External     | ?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z (char * __cdecl porsche::formatter_error_copy_n_005a28a0(char *,char const *,unsigned int))",
+        "038 00000000 UNDEF  notype       External     | ?device_table_count_006a57a0@porsche@@3IA (unsigned int porsche::device_table_count_006a57a0)",
+        "039 00000000 UNDEF  notype       External     | ?device_table_pointer_006a57b8@porsche@@3IA (unsigned int porsche::device_table_pointer_006a57b8)",
+        "03A 00000000 UNDEF  notype       External     | ?render_descriptor_flags_005deb60@porsche@@3IA (unsigned int porsche::render_descriptor_flags_005deb60)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/od-2.obj",
+      "sha256": "3867743c179464094b16e7662edf4ddf3e5203caa5603edd21cc4d7ed5294ed2",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/od-2-symbols.txt",
+        "sha256": "5af79154f12ddbf44ac536dfcd0f56054ee7a8ba1063d7df5825548d3101983e"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?device_table_count_006a57a0@porsche@@3IA (unsigned int porsche::device_table_count_006a57a0)",
+        "00A 00000004 SECT3  notype       External     | ?device_table_pointer_006a57b8@porsche@@3IA (unsigned int porsche::device_table_pointer_006a57b8)",
+        "012 00000000 UNDEF  notype ()    External     | ?free_00531f90@porsche@@YAIPAX@Z (unsigned int __cdecl porsche::free_00531f90(void *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/od-3.obj",
+      "sha256": "87e0c1d9748ce834031e8702306ee1886599f425310d1968d1d3336eeef6a80e",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/od-3-symbols.txt",
+        "sha256": "d88a2b652bc60e8af198d57b93a5870bad10c18a9eaca94918fcea76fdb50203"
+      },
+      "relevant_symbols": [
+        "00A 00000004 SECT3  notype       External     | ?render_descriptor_flags_005deb60@porsche@@3IA (unsigned int porsche::render_descriptor_flags_005deb60)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/od-4.obj",
+      "sha256": "1d31301a8dcedcba32c62e4c0aded0c5f7c226b6134a82c0027226f2bda67199",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/od-4-symbols.txt",
+        "sha256": "7f813cc03493b37527d3c13bbb14f44a07167589165845bfd60c4a35827326d4"
+      },
+      "relevant_symbols": [
+        "030 00000000 SECT9  notype ()    External     | ?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z (char * __cdecl porsche::formatter_error_copy_n_005a28a0(char *,char const *,unsigned int))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/o2-0.obj",
+      "sha256": "97bd9ce388c3b2c7e8e9be337b69e2981882abd9fa3f2e30559eab13f8d027f6",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/o2-0-symbols.txt",
+        "sha256": "eb2385f20024c0c1165c6318a79f64f81c60dffe449bef81270b38c0bf537d8a"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?modem_configuration_006a57a8@porsche@@3IA (unsigned int porsche::modem_configuration_006a57a8)",
+        "026 00000000 UNDEF  notype ()    External     | ?modem_line_negotiate_00584d7c@porsche@@YGHIIIIPAIPAX@Z (int __stdcall porsche::modem_line_negotiate_00584d7c(unsigned int,unsigned int,unsigned int,unsigned int,unsigned int *,void *))",
+        "027 00000000 SECT8  notype ()    External     | ?modem_device_capabilities_0055e6e0@porsche@@YAHI@Z (int __cdecl porsche::modem_device_capabilities_0055e6e0(unsigned int))",
+        "028 00000000 SECTA  notype ()    External     | ?modem_line_open_0055e270@porsche@@YAHXZ (int __cdecl porsche::modem_line_open_0055e270(void))",
+        "029 00000000 SECT6  notype ()    External     | ?modem_capabilities_clear_0055de50@porsche@@YAXXZ (void __cdecl porsche::modem_capabilities_clear_0055de50(void))",
+        "02A 00000000 UNDEF  notype ()    External     | ?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z (int __stdcall porsche::modem_line_get_capabilities_00584bb7(unsigned int,unsigned int,unsigned int,unsigned int,void *))",
+        "02B 00000000 UNDEF  notype ()    External     | ?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z (int __stdcall porsche::modem_tapi_line_open_00584dcd(unsigned int,unsigned int,unsigned int *,unsigned int,unsigned int,unsigned int,unsigned int,unsigned int,void const *))",
+        "02C 00000000 UNDEF  notype ()    External     | ?modem_line_set_status_00584e72@porsche@@YGHIII@Z (int __stdcall porsche::modem_line_set_status_00584e72(unsigned int,unsigned int,unsigned int))",
+        "02D 00000000 UNDEF  notype ()    External     | ?modem_line_configure_0055e340@porsche@@YAII@Z (unsigned int __cdecl porsche::modem_line_configure_0055e340(unsigned int))",
+        "02E 00000000 UNDEF  notype ()    External     | ?allocate_00531ca0@porsche@@YAPAXPBDHI@Z (void * __cdecl porsche::allocate_00531ca0(char const *,int,unsigned int))",
+        "02F 00000000 UNDEF  notype ()    External     | ?free_00531f90@porsche@@YAIPAX@Z (unsigned int __cdecl porsche::free_00531f90(void *))",
+        "035 00000000 UNDEF  notype       External     | ?render_descriptor_flags_005deb60@porsche@@3IA (unsigned int porsche::render_descriptor_flags_005deb60)",
+        "036 00000000 UNDEF  notype       External     | ?modem_selected_device_005df478@porsche@@3IA (unsigned int porsche::modem_selected_device_005df478)",
+        "037 00000000 UNDEF  notype       External     | ?modem_line_006a4668@porsche@@3IA (unsigned int porsche::modem_line_006a4668)",
+        "038 00000000 UNDEF  notype       External     | ?modem_application_006a5670@porsche@@3IA (unsigned int porsche::modem_application_006a5670)",
+        "039 00000000 UNDEF  notype       External     | ?modem_open_mode_006a579c@porsche@@3IA (unsigned int porsche::modem_open_mode_006a579c)",
+        "03A 00000000 UNDEF  notype       External     | ?modem_api_version_006a57a4@porsche@@3IA (unsigned int porsche::modem_api_version_006a57a4)",
+        "03B 00000000 UNDEF  notype       External     | ?modem_capabilities_006a57b4@porsche@@3IA (unsigned int porsche::modem_capabilities_006a57b4)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/o2-1.obj",
+      "sha256": "eb7cdf77df9e944ebb0e3ea36ac6227fd477a07d6fa6ad30c58bc518d2eaa0c3",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/o2-1-symbols.txt",
+        "sha256": "fa3f159a01e941ba43392315c8a1d12b58f004fa80ccce209ad448d7976ea6ff"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?modem_selected_device_005df478@porsche@@3IA (unsigned int porsche::modem_selected_device_005df478)",
+        "00C 00000000 SECT4  notype       External     | ?modem_line_006a4668@porsche@@3IA (unsigned int porsche::modem_line_006a4668)",
+        "00D 00000004 SECT4  notype       External     | ?modem_application_006a5670@porsche@@3IA (unsigned int porsche::modem_application_006a5670)",
+        "00F 0000000C SECT4  notype       External     | ?modem_open_mode_006a579c@porsche@@3IA (unsigned int porsche::modem_open_mode_006a579c)",
+        "010 00000010 SECT4  notype       External     | ?modem_api_version_006a57a4@porsche@@3IA (unsigned int porsche::modem_api_version_006a57a4)",
+        "011 00000014 SECT4  notype       External     | ?modem_capabilities_006a57b4@porsche@@3IA (unsigned int porsche::modem_capabilities_006a57b4)",
+        "033 00000000 UNDEF  notype ()    External     | ?modem_line_negotiate_00584d7c@porsche@@YGHIIIIPAIPAX@Z (int __stdcall porsche::modem_line_negotiate_00584d7c(unsigned int,unsigned int,unsigned int,unsigned int,unsigned int *,void *))",
+        "037 00000000 UNDEF  notype ()    External     | ?modem_device_capabilities_0055e6e0@porsche@@YAHI@Z (int __cdecl porsche::modem_device_capabilities_0055e6e0(unsigned int))",
+        "038 00000000 UNDEF  notype ()    External     | ?modem_line_open_0055e270@porsche@@YAHXZ (int __cdecl porsche::modem_line_open_0055e270(void))",
+        "039 00000000 UNDEF  notype ()    External     | ?allocate_00531ca0@porsche@@YAPAXPBDHI@Z (void * __cdecl porsche::allocate_00531ca0(char const *,int,unsigned int))",
+        "03A 00000000 UNDEF  notype ()    External     | ?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z (char * __cdecl porsche::formatter_error_copy_n_005a28a0(char *,char const *,unsigned int))",
+        "043 00000000 UNDEF  notype       External     | ?device_table_count_006a57a0@porsche@@3IA (unsigned int porsche::device_table_count_006a57a0)",
+        "044 00000000 UNDEF  notype       External     | ?device_table_pointer_006a57b8@porsche@@3IA (unsigned int porsche::device_table_pointer_006a57b8)",
+        "045 00000000 UNDEF  notype       External     | ?render_descriptor_flags_005deb60@porsche@@3IA (unsigned int porsche::render_descriptor_flags_005deb60)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/o2-2.obj",
+      "sha256": "f6f2862be8707f65c17c40dac19dd90c6ccf305d1f25c87cf54ce736c4fa7168",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/o2-2-symbols.txt",
+        "sha256": "3dee1567268a16499b2fb6d53e857566621e679f11fc2f0d25b689290ab35a85"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?device_table_count_006a57a0@porsche@@3IA (unsigned int porsche::device_table_count_006a57a0)",
+        "00A 00000004 SECT3  notype       External     | ?device_table_pointer_006a57b8@porsche@@3IA (unsigned int porsche::device_table_pointer_006a57b8)",
+        "016 00000000 UNDEF  notype ()    External     | ?free_00531f90@porsche@@YAIPAX@Z (unsigned int __cdecl porsche::free_00531f90(void *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/o2-3.obj",
+      "sha256": "280439292c463033e3734911088fdd0a7623e75d9f73760a8caa7b3db9e77074",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/o2-3-symbols.txt",
+        "sha256": "0023fe95dcde75c987a473b301504af85558cd453ff138bd68cfbbd345142108"
+      },
+      "relevant_symbols": [
+        "00A 00000004 SECT3  notype       External     | ?render_descriptor_flags_005deb60@porsche@@3IA (unsigned int porsche::render_descriptor_flags_005deb60)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/o2-4.obj",
+      "sha256": "c3f16a5480391028e5ac2508197811e729dbe55b8ce94c931b18fd9b9c8e309e",
+      "symbols": {
+        "path": "local/experiments/v2-modem-caps-open-native-410/coff-001/o2-4-symbols.txt",
+        "sha256": "8185cb94d270a1b0598fba27019df70bacf4a80d3a4243cd4df3bb0511e3b735"
+      },
+      "relevant_symbols": [
+        "046 00000000 SECTC  notype ()    External     | ?formatter_error_copy_n_005a28a0@porsche@@YAPADPADPBDI@Z (char * __cdecl porsche::formatter_error_copy_n_005a28a0(char *,char const *,unsigned int))"
+      ]
+    }
+  ]
+}

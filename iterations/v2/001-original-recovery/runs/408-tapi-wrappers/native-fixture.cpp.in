@@ -1,0 +1,111 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include "tapi_wrappers.hpp"
+using U=std::uint32_t;using I=std::int32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+static const B raw0[]={@INITIALIZE@},raw1[]={@NEGOTIATE@},raw2[]={@STATUS@},raw3[]={@SHUTDOWN@},raw4[]={@CLOSE@};
+static const B names_raw[]={@NAMES@};
+static U* cells[]={&porsche::tapi_initialize_cache_006ad1e0,&porsche::tapi_negotiate_cache_006ad204,&porsche::tapi_status_cache_006ad194,&porsche::tapi_shutdown_cache_006ad2e8,&porsche::tapi_close_cache_006ad078};
+static const char* names[]={"lineInitialize","lineNegotiateAPIVersion","lineGetLineDevStatus","lineShutdown","lineClose"};
+static U name_va[]={0x5c1288,0x5c12a8,0x5c1270,0x5c12f8,0x5c1214},cache_va[]={0x6ad1e0,0x6ad204,0x6ad194,0x6ad2e8,0x6ad078};
+static U arity[]={5,6,2,1,1},current,mode,return_bits,write_mode,cases,checks;static B memory[64];static B* oracle[5];
+template<class T> static U address(T p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static void die(const char* why){std::printf("fixture %s\n",why);ExitProcess(98);}
+struct State{U cache[5];B memory[64];};
+static State state(){State s{};for(U i=0;i<5;++i)s.cache[i]=*cells[i];std::memcpy(s.memory,memory,64);return s;}
+struct Event{U kind,index,args[6];State before;};static Event events[8];static U event_count;
+static void record(U kind,U index,const U* args,U count){if(event_count==8)die("event-overflow");Event& e=events[event_count++];e={};e.kind=kind;e.index=index;e.before=state();for(U i=0;i<count;++i)e.args[i]=args[i];}
+static I endpoint(U variant,const U* args,U count){record(2,variant,args,count);
+    if(write_mode){for(U a=0;a<count;++a)if(args[a]==address(memory+8))for(U i=0;i<(write_mode==1?3u:16u);++i)memory[8+i]^=static_cast<B>(0x31+variant+13*i);}
+    if(mode==8)*cells[current]=0; // A target can invalidate its own cache.
+    if(mode==9)*cells[current]=0xffffffffu;
+    return static_cast<I>(return_bits^(variant?0x12736485u:0));
+}
+extern "C" I __stdcall init_a(U a,U b,U c,U d,U e){U x[]={a,b,c,d,e};return endpoint(0,x,5);}
+extern "C" I __stdcall init_b(U a,U b,U c,U d,U e){U x[]={a,b,c,d,e};return endpoint(1,x,5);}
+extern "C" I __stdcall nego_a(U a,U b,U c,U d,U e,U f){U x[]={a,b,c,d,e,f};return endpoint(0,x,6);}
+extern "C" I __stdcall nego_b(U a,U b,U c,U d,U e,U f){U x[]={a,b,c,d,e,f};return endpoint(1,x,6);}
+extern "C" I __stdcall status_a(U a,U b){U x[]={a,b};return endpoint(0,x,2);}
+extern "C" I __stdcall status_b(U a,U b){U x[]={a,b};return endpoint(1,x,2);}
+extern "C" I __stdcall one_a(U a){return endpoint(0,&a,1);}
+extern "C" I __stdcall one_b(U a){return endpoint(1,&a,1);}
+static U target(U kind,U variant){U fn[2][5]={{address(&init_a),address(&nego_a),address(&status_a),address(&one_a),address(&one_a)},{address(&init_b),address(&nego_b),address(&status_b),address(&one_b),address(&one_b)}};return fn[variant][kind];}
+namespace porsche {
+I __stdcall tapi_resolve_00584a60(const char* name,U* cache){
+    U index=5;for(U i=0;i<5;++i)if(!std::strcmp(name,names[i]))index=i;
+    if(index==5||cache!=cells[index])die("resolver-name-or-cell");
+    U args[]={index,static_cast<U>(cache-cells[index])};record(1,index,args,2);
+    // The unknown real child is controlled here, including exact nonzero bits,
+    // cross-cell writes and valid host function-pointer transport.
+    *cells[(index+1)%5]=target((index+1)%5,1);
+    if(mode>=3&&mode<=6){*cache=mode==3?0:mode==4?target(index,1):0xffffffffu;return static_cast<I>(mode==6?0x80000049u:mode==5?1u:0xf137953bu);}
+    *cache=mode==2?0xffffffffu:target(index,mode==1?1:0);return 0;
+}
+}
+static void install(){
+    const B* raws[]={raw0,raw1,raw2,raw3,raw4};U lengths[]={sizeof raw0,sizeof raw1,sizeof raw2,sizeof raw3,sizeof raw4};U vas[]={0x584ce0,0x584d7c,0x584c9d,0x584eb9,0x584af2};
+    B* block=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!block)die("allocation");
+    for(U k=0;k<5;++k){if(std::strcmp(reinterpret_cast<const char*>(names_raw+name_va[k]-0x5c1214),names[k]))die("raw-name");oracle[k]=block+256*k;std::memcpy(oracle[k],raws[k],lengths[k]);U cache_n=0,name_n=0,call_n=0;
+        for(U i=0;i+4<=lengths[k];++i){if(word(raws[k]+i)==cache_va[k]){put(oracle[k]+i,address(cells[k]));++cache_n;}if(word(raws[k]+i)==name_va[k]){put(oracle[k]+i,address(names[k]));++name_n;}
+            if(i+5<=lengths[k]&&raws[k][i]==0xe8&&vas[k]+i+5+word(raws[k]+i+1)==0x584a60){put(oracle[k]+i+1,address(reinterpret_cast<const void*>(&porsche::tapi_resolve_00584a60))-address(oracle[k]+i+5));++call_n;}}
+        if(cache_n!=4||name_n!=1||call_n!=1)die("relocation-count");
+    }DWORD old;if(!VirtualProtect(block,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),block,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static Capture invoke(const void* fn,U argc,bool callee_pop,const U* args){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,argc
+        mov edx,args
+    nextarg:
+        test ecx,ecx
+        jz callit
+        push dword ptr [edx+ecx*4-4]
+        dec ecx
+        jmp nextarg
+    callit:
+        call fn
+        cmp callee_pop,0
+        jne capture
+        mov ecx,argc
+        lea esp,[esp+ecx*4]
+    capture:
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;}
+static bool abi(const Capture& r){++checks;return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1;}
+
+struct Step{Event events[8];U event_count,eax,abi;State after;};struct Result{Step steps[3];};
+static void reset(U initial){for(U i=0;i<5;++i)*cells[i]=0;*cells[current]=initial;for(U i=0;i<64;++i)memory[i]=static_cast<B>(0x37+i*19);}
+static Result execute(const void* fn,U initial,const U* args){reset(initial);Result r{};for(U i=0;i<3;++i){event_count=0;std::memset(events,0,sizeof events);auto c=invoke(fn,arity[current],true,args);auto& s=r.steps[i];std::memcpy(s.events,events,sizeof events);s.event_count=event_count;s.eax=c.eax;s.abi=abi(c);s.after=state();}return r;}
+static bool test(U initial,const U* args){U funcs[]={address(&porsche::modem_line_initialize_00584ce0),address(&porsche::modem_line_negotiate_00584d7c),address(&porsche::modem_line_status_00584c9d),address(&porsche::modem_line_shutdown_00584eb9),address(&porsche::modem_line_close_00584af2)};
+    auto original=execute(oracle[current],initial,args);auto recovered=execute(reinterpret_cast<const void*>(funcs[current]),initial,args);bool valid=true;for(auto& s:original.steps)valid&=s.abi!=0;for(auto& s:recovered.steps)valid&=s.abi!=0;
+    if(!valid||std::memcmp(&original,&recovered,sizeof original)){std::printf("divergence kind=%u mode=%u initial=%08x result=%08x writes=%u\n",current,mode,initial,return_bits,write_mode);return false;}++cases;checks+=6;return true;
+}
+int main(){for(U i=0;i<5;++i)if(*cells[i])die("production-initial-state");install();
+    const U values[]={0,1,0x7fffffffu,0x80000000u,0x80000049u,0xffffffffu,0x12345678u};
+    for(current=0;current<5;++current)for(mode=0;mode<10;++mode)for(U initial_kind=0;initial_kind<4;++initial_kind)for(U result:values)for(U pattern=0;pattern<4;++pattern){
+        U args[6];for(U i=0;i<6;++i)args[i]=pattern==0?0:pattern==1?0xffffffffu:(0x81234567u+0x1a2b3c4u*i)^(pattern*0x18764325u);
+        if(pattern==3){args[0]=address(memory+8);args[arity[current]-1]=address(memory+8);}
+        U initial=initial_kind==0?0:initial_kind==1?0xffffffffu:target(current,initial_kind-2);return_bits=result;write_mode=pattern%3;if(!test(initial,args))return 1;
+    }
+    std::printf("tapi_wrappers_original_x86_vs_cpp=PASS cases=%u calls=%u checks=%u\n",cases,cases*3,checks);return 0;
+}

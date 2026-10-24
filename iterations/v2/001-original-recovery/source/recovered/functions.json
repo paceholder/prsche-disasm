@@ -10827,22 +10827,159 @@
         "0055ddf0",
         "00531ca0",
         "005a28a0",
-        "0055f740"
-      ],
-      "unrecovered_dependencies": [
-        "0055df80",
+        "0055f740",
+        "0055e270",
+        "0055e6e0",
+        "00584af2",
+        "00584c9d",
         "00584ce0",
         "00584d7c",
-        "00584c9d",
-        "00584eb9",
-        "00584af2",
-        "0055e6e0",
-        "0055e270"
+        "00584eb9"
+      ],
+      "unrecovered_dependencies": [
+        "0055df80"
       ],
       "binary_matched": false,
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/407-modem-integration/validation.json",
-      "verification_boundary": "Complete522B control flow, bounded<=20 accepted entries and initialized consumed status/allocator bits. Actual374/401 state owners plus canonical copy_n linked;8 new scalar owners. Opaque unwritten status/allocator flags, malformed spans, allocationfailure, overflow and liveTAPI/callback/concurrency remainHOLD. Final003 removes historical duplicate005deb60 owner."
+      "verification_boundary": "Complete522B control flow, bounded<=20 accepted entries and initialized consumed status/allocator bits. Actual374/401 state owners plus canonical copy_n linked;8 new scalar owners. Opaque unwritten status/allocator flags, malformed spans, allocationfailure, overflow and liveTAPI/callback/concurrency remainHOLD. Final003 removes historical duplicate005deb60 owner.",
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json"
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00584ce0",
+      "source": "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "stdcall5,RET20/int32 EAX",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [
+        "00584a60"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Full original352B five-wrapper batch; original zero/-1 cache semantics and late resolver writes, exact export names/typed stdcall target calls;5 proved BSS caches. Controlled resolver/endpoint transports; actual resolver/DLL/TAPI/concurrency remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00584d7c",
+      "source": "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "stdcall6,RET24/int32 EAX",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [
+        "00584a60"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Full original352B five-wrapper batch; original zero/-1 cache semantics and late resolver writes, exact export names/typed stdcall target calls;5 proved BSS caches. Controlled resolver/endpoint transports; actual resolver/DLL/TAPI/concurrency remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00584c9d",
+      "source": "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "stdcall2,RET8/int32 EAX",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [
+        "00584a60"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Full original352B five-wrapper batch; original zero/-1 cache semantics and late resolver writes, exact export names/typed stdcall target calls;5 proved BSS caches. Controlled resolver/endpoint transports; actual resolver/DLL/TAPI/concurrency remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00584eb9",
+      "source": "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "stdcall1,RET4/int32 EAX",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [
+        "00584a60"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Full original352B five-wrapper batch; original zero/-1 cache semantics and late resolver writes, exact export names/typed stdcall target calls;5 proved BSS caches. Controlled resolver/endpoint transports; actual resolver/DLL/TAPI/concurrency remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "00584af2",
+      "source": "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "stdcall1,RET4/int32 EAX",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [
+        "00584a60"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Full original352B five-wrapper batch; original zero/-1 cache semantics and late resolver writes, exact export names/typed stdcall target calls;5 proved BSS caches. Controlled resolver/endpoint transports; actual resolver/DLL/TAPI/concurrency remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0055de50",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0,RET0/EAXunused",
+      "recovered_dependencies": [
+        "00531f90"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Three-body original389B composition; actual403/374/401 owners linked, canonicalselector reloads, resize/retry/error cleanup, exact stdcall calls and ignoredreturns, full memory/ABI; one proved BSS configuration token. Liveallocator/TAPI, malformed/unwritten outputs, opaque extension data and wholegame remainopen."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0055e6e0",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl uint32 device,RET0/int32 EAX",
+      "recovered_dependencies": [
+        "0055de50",
+        "00531ca0"
+      ],
+      "unrecovered_dependencies": [
+        "00584bb7"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Three-body original389B composition; actual403/374/401 owners linked, canonicalselector reloads, resize/retry/error cleanup, exact stdcall calls and ignoredreturns, full memory/ABI; one proved BSS configuration token. Liveallocator/TAPI, malformed/unwritten outputs, opaque extension data and wholegame remainopen."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0055e270",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0,RET0/int32 EAX",
+      "recovered_dependencies": [
+        "00584d7c",
+        "0055e6e0"
+      ],
+      "unrecovered_dependencies": [
+        "00584dcd",
+        "00584e72",
+        "0055e340"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/validation.json",
+      "verification_boundary": "Three-body original389B composition; actual403/374/401 owners linked, canonicalselector reloads, resize/retry/error cleanup, exact stdcall calls and ignoredreturns, full memory/ABI; one proved BSS configuration token. Liveallocator/TAPI, malformed/unwritten outputs, opaque extension data and wholegame remainopen."
     }
   ]
 }

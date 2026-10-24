@@ -1,10 +1,10 @@
 # План восстановления Porsche Unleashed
 
-Current [Run407](iterations/v2/001-original-recovery/runs/407-modem-integration/README.md):
-221 C++ TUs/8 projects compile;197 unresolved names/205 refs,no EXE. Original
-modem enumeration integrated with explicit partial domains after5904 nativecases/
-8mutations;550-pin audit PASS. Eight real child dependencies are now visible.
-Next: passed408/410 intake; GitHub MCP/search remains deferred until afteriteration.
+Current [Run409](iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/README.md):
+223 C++ TUs/8 projects compile;195 unresolved names/203 refs,no EXE. Eight original
+TAPI/modem bodies741B integrated after21580 nativecases/sequences and14mutations;
+555-pin audit PASS. Original callback/resolver/platform composition remains open.
+Workers complete. GitHub MCP/search remains deferred until aftercurrentiteration.
 
 Older checkpoints below are historical.
 

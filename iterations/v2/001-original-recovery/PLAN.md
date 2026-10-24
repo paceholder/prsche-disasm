@@ -1,5 +1,20 @@
 # v2 / 001 - original source recovery plan
 
+Current409,2026-10-25: fiveTAPIwrappers408(352B) andthreecomposedmodem410(389B)
+integrated.21580nativecases/sequences,14mutations,555pins PASS.223TUs/8projects
+compile;195names203refs,noEXE. Sevenoldnamesclose/five realchildrenexposed;
+canonical403/374/401 owners reused, fiveprovedBSS caches+oneconfigtoken added.
+Passed408/410inputs frozen.403staysPARTIAL; all liveplatform/game holds stayopen.
+All workers complete; no activeassignments. Next originaldependencies:629B callback
+0055df80,75B resolver00584a60, wrappers00584bb7/00584dcd/00584e72/config0055e340.
+User-requested Open-Unleashed review iscomplete atb0ec06e: substantialRustport,
+131constants byte-matchourPE, butself-regressiontests/missingREdossier/RNG/math/AI
+gaps. No externalcodecopied/executed. Proposednextcomparison: isolatedWindowsv0.1.4
+trial withourassets before anotherlarge recoverytranche; goal/licensingunchanged.
+GitHub MCP/search remainsdeferred until aftercurrentiteration peruserinstruction.
+
+Historical407 follows.
+
 Current407,2026-10-25: corrected403 enumeration522B integratedPARTIAL.5904cases/
 8mutations/550pins PASS;221TUs197names205refs,noEXE. Canonical374selector reused;
 no duplicate state. Sharedreceipt helper now resolves pinned CMake include dirs,

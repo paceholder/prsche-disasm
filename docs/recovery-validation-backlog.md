@@ -1,5 +1,11 @@
 # Отложенные проверки восстановления v2
 
+Run409:741B TAPI/modem bodies accepted after21580cases/sequences/14mutations,
+555pins;223TUs195names203refs,noEXE. Live resolver/DLL/TAPI, callback/config,
+allocator/concurrency/malformed or unwrittenoutputs remainopen.403PARTIAL status
+isnotpromoted. Open-Unleashed publicself-regression and missingREdossier do not
+replace original-native comparisons; no externalimplementation adopted.
+
 Run407:522B modem enumerator isPARTIAL after5904nativecases/8mutations/550pins.
 Unwritten status/indeterminate flags, >20 entries, malformedcaps/allocationfailure,
 actualcallback/TAPI/allocator/concurrency stayHOLD. Canonical374 selector fixedbefore

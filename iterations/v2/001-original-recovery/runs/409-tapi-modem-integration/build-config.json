@@ -1,0 +1,11 @@
+{
+  "run": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration",
+  "build": "local/builds/v2/tapi-modem-409",
+  "experiment": "local/experiments/v2-tapi-modem-game-409",
+  "source_include_dirs": [
+    "iterations/v2/001-original-recovery/runs/401-device-table",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor",
+    "iterations/v2/001-original-recovery/runs/403-modem-enumeration",
+    "iterations/v2/001-original-recovery/runs/408-tapi-wrappers"
+  ]
+}

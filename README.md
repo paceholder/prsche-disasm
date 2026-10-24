@@ -11,8 +11,8 @@
 
 ## Текущий результат
 
-Current2026-10-25: [Run407](iterations/v2/001-original-recovery/runs/407-modem-integration/README.md)
-compiles221TUs;197 unresolved names/205refs,no gameEXE.
+Current2026-10-25: [Run409](iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/README.md)
+compiles223TUs;195 unresolved names/203refs,no gameEXE.
 [PR24/Run431](iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md)
 adds reviewed research lowering, outside the game graph. Older checkpoints below
 are historical; active work is tracked in the iteration PLAN.

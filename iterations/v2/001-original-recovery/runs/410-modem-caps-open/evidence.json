@@ -1,0 +1,350 @@
+{
+  "kind": "original-composed-modem-capabilities-and-line-open",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [
+    "0055de50",
+    "0055e6e0",
+    "0055e270"
+  ],
+  "new_body_bytes": 389,
+  "source": {
+    "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+    "sha256": "f5e15c8ce8ae4976dd20fe0b346707b148949d4efa6fa1160b2920734ca17121"
+  },
+  "header": {
+    "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.hpp",
+    "sha256": "380c1142cf3d4060a7bbd8b41e50bf31b0053077061129187b91ebb9c34ec4ad"
+  },
+  "body_pins": [
+    {
+      "token": "@CLEAR@",
+      "va": "0055de50",
+      "bytes": 29,
+      "sha256": "e1ddd5b6c1f630cd0ddce1dd9ca8e128003477c792b2dff17692887fd3c5b25f"
+    },
+    {
+      "token": "@QUERY@",
+      "va": "0055e6e0",
+      "bytes": 162,
+      "sha256": "e55956a4d8567dffff00f589f9011933cfb816f5187affa4031526170e7d63b3"
+    },
+    {
+      "token": "@OPEN@",
+      "va": "0055e270",
+      "bytes": 198,
+      "sha256": "d240694cb874e5763d2869a2c801c8c0606484a64df0938a949d031808bba7bd"
+    }
+  ],
+  "instructions": [
+    "0055de50  a1b4576a00  MOV EAX,[0x006a57b4]",
+    "0055de55  85c0  TEST EAX,EAX",
+    "0055de57  7413  JZ 0x0055de6c",
+    "0055de59  50  PUSH EAX",
+    "0055de5a  e83141fdff  CALL 0x00531f90",
+    "0055de5f  83c404  ADD ESP,0x4",
+    "0055de62  c705b4576a0000000000  MOV dword ptr [0x006a57b4],0x0",
+    "0055de6c  c3  RET",
+    "0055e270  a178f45d00  MOV EAX,[0x005df478]",
+    "0055e275  83ec10  SUB ESP,0x10",
+    "0055e278  83f8ff  CMP EAX,-0x1",
+    "0055e27b  0f84af000000  JZ 0x0055e330",
+    "0055e281  8b1570566a00  MOV EDX,dword ptr [0x006a5670]",
+    "0055e287  8d4c2400  LEA ECX,[ESP]",
+    "0055e28b  51  PUSH ECX",
+    "0055e28c  68a4576a00  PUSH 0x6a57a4",
+    "0055e291  6804000100  PUSH 0x10004",
+    "0055e296  6804000100  PUSH 0x10004",
+    "0055e29b  50  PUSH EAX",
+    "0055e29c  52  PUSH EDX",
+    "0055e29d  e8da6a0200  CALL 0x00584d7c",
+    "0055e2a2  85c0  TEST EAX,EAX",
+    "0055e2a4  0f8586000000  JNZ 0x0055e330",
+    "0055e2aa  a178f45d00  MOV EAX,[0x005df478]",
+    "0055e2af  50  PUSH EAX",
+    "0055e2b0  e82b040000  CALL 0x0055e6e0",
+    "0055e2b5  83c404  ADD ESP,0x4",
+    "0055e2b8  85c0  TEST EAX,EAX",
+    "0055e2ba  7574  JNZ 0x0055e330",
+    "0055e2bc  a19c576a00  MOV EAX,[0x006a579c]",
+    "0055e2c1  8b0da4576a00  MOV ECX,dword ptr [0x006a57a4]",
+    "0055e2c7  f7d8  NEG EAX",
+    "0055e2c9  1bc0  SBB EAX,EAX",
+    "0055e2cb  8b1578f45d00  MOV EDX,dword ptr [0x005df478]",
+    "0055e2d1  83e003  AND EAX,0x3",
+    "0055e2d4  6a00  PUSH 0x0",
+    "0055e2d6  40  INC EAX",
+    "0055e2d7  6a10  PUSH 0x10",
+    "0055e2d9  50  PUSH EAX",
+    "0055e2da  a170566a00  MOV EAX,[0x006a5670]",
+    "0055e2df  6a00  PUSH 0x0",
+    "0055e2e1  6a00  PUSH 0x0",
+    "0055e2e3  51  PUSH ECX",
+    "0055e2e4  6868466a00  PUSH 0x6a4668",
+    "0055e2e9  52  PUSH EDX",
+    "0055e2ea  50  PUSH EAX",
+    "0055e2eb  e8dd6a0200  CALL 0x00584dcd",
+    "0055e2f0  85c0  TEST EAX,EAX",
+    "0055e2f2  753c  JNZ 0x0055e330",
+    "0055e2f4  a1a8576a00  MOV EAX,[0x006a57a8]",
+    "0055e2f9  85c0  TEST EAX,EAX",
+    "0055e2fb  742a  JZ 0x0055e327",
+    "0055e2fd  8b0d68466a00  MOV ECX,dword ptr [0x006a4668]",
+    "0055e303  51  PUSH ECX",
+    "0055e304  e837000000  CALL 0x0055e340",
+    "0055e309  8b15b4576a00  MOV EDX,dword ptr [0x006a57b4]",
+    "0055e30f  8b0d68466a00  MOV ECX,dword ptr [0x006a4668]",
+    "0055e315  83c404  ADD ESP,0x4",
+    "0055e318  8b8280000000  MOV EAX,dword ptr [EDX + 0x80]",
+    "0055e31e  6a00  PUSH 0x0",
+    "0055e320  50  PUSH EAX",
+    "0055e321  51  PUSH ECX",
+    "0055e322  e84b6b0200  CALL 0x00584e72",
+    "0055e327  b801000000  MOV EAX,0x1",
+    "0055e32c  83c410  ADD ESP,0x10",
+    "0055e32f  c3  RET",
+    "0055e330  33c0  XOR EAX,EAX",
+    "0055e332  83c410  ADD ESP,0x10",
+    "0055e335  c3  RET",
+    "0055e6e0  53  PUSH EBX",
+    "0055e6e1  56  PUSH ESI",
+    "0055e6e2  57  PUSH EDI",
+    "0055e6e3  e868f7ffff  CALL 0x0055de50",
+    "0055e6e8  a160eb5d00  MOV EAX,[0x005deb60]",
+    "0055e6ed  50  PUSH EAX",
+    "0055e6ee  68f0000000  PUSH 0xf0",
+    "0055e6f3  6890cb5b00  PUSH 0x5bcb90",
+    "0055e6f8  e8a335fdff  CALL 0x00531ca0",
+    "0055e6fd  8b0da4576a00  MOV ECX,dword ptr [0x006a57a4]",
+    "0055e703  8b5c241c  MOV EBX,dword ptr [ESP + 0x1c]",
+    "0055e707  8b1570566a00  MOV EDX,dword ptr [0x006a5670]",
+    "0055e70d  83c40c  ADD ESP,0xc",
+    "0055e710  a3b4576a00  MOV [0x006a57b4],EAX",
+    "0055e715  c700f0000000  MOV dword ptr [EAX],0xf0",
+    "0055e71b  50  PUSH EAX",
+    "0055e71c  6a00  PUSH 0x0",
+    "0055e71e  51  PUSH ECX",
+    "0055e71f  53  PUSH EBX",
+    "0055e720  52  PUSH EDX",
+    "0055e721  e891640200  CALL 0x00584bb7",
+    "0055e726  8bf0  MOV ESI,EAX",
+    "0055e728  85f6  TEST ESI,ESI",
+    "0055e72a  754b  JNZ 0x0055e777",
+    "0055e72c  a1b4576a00  MOV EAX,[0x006a57b4]",
+    "0055e731  8b7804  MOV EDI,dword ptr [EAX + 0x4]",
+    "0055e734  8b08  MOV ECX,dword ptr [EAX]",
+    "0055e736  3bcf  CMP ECX,EDI",
+    "0055e738  7342  JNC 0x0055e77c",
+    "0055e73a  e811f7ffff  CALL 0x0055de50",
+    "0055e73f  a160eb5d00  MOV EAX,[0x005deb60]",
+    "0055e744  50  PUSH EAX",
+    "0055e745  57  PUSH EDI",
+    "0055e746  6890cb5b00  PUSH 0x5bcb90",
+    "0055e74b  e85035fdff  CALL 0x00531ca0",
+    "0055e750  8b0da4576a00  MOV ECX,dword ptr [0x006a57a4]",
+    "0055e756  8b1570566a00  MOV EDX,dword ptr [0x006a5670]",
+    "0055e75c  83c40c  ADD ESP,0xc",
+    "0055e75f  a3b4576a00  MOV [0x006a57b4],EAX",
+    "0055e764  8938  MOV dword ptr [EAX],EDI",
+    "0055e766  50  PUSH EAX",
+    "0055e767  6a00  PUSH 0x0",
+    "0055e769  51  PUSH ECX",
+    "0055e76a  53  PUSH EBX",
+    "0055e76b  52  PUSH EDX",
+    "0055e76c  e846640200  CALL 0x00584bb7",
+    "0055e771  8bf0  MOV ESI,EAX",
+    "0055e773  85f6  TEST ESI,ESI",
+    "0055e775  74b5  JZ 0x0055e72c",
+    "0055e777  e8d4f6ffff  CALL 0x0055de50",
+    "0055e77c  8bc6  MOV EAX,ESI",
+    "0055e77e  5f  POP EDI",
+    "0055e77f  5e  POP ESI",
+    "0055e780  5b  POP EBX",
+    "0055e781  c3  RET"
+  ],
+  "ownership": {
+    "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/ownership.json",
+    "sha256": "d1b8a66f541485ad9455c04222af8742176a4d2a15b739b4d0b8c5cf7cd35630"
+  },
+  "new_mutable_state": [
+    "modem_configuration_006a57a8"
+  ],
+  "state_note": "The new DWORD is an opaque configuration pointer token with PE-zero initial state; only tested for nonzero here. Raw producer0055e44c writes006a46ac; no token dereference/remap or invented boolean normalization.",
+  "canonical_owners": {
+    "modem_state": {
+      "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386"
+    },
+    "table_state": {
+      "path": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "sha256": "4e0c032fcc2201ded5956a87a33a1fc0c19d773bf595795923944f68562206b1"
+    },
+    "selector": {
+      "path": "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp",
+      "sha256": "6df03666b1746c00020d473be445f91b601973f2863c6e8821d87f6a4fb2fc65"
+    },
+    "fixture": "All three actual owners linked, as is actual canonical formatter source required by unrelated403 consumer. Unused child paths fail closed; no fixture definitions of owned cells or recovered target bodies."
+  },
+  "index_queries": [
+    "0055de50",
+    "0055e6e0",
+    "0055e270",
+    "006a57a8",
+    "00584bb7",
+    "00584dcd",
+    "00584e72",
+    "0055e340"
+  ],
+  "entry_body_overlap_hits": [],
+  "abi": {
+    "0055de50": "cdecl noargs, void; all observed callers discard incidental EAX",
+    "0055e6e0": "cdecl one device DWORD, full signed API result preserved across cleanup",
+    "0055e270": "cdecl noargs, returns0/1; sixteen-byte uninitialized extension local"
+  },
+  "clear_callers": [
+    "0055ddbd then0055ddf0/handle reload; incidental EAX not used",
+    "0055e6e3 and0055e73a thenselector reload intoEAX",
+    "0055e777 thensavedESI moved intoEAX"
+  ],
+  "caps_query": "Clear prior current caps; allocate240; reload app/version after allocation before publication/header store; getcaps(app,device,version,0,buffer). On error clear current caps and return saved full result. On success reload current caps, compare totalSize unsigned against neededSize at+4; capture needed before clear, allocate exactly needed and repeat. No guards/clamp/retry limit added.",
+  "line_open": "Initial selected-1 returns0. Negotiate1.4, reload selected for actual composed caps query; reload mode/version/selected/app for lineOpen9args. Privilege1 when mode0,4 for any nonzero DWORD; media0x10. Errorreturns0. Successful open tests configuration afterchild effects; when nonzero, call config(currentline), then reload caps/line and call setStatus(line,caps[0x80],0); both child returns ignored; successreturns1.",
+  "real_dependencies": [
+    {
+      "va": "00584bb7",
+      "bytes": 78,
+      "sha256": "3f5af1c3f1954e3ca03076ea2be53b19dba960e7d68068ec5a4bbe5742adeea4",
+      "stdcall_stack_bytes": 20,
+      "export": "lineGetDevCaps",
+      "name_va": "005c1240",
+      "status": "Real unresolved lazy TAPI wrapper, controlled endpoint transport only; no wrapper state/storage implemented here."
+    },
+    {
+      "va": "00584dcd",
+      "bytes": 90,
+      "sha256": "629fcdeb8b8d12ac2f970ffdf7aeed3c580c88f39ccc3354a5a4285269881567",
+      "stdcall_stack_bytes": 36,
+      "export": "lineOpen",
+      "name_va": "005c12c0",
+      "status": "Real unresolved lazy TAPI wrapper, controlled endpoint transport only; no wrapper state/storage implemented here."
+    },
+    {
+      "va": "00584e72",
+      "bytes": 71,
+      "sha256": "2fb7a86aa8cb0671ddbf370bcdb5546a78b11b9dccb27f54647703a92af16c05",
+      "stdcall_stack_bytes": 12,
+      "export": "lineSetStatusMessages",
+      "name_va": "005c12e0",
+      "status": "Real unresolved lazy TAPI wrapper, controlled endpoint transport only; no wrapper state/storage implemented here."
+    },
+    {
+      "va": "0055e340",
+      "abi": "cdecl one DWORD (line), DWORD return ignored",
+      "status": "Unrecovered configuration consumer; raw caller passes one DWORD andADDESP4; child body returns full EAX but caller ignores it."
+    },
+    {
+      "va": "00584d7c",
+      "abi": "stdcall six DWORDs, RET24",
+      "status": "Existing403 contract; worker408 owns its implementation, not modified here."
+    }
+  ],
+  "native_receipt": {
+    "path": "local/experiments/v2-modem-caps-open-native-410/001/receipt.json",
+    "sha256": "827b67b3c0fb500cb7f4c7c0af61ddb469f5d05f8ece49d03cccd8480811c221"
+  },
+  "native_counts": {
+    "per_optimization": 5190,
+    "optimizations": [
+      "/Od",
+      "/O2"
+    ],
+    "total": 10380,
+    "checks_per_optimization": 20760,
+    "mutations": 8
+  },
+  "relocations": {
+    "path": "local/experiments/v2-modem-caps-open-410/relocations.json",
+    "sha256": "f6758de7cd159c78a9a88c87963a54b017307891f4ace466f86460cb11a14197"
+  },
+  "oracle": "All389 original bytes,26 checked absolute operands and13 checked direct calls. Raw line-open calls raw caps-query; raw query calls raw clear. C++ graph uses actual C++ counterparts. No target-function fixture providers.",
+  "checks": [
+    "Clear null/mapped/opaque pointer transport; free callback replaces currentcaps but original clear unconditionallyzeroes after return",
+    "Exact240 initial size, unsigned boundaries239/240/241/512/513/0x80000000/0xffffffff and multi-resize sequence",
+    "API zero/positive/negative/INT_MIN returns; full saved result across cleanup with unrelated free return0x87654321",
+    "Allocator effects change app/version/selector/selected; reads afterallocator and before header store, including safe API-error alias to actual app/version cells",
+    "API effects replace globalcaps; subsequent comparisons/cleanup use reloaded global pointer",
+    "Negotiate changes selected/mode/app; selected reload for composed caps query andagain for line-open",
+    "Full-DWORD mode privilege, all nine line-open args, opaque configuration values0/006a46ac/ffffffff andopen failure effects retained",
+    "Configuration callback replaces caps/line; late setStatus reads, ignored negative config/status returns",
+    "All guarded buffer bytes, global state and events/args/order, EAX, ESP andEBP/EBX/ESI/EDI"
+  ],
+  "mutation_controls": [
+    {
+      "name": "clear-after-free",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "674d08663f250377c2c058a8ceffe5c63bb0e412c86156c125dda41840cb6651"
+    },
+    {
+      "name": "unsigned-size",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "947f307308f85d75a0c7f5dd9c912eae0cd4674f7d2f199ce329bfc878a7b40c"
+    },
+    {
+      "name": "allocator-reload",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "561abcdb7a09336551680b42dbb26d30682a374548cd7250660131d4f241dc37"
+    },
+    {
+      "name": "resize-exact-size",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "4b61565f9a77089a556a1d8987ba5f21a35e3e45c1cbaf75d9f6ad1d734d3a8e"
+    },
+    {
+      "name": "error-cleanup",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "fe49410e82273f243311c4589e6cf2f3e449cdf6eee41a884a9b19c441cb0d1a"
+    },
+    {
+      "name": "privilege-full-word",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "107cd4ff03518c98623e474306f74fdd8bb9ef07895eb99245125433dd3dd5d7"
+    },
+    {
+      "name": "selected-reload",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "5d4319d54ba61a914615685e03b52381539b58ae7ff07964a7101a732c9c3594"
+    },
+    {
+      "name": "configuration-reload",
+      "source": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "fecd47bb8461ea13d73cb0f4959dd0bd0385804e4920e926020bedd64d1642c3"
+    }
+  ],
+  "coff_evidence": {
+    "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/coff-evidence.json",
+    "sha256": "adcb21551c8a002fd5368bc70989edcfa0201eeadd397be28df52e3e3286d125"
+  },
+  "boundaries": [
+    "Controlled TAPI/allocator/free/config callbacks establish transport and caller reactions; live allocator/TAPI andchild algorithms not reimplemented or claimed",
+    "High allocation-size bits and opaque free pointers are bounded endpoint transport, not successful real OS/heap allocation proof",
+    "Successful caps output header must be initialized by service; unmapped/null allocator failure, malformed ornonterminating retry outputs remain HOLD; original has no guards",
+    "Extension16B remains output-only/uninitialized; fixture never inspects prior opaque bytes",
+    "Computed aliases/concurrency andfullmodem/session/game/visual acceptance remain HOLD"
+  ],
+  "frozen_inputs": "Final001 passed first attempt; source/header/config/fixture UTF8 LF before proof. No changes to passed403/374/401, worker408 scope, registry, plans, CMake or game graph."
+}

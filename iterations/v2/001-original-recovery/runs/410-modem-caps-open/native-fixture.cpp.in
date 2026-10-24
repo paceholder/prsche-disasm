@@ -1,0 +1,172 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "modem_caps_open.hpp"
+#include "porsche/fe_stream.hpp"
+#include "porsche/formatter_bootstrap.hpp"
+#include "porsche/startup_input.hpp"
+#include "porsche/file_wait.hpp"
+#include "porsche/window_shutdown.hpp"
+#include "porsche/render_loader.hpp"
+#include "porsche/splash_progress.hpp"
+using U=std::uint32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+static const B raw_clear[29]={@CLEAR@},raw_query[162]={@QUERY@},raw_open[198]={@OPEN@},raw_label[16]={@LABEL@};
+static B *code,*block[3];static U cases,checks,allocations,queries;
+alignas(4) static B buffers[6][352];
+struct Case {U selected,config,mode,initial,plan,fail_at;std::int32_t api_result,negotiate_result,open_result;U effects,alias;};
+static Case cfg;
+struct Event {U kind,a,b,c,d,e,f,g,h,i,cap,app,version,selected,mode,config,line,flags;char label[16];};
+struct State {U result,cap,app,version,selected,mode,config,line,flags,allocations,queries,count;Event events[32];B memory[sizeof(buffers)];};
+static State observed,expected,actual;
+static U word(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U load(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static void die(const char* text){std::printf("fixture %s\n",text);std::fflush(stdout);ExitProcess(98);}
+static void record(U kind,U a=0,U b=0,U c=0,U d=0,U e=0,U f=0,U g=0,U h=0,U i=0,const char* label=nullptr){
+    if(observed.count>=32)die("event-limit");auto& x=observed.events[observed.count++];x.kind=kind;x.a=a;x.b=b;x.c=c;x.d=d;x.e=e;x.f=f;x.g=g;x.h=h;x.i=i;
+    x.cap=porsche::modem_capabilities_006a57b4;x.app=porsche::modem_application_006a5670;x.version=porsche::modem_api_version_006a57a4;x.selected=porsche::modem_selected_device_005df478;x.mode=porsche::modem_open_mode_006a579c;x.config=porsche::modem_configuration_006a57a8;x.line=porsche::modem_line_006a4668;x.flags=porsche::render_descriptor_flags_005deb60;
+    if(label){if(std::strlen(label)>=sizeof x.label)die("label");std::strcpy(x.label,label);}
+}
+static U needed(){const U round=queries-1;if(cfg.plan==0)return 0;if(cfg.plan==1)return 239;if(cfg.plan==2)return 240;if(cfg.plan==3)return round?240:241;if(cfg.plan==4)return round==0?512:round==1?513:0;if(cfg.plan==5)return round?0:0x80000000u;if(cfg.plan==6)return round?0:0xffffffffu;return 240;}
+namespace porsche {
+U __cdecl free_00531f90(void* p){record(1,word(p));if(cfg.effects&4){modem_capabilities_006a57b4=0xdeadbeef;modem_application_006a5670^=0x22220000u;modem_api_version_006a57a4^=0x33330000u;render_descriptor_flags_005deb60^=0x80000000u;}return 0x87654321u;}
+void* __cdecl allocate_00531ca0(const char* label,std::int32_t bytes,U flags){record(2,static_cast<U>(bytes),flags,0,0,0,0,0,0,0,label);if(std::strcmp(label,"tapiLineDevCaps")||allocations>=4)die("allocation");
+    const U number=allocations++;
+    if(cfg.effects&1){modem_application_006a5670=0x10000000u+number;modem_api_version_006a57a4=0x20000000u+number;render_descriptor_flags_005deb60=0x80000000u+number;modem_selected_device_005df478=0x30000000u+number;}
+    if(cfg.alias==1)return &modem_api_version_006a57a4;if(cfg.alias==2)return &modem_application_006a5670;return buffers[number]+16;
+}
+std::int32_t __stdcall modem_line_get_capabilities_00584bb7(U app,U device,U version,U extension,void* buffer){record(3,app,device,version,extension,word(buffer),load(buffer));++queries;
+    if(cfg.alias)return cfg.api_result;
+    const U need=needed();if(cfg.plan==7)put(buffer,0x80000000u);put(static_cast<B*>(buffer)+4,need);put(static_cast<B*>(buffer)+0x80,0x81000000u+queries);
+    if(cfg.effects&2){modem_capabilities_006a57b4=word(buffers[5]+16);put(buffers[5]+16,load(buffer));put(buffers[5]+20,need);put(buffers[5]+16+0x80,0x82000000u+queries);}
+    if(cfg.effects&16){modem_open_mode_006a579c=queries&1u?0xffffffffu:0;modem_selected_device_005df478^=0x40000000u;}
+    return queries-1==cfg.fail_at?cfg.api_result:0;
+}
+std::int32_t __stdcall modem_line_negotiate_00584d7c(U app,U device,U low,U high,U* version,void* extension){record(4,app,device,low,high,word(version));for(U i=0;i<16;++i)static_cast<B*>(extension)[i]=static_cast<B>(0x70+i);*version=0x10004;
+    if(cfg.effects&8){modem_selected_device_005df478^=0x12340000u;modem_application_006a5670^=0x22220000u;modem_open_mode_006a579c=0x80000000u;}return cfg.negotiate_result;
+}
+std::int32_t __stdcall modem_tapi_line_open_00584dcd(U app,U device,U* line,U version,U extension,U instance,U privilege,U media,const void* params){record(5,app,device,word(line),version,extension,instance,privilege,media,word(params));*line=0xabcdef01u;
+    if(cfg.effects&32)modem_configuration_006a57a8=cfg.config?0:0x6a46acu;return cfg.open_result;
+}
+U __cdecl modem_line_configure_0055e340(U line){record(6,line);if(cfg.effects&64){modem_line_006a4668=0x99990000u;modem_capabilities_006a57b4=word(buffers[5]+16);put(buffers[5]+16+0x80,0xf1234567u);}return 0xffffffffu;}
+std::int32_t __stdcall modem_line_set_status_00584e72(U line,U flags,U zero){record(7,line,flags,zero);return -1;}
+// Unused consumers of the actual403/401/374 owners fail closed. No fixture
+// definition of their owned cells or the three new recovered bodies exists.
+void* __cdecl startup_window_handle_00557460(){die("unused-window");return nullptr;}
+U __cdecl file_sleep_0055f740(U){die("unused-sleep");return 0;}
+void __stdcall modem_callback_0055df80(U,U,U,U,U,U){die("unused-callback");}
+std::int32_t __stdcall modem_line_initialize_00584ce0(U*,U,ModemCallback,const char*,U*){die("unused-initialize");return 0;}
+std::int32_t __stdcall modem_line_status_00584c9d(U,void*){die("unused-status");return 0;}
+std::int32_t __stdcall modem_line_shutdown_00584eb9(U){die("unused-shutdown");return 0;}
+std::int32_t __stdcall modem_line_close_00584af2(U){die("unused-close");return 0;}
+void* __stdcall formatter_dialog_load_library(const char*){die("unused-dialog-load");return nullptr;}
+void* __stdcall formatter_dialog_get_proc_address(void*,const char*){die("unused-dialog-proc");return nullptr;}
+void* window_shutdown_handle_0069dd18=nullptr;U window_shutdown_config_005de620[12]{};std::uint8_t window_shutdown_source_005de65c=0,window_shutdown_source_005de65d=0;U render_thrash_exports_006bd910[43]{};U splash_progress_format_005dead0=0;
+void __stdcall window_shutdown_display_callback_006bd9b0(U){die("unused-render-display");}
+void __cdecl window_shutdown_runtime_state_00534430(){die("unused-render-runtime");}
+void* __cdecl render_descriptor_allocate_00535700(U,U,U,U,U){die("unused-render-allocation");return nullptr;}
+}
+struct Reloc {U body,offset,expected;const void* target;};
+static const Reloc absolutes[]={
+// ABSOLUTE_RELOCS_BEGIN
+{0u,1u,0x006a57b4u,&porsche::modem_capabilities_006a57b4},
+{0u,20u,0x006a57b4u,&porsche::modem_capabilities_006a57b4},
+{2u,1u,0x005df478u,&porsche::modem_selected_device_005df478},
+{2u,19u,0x006a5670u,&porsche::modem_application_006a5670},
+{2u,29u,0x006a57a4u,&porsche::modem_api_version_006a57a4},
+{2u,59u,0x005df478u,&porsche::modem_selected_device_005df478},
+{2u,77u,0x006a579cu,&porsche::modem_open_mode_006a579c},
+{2u,83u,0x006a57a4u,&porsche::modem_api_version_006a57a4},
+{2u,93u,0x005df478u,&porsche::modem_selected_device_005df478},
+{2u,107u,0x006a5670u,&porsche::modem_application_006a5670},
+{2u,117u,0x006a4668u,&porsche::modem_line_006a4668},
+{2u,133u,0x006a57a8u,&porsche::modem_configuration_006a57a8},
+{2u,143u,0x006a4668u,&porsche::modem_line_006a4668},
+{2u,155u,0x006a57b4u,&porsche::modem_capabilities_006a57b4},
+{2u,161u,0x006a4668u,&porsche::modem_line_006a4668},
+{1u,9u,0x005deb60u,&porsche::render_descriptor_flags_005deb60},
+{1u,20u,0x005bcb90u,raw_label},
+{1u,31u,0x006a57a4u,&porsche::modem_api_version_006a57a4},
+{1u,41u,0x006a5670u,&porsche::modem_application_006a5670},
+{1u,49u,0x006a57b4u,&porsche::modem_capabilities_006a57b4},
+{1u,77u,0x006a57b4u,&porsche::modem_capabilities_006a57b4},
+{1u,96u,0x005deb60u,&porsche::render_descriptor_flags_005deb60},
+{1u,103u,0x005bcb90u,raw_label},
+{1u,114u,0x006a57a4u,&porsche::modem_api_version_006a57a4},
+{1u,120u,0x006a5670u,&porsche::modem_application_006a5670},
+{1u,128u,0x006a57b4u,&porsche::modem_capabilities_006a57b4},
+// ABSOLUTE_RELOCS_END
+};
+static const Reloc calls[]={
+// CALL_RELOCS_BEGIN
+{0u,10u,0x00531f90u,reinterpret_cast<const void*>(&porsche::free_00531f90)},
+{2u,45u,0x00584d7cu,reinterpret_cast<const void*>(&porsche::modem_line_negotiate_00584d7c)},
+{2u,64u,0x0055e6e0u,nullptr},
+{2u,123u,0x00584dcdu,reinterpret_cast<const void*>(&porsche::modem_tapi_line_open_00584dcd)},
+{2u,148u,0x0055e340u,reinterpret_cast<const void*>(&porsche::modem_line_configure_0055e340)},
+{2u,178u,0x00584e72u,reinterpret_cast<const void*>(&porsche::modem_line_set_status_00584e72)},
+{1u,3u,0x0055de50u,nullptr},
+{1u,24u,0x00531ca0u,reinterpret_cast<const void*>(&porsche::allocate_00531ca0)},
+{1u,65u,0x00584bb7u,reinterpret_cast<const void*>(&porsche::modem_line_get_capabilities_00584bb7)},
+{1u,90u,0x0055de50u,nullptr},
+{1u,107u,0x00531ca0u,reinterpret_cast<const void*>(&porsche::allocate_00531ca0)},
+{1u,140u,0x00584bb7u,reinterpret_cast<const void*>(&porsche::modem_line_get_capabilities_00584bb7)},
+{1u,151u,0x0055de50u,nullptr},
+// CALL_RELOCS_END
+};
+static void install(){
+    if(porsche::modem_configuration_006a57a8||porsche::modem_capabilities_006a57b4||porsche::modem_application_006a5670||porsche::modem_api_version_006a57a4||porsche::render_descriptor_flags_005deb60||porsche::modem_selected_device_005df478!=0xffffffffu)die("initial-state");if(std::memcmp(raw_label,"tapiLineDevCaps",16))die("raw-label");
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");block[0]=code;block[1]=code+128;block[2]=code+384;const B* originals[3]={raw_clear,raw_query,raw_open};const U lengths[3]={29,162,198},bases[3]={0x55de50,0x55e6e0,0x55e270};for(U i=0;i<3;++i)std::memcpy(block[i],originals[i],lengths[i]);
+    for(const auto& p:absolutes){if(load(originals[p.body]+p.offset)!=p.expected)die("absolute-original");U target=word(p.target);std::memcpy(block[p.body]+p.offset,&target,4);}
+    for(const auto& p:calls){const B* source=originals[p.body];if(source[p.offset]!=0xe8||bases[p.body]+p.offset+5+load(source+p.offset+1)!=p.expected)die("call-original");
+        const void* target=p.target?p.target:p.expected==0x55de50?static_cast<const void*>(block[0]):static_cast<const void*>(block[1]);U delta=word(target)-word(block[p.body]+p.offset+5);std::memcpy(block[p.body]+p.offset+1,&delta,4);}
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+}
+struct Capture {U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,result;};
+static Capture invoke(const void* fn,U kind,U device){Capture r{};__asm {
+    mov ebx,13579bdfh
+    mov esi,2468ace0h
+    mov edi,6a31c5e7h
+    lea edx,r
+    mov [edx],esp
+    mov [edx+8],ebp
+    mov [edx+16],ebx
+    mov [edx+24],esi
+    mov [edx+32],edi
+    cmp kind,1
+    jne callit
+    push device
+callit:
+    mov ecx,fn
+    call ecx
+    cmp kind,1
+    jne capture
+    add esp,4
+capture:
+    lea edx,r
+    mov [edx+40],eax
+    mov [edx+4],esp
+    mov [edx+12],ebp
+    mov [edx+20],ebx
+    mov [edx+28],esi
+    mov [edx+36],edi
+}return r;}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+static void reset(){observed={};allocations=queries=0;for(U i=0;i<sizeof buffers;++i)reinterpret_cast<B*>(buffers)[i]=static_cast<B>(0x51+i*13u);
+    porsche::modem_capabilities_006a57b4=cfg.initial==0?0:cfg.initial==1?word(buffers[4]+16):0xffffffffu;porsche::modem_application_006a5670=0x10203040;porsche::modem_api_version_006a57a4=0x20102030;porsche::modem_selected_device_005df478=cfg.selected;porsche::modem_open_mode_006a579c=cfg.mode;porsche::modem_configuration_006a57a8=cfg.config;porsche::modem_line_006a4668=0xdeadbeef;porsche::render_descriptor_flags_005deb60=0x81234567u;
+}
+static void execute(U kind,U side,State& target){reset();const void* native[3]={reinterpret_cast<const void*>(&porsche::modem_capabilities_clear_0055de50),reinterpret_cast<const void*>(&porsche::modem_device_capabilities_0055e6e0),reinterpret_cast<const void*>(&porsche::modem_line_open_0055e270)};auto result=invoke(side?native[kind]:block[kind],kind,0x89abcdefu);if(!abi(result))die("ABI divergence");observed.result=kind?result.result:0;observed.cap=porsche::modem_capabilities_006a57b4;observed.app=porsche::modem_application_006a5670;observed.version=porsche::modem_api_version_006a57a4;observed.selected=porsche::modem_selected_device_005df478;observed.mode=porsche::modem_open_mode_006a579c;observed.config=porsche::modem_configuration_006a57a8;observed.line=porsche::modem_line_006a4668;observed.flags=porsche::render_descriptor_flags_005deb60;observed.allocations=allocations;observed.queries=queries;std::memcpy(observed.memory,buffers,sizeof buffers);target=observed;}
+static void compare(U kind){execute(kind,0,expected);execute(kind,1,actual);++cases;checks+=4;if(std::memcmp(&expected,&actual,sizeof actual)){
+    std::printf("divergence caps-open kind=%u case=%u selected=%x plan=%u fail=%u api=%x neg=%x open=%x config=%x mode=%x initial=%u effects=%x alias=%u result=%x/%x events=%u/%u\n",kind,cases,cfg.selected,cfg.plan,cfg.fail_at,static_cast<U>(cfg.api_result),static_cast<U>(cfg.negotiate_result),static_cast<U>(cfg.open_result),cfg.config,cfg.mode,cfg.initial,cfg.effects,cfg.alias,expected.result,actual.result,expected.count,actual.count);
+    for(U i=0;i<expected.count||i<actual.count;++i)if(std::memcmp(expected.events+i,actual.events+i,sizeof(Event))){auto&a=expected.events[i];auto&b=actual.events[i];std::printf("event%u kind=%u/%u a=%x/%x b=%x/%x c=%x/%x cap=%x/%x\n",i,a.kind,b.kind,a.a,b.a,a.b,b.b,a.c,b.c,a.cap,b.cap);break;}std::fflush(stdout);ExitProcess(1);
+}}
+int main(){install();for(U initial:{0u,1u,2u})for(U effects:{0u,4u}){cfg={0,0,0,initial,0,99,0,0,0,effects,0};compare(0);}
+    for(U plan:{0u,1u,2u,3u,4u,5u,6u,7u})for(U fail:{0u,1u,2u,99u})for(std::int32_t result:{0,1,-1,static_cast<std::int32_t>(0x80000000u)})for(U initial:{0u,1u})for(U effects:{0u,1u,2u,4u,7u}){cfg={0,0,0,initial,plan,fail,result,0,0,effects,0};compare(1);}
+    for(U selected:{0u,7u,0x80000000u,0xffffffffu})for(U config:{0u,0x6a46acu,0xffffffffu})for(U mode:{0u,1u,0x80000000u})for(std::int32_t neg:{0,1,-1})for(std::int32_t open:{0,1,-1})for(U plan:{0u,4u})for(U effects:{0u,8u,16u,32u,64u,127u}){cfg={selected,config,mode,1,plan,99,0,neg,open,effects,0};compare(2);}
+    for(U alias:{1u,2u})for(U effects:{0u,1u,4u,5u})for(U kind:{1u,2u}){cfg={7,0,0,1,0,0,-1,0,0,effects,alias};compare(kind);}
+    std::printf("modem_caps_open_original_vs_cpp=PASS cases=%u checks=%u three_body_composition=PASS opaque_extension=HOLD\n",cases,checks);return 0;
+}
