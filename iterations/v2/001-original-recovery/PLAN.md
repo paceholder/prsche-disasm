@@ -1,5 +1,14 @@
 # v2 / 001 - original source recovery plan
 
+Active2026-10-24 batch: coordinator390 diagnosticterminal0059fc20; worker391
+networkconstructor0048fc80. Both have new lowering inspection candidates, not
+accepted production sources. Shared REA390/002 audited5dossiersPASS;001 sandbox
+spawnEPERM preserved.392 will integrate ready original/native batches once.
+Recovery skill now records bounded backend reuse without mandatory per-function
+census runs. Frontmatter/link checks pass; standalone validator lacks PyYAML.
+Current game is still388; no new game acceptance claimed. Older completion and
+no-active-worker statements below describe the preceding checkpoint.
+
 Current388,2026-10-24: currentstartupbatch complete, fulliteration NOT complete.
 386 boundedheapfinish binding +387 diagnostic93B +389 actualstartupcallbackpointer
 andfull157Bconsumerregression integrated.1504 comparisons/15mutations,528-input

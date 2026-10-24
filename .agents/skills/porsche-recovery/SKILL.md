@@ -44,6 +44,15 @@ Inspect runner/config schemas only as needed. Extracted pseudocode from
 
 ## Recover and compare
 
+Use `scripts/research/x86-cpp-backend-exact.py` for mechanical C++ candidates or
+instruction analysis when it saves manual work; see the bounded scope in
+[Run431](../../../iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md).
+Keep rejected instructions explicit. Generated code does not establish ABI,
+state ownership or original-function acceptance. Retain original-x86 comparisons
+for each changed recovery batch. Reuse unchanged backend proof; do not rerun the
+whole instruction census or add a bespoke runner for each function. CPU-specific
+undefined flags, x87 precision and native-memory assumptions remain boundaries.
+
 Reuse the shared native runner and nearest accepted subsystem fixture. Add the
 new oracle/cases rather than a bespoke runner per function. Write new sources,
 fixtures and configs as UTF-8 LF before proof; preserve numbered attempts:
