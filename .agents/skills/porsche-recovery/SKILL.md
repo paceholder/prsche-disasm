@@ -20,7 +20,9 @@ current frontier to locate missing providers, then trace callers for execution
 order. Unresolved names are neither C++ files nor a completion estimate. Check
 the active `source/recovered/functions.json` for canonical ownership, including
 interior entries and body overlaps. Reuse proved providers through typed bindings
-instead of recovering the same function or defining its state again. Delegate
+instead of recovering the same function or defining its state again. Search data
+ownership across the current manifest's complete source/header closure, including
+accepted run-owned TUs; `source/recovered` alone is incomplete. Delegate
 independent work using [docs/agents.md](../../../docs/agents.md).
 
 ## Establish original evidence

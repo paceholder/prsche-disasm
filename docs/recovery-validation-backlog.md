@@ -1,5 +1,10 @@
 # Отложенные проверки восстановления v2
 
+Run407:522B modem enumerator isPARTIAL after5904nativecases/8mutations/550pins.
+Unwritten status/indeterminate flags, >20 entries, malformedcaps/allocationfailure,
+actualcallback/TAPI/allocator/concurrency stayHOLD. Canonical374 selector fixedbefore
+intake.221TUs197names205refs,noEXE; eightchildren exposed.408/410 awaitintake.
+
 Run406: originalfiledelete/view73B +3exactWin32facades integrated;8570nativecases/
 11mutations,547pins;220TUs190names198refs,noEXE. Real OS deletion/CreateProcess,
 TLS last-error/physicaltable concurrent lifetime/fullfilesystem remain open;

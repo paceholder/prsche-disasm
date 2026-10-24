@@ -1,0 +1,133 @@
+{
+  "run": 403,
+  "experiment": "local/experiments/v2-modem-enumeration-native-403",
+  "timeout_seconds": 60,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+    "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/formatter_strings.cpp",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/source/include",
+    "iterations/v2/001-original-recovery/runs/401-device-table",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor",
+    "iterations/v2/001-original-recovery/runs/403-modem-enumeration"
+  ],
+  "extra_libraries": [
+    "user32.lib"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/startup_input.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/file_events.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/heap.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@BODY@",
+      "va": "0055e4d0",
+      "bytes": 522,
+      "sha256": "cb77686eb4fb124e58acdcac8b1cc58189a12fa1dae9a11ae631930d7161f9ea"
+    },
+    {
+      "token": "@SELECTOR@",
+      "va": "005deb60",
+      "bytes": 4,
+      "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+    },
+    {
+      "token": "@SELECTED@",
+      "va": "005df478",
+      "bytes": 4,
+      "sha256": "ad95131bc0b799c0b1af477fb14fcf26a6a9f76079e48bf090acb7e8367bfd0e"
+    },
+    {
+      "token": "@ERROR@",
+      "va": "005bc98c",
+      "bytes": 21,
+      "sha256": "e5e57e9b7c7458e91b9d48fd3d8a4acc7340ee2f16fcd5cafa09eb78ba840075"
+    },
+    {
+      "token": "@TABLE_NAME@",
+      "va": "005bcb84",
+      "bytes": 9,
+      "sha256": "a65114bcfbc8ca27ff73c89eebb0c731ca5e70a03d7eeda80cef9eacc73fbd48"
+    },
+    {
+      "token": "@TEXT_NAME@",
+      "va": "005bcb78",
+      "bytes": 9,
+      "sha256": "7a86a7aa2923ca9f020292551ba751f42a675406c1443d0e323296bfd270333b"
+    }
+  ],
+  "pass_marker": "modem_enumeration_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "callback-argument",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "&modem_callback_0055df80,nullptr",
+      "new": "nullptr,nullptr",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "reset-count",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "    device_table_count_006a57a0=0;",
+      "new": "    device_table_count_006a57a0=1;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "feature-bit",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "[0x3c]&0x10",
+      "new": "[0x3c]&0x20",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "status-size",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "store(word(local+16),76)",
+      "new": "store(word(local+16),80)",
+      "expected_exit": 98,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "flag-upper-bits",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "(flags&~1u)|(load(word(local+16)+20u)==0?1u:0u)",
+      "new": "(load(word(local+16)+20u)==0?1u:0u)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "line-close-reload",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "modem_line_close_00584af2(modem_line_006a4668)",
+      "new": "modem_line_close_00584af2(0xabcdef00u)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "name-terminator",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "byte(name+length,0)",
+      "new": "byte(name+length,0x21)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "shutdown-return",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "old": "return device_table_count_006a57a0;",
+      "new": "return 0;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "checks": [
+    "unconfigured-header-rejected",
+    "configured-transitive-include-pinned",
+    "parent-precedence",
+    "legacy-default-unchanged",
+    "undeclared-cmake-include-rejected-before-build"
+  ],
+  "source_sha256": {
+    "scripts/research/v2_source_dependencies.py": "4e28945b771de8b0581c4c0a75881fe26f4efa48666692ebc6cc663334289b66",
+    "scripts/research/build-v2-game-batch.py": "67089ed23d0e34c5cdff18477c85794425a7ce8eaafd4af0e0ee4214d14c45de"
+  }
+}

@@ -10760,7 +10760,11 @@
       "binary_matched": false,
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json",
-      "verification_boundary": "Original46B; signed bounds, initialize before rejection, postchild reloads, wrap32 arithmetic; canonical zero-fill scalar owners only. Real modem/TAPI enumeration remains unresolved, no storage capacity invented."
+      "verification_boundary": "Original46B; signed bounds, initialize before rejection, postchild reloads, wrap32 arithmetic; canonical zero-fill scalar owners only. Real modem/TAPI enumeration remains unresolved, no storage capacity invented.",
+      "linked_partial_dependencies": [
+        "0055e4d0"
+      ],
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/407-modem-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10810,6 +10814,35 @@
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/406-platform-file-integration/validation.json",
       "verification_boundary": "Original53B; complement32 encoding, signed bounds, canonical PhysicalFile32B active/view+20 and existing files.cpp scalar owners; invalidSetLastError6, validerrorretention, fullresult/state/ABI. Bounded records and controlled API state; concurrent lifetime/aliases/fullfilesystem remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0055e4d0",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "status": "partial-native-differential-verified",
+      "calling_convention": "cdecl0, RET0/uint32 EAXcount",
+      "recovered_dependencies": [
+        "00557460",
+        "0055ddf0",
+        "00531ca0",
+        "005a28a0",
+        "0055f740"
+      ],
+      "unrecovered_dependencies": [
+        "0055df80",
+        "00584ce0",
+        "00584d7c",
+        "00584c9d",
+        "00584eb9",
+        "00584af2",
+        "0055e6e0",
+        "0055e270"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/407-modem-integration/validation.json",
+      "verification_boundary": "Complete522B control flow, bounded<=20 accepted entries and initialized consumed status/allocator bits. Actual374/401 state owners plus canonical copy_n linked;8 new scalar owners. Opaque unwritten status/allocator flags, malformed spans, allocationfailure, overflow and liveTAPI/callback/concurrency remainHOLD. Final003 removes historical duplicate005deb60 owner."
     }
   ]
 }

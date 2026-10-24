@@ -5,6 +5,8 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 INCLUDE = ROOT / 'iterations/v2/001-original-recovery/source/include'
+# Explicit batch include paths; the default preserves historical callers.
+EXTRA_INCLUDE_DIRS = ()
 
 
 def source_hashes(paths, compiled_sources=()):
@@ -23,7 +25,8 @@ def source_hashes(paths, compiled_sources=()):
             continue
         for name in re.findall(r'^\s*#\s*include\s*"([^"]+)"',
                                path.read_text(encoding='utf-8'), re.M):
-            candidates = (path.parent / name, INCLUDE / name)
+            candidates = (path.parent / name, INCLUDE / name,
+                          *(directory / name for directory in EXTRA_INCLUDE_DIRS))
             included = next((p for p in candidates if p.is_file()), None)
             if included is None:
                 raise FileNotFoundError(f'{path}: quoted include {name}')

@@ -1,0 +1,9 @@
+{
+  "run": "iterations/v2/001-original-recovery/runs/407-modem-integration",
+  "build": "local/builds/v2/modem-407",
+  "experiment": "local/experiments/v2-modem-game-407",
+  "source_include_dirs": [
+    "iterations/v2/001-original-recovery/runs/401-device-table",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor"
+  ]
+}

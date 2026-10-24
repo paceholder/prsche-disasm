@@ -1,0 +1,1352 @@
+{
+  "build": {
+    "path": "iterations/v2/001-original-recovery/runs/406-platform-file-integration/build-001.json",
+    "sha256": "0eb68a6d58523045728861662c19d3c66d7e74efa25e1d684e48c8b06f5dcdc9"
+  },
+  "manifest": {
+    "path": "research/v2/proof-manifests/sha256/03c3ce6ed44531087f65a15e8bf17502cd5375e1b8e9be714fff37aa840c4ef6.json",
+    "sha256": "03c3ce6ed44531087f65a15e8bf17502cd5375e1b8e9be714fff37aa840c4ef6"
+  },
+  "compiled_source_roots_count": 220,
+  "compiled_source_header_files_inspected": 344,
+  "all_active_cpp_hpp_h_files_inspected": 608,
+  "original_pe_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "fields": [
+    {
+      "va": "005deb60",
+      "bytes": 4,
+      "symbol": "render_descriptor_flags_005deb60",
+      "owner": "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp",
+      "is_new": false,
+      "initial": {
+        "kind": "file-backed DWORD",
+        "raw_hex": "00000000",
+        "file_offset": 1960800
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp",
+          "sha256": "6df03666b1746c00020d473be445f91b601973f2863c6e8821d87f6a4fb2fc65",
+          "compiled_closure": true,
+          "lines": [
+            {
+              "line": 9,
+              "text": "std::uint32_t render_descriptor_flags_005deb60=0;"
+            },
+            {
+              "line": 74,
+              "text": "            8,8,splash_progress_format_005dead0,render_descriptor_flags_005deb60);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.hpp",
+          "sha256": "0f48ce85a3292dfae95ec4600fc4ccbfe34ca803a7cf6e0027cc6a04089cce0c",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 5,
+              "text": "extern std::uint32_t render_descriptor_flags_005deb60;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/376-heap-largest/heap_largest.cpp",
+          "sha256": "d35b7f5ef92cce626daf717027ad3738a697e2a0cbfa2735c63dedc44c000cae",
+          "compiled_closure": true,
+          "lines": [
+            {
+              "line": 9,
+              "text": "    return application_heap_measure_00569ad0(render_descriptor_flags_005deb60);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 38,
+              "text": "    const U table=word(allocate_00531ca0(\"modemBuf\",240,render_descriptor_flags_005deb60));"
+            },
+            {
+              "line": 50,
+              "text": "            auto* const text=static_cast<char*>(allocate_00531ca0(\"tapiname\",static_cast<std::int32_t>(load(modem_capabilities_006a57b4+0x20u)+1u),render_descriptor_flags_005deb60));"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "004dc213",
+          "to_va": "005deb60",
+          "from_function": "004dc180",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "004dc2b7",
+          "to_va": "005deb60",
+          "from_function": "004dc180",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "004dc856",
+          "to_va": "005deb60",
+          "from_function": "004dc850",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "004dcba7",
+          "to_va": "005deb60",
+          "from_function": "004dc850",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "005344ca",
+          "to_va": "005deb60",
+          "from_function": "00534480",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00534f50",
+          "to_va": "005deb60",
+          "from_function": "00534d40",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00535205",
+          "to_va": "005deb60",
+          "from_function": "005350e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0053d360",
+          "to_va": "005deb60",
+          "from_function": "0053d360",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00555815",
+          "to_va": "005deb60",
+          "from_function": "005557d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055aaab",
+          "to_va": "005deb60",
+          "from_function": "0055aaa0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055c370",
+          "to_va": "005deb60",
+          "from_function": "0055c370",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e545",
+          "to_va": "005deb60",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e60c",
+          "to_va": "005deb60",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e6e8",
+          "to_va": "005deb60",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e73f",
+          "to_va": "005deb60",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e829",
+          "to_va": "005deb60",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e8c0",
+          "to_va": "005deb60",
+          "from_function": "0055e8c0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0055e90a",
+          "to_va": "005deb60",
+          "from_function": "0055e8c0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00569a90",
+          "to_va": "005deb60",
+          "from_function": "00569a90",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0056dac0",
+          "to_va": "005deb60",
+          "from_function": "0056dac0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00572610",
+          "to_va": "005deb60",
+          "from_function": "00572610",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00580f83",
+          "to_va": "005deb60",
+          "from_function": "00580f60",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00581930",
+          "to_va": "005deb60",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00582828",
+          "to_va": "005deb60",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00583766",
+          "to_va": "005deb60",
+          "from_function": "00583740",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "005837b3",
+          "to_va": "005deb60",
+          "from_function": "00583740",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00583dd3",
+          "to_va": "005deb60",
+          "from_function": "00583d10",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00585829",
+          "to_va": "005deb60",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0058658e",
+          "to_va": "005deb60",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "00587663",
+          "to_va": "005deb60",
+          "from_function": "00587660",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "005882d0",
+          "to_va": "005deb60",
+          "from_function": "005882a0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        },
+        {
+          "from_va": "0059523b",
+          "to_va": "005deb60",
+          "from_function": "005951a0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005deb60"
+        }
+      ]
+    },
+    {
+      "va": "005df478",
+      "bytes": 4,
+      "symbol": "modem_selected_device_005df478",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "file-backed DWORD",
+        "raw_hex": "ffffffff",
+        "file_offset": 1963128
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 10,
+              "text": "std::uint32_t modem_selected_device_005df478=0xffffffffu;"
+            },
+            {
+              "line": 45,
+              "text": "        modem_selected_device_005df478=device;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 6,
+              "text": "extern std::uint32_t modem_selected_device_005df478;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055de7c",
+          "to_va": "005df478",
+          "from_function": "0055de70",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e270",
+          "to_va": "005df478",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e2aa",
+          "to_va": "005df478",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e2cb",
+          "to_va": "005df478",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e358",
+          "to_va": "005df478",
+          "from_function": "0055e340",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e39d",
+          "to_va": "005df478",
+          "from_function": "0055e340",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e4c2",
+          "to_va": "005df478",
+          "from_function": "0055e470",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e5cd",
+          "to_va": "005df478",
+          "from_function": "0055e4d0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e7c4",
+          "to_va": "005df478",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        },
+        {
+          "from_va": "0055e802",
+          "to_va": "005df478",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_005df478"
+        }
+      ]
+    },
+    {
+      "va": "006a4668",
+      "bytes": 4,
+      "symbol": "modem_line_006a4668",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 890472
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 11,
+              "text": "std::uint32_t modem_line_006a4668=0;"
+            },
+            {
+              "line": 49,
+              "text": "        if(!modem_line_status_00584c9d(modem_line_006a4668,local+16)){"
+            },
+            {
+              "line": 64,
+              "text": "        modem_line_close_00584af2(modem_line_006a4668);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 7,
+              "text": "extern std::uint32_t modem_line_006a4668;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055dd5c",
+          "to_va": "006a4668",
+          "from_function": "0055dd40",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055df5a",
+          "to_va": "006a4668",
+          "from_function": "0055df30",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055dfc3",
+          "to_va": "006a4668",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e2e4",
+          "to_va": "006a4668",
+          "from_function": "0055e270",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e2fd",
+          "to_va": "006a4668",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e30f",
+          "to_va": "006a4668",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e3e8",
+          "to_va": "006a4668",
+          "from_function": "0055e3d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e5e6",
+          "to_va": "006a4668",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e68e",
+          "to_va": "006a4668",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e7a7",
+          "to_va": "006a4668",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        },
+        {
+          "from_va": "0055e857",
+          "to_va": "006a4668",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a4668"
+        }
+      ]
+    },
+    {
+      "va": "006a5670",
+      "bytes": 4,
+      "symbol": "modem_application_006a5670",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 894576
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 12,
+              "text": "std::uint32_t modem_application_006a5670=0;"
+            },
+            {
+              "line": 31,
+              "text": "    if(modem_line_initialize_00584ce0(&modem_application_006a5670,instance,&modem_callback_0055df80,nullptr,&modem_line_count_006a5774))return 0;"
+            },
+            {
+              "line": 34,
+              "text": "        if(modem_line_shutdown_00584eb9(modem_application_006a5670))modem_message_006ad43c=modem_shutdown_error_005bc98c;"
+            },
+            {
+              "line": 42,
+              "text": "        if(modem_line_negotiate_00584d7c(modem_application_006a5670,device,0x10004,0x10004,&modem_api_version_006a57a4,local))continue;"
+            },
+            {
+              "line": 67,
+              "text": "    if(modem_line_shutdown_00584eb9(modem_application_006a5670))modem_message_006ad43c=modem_shutdown_error_005bc98c;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 8,
+              "text": "extern std::uint32_t modem_application_006a5670;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2786,
+              "text": "/* 006a5670:4 */ extern undefined4 DAT_006a5670;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055ddc7",
+          "to_va": "006a5670",
+          "from_function": "0055dd40",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055df4b",
+          "to_va": "006a5670",
+          "from_function": "0055df30",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e281",
+          "to_va": "006a5670",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e2da",
+          "to_va": "006a5670",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e4f6",
+          "to_va": "006a5670",
+          "from_function": "0055e4d0",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e51d",
+          "to_va": "006a5670",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e584",
+          "to_va": "006a5670",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e6b2",
+          "to_va": "006a5670",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e707",
+          "to_va": "006a5670",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e756",
+          "to_va": "006a5670",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e7c9",
+          "to_va": "006a5670",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        },
+        {
+          "from_va": "0055e808",
+          "to_va": "006a5670",
+          "from_function": "0055e790",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5670"
+        }
+      ]
+    },
+    {
+      "va": "006a5774",
+      "bytes": 4,
+      "symbol": "modem_line_count_006a5774",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 894836
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 13,
+              "text": "std::uint32_t modem_line_count_006a5774=0;"
+            },
+            {
+              "line": 31,
+              "text": "    if(modem_line_initialize_00584ce0(&modem_application_006a5670,instance,&modem_callback_0055df80,nullptr,&modem_line_count_006a5774))return 0;"
+            },
+            {
+              "line": 32,
+              "text": "    if(!modem_line_count_006a5774){"
+            },
+            {
+              "line": 41,
+              "text": "    for(U device=0;device<modem_line_count_006a5774;++device){"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 9,
+              "text": "extern std::uint32_t modem_line_count_006a5774;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2787,
+              "text": "/* 006a5774:4 */ extern undefined4 DAT_006a5774;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055df3f",
+          "to_va": "006a5774",
+          "from_function": "0055df30",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5774"
+        },
+        {
+          "from_va": "0055df6e",
+          "to_va": "006a5774",
+          "from_function": "0055df30",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5774"
+        },
+        {
+          "from_va": "0055e4ea",
+          "to_va": "006a5774",
+          "from_function": "0055e4d0",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5774"
+        },
+        {
+          "from_va": "0055e50b",
+          "to_va": "006a5774",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5774"
+        },
+        {
+          "from_va": "0055e573",
+          "to_va": "006a5774",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5774"
+        },
+        {
+          "from_va": "0055e699",
+          "to_va": "006a5774",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5774"
+        }
+      ]
+    },
+    {
+      "va": "006a579c",
+      "bytes": 4,
+      "symbol": "modem_open_mode_006a579c",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 894876
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 14,
+              "text": "std::uint32_t modem_open_mode_006a579c=0;"
+            },
+            {
+              "line": 46,
+              "text": "        modem_open_mode_006a579c=0;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 10,
+              "text": "extern std::uint32_t modem_open_mode_006a579c;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055df38",
+          "to_va": "006a579c",
+          "from_function": "0055df30",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a579c"
+        },
+        {
+          "from_va": "0055e2bc",
+          "to_va": "006a579c",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a579c"
+        },
+        {
+          "from_va": "0055e5d3",
+          "to_va": "006a579c",
+          "from_function": "0055e4d0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a579c"
+        }
+      ]
+    },
+    {
+      "va": "006a57a4",
+      "bytes": 4,
+      "symbol": "modem_api_version_006a57a4",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 894884
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 15,
+              "text": "std::uint32_t modem_api_version_006a57a4=0;"
+            },
+            {
+              "line": 42,
+              "text": "        if(modem_line_negotiate_00584d7c(modem_application_006a5670,device,0x10004,0x10004,&modem_api_version_006a57a4,local))continue;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 11,
+              "text": "extern std::uint32_t modem_api_version_006a57a4;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2791,
+              "text": "/* 006a57a4:4 */ extern undefined4 DAT_006a57a4;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055e28c",
+          "to_va": "006a57a4",
+          "from_function": "0055e270",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a57a4"
+        },
+        {
+          "from_va": "0055e2c1",
+          "to_va": "006a57a4",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57a4"
+        },
+        {
+          "from_va": "0055e58e",
+          "to_va": "006a57a4",
+          "from_function": "0055e4d0",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a57a4"
+        },
+        {
+          "from_va": "0055e6fd",
+          "to_va": "006a57a4",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57a4"
+        },
+        {
+          "from_va": "0055e750",
+          "to_va": "006a57a4",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57a4"
+        }
+      ]
+    },
+    {
+      "va": "006a57b4",
+      "bytes": 4,
+      "symbol": "modem_capabilities_006a57b4",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 894900
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 16,
+              "text": "std::uint32_t modem_capabilities_006a57b4=0;"
+            },
+            {
+              "line": 44,
+              "text": "        if(!(static_cast<const unsigned char*>(pointer(modem_capabilities_006a57b4))[0x3c]&0x10))continue;"
+            },
+            {
+              "line": 50,
+              "text": "            auto* const text=static_cast<char*>(allocate_00531ca0(\"tapiname\",static_cast<std::int32_t>(load(modem_capabilities_006a57b4+0x20u)+1u),render_descriptor_flags_005deb60));"
+            },
+            {
+              "line": 52,
+              "text": "            const U caps=modem_capabilities_006a57b4;"
+            },
+            {
+              "line": 56,
+              "text": "            const U length=load(modem_capabilities_006a57b4+0x20u);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 12,
+              "text": "extern std::uint32_t modem_capabilities_006a57b4;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055de50",
+          "to_va": "006a57b4",
+          "from_function": "0055de50",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055de62",
+          "to_va": "006a57b4",
+          "from_function": "0055de50",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e309",
+          "to_va": "006a57b4",
+          "from_function": "0055e270",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e5bd",
+          "to_va": "006a57b4",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e606",
+          "to_va": "006a57b4",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e635",
+          "to_va": "006a57b4",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e657",
+          "to_va": "006a57b4",
+          "from_function": "0055e4d0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e710",
+          "to_va": "006a57b4",
+          "from_function": "0055e6e0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e72c",
+          "to_va": "006a57b4",
+          "from_function": "0055e6e0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        },
+        {
+          "from_va": "0055e75f",
+          "to_va": "006a57b4",
+          "from_function": "0055e6e0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b4"
+        }
+      ]
+    },
+    {
+      "va": "006ad43c",
+      "bytes": 4,
+      "symbol": "modem_message_006ad43c",
+      "owner": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "is_new": true,
+      "initial": {
+        "kind": "PE loader zero-fill",
+        "raw_hex": "00000000",
+        "section": {
+          "name": ".data",
+          "rva": 1880064,
+          "virtual_size": 1008952,
+          "raw_size": 114688,
+          "raw_pointer": 1880064
+        },
+        "offset_in_section": 926780
+      },
+      "all_active_source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+          "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 17,
+              "text": "const char* modem_message_006ad43c=nullptr;"
+            },
+            {
+              "line": 34,
+              "text": "        if(modem_line_shutdown_00584eb9(modem_application_006a5670))modem_message_006ad43c=modem_shutdown_error_005bc98c;"
+            },
+            {
+              "line": 67,
+              "text": "    if(modem_line_shutdown_00584eb9(modem_application_006a5670))modem_message_006ad43c=modem_shutdown_error_005bc98c;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+          "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 13,
+              "text": "extern const char* modem_message_006ad43c;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2998,
+              "text": "/* 006ad43c:1 */ extern undefined DAT_006ad43c;"
+            }
+          ]
+        }
+      ],
+      "direct_consumers": [
+        {
+          "from_va": "0055dd6f",
+          "to_va": "006ad43c",
+          "from_function": "0055dd40",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055ddb3",
+          "to_va": "006ad43c",
+          "from_function": "0055dd40",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055ddd6",
+          "to_va": "006ad43c",
+          "from_function": "0055dd40",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055dfd0",
+          "to_va": "006ad43c",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e00b",
+          "to_va": "006ad43c",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e05b",
+          "to_va": "006ad43c",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e092",
+          "to_va": "006ad43c",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e1e3",
+          "to_va": "006ad43c",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e52f",
+          "to_va": "006ad43c",
+          "from_function": "0055e4d0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e6c6",
+          "to_va": "006ad43c",
+          "from_function": "0055e4d0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        },
+        {
+          "from_va": "0055e983",
+          "to_va": "006ad43c",
+          "from_function": "0055e970",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad43c"
+        }
+      ]
+    }
+  ],
+  "canonical_table_owner": {
+    "path": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+    "sha256": "4e0c032fcc2201ded5956a87a33a1fc0c19d773bf595795923944f68562206b1"
+  },
+  "archive002": {
+    "path": "local/experiments/v2-modem-enumeration-403/archive-002-inputs/manifest.json",
+    "sha256": "dea417b53e0cfafce632b930a5b76a2bf364c84ff49d1bab9409ee16bfb1dd40"
+  },
+  "scope": "Direct scalar accesses/rawPE defaults and current compiled closure plus all active run sources/headers. Computed aliases/concurrent writes remain outside bounded proof; no invented covering object."
+}

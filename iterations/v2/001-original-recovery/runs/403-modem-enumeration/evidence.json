@@ -1,0 +1,467 @@
+{
+  "kind": "bounded-original-modem-enumeration",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [
+    "0055e4d0"
+  ],
+  "new_body_bytes": 522,
+  "acceptance": "partial native differential: complete body recovered; initialized allocator-byte and successful status-output domains. Unknown callback/wrapper/child bodies and opaque unwritten domains remain explicit.",
+  "source": {
+    "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+    "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386"
+  },
+  "header": {
+    "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.hpp",
+    "sha256": "b3bba77f08b4563e8a97f2cba27dc79427a15475a537af4d3529f851eb55a30e"
+  },
+  "original_body": {
+    "token": "@BODY@",
+    "va": "0055e4d0",
+    "bytes": 522,
+    "sha256": "cb77686eb4fb124e58acdcac8b1cc58189a12fa1dae9a11ae631930d7161f9ea"
+  },
+  "abi": "cdecl noargs, EAX full table-count DWORD, preserve ESP/EBP/EBX/ESI/EDI",
+  "instructions": [
+    "0055e4d0  83ec5c  SUB ESP,0x5c",
+    "0055e4d3  53  PUSH EBX",
+    "0055e4d4  33db  XOR EBX,EBX",
+    "0055e4d6  6afa  PUSH -0x6",
+    "0055e4d8  891da0576a00  MOV dword ptr [0x006a57a0],EBX",
+    "0055e4de  e87d8fffff  CALL 0x00557460",
+    "0055e4e3  50  PUSH EAX",
+    "0055e4e4  ff15b8225b00  CALL dword ptr [0x005b22b8]",
+    "0055e4ea  6874576a00  PUSH 0x6a5774",
+    "0055e4ef  53  PUSH EBX",
+    "0055e4f0  6880df5500  PUSH 0x55df80",
+    "0055e4f5  50  PUSH EAX",
+    "0055e4f6  6870566a00  PUSH 0x6a5670",
+    "0055e4fb  e8e0670200  CALL 0x00584ce0",
+    "0055e500  85c0  TEST EAX,EAX",
+    "0055e502  7407  JZ 0x0055e50b",
+    "0055e504  33c0  XOR EAX,EAX",
+    "0055e506  5b  POP EBX",
+    "0055e507  83c45c  ADD ESP,0x5c",
+    "0055e50a  c3  RET",
+    "0055e50b  391d74576a00  CMP dword ptr [0x006a5774],EBX",
+    "0055e511  752d  JNZ 0x0055e540",
+    "0055e513  68f4010000  PUSH 0x1f4",
+    "0055e518  e823120000  CALL 0x0055f740",
+    "0055e51d  a170566a00  MOV EAX,[0x006a5670]",
+    "0055e522  83c404  ADD ESP,0x4",
+    "0055e525  50  PUSH EAX",
+    "0055e526  e88e690200  CALL 0x00584eb9",
+    "0055e52b  85c0  TEST EAX,EAX",
+    "0055e52d  740a  JZ 0x0055e539",
+    "0055e52f  c7053cd46a008cc95b00  MOV dword ptr [0x006ad43c],0x5bc98c",
+    "0055e539  33c0  XOR EAX,EAX",
+    "0055e53b  5b  POP EBX",
+    "0055e53c  83c45c  ADD ESP,0x5c",
+    "0055e53f  c3  RET",
+    "0055e540  e8abf8ffff  CALL 0x0055ddf0",
+    "0055e545  8b0d60eb5d00  MOV ECX,dword ptr [0x005deb60]",
+    "0055e54b  51  PUSH ECX",
+    "0055e54c  68f0000000  PUSH 0xf0",
+    "0055e551  6884cb5b00  PUSH 0x5bcb84",
+    "0055e556  e84537fdff  CALL 0x00531ca0",
+    "0055e55b  83c40c  ADD ESP,0xc",
+    "0055e55e  a3b8576a00  MOV [0x006a57b8],EAX",
+    "0055e563  b914000000  MOV ECX,0x14",
+    "0055e568  895808  MOV dword ptr [EAX + 0x8],EBX",
+    "0055e56b  8918  MOV dword ptr [EAX],EBX",
+    "0055e56d  83c00c  ADD EAX,0xc",
+    "0055e570  49  DEC ECX",
+    "0055e571  75f5  JNZ 0x0055e568",
+    "0055e573  a174576a00  MOV EAX,[0x006a5774]",
+    "0055e578  57  PUSH EDI",
+    "0055e579  33ff  XOR EDI,EDI",
+    "0055e57b  3bc3  CMP EAX,EBX",
+    "0055e57d  0f8625010000  JBE 0x0055e6a8",
+    "0055e583  56  PUSH ESI",
+    "0055e584  a170566a00  MOV EAX,[0x006a5670]",
+    "0055e589  8d54240c  LEA EDX,[ESP + 0xc]",
+    "0055e58d  52  PUSH EDX",
+    "0055e58e  68a4576a00  PUSH 0x6a57a4",
+    "0055e593  6804000100  PUSH 0x10004",
+    "0055e598  6804000100  PUSH 0x10004",
+    "0055e59d  57  PUSH EDI",
+    "0055e59e  50  PUSH EAX",
+    "0055e59f  e8d8670200  CALL 0x00584d7c",
+    "0055e5a4  85c0  TEST EAX,EAX",
+    "0055e5a6  0f85ed000000  JNZ 0x0055e699",
+    "0055e5ac  57  PUSH EDI",
+    "0055e5ad  e82e010000  CALL 0x0055e6e0",
+    "0055e5b2  83c404  ADD ESP,0x4",
+    "0055e5b5  85c0  TEST EAX,EAX",
+    "0055e5b7  0f85dc000000  JNZ 0x0055e699",
+    "0055e5bd  8b0db4576a00  MOV ECX,dword ptr [0x006a57b4]",
+    "0055e5c3  f6413c10  TEST byte ptr [ECX + 0x3c],0x10",
+    "0055e5c7  0f84cc000000  JZ 0x0055e699",
+    "0055e5cd  893d78f45d00  MOV dword ptr [0x005df478],EDI",
+    "0055e5d3  891d9c576a00  MOV dword ptr [0x006a579c],EBX",
+    "0055e5d9  e892fcffff  CALL 0x0055e270",
+    "0055e5de  85c0  TEST EAX,EAX",
+    "0055e5e0  0f84b3000000  JZ 0x0055e699",
+    "0055e5e6  a168466a00  MOV EAX,[0x006a4668]",
+    "0055e5eb  8d54241c  LEA EDX,[ESP + 0x1c]",
+    "0055e5ef  52  PUSH EDX",
+    "0055e5f0  50  PUSH EAX",
+    "0055e5f1  c74424244c000000  MOV dword ptr [ESP + 0x24],0x4c",
+    "0055e5f9  e89f660200  CALL 0x00584c9d",
+    "0055e5fe  85c0  TEST EAX,EAX",
+    "0055e600  0f8588000000  JNZ 0x0055e68e",
+    "0055e606  8b15b4576a00  MOV EDX,dword ptr [0x006a57b4]",
+    "0055e60c  8b0d60eb5d00  MOV ECX,dword ptr [0x005deb60]",
+    "0055e612  51  PUSH ECX",
+    "0055e613  8b4220  MOV EAX,dword ptr [EDX + 0x20]",
+    "0055e616  40  INC EAX",
+    "0055e617  50  PUSH EAX",
+    "0055e618  6878cb5b00  PUSH 0x5bcb78",
+    "0055e61d  e87e36fdff  CALL 0x00531ca0",
+    "0055e622  8b0da0576a00  MOV ECX,dword ptr [0x006a57a0]",
+    "0055e628  8b15b8576a00  MOV EDX,dword ptr [0x006a57b8]",
+    "0055e62e  8d0c49  LEA ECX,[ECX + ECX*0x2]",
+    "0055e631  89448a08  MOV dword ptr [EDX + ECX*0x4 + 0x8],EAX",
+    "0055e635  8b0db4576a00  MOV ECX,dword ptr [0x006a57b4]",
+    "0055e63b  8b5120  MOV EDX,dword ptr [ECX + 0x20]",
+    "0055e63e  52  PUSH EDX",
+    "0055e63f  8b5124  MOV EDX,dword ptr [ECX + 0x24]",
+    "0055e642  03d1  ADD EDX,ECX",
+    "0055e644  52  PUSH EDX",
+    "0055e645  50  PUSH EAX",
+    "0055e646  e855420400  CALL 0x005a28a0",
+    "0055e64b  8b0da0576a00  MOV ECX,dword ptr [0x006a57a0]",
+    "0055e651  8b15b8576a00  MOV EDX,dword ptr [0x006a57b8]",
+    "0055e657  8b35b4576a00  MOV ESI,dword ptr [0x006a57b4]",
+    "0055e65d  83c418  ADD ESP,0x18",
+    "0055e660  8d0449  LEA EAX,[ECX + ECX*0x2]",
+    "0055e663  8b7620  MOV ESI,dword ptr [ESI + 0x20]",
+    "0055e666  8d0482  LEA EAX,[EDX + EAX*0x4]",
+    "0055e669  8b5008  MOV EDX,dword ptr [EAX + 0x8]",
+    "0055e66c  8938  MOV dword ptr [EAX],EDI",
+    "0055e66e  881c32  MOV byte ptr [EDX + ESI*0x1],BL",
+    "0055e671  8b7004  MOV ESI,dword ptr [EAX + 0x4]",
+    "0055e674  33d2  XOR EDX,EDX",
+    "0055e676  395c2430  CMP dword ptr [ESP + 0x30],EBX",
+    "0055e67a  0f94c2  SETZ DL",
+    "0055e67d  33d6  XOR EDX,ESI",
+    "0055e67f  83e201  AND EDX,0x1",
+    "0055e682  33d6  XOR EDX,ESI",
+    "0055e684  41  INC ECX",
+    "0055e685  895004  MOV dword ptr [EAX + 0x4],EDX",
+    "0055e688  890da0576a00  MOV dword ptr [0x006a57a0],ECX",
+    "0055e68e  a168466a00  MOV EAX,[0x006a4668]",
+    "0055e693  50  PUSH EAX",
+    "0055e694  e859640200  CALL 0x00584af2",
+    "0055e699  a174576a00  MOV EAX,[0x006a5774]",
+    "0055e69e  47  INC EDI",
+    "0055e69f  3bf8  CMP EDI,EAX",
+    "0055e6a1  0f82ddfeffff  JC 0x0055e584",
+    "0055e6a7  5e  POP ESI",
+    "0055e6a8  68f4010000  PUSH 0x1f4",
+    "0055e6ad  e88e100000  CALL 0x0055f740",
+    "0055e6b2  8b0d70566a00  MOV ECX,dword ptr [0x006a5670]",
+    "0055e6b8  83c404  ADD ESP,0x4",
+    "0055e6bb  51  PUSH ECX",
+    "0055e6bc  e8f8670200  CALL 0x00584eb9",
+    "0055e6c1  85c0  TEST EAX,EAX",
+    "0055e6c3  5f  POP EDI",
+    "0055e6c4  740a  JZ 0x0055e6d0",
+    "0055e6c6  c7053cd46a008cc95b00  MOV dword ptr [0x006ad43c],0x5bc98c",
+    "0055e6d0  a1a0576a00  MOV EAX,[0x006a57a0]",
+    "0055e6d5  5b  POP EBX",
+    "0055e6d6  83c45c  ADD ESP,0x5c",
+    "0055e6d9  c3  RET"
+  ],
+  "index_queries": [
+    "0055e4d0",
+    "0055df80",
+    "00584ce0",
+    "00584d7c",
+    "00584c9d",
+    "00584eb9",
+    "00584af2",
+    "0055e270",
+    "0055e6e0",
+    "005deb60",
+    "006a57a0",
+    "006a57b8"
+  ],
+  "accepted_entry_body_overlap_hits": [],
+  "ownership": {
+    "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/ownership.json",
+    "sha256": "79407eef782e3ad84a30477c06d3daf963fbd229e11ff06c134f87bfb5838455"
+  },
+  "new_mutable_state": [
+    "modem_selected_device_005df478",
+    "modem_line_006a4668",
+    "modem_application_006a5670",
+    "modem_line_count_006a5774",
+    "modem_open_mode_006a579c",
+    "modem_api_version_006a57a4",
+    "modem_capabilities_006a57b4",
+    "modem_message_006ad43c"
+  ],
+  "canonical_state": {
+    "005deb60": {
+      "symbol": "render_descriptor_flags_005deb60",
+      "owner": {
+        "path": "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp",
+        "sha256": "6df03666b1746c00020d473be445f91b601973f2863c6e8821d87f6a4fb2fc65"
+      },
+      "fixture": "Actual374 owner linked; no new403 copy/alias; unrelated renderer consumers fail closed."
+    },
+    "006a57a0/006a57b8": {
+      "owner": {
+        "path": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+        "sha256": "4e0c032fcc2201ded5956a87a33a1fc0c19d773bf595795923944f68562206b1"
+      },
+      "fixture": "Actual401 count/pointer/getter/clear owner linked; no second definitions."
+    }
+  },
+  "raw_data": [
+    {
+      "token": "@SELECTOR@",
+      "va": "005deb60",
+      "bytes": 4,
+      "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+      "raw_hex": "00000000"
+    },
+    {
+      "token": "@SELECTED@",
+      "va": "005df478",
+      "bytes": 4,
+      "sha256": "ad95131bc0b799c0b1af477fb14fcf26a6a9f76079e48bf090acb7e8367bfd0e",
+      "raw_hex": "ffffffff"
+    },
+    {
+      "token": "@ERROR@",
+      "va": "005bc98c",
+      "bytes": 21,
+      "sha256": "e5e57e9b7c7458e91b9d48fd3d8a4acc7340ee2f16fcd5cafa09eb78ba840075",
+      "raw_hex": "6c696e6553687574646f776e206661696c65640a00"
+    },
+    {
+      "token": "@TABLE_NAME@",
+      "va": "005bcb84",
+      "bytes": 9,
+      "sha256": "a65114bcfbc8ca27ff73c89eebb0c731ca5e70a03d7eeda80cef9eacc73fbd48",
+      "raw_hex": "6d6f64656d42756600"
+    },
+    {
+      "token": "@TEXT_NAME@",
+      "va": "005bcb78",
+      "bytes": 9,
+      "sha256": "7a86a7aa2923ca9f020292551ba751f42a675406c1443d0e323296bfd270333b",
+      "raw_hex": "746170696e616d6500"
+    }
+  ],
+  "rea_reuse": {
+    "validation": {
+      "path": "iterations/v2/001-original-recovery/runs/401-device-table/validation.json",
+      "sha256": "807e325af9496494914afe6251e6c5cb96e4e72080b1c6f7404975a312be7403"
+    },
+    "dossier": {
+      "path": "local/experiments/v2-device-table-401-rea/002/function-0055e4d0.json",
+      "sha256": "076e70c8f186b988cb33774427fe0b1f424c86b5a10c1501f53c931d7a0088d9"
+    },
+    "note": "Existing401/002 dossier reused; later401/003 native config normalization does not alter enumeration REA body."
+  },
+  "wrapper_contracts": [
+    {
+      "va": "00584ce0",
+      "bytes": 78,
+      "sha256": "26e2642252f22ada12756624c89044e0532e946d6c1fe6c16b8574fb603e4ff5",
+      "stdcall_stack_bytes": 20,
+      "export_name": "lineInitialize",
+      "export_name_va": "005c1288",
+      "status": "Unrecovered real lazy-binding wrapper; typed extern and controlled fixture boundary, not direct host TAPI substitute."
+    },
+    {
+      "va": "00584d7c",
+      "bytes": 81,
+      "sha256": "238bda79646edfdd8323e69e20b3f2fa95e67fad7d5ede2367dd0724baee2eb0",
+      "stdcall_stack_bytes": 24,
+      "export_name": "lineNegotiateAPIVersion",
+      "export_name_va": "005c12a8",
+      "status": "Unrecovered real lazy-binding wrapper; typed extern and controlled fixture boundary, not direct host TAPI substitute."
+    },
+    {
+      "va": "00584c9d",
+      "bytes": 67,
+      "sha256": "0690dafc5a689b072598059f8eb156efcb59fe951b65045633e905206278e256",
+      "stdcall_stack_bytes": 8,
+      "export_name": "lineGetLineDevStatus",
+      "export_name_va": "005c1270",
+      "status": "Unrecovered real lazy-binding wrapper; typed extern and controlled fixture boundary, not direct host TAPI substitute."
+    },
+    {
+      "va": "00584eb9",
+      "bytes": 63,
+      "sha256": "183f6999f541f02d7d1d67c960860da2fa3c7da7ca0885dd51dc0e46fcb807d7",
+      "stdcall_stack_bytes": 4,
+      "export_name": "lineShutdown",
+      "export_name_va": "005c12f8",
+      "status": "Unrecovered real lazy-binding wrapper; typed extern and controlled fixture boundary, not direct host TAPI substitute."
+    },
+    {
+      "va": "00584af2",
+      "bytes": 63,
+      "sha256": "df2ddd60adcbe4caceb7fea2de28cf28efd7663372c2574b231e711b8e39a471",
+      "stdcall_stack_bytes": 4,
+      "export_name": "lineClose",
+      "export_name_va": "005c1214",
+      "status": "Unrecovered real lazy-binding wrapper; typed extern and controlled fixture boundary, not direct host TAPI substitute."
+    }
+  ],
+  "other_children": [
+    {
+      "va": "0055e6e0",
+      "abi": "cdecl one DWORD, full signed result, zero success",
+      "status": "Real unresolved capabilities consumer."
+    },
+    {
+      "va": "0055e270",
+      "abi": "cdecl noargs, nonzero success including negative",
+      "status": "Real unresolved line-open consumer."
+    }
+  ],
+  "callback": {
+    "va": "0055df80",
+    "bytes": 629,
+    "sha256": "725d07a58aaf004562a9bc0039ff3767577a1916f6fdd6603e9a5901e12e55bd",
+    "symbol": "modem_callback_0055df80",
+    "abi": "void __stdcall(six DWORD), exact RET24; x86 LINECALLBACK",
+    "sdk_header": {
+      "path": "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um/tapi.h",
+      "sha256": "75edfa5948559f22df206fc15bc291ef187023f86e5d8edc81108ccb869e0b74"
+    },
+    "raw_return_sites": [
+      "0055dfe6  c21800  RET 0x18",
+      "0055e036  c21800  RET 0x18",
+      "0055e06a  c21800  RET 0x18",
+      "0055e0c3  c21800  RET 0x18",
+      "0055e0e1  c21800  RET 0x18",
+      "0055e0fd  c21800  RET 0x18",
+      "0055e148  c21800  RET 0x18",
+      "0055e164  c21800  RET 0x18",
+      "0055e180  c21800  RET 0x18",
+      "0055e19c  c21800  RET 0x18",
+      "0055e1bd  c21800  RET 0x18",
+      "0055e1f2  c21800  RET 0x18"
+    ],
+    "entry_references": [
+      "0055df45",
+      "0055e4f0"
+    ],
+    "coverage": "No independent function catalog entry; decoded629B span0055df80..0055e1f4 and jump-table data are navigation evidence only. Implementation remains unresolved.",
+    "fixture": "Actual typed callback address is installed, compared and invoked with six controlled DWORDs; effects recorded. No raw token to arbitrary host pointer mapping; no callback stub in game."
+  },
+  "native_receipt": {
+    "path": "local/experiments/v2-modem-enumeration-native-403/003/receipt.json",
+    "sha256": "f0d921f8deb54b25618285fea719f52e05a02603ab779c32382faaf63c02a560"
+  },
+  "native_counts": {
+    "per_optimization": 2952,
+    "optimizations": [
+      "/Od",
+      "/O2"
+    ],
+    "total": 5904,
+    "checks_per_optimization": 11808,
+    "mutations": 8
+  },
+  "relocations": {
+    "path": "local/experiments/v2-modem-enumeration-403/relocations.json",
+    "sha256": "4dfdbffb19be623cf1500ed1e0edd60e386027903f9d3f4f52659a7ace630acc"
+  },
+  "oracle": "All522B retained;35 PE HIGHLOW operand sites and15 directCALL targets checked before relocation; literal callback token bound only to its exact typed real provider. Real GetWindowLongA import hooked through own EXE IAT.",
+  "checks": [
+    "GetWindowLongA(HWND,-6), original HINSTANCE bits, initialization callback identity/arguments, reset-count timing",
+    "line counts0/1/2/5/20 and every skip/success branch; zero/nonzero/negative child returns; busy status bits",
+    "240B allocation and20 sparse12B entries: only+0/+8 cleared, +4 bytes stay allocator-provided; flag update changes only bit0",
+    "92B uninitialized local retains16B extension and76B status at+16; only totalSize76 set by caller; fixture initializes only consumed status+20 DWORD on success",
+    "Canonical copy_n, capabilities name length/offset, explicit terminal NUL, complete guard/table/caps/name bytes",
+    "Late child changes to linecount, tablepointer/count, capabilities, linehandle, apphandle and finalcount; original reloads and zero-device constant return",
+    "Sleep500 and app reload before shutdown; exact error host string pointer only on nonzero shutdown",
+    "ESP/nonvolatiles/EAX, event order/args/strings and callback-visible global snapshots"
+  ],
+  "domain": "Allocator/table/name/caps spans mapped and initialized; at most20 accepted entries; successful status endpoint initializes consumed DWORD+20; extension/status other bytes remain opaque and unobserved.",
+  "holds": [
+    "Unwritten success status+20, indeterminate allocator flag bytes, other sparse stack bytes; no zero fill or invented normalization",
+    "More than20 accepted entries, allocator failure/null, malformed caps offsets/lengths and arbitrary aliases; original has no guards and no clamp added",
+    "Actual callback629B, lazy TAPI wrappers, capabilities/open child algorithms and real TAPI behavior not proved by endpoint transport",
+    "Computed aliases/concurrent writes, whole-network/game/startup/visual acceptance"
+  ],
+  "mutation_controls": [
+    {
+      "name": "callback-argument",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "ce5774fefcfa7e500f108fdff34d2fc89492754ae1b0bba0f21ebc3ca39efedf"
+    },
+    {
+      "name": "reset-count",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "b124dbf67820e5862a5a91ae2bae0d783b9178d09a5b3c601608c5a19abc7e52"
+    },
+    {
+      "name": "feature-bit",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "12a5b4e7aae595b172233cfa49856cc15f60452f2199281f27b32ae44b294810"
+    },
+    {
+      "name": "status-size",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 98,
+      "log_sha256": "8ecb9d9398d03e85998eb0a286c50e51fed4532fcd56bbc62a0d38304d482d7e"
+    },
+    {
+      "name": "flag-upper-bits",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "98ec954954fb5b6c20505a755550de274ecaf7e42ffecf0693066f425d200c63"
+    },
+    {
+      "name": "line-close-reload",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "57ab4d241ff81d743c1069f630022d6b2e8a9fb4c7aa946ca6d95678f373c1cb"
+    },
+    {
+      "name": "name-terminator",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "98ec954954fb5b6c20505a755550de274ecaf7e42ffecf0693066f425d200c63"
+    },
+    {
+      "name": "shutdown-return",
+      "source": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "03fec4e31fd6408276b023a188728f6f811368fd30ed2b24846ca560e4004378"
+    }
+  ],
+  "coff_evidence": {
+    "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/coff-evidence.json",
+    "sha256": "a5073fda54d90cb40e79054e9f8a95f30dcee8564e282b9a5eb3e6de66dcf535"
+  },
+  "attempts": {
+    "001": "Fixture raw check mistakenly used pointer conversion instead of byte load; fixed without production change.",
+    "002": "Historical bounded algorithm candidate only; had forbidden duplicate005deb60 owner. Four exact inputs archived before correction, not accepted or reused as current proof.",
+    "003": "Final corrected native proof links actual374/401 owners; PASS5904/eight mutations; inputs frozen."
+  },
+  "archive002": {
+    "path": "local/experiments/v2-modem-enumeration-403/archive-002-inputs/manifest.json",
+    "sha256": "dea417b53e0cfafce632b930a5b76a2bf364c84ff49d1bab9409ee16bfb1dd40"
+  }
+}

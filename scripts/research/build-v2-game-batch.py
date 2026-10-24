@@ -28,12 +28,30 @@ def main():
     driver.RUN.relative_to(ROOT / 'iterations/v2/001-original-recovery/runs')
     driver.BUILD.relative_to(ROOT / 'local/builds/v2')
     driver.OUT.relative_to(ROOT / 'local/experiments')
+    # The receipt scanner must resolve the same explicit repo include paths as
+    # CMake, including shared headers owned by prior run directories.
+    import v2_source_dependencies as dependencies
+    extra_includes = tuple((ROOT / item).resolve() for item in cfg.get('source_include_dirs', []))
+    for directory in extra_includes:
+        directory.relative_to(ROOT)
+        assert directory.is_dir(), directory
+    dependencies.EXTRA_INCLUDE_DIRS = extra_includes
     source_hashes = driver.source_hashes
 
     def pins(paths, compiled_sources=()):
         # CMake supplies the complete generation dependencies, including nested
         # historical run CMakeLists. Avoid another hardcoded chain per batch.
         cmake = set()
+        if extra_includes:
+            import xml.etree.ElementTree as ET
+            declared = set()
+            for project in driver.BUILD.rglob('*.vcxproj'):
+                for node in ET.parse(project).iter():
+                    if node.tag.rsplit('}', 1)[-1] == 'AdditionalIncludeDirectories':
+                        for item in (node.text or '').split(';'):
+                            if item and '$' not in item and '%' not in item and Path(item).is_absolute():
+                                declared.add(Path(item).resolve())
+            assert set(extra_includes) <= declared, 'Receipt include paths must be declared by CMake'
         iteration = ROOT / 'iterations/v2/001-original-recovery'
         for stamp in driver.BUILD.glob('**/generate.stamp.depend'):
             for line in stamp.read_text(encoding='utf8').splitlines():

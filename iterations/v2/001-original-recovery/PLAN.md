@@ -1,13 +1,31 @@
 # v2 / 001 - original source recovery plan
 
+Current407,2026-10-25: corrected403 enumeration522B integratedPARTIAL.5904cases/
+8mutations/550pins PASS;221TUs197names205refs,noEXE. Canonical374selector reused;
+no duplicate state. Sharedreceipt helper now resolves pinned CMake include dirs,
+withfivefocusedchecks; native403/003 stayedfrozen. Build001missinginclude receipt
+failure preserved; final002 compiles allsources. Eight real childnames exposed.
+408fivewrappers352B and410caps/open389B independentlyPASS/frozen; bothworkers done.
+Coordinator owns next sharedintake. Root/opaque/sparse/livegame holds remainopen.
+
+Open-Unleashed userreview: isolatedcommitb0ec06e inspected; substantial nativeRust
+port withoriginal-address maps, Windowsv0.1.4release.131physicsconstants match our
+PE exactly; scenarios stillself-regression, REdossier absent, knownmath/RNG/AI gaps.
+No codecopied/executed orlicensechanged; next practicalcomparison is isolatedlaunch.
+GitHub MCP/search request remains deferred aftercurrentiteration asuserrequested.
+
+Historical406 follows.
+
 Current406,2026-10-24:405 originalfiledelete/view73B and404threeWin32facades
 integrated.8570nativecases/11mutations and547-pin audit PASS.220TUs/8projects
 compile;190names198refs,noEXE. Fiveoldnamesclose/no newdependency; canonical
 physicalstate andSetLastError provider reused. Facades add0originalalgorithmcount.
 404/405 inputsfrozen, no passedproof rerun. RealOS/process/delete/fullgame remainHOLD.
-403 worker finished522B modemconsumer native002:5904cases/8mutations; finalhandoff
-pending. It stays separate from frozen406; coordinator owns next407 intake after
-ownership/COFF review.399/404 worker complete, no further assignment. Rootiteration
+403 native002 candidate passed5904cases/8mutations but ownership review found
+duplicate005deb60 already owned by374 render_descriptor_flags. Worker corrects
+that binding and revalidates before407 intake;002 is historicalcandidate, not
+production acceptance.408 worker independently recovers five originalTAPIwrappers.
+Coordinator owns407 intake; skill now requires full run-owned source/header lookup. Rootiteration
 stillopen; GitHub MCP/search remains queued aftercurrentiteration.
 
 Historical402 checkpoint follows.

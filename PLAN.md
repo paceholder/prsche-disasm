@@ -1,10 +1,10 @@
 # План восстановления Porsche Unleashed
 
-Current [Run406](iterations/v2/001-original-recovery/runs/406-platform-file-integration/README.md):
-220 C++ TUs/8 projects compile;190 unresolved names/198 refs,no EXE. Two original
-file consumers and three startup API bindings close five names, no new dependencies.
-8570 nativecases/11mutations and547-pin audit PASS. Next:403 modem enumeration;
-GitHub MCP/search discoverability remain deferred until after the current iteration.
+Current [Run407](iterations/v2/001-original-recovery/runs/407-modem-integration/README.md):
+221 C++ TUs/8 projects compile;197 unresolved names/205 refs,no EXE. Original
+modem enumeration integrated with explicit partial domains after5904 nativecases/
+8mutations;550-pin audit PASS. Eight real child dependencies are now visible.
+Next: passed408/410 intake; GitHub MCP/search remains deferred until afteriteration.
 
 Older checkpoints below are historical.
 
