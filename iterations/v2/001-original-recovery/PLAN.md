@@ -10,10 +10,13 @@ nativeproof repeated. Rootv2/001 remains open; no livegame/visual acceptance.
 Separate395 research: two transportdriverinitializers005607d0/00560a90, not option
 parsers. Native bounded candidate proof exists; descriptor/registry storage and
 completecallbackbindings remain unproved and MUST NOT enter the game graph.
-395 labels are corrected from original descriptor names; finalhandoff pending.
-396 worker complete;395 worker finishes handoff only, no further subtasks.
+395 final002 PASS:4608 four-call sequences/variant,18432 calls/variant,6mutations;
+170 receipt pins verified unchanged. Research-only archive; no game/registry intake.
+Active owners: network_constructor_391 traces399 descriptor/registry ownership;
+diagnostic_terminal_390 recovers400 debug predicate/gate; coordinator traces
+0055eb70 table accessor/initialization and owns shared intake.
 Next concrete recovery: descriptor lifecycle/consumer/ABI ownership for original
-transport tables, then actual child composition. Do not fillunknownslots withzero,
+transport tables, debug runtime and actual child composition. Do not fillunknownslots withzero,
 map raworiginalfunctionVAs to hostpointers or define independentinteriorcells.
 
 USER QUEUE2026-10-24, aftercurrentrecoveryiteration checkpoint: verify/connect

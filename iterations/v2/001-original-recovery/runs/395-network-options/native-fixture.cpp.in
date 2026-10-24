@@ -1,0 +1,141 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "network_options.hpp"
+#include "porsche/file_threads.hpp"
+#include "porsche/heap.hpp"
+using U=std::uint32_t;using B=std::uint8_t;
+static const B udp_raw[108]={@UDP@},ipx_raw[164]={@IPX@},udp_descriptor_raw[96]={@UDP_DESCRIPTOR@},ipx_descriptor_raw[96]={@IPX_DESCRIPTOR@},context_raw[16]={@CONTEXT@};
+static B *code,*udp_code,*ipx_code;static U cases,checks,lock_mode,wsa_result,udp_result,open_result,mode;
+static const char labels[2][8]={"UDPnew","IPXnew"};
+static U address(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static void* pointer(U token){return reinterpret_cast<void*>(static_cast<std::uintptr_t>(token));}
+static void die(const char* why,U detail=0){std::printf("fixture %s %08x\n",why,detail);std::fflush(stdout);ExitProcess(98);}
+namespace porsche {
+// All are controlled external views. No game source defines these cells here.
+void* thread_start_lock_006a57d8=nullptr;
+U network_udp_initialized_006a5b30=0,network_ipx_initialized_006a5bb4=0,network_transport_count_006abe3c=0;
+U network_transport_descriptors_006b4aa0[8]{},network_transport_contexts_006b4ae0[8]{};
+U network_udp_descriptor_005df6b0[24]{},network_ipx_descriptor_005df710[24]{};
+B network_transport_context_005e1cf0[16]{};
+}
+struct State{U lock,udp,ipx,count,descriptors[8],contexts[8],udp_descriptor[24],ipx_descriptor[24];B context[16];};
+static State state(){using namespace porsche;State s{};s.lock=address(thread_start_lock_006a57d8);s.udp=network_udp_initialized_006a5b30;s.ipx=network_ipx_initialized_006a5bb4;s.count=network_transport_count_006abe3c;
+    std::memcpy(s.descriptors,network_transport_descriptors_006b4aa0,sizeof s.descriptors);std::memcpy(s.contexts,network_transport_contexts_006b4ae0,sizeof s.contexts);
+    std::memcpy(s.udp_descriptor,network_udp_descriptor_005df6b0,sizeof s.udp_descriptor);std::memcpy(s.ipx_descriptor,network_ipx_descriptor_005df710,sizeof s.ipx_descriptor);std::memcpy(s.context,network_transport_context_005e1cf0,16);return s;}
+struct Event{U kind,a,b,c;State before;};static Event events[24];static U event_count;
+static void event(U kind,U a=0,U b=0,U c=0){if(event_count==24)die("events");events[event_count++]={kind,a,b,c,state()};}
+static U __cdecl open_alternate(U,U,U);static U __cdecl close_alternate(U);
+static U __cdecl open_endpoint(U first,U second,U third){using namespace porsche;event(3,first,second,third);
+    if(mode&2){network_ipx_descriptor_005df710[8]=address(reinterpret_cast<const void*>(&close_alternate));network_transport_count_006abe3c=3;network_ipx_initialized_006a5bb4=0x87654321;}
+    return open_result;
+}
+static U __cdecl close_endpoint(U value){using namespace porsche;event(4,value);
+    if(mode&2){network_transport_count_006abe3c=2;network_ipx_initialized_006a5bb4=0;network_ipx_descriptor_005df710[0]=0x76543210;}
+    return 0xa9876543;
+}
+static U __cdecl open_alternate(U first,U second,U third){event(6,first,second,third);return open_endpoint(first,second,third);}
+static U __cdecl close_alternate(U value){event(7,value);return close_endpoint(value);}
+namespace porsche {
+void* __cdecl heap_lock_create_005321f0(){event(1);
+    if(mode&1){network_udp_initialized_006a5b30^=0x80000000u;network_ipx_initialized_006a5bb4^=0x80000000u;network_transport_count_006abe3c=1;thread_start_lock_006a57d8=pointer(0xabcdef01);}
+    return lock_mode==2?nullptr:pointer(0x82736451);
+}
+U __cdecl network_udp_start_005839d0(){event(2);
+    if(mode&2){network_udp_initialized_006a5b30=0x80000000;network_transport_count_006abe3c=3;network_udp_descriptor_005df6b0[0]=0x12345678;}
+    return udp_result;
+}
+std::int32_t __stdcall network_wsa_startup_005894e6(std::uint16_t version,void* data){event(5,version,data?1:0);
+    if(version!=0x101||!data)die("startup-arguments");
+    // Do not read the original uninitialized stack bytes. Controlled partial
+    // writes fit its exact400B WSADATA span; the caller never consumes it.
+    U n=(mode&1)?400:17;for(U i=0;i<n;++i)static_cast<B*>(data)[i]=static_cast<B>(0x7d+13*i);
+    if(mode&2){network_ipx_initialized_006a5bb4=0x80000000;network_transport_count_006abe3c=1;network_ipx_descriptor_005df710[7]=address(reinterpret_cast<const void*>(&open_alternate));}
+    return static_cast<std::int32_t>(wsa_result);
+}
+std::int32_t __stdcall network_wsa_cleanup_005894e0(){event(8);
+    if(mode&2){network_ipx_initialized_006a5bb4^=0x80000000u;network_transport_count_006abe3c=1;network_transport_context_005e1cf0[0]^=0x87;}
+    return static_cast<std::int32_t>(0xabcdef01);
+}
+}
+static void patch(B* body,U bytes,U before,U after,U expected){U n=0;for(U i=0;i+4<=bytes;++i)if(word(body+i)==before){put(body+i,after);++n;i+=3;}if(n!=expected)die("relocation",before);}
+static void call(B* body,U base,U bytes,U site,U target,const void* replacement){U offset=site-base;
+    if(offset+5>bytes||body[offset]!=0xe8||site+5+word(body+offset+1)!=target)die("callsite",site);put(body+offset+1,address(replacement)-address(body+offset+5));}
+static void install(){using namespace porsche;
+    if(word(udp_descriptor_raw)!=0x5d07c0||word(ipx_descriptor_raw)!=0x5d07c4||word(ipx_descriptor_raw+28)!=0x560840||word(ipx_descriptor_raw+32)!=0x587860)die("raw-descriptor-identity");
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");udp_code=code;ipx_code=code+256;
+    std::memcpy(udp_code,udp_raw,108);std::memcpy(ipx_code,ipx_raw,164);
+    for(U variant=0;variant<2;++variant){B* body=variant?ipx_code:udp_code;U n=variant?164:108;
+        patch(body,n,0x6a57d8,address(&thread_start_lock_006a57d8),2);
+        patch(body,n,variant?0x6a5bb4:0x6a5b30,address(variant?&network_ipx_initialized_006a5bb4:&network_udp_initialized_006a5b30),3);
+        patch(body,n,0x6abe3c,address(&network_transport_count_006abe3c),2);
+        patch(body,n,0x6b4aa0,address(network_transport_descriptors_006b4aa0),1);patch(body,n,0x6b4ae0,address(network_transport_contexts_006b4ae0),1);
+        patch(body,n,variant?0x5df710:0x5df6b0,address(variant?network_ipx_descriptor_005df710:network_udp_descriptor_005df6b0),2);
+        patch(body,n,0x5e1cf0,address(network_transport_context_005e1cf0),1);
+        patch(body,n,variant?0x5df714:0x5df6b4,address((variant?network_ipx_descriptor_005df710:network_udp_descriptor_005df6b0)+1),1);
+    }
+    patch(ipx_code,164,0x5df72c,address(network_ipx_descriptor_005df710+7),1);patch(ipx_code,164,0x5df730,address(network_ipx_descriptor_005df710+8),1);
+    call(udp_code,0x5607d0,108,0x5607d9,0x5321f0,reinterpret_cast<const void*>(&heap_lock_create_005321f0));
+    call(udp_code,0x5607d0,108,0x5607ec,0x5839d0,reinterpret_cast<const void*>(&network_udp_start_005839d0));
+    call(ipx_code,0x560a90,164,0x560a9f,0x5321f0,reinterpret_cast<const void*>(&heap_lock_create_005321f0));
+    call(ipx_code,0x560a90,164,0x560abc,0x5894e6,reinterpret_cast<const void*>(&network_wsa_startup_005894e6));
+    call(ipx_code,0x560a90,164,0x560b1a,0x5894e0,reinterpret_cast<const void*>(&network_wsa_cleanup_005894e0));
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),code,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static Capture invoke(const void* fn,U argument){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,0abc98765h
+        push argument
+        call fn
+        add esp,4
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;}
+static bool abi(const Capture& r){++checks;return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1;}
+static void reset(U udp,U ipx){using namespace porsche;thread_start_lock_006a57d8=lock_mode==1?pointer(0x79314682):nullptr;
+    network_udp_initialized_006a5b30=udp?0x80000000:0;network_ipx_initialized_006a5bb4=ipx?0x80000000:0;network_transport_count_006abe3c=udp+ipx;
+    for(U i=0;i<8;++i){network_transport_descriptors_006b4aa0[i]=0x53216780+13*i;network_transport_contexts_006b4ae0[i]=0xa7913645-17*i;}
+    std::memcpy(network_udp_descriptor_005df6b0,udp_descriptor_raw,96);std::memcpy(network_ipx_descriptor_005df710,ipx_descriptor_raw,96);std::memcpy(network_transport_context_005e1cf0,context_raw,16);
+    network_ipx_descriptor_005df710[7]=address(reinterpret_cast<const void*>(&open_endpoint));network_ipx_descriptor_005df710[8]=address(reinterpret_cast<const void*>(&close_endpoint));
+    event_count=0;std::memset(events,0,sizeof events);
+}
+struct Result{State final_state;Event events[24];U count,returns[4],abi;};
+static Result execute(bool recovered,U udp,U ipx,U sequence,U name_mode){using namespace porsche;reset(udp,ipx);Result r{};r.abi=1;
+    const U sequences[4][4]={{0,0,1,1},{1,1,0,0},{0,1,0,1},{1,0,1,0}};const U invalid[4]={1,0xffffffffu,0x80000000u,7};
+    for(U i=0;i<4;++i){U kind=sequences[sequence][i],name=name_mode==0?0:name_mode==1?invalid[i]:address(labels[i&1]);
+        const void* fn=recovered?(kind?reinterpret_cast<const void*>(&network_option_integer_00560a90):reinterpret_cast<const void*>(&network_option_present_005607d0)):(kind?ipx_code:udp_code);
+        auto result=invoke(fn,name);if(!abi(result))r.abi=0;r.returns[i]=result.eax;if(network_transport_count_006abe3c>7)die("proof-index-domain");}
+    r.final_state=state();r.count=event_count;std::memcpy(r.events,events,sizeof events);return r;
+}
+int main(){install();
+    for(U udp=0;udp<2;++udp)for(U ipx=0;ipx<2;++ipx)for(U lock=0;lock<3;++lock)for(U status=0;status<2;++status)
+    for(U udp_ok=0;udp_ok<2;++udp_ok)for(U open_ok=0;open_ok<2;++open_ok)for(U child_mode=0;child_mode<4;++child_mode)
+    for(U sequence=0;sequence<4;++sequence)for(U name=0;name<3;++name){
+        lock_mode=lock;wsa_result=status?0x80000000:0;udp_result=udp_ok?0x80000000:0;open_result=open_ok?0xf7913562:0;mode=child_mode;
+        auto original=execute(false,udp,ipx,sequence,name);auto recovered=execute(true,udp,ipx,sequence,name);
+        if(!original.abi||!recovered.abi||std::memcmp(&original,&recovered,sizeof original)){
+            std::printf("divergence udp=%u ipx=%u lock=%u status=%u udpok=%u openok=%u mode=%u sequence=%u name=%u calls=%u/%u\n",udp,ipx,lock,status,udp_ok,open_ok,mode,sequence,name,original.count,recovered.count);return 1;}
+        ++cases;checks+=2;
+    }
+    std::printf("network_options_original_vs_cpp=PASS sequences=%u function_calls=%u checks=%u\n",cases,cases*4,checks);return 0;
+}

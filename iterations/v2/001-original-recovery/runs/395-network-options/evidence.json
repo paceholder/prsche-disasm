@@ -1,0 +1,722 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "status": "bounded-native-verified researchcandidate; NOT gameintake",
+  "semantic_correction": "Frozen391names integeroption/presentoption do not describeoriginal behavior: IPX/WSA andUDPinitializers returnzero ordescriptorGUIDaddress+4; optionalarg replacesname onlyatfirstsuccessfulregistration. No commandlineparser/search.",
+  "query": [
+    "005607d0",
+    "00560a90",
+    "00560840",
+    "00587860",
+    "005839d0",
+    "005801b0",
+    "00582240",
+    "005df6b0..005df76f",
+    "006b4aa0",
+    "006b4ae0",
+    "006abe3c"
+  ],
+  "bodies": [
+    {
+      "va": "005607d0",
+      "bytes": 108,
+      "sha256": "0b961d81423e7b2cbace8ed473ff4941f3603ff02b54aeccc92a0337aba6a800",
+      "raw_hex": "a1d8576a0085c0750ae8121afdffa3d8576a00a1305b6a0085c07541e8df31020085c07438a13cbe6a00c705305b6a0001000000c70485a04a6b00b0f65d00c70485e04a6b00f01c5e0040a33cbe6a008b44240485c07405a3b0f65d00a1305b6a00f7d81bc025b4f65d00c3",
+      "indexed": {
+        "entry_va": "005607d0",
+        "name": "FUN_005607d0",
+        "signature": "undefined FUN_005607d0(void)",
+        "ranges": [
+          [
+            "005607d0",
+            "0056083b"
+          ]
+        ],
+        "body_bytes": 108,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "005607d0  a1d8576a00  MOV EAX,[0x006a57d8]",
+        "005607d5  85c0  TEST EAX,EAX",
+        "005607d7  750a  JNZ 0x005607e3",
+        "005607d9  e8121afdff  CALL 0x005321f0",
+        "005607de  a3d8576a00  MOV [0x006a57d8],EAX",
+        "005607e3  a1305b6a00  MOV EAX,[0x006a5b30]",
+        "005607e8  85c0  TEST EAX,EAX",
+        "005607ea  7541  JNZ 0x0056082d",
+        "005607ec  e8df310200  CALL 0x005839d0",
+        "005607f1  85c0  TEST EAX,EAX",
+        "005607f3  7438  JZ 0x0056082d",
+        "005607f5  a13cbe6a00  MOV EAX,[0x006abe3c]",
+        "005607fa  c705305b6a0001000000  MOV dword ptr [0x006a5b30],0x1",
+        "00560804  c70485a04a6b00b0f65d00  MOV dword ptr [EAX*0x4 + 0x6b4aa0],0x5df6b0",
+        "0056080f  c70485e04a6b00f01c5e00  MOV dword ptr [EAX*0x4 + 0x6b4ae0],0x5e1cf0",
+        "0056081a  40  INC EAX",
+        "0056081b  a33cbe6a00  MOV [0x006abe3c],EAX",
+        "00560820  8b442404  MOV EAX,dword ptr [ESP + 0x4]",
+        "00560824  85c0  TEST EAX,EAX",
+        "00560826  7405  JZ 0x0056082d",
+        "00560828  a3b0f65d00  MOV [0x005df6b0],EAX",
+        "0056082d  a1305b6a00  MOV EAX,[0x006a5b30]",
+        "00560832  f7d8  NEG EAX",
+        "00560834  1bc0  SBB EAX,EAX",
+        "00560836  25b4f65d00  AND EAX,0x5df6b4",
+        "0056083b  c3  RET"
+      ]
+    },
+    {
+      "va": "00560a90",
+      "bytes": 164,
+      "sha256": "5dcadf8934848213954e5603e9ee994ffc5d82abe054268aed94fa83719c76bf",
+      "raw_hex": "a1d8576a0081ec9001000085c0750ae84c17fdffa3d8576a00a1b45b6a0085c0756d8d442400506801010000e8258a020085c0755a505050ff152cf75d0083c40c85c0744550c705b45b6a0001000000ff1530f75d00a13cbe6a0083c404c70485a04a6b0010f75d00c70485e04a6b00f01c5e0040a33cbe6a008b84249401000085c07405a310f75d00e8c1890200a1b45b6a00f7d81bc02514f75d0081c490010000c3",
+      "indexed": {
+        "entry_va": "00560a90",
+        "name": "FUN_00560a90",
+        "signature": "undefined FUN_00560a90(void)",
+        "ranges": [
+          [
+            "00560a90",
+            "00560b33"
+          ]
+        ],
+        "body_bytes": 164,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "00560a90  a1d8576a00  MOV EAX,[0x006a57d8]",
+        "00560a95  81ec90010000  SUB ESP,0x190",
+        "00560a9b  85c0  TEST EAX,EAX",
+        "00560a9d  750a  JNZ 0x00560aa9",
+        "00560a9f  e84c17fdff  CALL 0x005321f0",
+        "00560aa4  a3d8576a00  MOV [0x006a57d8],EAX",
+        "00560aa9  a1b45b6a00  MOV EAX,[0x006a5bb4]",
+        "00560aae  85c0  TEST EAX,EAX",
+        "00560ab0  756d  JNZ 0x00560b1f",
+        "00560ab2  8d442400  LEA EAX,[ESP]",
+        "00560ab6  50  PUSH EAX",
+        "00560ab7  6801010000  PUSH 0x101",
+        "00560abc  e8258a0200  CALL 0x005894e6",
+        "00560ac1  85c0  TEST EAX,EAX",
+        "00560ac3  755a  JNZ 0x00560b1f",
+        "00560ac5  50  PUSH EAX",
+        "00560ac6  50  PUSH EAX",
+        "00560ac7  50  PUSH EAX",
+        "00560ac8  ff152cf75d00  CALL dword ptr [0x005df72c]",
+        "00560ace  83c40c  ADD ESP,0xc",
+        "00560ad1  85c0  TEST EAX,EAX",
+        "00560ad3  7445  JZ 0x00560b1a",
+        "00560ad5  50  PUSH EAX",
+        "00560ad6  c705b45b6a0001000000  MOV dword ptr [0x006a5bb4],0x1",
+        "00560ae0  ff1530f75d00  CALL dword ptr [0x005df730]",
+        "00560ae6  a13cbe6a00  MOV EAX,[0x006abe3c]",
+        "00560aeb  83c404  ADD ESP,0x4",
+        "00560aee  c70485a04a6b0010f75d00  MOV dword ptr [EAX*0x4 + 0x6b4aa0],0x5df710",
+        "00560af9  c70485e04a6b00f01c5e00  MOV dword ptr [EAX*0x4 + 0x6b4ae0],0x5e1cf0",
+        "00560b04  40  INC EAX",
+        "00560b05  a33cbe6a00  MOV [0x006abe3c],EAX",
+        "00560b0a  8b842494010000  MOV EAX,dword ptr [ESP + 0x194]",
+        "00560b11  85c0  TEST EAX,EAX",
+        "00560b13  7405  JZ 0x00560b1a",
+        "00560b15  a310f75d00  MOV [0x005df710],EAX",
+        "00560b1a  e8c1890200  CALL 0x005894e0",
+        "00560b1f  a1b45b6a00  MOV EAX,[0x006a5bb4]",
+        "00560b24  f7d8  NEG EAX",
+        "00560b26  1bc0  SBB EAX,EAX",
+        "00560b28  2514f75d00  AND EAX,0x5df714",
+        "00560b2d  81c490010000  ADD ESP,0x190",
+        "00560b33  c3  RET"
+      ]
+    }
+  ],
+  "callback_ABI_evidence": [
+    {
+      "va": "00560840",
+      "bytes": 196,
+      "sha256": "af8d876a533e6dba432f01f2eacd4f22045fc6911b58699fecbbf73798109264",
+      "raw_hex": "83ec14565768e80300006a026a0633ffe8837302008bf083feff0f849c0000008d4424086a04506a2068ffff000056c744241c01000000e8567302008d4c24086a0451680f40000068ffff000056897c241ce83b7302008d5424086a0452680f40000068e803000056e8247302006a0e8d4424105750e8d5b9fdff8b4c242c83c40c66c744240c060051e8fd7202008b4c24248d54240c52668944241c8b44242c6a0e6a01565051e8736d02008bf883c41885ff750656e8c47202008bc75f5e83c414c3",
+      "indexed": {
+        "entry_va": "00560840",
+        "name": "FUN_00560840",
+        "signature": "undefined FUN_00560840(void)",
+        "ranges": [
+          [
+            "00560840",
+            "00560903"
+          ]
+        ],
+        "body_bytes": 196,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "00560840  83ec14  SUB ESP,0x14",
+        "00560843  56  PUSH ESI",
+        "00560844  57  PUSH EDI",
+        "00560845  68e8030000  PUSH 0x3e8",
+        "0056084a  6a02  PUSH 0x2",
+        "0056084c  6a06  PUSH 0x6",
+        "0056084e  33ff  XOR EDI,EDI",
+        "00560850  e883730200  CALL 0x00587bd8",
+        "00560855  8bf0  MOV ESI,EAX",
+        "00560857  83feff  CMP ESI,-0x1",
+        "0056085a  0f849c000000  JZ 0x005608fc",
+        "00560860  8d442408  LEA EAX,[ESP + 0x8]",
+        "00560864  6a04  PUSH 0x4",
+        "00560866  50  PUSH EAX",
+        "00560867  6a20  PUSH 0x20",
+        "00560869  68ffff0000  PUSH 0xffff",
+        "0056086e  56  PUSH ESI",
+        "0056086f  c744241c01000000  MOV dword ptr [ESP + 0x1c],0x1",
+        "00560877  e856730200  CALL 0x00587bd2",
+        "0056087c  8d4c2408  LEA ECX,[ESP + 0x8]",
+        "00560880  6a04  PUSH 0x4",
+        "00560882  51  PUSH ECX",
+        "00560883  680f400000  PUSH 0x400f",
+        "00560888  68ffff0000  PUSH 0xffff",
+        "0056088d  56  PUSH ESI",
+        "0056088e  897c241c  MOV dword ptr [ESP + 0x1c],EDI",
+        "00560892  e83b730200  CALL 0x00587bd2",
+        "00560897  8d542408  LEA EDX,[ESP + 0x8]",
+        "0056089b  6a04  PUSH 0x4",
+        "0056089d  52  PUSH EDX",
+        "0056089e  680f400000  PUSH 0x400f",
+        "005608a3  68e8030000  PUSH 0x3e8",
+        "005608a8  56  PUSH ESI",
+        "005608a9  e824730200  CALL 0x00587bd2",
+        "005608ae  6a0e  PUSH 0xe",
+        "005608b0  8d442410  LEA EAX,[ESP + 0x10]",
+        "005608b4  57  PUSH EDI",
+        "005608b5  50  PUSH EAX",
+        "005608b6  e8d5b9fdff  CALL 0x0053c290",
+        "005608bb  8b4c242c  MOV ECX,dword ptr [ESP + 0x2c]",
+        "005608bf  83c40c  ADD ESP,0xc",
+        "005608c2  66c744240c0600  MOV word ptr [ESP + 0xc],0x6",
+        "005608c9  51  PUSH ECX",
+        "005608ca  e8fd720200  CALL 0x00587bcc",
+        "005608cf  8b4c2424  MOV ECX,dword ptr [ESP + 0x24]",
+        "005608d3  8d54240c  LEA EDX,[ESP + 0xc]",
+        "005608d7  52  PUSH EDX",
+        "005608d8  668944241c  MOV word ptr [ESP + 0x1c],AX",
+        "005608dd  8b44242c  MOV EAX,dword ptr [ESP + 0x2c]",
+        "005608e1  6a0e  PUSH 0xe",
+        "005608e3  6a01  PUSH 0x1",
+        "005608e5  56  PUSH ESI",
+        "005608e6  50  PUSH EAX",
+        "005608e7  51  PUSH ECX",
+        "005608e8  e8736d0200  CALL 0x00587660",
+        "005608ed  8bf8  MOV EDI,EAX",
+        "005608ef  83c418  ADD ESP,0x18",
+        "005608f2  85ff  TEST EDI,EDI",
+        "005608f4  7506  JNZ 0x005608fc",
+        "005608f6  56  PUSH ESI",
+        "005608f7  e8c4720200  CALL 0x00587bc0",
+        "005608fc  8bc7  MOV EAX,EDI",
+        "005608fe  5f  POP EDI",
+        "005608ff  5e  POP ESI",
+        "00560900  83c414  ADD ESP,0x14",
+        "00560903  c3  RET"
+      ]
+    },
+    {
+      "va": "00587860",
+      "bytes": 131,
+      "sha256": "b138da8766f46ad68ed8e44a91b95c738d836ce608698ea0aaa424981472bf10",
+      "raw_hex": "568b742408c64628008b462c50e8be82fdff83c4048a462984c075078a462a84c074096a01e8b67efdffebe68b4e1c51e82b03000085c07d0d68e4155c00e8cec3010083c4048d567052e8118effff8d868c00000050e8058effff8d8ea800000051e8f98dffff8d96c400000052e8ed8dffff56e8b7a6faff83c414b8010000005ec3",
+      "indexed": {
+        "entry_va": "00587860",
+        "name": "FUN_00587860",
+        "signature": "undefined FUN_00587860(void)",
+        "ranges": [
+          [
+            "00587860",
+            "005878e2"
+          ]
+        ],
+        "body_bytes": 131,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "00587860  56  PUSH ESI",
+        "00587861  8b742408  MOV ESI,dword ptr [ESP + 0x8]",
+        "00587865  c6462800  MOV byte ptr [ESI + 0x28],0x0",
+        "00587869  8b462c  MOV EAX,dword ptr [ESI + 0x2c]",
+        "0058786c  50  PUSH EAX",
+        "0058786d  e8be82fdff  CALL 0x0055fb30",
+        "00587872  83c404  ADD ESP,0x4",
+        "00587875  8a4629  MOV AL,byte ptr [ESI + 0x29]",
+        "00587878  84c0  TEST AL,AL",
+        "0058787a  7507  JNZ 0x00587883",
+        "0058787c  8a462a  MOV AL,byte ptr [ESI + 0x2a]",
+        "0058787f  84c0  TEST AL,AL",
+        "00587881  7409  JZ 0x0058788c",
+        "00587883  6a01  PUSH 0x1",
+        "00587885  e8b67efdff  CALL 0x0055f740",
+        "0058788a  ebe6  JMP 0x00587872",
+        "0058788c  8b4e1c  MOV ECX,dword ptr [ESI + 0x1c]",
+        "0058788f  51  PUSH ECX",
+        "00587890  e82b030000  CALL 0x00587bc0",
+        "00587895  85c0  TEST EAX,EAX",
+        "00587897  7d0d  JGE 0x005878a6",
+        "00587899  68e4155c00  PUSH 0x5c15e4",
+        "0058789e  e8cec30100  CALL 0x005a3c71",
+        "005878a3  83c404  ADD ESP,0x4",
+        "005878a6  8d5670  LEA EDX,[ESI + 0x70]",
+        "005878a9  52  PUSH EDX",
+        "005878aa  e8118effff  CALL 0x005806c0",
+        "005878af  8d868c000000  LEA EAX,[ESI + 0x8c]",
+        "005878b5  50  PUSH EAX",
+        "005878b6  e8058effff  CALL 0x005806c0",
+        "005878bb  8d8ea8000000  LEA ECX,[ESI + 0xa8]",
+        "005878c1  51  PUSH ECX",
+        "005878c2  e8f98dffff  CALL 0x005806c0",
+        "005878c7  8d96c4000000  LEA EDX,[ESI + 0xc4]",
+        "005878cd  52  PUSH EDX",
+        "005878ce  e8ed8dffff  CALL 0x005806c0",
+        "005878d3  56  PUSH ESI",
+        "005878d4  e8b7a6faff  CALL 0x00531f90",
+        "005878d9  83c414  ADD ESP,0x14",
+        "005878dc  b801000000  MOV EAX,0x1",
+        "005878e1  5e  POP ESI",
+        "005878e2  c3  RET"
+      ]
+    }
+  ],
+  "registry_consumers": [
+    {
+      "va": "005801b0",
+      "bytes": 282,
+      "sha256": "8c000a187d8fe984dd100499635c7a739e33873772bd44f8ac589ba8c2709811",
+      "raw_hex": "a140be6a00535533db565785c0754b535368c04a6b00e8650400006830035800e8ab71fdffa134be6a0083c41085c0751fa148eb5d008d4809b867666666f7e9c1fa028bcac1e91f03d1891534be6a00c70540be6a00010000008b7424145668c04a6b00e8e707000083c40883f8ff740956e85901000083c4048b7e0468b40000006a0056e856c0fbffa13cbe6a00897e0483c40c33ff85c07e788b6c242085db75628b04bde04a6b008b5424188b0cbda04a6b008956148b5004894e0c85d2894608751183c1045551e85100000083c40885c074218b4c242c8b5424288b4608518b4c2428528b54242451555256ff500883c4188bd8a13cbe6a00473bf87c9e85db740e5668c04a6b00e82004000083c4085f5e8bc35d5bc3",
+      "indexed": {
+        "entry_va": "005801b0",
+        "name": "FUN_005801b0",
+        "signature": "undefined FUN_005801b0(void)",
+        "ranges": [
+          [
+            "005801b0",
+            "005802c9"
+          ]
+        ],
+        "body_bytes": 282,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "005801b0  a140be6a00  MOV EAX,[0x006abe40]",
+        "005801b5  53  PUSH EBX",
+        "005801b6  55  PUSH EBP",
+        "005801b7  33db  XOR EBX,EBX",
+        "005801b9  56  PUSH ESI",
+        "005801ba  57  PUSH EDI",
+        "005801bb  85c0  TEST EAX,EAX",
+        "005801bd  754b  JNZ 0x0058020a",
+        "005801bf  53  PUSH EBX",
+        "005801c0  53  PUSH EBX",
+        "005801c1  68c04a6b00  PUSH 0x6b4ac0",
+        "005801c6  e865040000  CALL 0x00580630",
+        "005801cb  6830035800  PUSH 0x580330",
+        "005801d0  e8ab71fdff  CALL 0x00557380",
+        "005801d5  a134be6a00  MOV EAX,[0x006abe34]",
+        "005801da  83c410  ADD ESP,0x10",
+        "005801dd  85c0  TEST EAX,EAX",
+        "005801df  751f  JNZ 0x00580200",
+        "005801e1  a148eb5d00  MOV EAX,[0x005deb48]",
+        "005801e6  8d4809  LEA ECX,[EAX + 0x9]",
+        "005801e9  b867666666  MOV EAX,0x66666667",
+        "005801ee  f7e9  IMUL ECX",
+        "005801f0  c1fa02  SAR EDX,0x2",
+        "005801f3  8bca  MOV ECX,EDX",
+        "005801f5  c1e91f  SHR ECX,0x1f",
+        "005801f8  03d1  ADD EDX,ECX",
+        "005801fa  891534be6a00  MOV dword ptr [0x006abe34],EDX",
+        "00580200  c70540be6a0001000000  MOV dword ptr [0x006abe40],0x1",
+        "0058020a  8b742414  MOV ESI,dword ptr [ESP + 0x14]",
+        "0058020e  56  PUSH ESI",
+        "0058020f  68c04a6b00  PUSH 0x6b4ac0",
+        "00580214  e8e7070000  CALL 0x00580a00",
+        "00580219  83c408  ADD ESP,0x8",
+        "0058021c  83f8ff  CMP EAX,-0x1",
+        "0058021f  7409  JZ 0x0058022a",
+        "00580221  56  PUSH ESI",
+        "00580222  e859010000  CALL 0x00580380",
+        "00580227  83c404  ADD ESP,0x4",
+        "0058022a  8b7e04  MOV EDI,dword ptr [ESI + 0x4]",
+        "0058022d  68b4000000  PUSH 0xb4",
+        "00580232  6a00  PUSH 0x0",
+        "00580234  56  PUSH ESI",
+        "00580235  e856c0fbff  CALL 0x0053c290",
+        "0058023a  a13cbe6a00  MOV EAX,[0x006abe3c]",
+        "0058023f  897e04  MOV dword ptr [ESI + 0x4],EDI",
+        "00580242  83c40c  ADD ESP,0xc",
+        "00580245  33ff  XOR EDI,EDI",
+        "00580247  85c0  TEST EAX,EAX",
+        "00580249  7e78  JLE 0x005802c3",
+        "0058024b  8b6c2420  MOV EBP,dword ptr [ESP + 0x20]",
+        "0058024f  85db  TEST EBX,EBX",
+        "00580251  7562  JNZ 0x005802b5",
+        "00580253  8b04bde04a6b00  MOV EAX,dword ptr [EDI*0x4 + 0x6b4ae0]",
+        "0058025a  8b542418  MOV EDX,dword ptr [ESP + 0x18]",
+        "0058025e  8b0cbda04a6b00  MOV ECX,dword ptr [EDI*0x4 + 0x6b4aa0]",
+        "00580265  895614  MOV dword ptr [ESI + 0x14],EDX",
+        "00580268  8b5004  MOV EDX,dword ptr [EAX + 0x4]",
+        "0058026b  894e0c  MOV dword ptr [ESI + 0xc],ECX",
+        "0058026e  85d2  TEST EDX,EDX",
+        "00580270  894608  MOV dword ptr [ESI + 0x8],EAX",
+        "00580273  7511  JNZ 0x00580286",
+        "00580275  83c104  ADD ECX,0x4",
+        "00580278  55  PUSH EBP",
+        "00580279  51  PUSH ECX",
+        "0058027a  e851000000  CALL 0x005802d0",
+        "0058027f  83c408  ADD ESP,0x8",
+        "00580282  85c0  TEST EAX,EAX",
+        "00580284  7421  JZ 0x005802a7",
+        "00580286  8b4c242c  MOV ECX,dword ptr [ESP + 0x2c]",
+        "0058028a  8b542428  MOV EDX,dword ptr [ESP + 0x28]",
+        "0058028e  8b4608  MOV EAX,dword ptr [ESI + 0x8]",
+        "00580291  51  PUSH ECX",
+        "00580292  8b4c2428  MOV ECX,dword ptr [ESP + 0x28]",
+        "00580296  52  PUSH EDX",
+        "00580297  8b542424  MOV EDX,dword ptr [ESP + 0x24]",
+        "0058029b  51  PUSH ECX",
+        "0058029c  55  PUSH EBP",
+        "0058029d  52  PUSH EDX",
+        "0058029e  56  PUSH ESI",
+        "0058029f  ff5008  CALL dword ptr [EAX + 0x8]",
+        "005802a2  83c418  ADD ESP,0x18",
+        "005802a5  8bd8  MOV EBX,EAX",
+        "005802a7  a13cbe6a00  MOV EAX,[0x006abe3c]",
+        "005802ac  47  INC EDI",
+        "005802ad  3bf8  CMP EDI,EAX",
+        "005802af  7c9e  JL 0x0058024f",
+        "005802b1  85db  TEST EBX,EBX",
+        "005802b3  740e  JZ 0x005802c3",
+        "005802b5  56  PUSH ESI",
+        "005802b6  68c04a6b00  PUSH 0x6b4ac0",
+        "005802bb  e820040000  CALL 0x005806e0",
+        "005802c0  83c408  ADD ESP,0x8",
+        "005802c3  5f  POP EDI",
+        "005802c4  5e  POP ESI",
+        "005802c5  8bc3  MOV EAX,EBX",
+        "005802c7  5d  POP EBP",
+        "005802c8  5b  POP EBX",
+        "005802c9  c3  RET"
+      ]
+    },
+    {
+      "va": "00582240",
+      "bytes": 108,
+      "sha256": "af3305d81b985823bf6470809f54468d2558197742b51b3c36f6a0cb2d60345b",
+      "raw_hex": "a1d8576a0085c0750ae8a2fffaffa3d8576a00a1e0bf6a0085c07541e86f17000085c07438a13cbe6a00c705e0bf6a0001000000c70485a04a6b00781a5e00c70485e04a6b00281a5e0040a33cbe6a008b44240485c07405a3781a5e00a1e0bf6a00f7d81bc0257c1a5e00c3",
+      "indexed": {
+        "entry_va": "00582240",
+        "name": "FUN_00582240",
+        "signature": "undefined FUN_00582240(void)",
+        "ranges": [
+          [
+            "00582240",
+            "005822ab"
+          ]
+        ],
+        "body_bytes": 108,
+        "thunk": false,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "00582240  a1d8576a00  MOV EAX,[0x006a57d8]",
+        "00582245  85c0  TEST EAX,EAX",
+        "00582247  750a  JNZ 0x00582253",
+        "00582249  e8a2fffaff  CALL 0x005321f0",
+        "0058224e  a3d8576a00  MOV [0x006a57d8],EAX",
+        "00582253  a1e0bf6a00  MOV EAX,[0x006abfe0]",
+        "00582258  85c0  TEST EAX,EAX",
+        "0058225a  7541  JNZ 0x0058229d",
+        "0058225c  e86f170000  CALL 0x005839d0",
+        "00582261  85c0  TEST EAX,EAX",
+        "00582263  7438  JZ 0x0058229d",
+        "00582265  a13cbe6a00  MOV EAX,[0x006abe3c]",
+        "0058226a  c705e0bf6a0001000000  MOV dword ptr [0x006abfe0],0x1",
+        "00582274  c70485a04a6b00781a5e00  MOV dword ptr [EAX*0x4 + 0x6b4aa0],0x5e1a78",
+        "0058227f  c70485e04a6b00281a5e00  MOV dword ptr [EAX*0x4 + 0x6b4ae0],0x5e1a28",
+        "0058228a  40  INC EAX",
+        "0058228b  a33cbe6a00  MOV [0x006abe3c],EAX",
+        "00582290  8b442404  MOV EAX,dword ptr [ESP + 0x4]",
+        "00582294  85c0  TEST EAX,EAX",
+        "00582296  7405  JZ 0x0058229d",
+        "00582298  a3781a5e00  MOV [0x005e1a78],EAX",
+        "0058229d  a1e0bf6a00  MOV EAX,[0x006abfe0]",
+        "005822a2  f7d8  NEG EAX",
+        "005822a4  1bc0  SBB EAX,EAX",
+        "005822a6  257c1a5e00  AND EAX,0x5e1a7c",
+        "005822ab  c3  RET"
+      ]
+    }
+  ],
+  "descriptors": [
+    {
+      "va": "005df6b0",
+      "bytes": 96,
+      "sha256": "1db34866fa9b29b4987714deb024adc458d1975f1215e9ff688b1de5570c126b",
+      "raw_hex": "c0075d00e0fc480e91facf11a8bb00a0c9008a4830055600507658005005560060785800f005560000065600100656002006560050065600600656003007560090075600f0785800107958003079580050795800e0795800d07a5800a07b5800",
+      "name_token": "005d07c0",
+      "guid_hex": "e0fc480e91facf11a8bb00a0c9008a48",
+      "callback_tokens": [
+        "00560530",
+        "00587650",
+        "00560550",
+        "00587860",
+        "005605f0",
+        "00560600",
+        "00560610",
+        "00560620",
+        "00560650",
+        "00560660",
+        "00560730",
+        "00560790",
+        "005878f0",
+        "00587910",
+        "00587930",
+        "00587950",
+        "005879e0",
+        "00587ad0",
+        "00587ba0"
+      ],
+      "highlow_slots": [
+        "005df6b0",
+        "005df6c4",
+        "005df6c8",
+        "005df6cc",
+        "005df6d0",
+        "005df6d4",
+        "005df6d8",
+        "005df6dc",
+        "005df6e0",
+        "005df6e4",
+        "005df6e8",
+        "005df6ec",
+        "005df6f0",
+        "005df6f4",
+        "005df6f8",
+        "005df6fc",
+        "005df700",
+        "005df704",
+        "005df708",
+        "005df70c"
+      ]
+    },
+    {
+      "va": "005df710",
+      "bytes": 96,
+      "sha256": "06a865fd5817c29e83f2ce6a9dfe77e8f3723e0353d294fb5e16cafb997dfa61",
+      "raw_hex": "c4075d00e0c21e129e49cf11ad1c0020afd3bd3f00765800507658004008560060785800100956002009560040095600500956008009560090095600100a5600700a5600f0785800107958003079580050795800e0795800d07a5800a07b5800",
+      "name_token": "005d07c4",
+      "guid_hex": "e0c21e129e49cf11ad1c0020afd3bd3f",
+      "callback_tokens": [
+        "00587600",
+        "00587650",
+        "00560840",
+        "00587860",
+        "00560910",
+        "00560920",
+        "00560940",
+        "00560950",
+        "00560980",
+        "00560990",
+        "00560a10",
+        "00560a70",
+        "005878f0",
+        "00587910",
+        "00587930",
+        "00587950",
+        "005879e0",
+        "00587ad0",
+        "00587ba0"
+      ],
+      "highlow_slots": [
+        "005df710",
+        "005df724",
+        "005df728",
+        "005df72c",
+        "005df730",
+        "005df734",
+        "005df738",
+        "005df73c",
+        "005df740",
+        "005df744",
+        "005df748",
+        "005df74c",
+        "005df750",
+        "005df754",
+        "005df758",
+        "005df75c",
+        "005df760",
+        "005df764",
+        "005df768",
+        "005df76c"
+      ]
+    }
+  ],
+  "imports": [
+    {
+      "path": "Porsche.exe",
+      "dll": "WSOCK32.dll",
+      "symbol": "ordinal:115",
+      "iat_rva": "0x1b2360"
+    },
+    {
+      "path": "Porsche.exe",
+      "dll": "WSOCK32.dll",
+      "symbol": "ordinal:116",
+      "iat_rva": "0x1b2374"
+    }
+  ],
+  "import_thunks": [
+    {
+      "va": "005894e6",
+      "bytes": 6,
+      "sha256": "70fbecfce7720018e2dfcd84ae85620faf696deff564f89ffda0cb48007e67f1",
+      "raw_hex": "ff2560235b00",
+      "indexed": {
+        "entry_va": "005894e6",
+        "name": "WSOCK32.DLL::WSAStartup",
+        "signature": "int __stdcall WSAStartup(WORD wVersionRequired, LPWSADATA lpWSAData)",
+        "ranges": [
+          [
+            "005894e6",
+            "005894eb"
+          ]
+        ],
+        "body_bytes": 6,
+        "thunk": true,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "005894e6  ff2560235b00  JMP dword ptr [0x005b2360]"
+      ]
+    },
+    {
+      "va": "005894e0",
+      "bytes": 6,
+      "sha256": "f736cbe0564b69f45841a796985b7bc0c622da52254110ecea7b4d486b368edf",
+      "raw_hex": "ff2574235b00",
+      "indexed": {
+        "entry_va": "005894e0",
+        "name": "WSOCK32.DLL::WSACleanup",
+        "signature": "int __stdcall WSACleanup(void)",
+        "ranges": [
+          [
+            "005894e0",
+            "005894e5"
+          ]
+        ],
+        "body_bytes": 6,
+        "thunk": true,
+        "external": false,
+        "source": "DEFAULT"
+      },
+      "instructions": [
+        "005894e0  ff2574235b00  JMP dword ptr [0x005b2374]"
+      ]
+    }
+  ],
+  "registry_snapshot_sha256": "cd1fadcd9536eb081a31e112162381e30543f15041b281987a1373ceed9f1d99",
+  "new_storage": false,
+  "callback_transport": {
+    "open": "OneIPXdescriptorword7/+0x1c target00560840: cdecl3stackarguments,RET0,Uresult; incomingECX/EDX notconsumed beforedefinition/standardWin32imports",
+    "close": "Samedescriptorword8/+0x20 target00587860: cdecl1stackargument,RET0,Ureturn1 ignored",
+    "proof": "Verify rawpointerwords beforefixturecallbacksubstitution. WSAstartup canreplaceopen, open canreplaceclose, close canchangecount, cleanup canchangeflags; fullrawbodyvsC++ comparisons detecthoisting.",
+    "remaining": "Other17 slotsopaque tokens infixture; no liveproductiondescriptorprovider or fabricatedcallbackABIs."
+  },
+  "state": {
+    "canonical": "thread_start_lock_006a57d8=file_threads.cpp; heap_lock_create_005321f0 canonical",
+    "extern_only": [
+      "006a5b30",
+      "006a5bb4",
+      "006abe3c",
+      "006b4aa0[]",
+      "006b4ae0[]",
+      "005df6b0[]",
+      "005df710[]",
+      "005e1cf0[]"
+    ],
+    "capacity": "No registryextent inferred fromspacing. Fixturebacks8words andrequires accessedindex0..7; productionviewsunsized. Descriptors96B physicalspans known, completecallbackbindings unresolved."
+  },
+  "native": {
+    "receipt": "local/experiments/v2-network-options-native-395/002/receipt.json",
+    "receipt_sha256": "f12719d7d241237fed27bcb16dc4443689cf215e050b16a8e6be673e03e87834",
+    "inputs": 170,
+    "status": "PASS",
+    "variants": [
+      "/Od",
+      "/O2"
+    ],
+    "sequences_per_variant": 4608,
+    "function_calls_per_variant": 18432,
+    "checks_per_variant": 46080,
+    "mutations": [
+      "udp-null-name",
+      "udp-ready-bit",
+      "open-before-startup",
+      "index-before-close",
+      "cleanup-open-only",
+      "return-before-cleanup"
+    ],
+    "coverage": [
+      "4mixed/repeated4-callsequences; sharedlocks/flags/registry",
+      "existinglock,createNULL/createpointer; nonzero-highbit initializedflags",
+      "UDPfail/success,WSA fail/success,openzero/nonzero,ignoredclosereturn",
+      "latecallbackreplacement/sharedstateupdates fromlock/startup/open/close/cleanup",
+      "NULL/invalid/borrowednametokens; storedwithoutdereference onlyfirstsuccessfulregistration",
+      "all96Bdescriptors,registries,16Bopaquecontext,returns,andorderedprecallstate snapshots",
+      "WSAversion0101,opaque400Bstackarray no uninitializedread; controlled17/400B endpointwrites",
+      "ESP/EBP/EBX/ESI/EDI plusEAX exactall4calls"
+    ]
+  },
+  "lowering": {
+    "backend": "scripts/research/x86-cpp-backend-exact.py",
+    "backend_sha256": "83b677762a350bd62af871ac754a8df4bd87d791f67d6d982f20898b7dd5fe0e",
+    "status": "syntaxaccepted inspectiononly, no ISAfullrerun orruntimeadded",
+    "candidates": [
+      {
+        "va": "005607d0",
+        "path": "local/experiments/v2-network-options-native-395/inspection-005607d0.cpp",
+        "sha256": "0f7735683d90864577825e8ad8835abf7957ee7d29fbcdcc4b6b0ee6775a9f4a"
+      },
+      {
+        "va": "00560a90",
+        "path": "local/experiments/v2-network-options-native-395/inspection-00560a90.cpp",
+        "sha256": "8c7fa46282b02cfc76d0e56e714d1a006cb9851c8dbb14b5c36b979c2323ae9c"
+      }
+    ]
+  },
+  "boundaries": [
+    "NOTgameintake until descriptor/registry/flag/context ownership andcallbacktablebindings established.",
+    "No newstorage,registrycapacityclaim,liveWSA/network,reinit/shutdown/concurrency acceptance.",
+    "WSA/UDPstartup andcallbacks are controlled endpoints onlyinnativefixture.",
+    "Nexttrace005801b0/005802d0,00582240 andalltableconsumers forregistrybackingsharedlayout; bindall19callbacks byexactconsumers beforedefiningdescriptors."
+  ],
+  "labels": {
+    "va": "005d079c",
+    "bytes": 44,
+    "sha256": "fd12c84b8e257d8884d540d20a304196c5c7f9efb2451d3ba01bcfc40c490f42",
+    "raw_hex": "63000000302e300047616d65000000004354524c2d414c5421000000506c6179657200005544500049505800",
+    "mapping": {
+      "005df6b0": "name005d07c0=UDP",
+      "005df710": "name005d07c4=IPX"
+    },
+    "confirmation": "IPXopen00560840 socketfamily6/protocol1000; raw44Blabelspan independentlypinsnames"
+  },
+  "attempts": {
+    "001": "272B algorithm passed; newtransportview names were reversed. Superseded by002; exactfourchangedinputs preservedandverified against001hashes in historical-001-inputs.",
+    "002": "Onlynew395IPX/UDPidentifier labels/comments/config anchors corrected; authoritativePASS same4608sequences/variant+6mutations. No accepted390/391/393input changed."
+  }
+}
