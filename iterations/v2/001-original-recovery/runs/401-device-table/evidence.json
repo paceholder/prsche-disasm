@@ -1,0 +1,77 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "query": [
+    "0055eb70",
+    "0055ddf0",
+    "0055e4d0",
+    "006a57a0",
+    "006a57b8"
+  ],
+  "original_bodies": [
+    {
+      "token": "@GETTER@",
+      "va": "0055eb70",
+      "bytes": 46,
+      "sha256": "0dc9ccb0e64c783bfbcf6fd0b8fbee50d908d9641921409c642b3ad2a5851306"
+    },
+    {
+      "token": "@CLEAR@",
+      "va": "0055ddf0",
+      "bytes": 83,
+      "sha256": "ffc76ec72b6f3ac6a3dcfa7dc37ed016b95b8440471c2839250c4c2901126e49"
+    }
+  ],
+  "semantic_evidence": {
+    "005bcb84": "modemBuf",
+    "005bcb78": "tapiname",
+    "005c1288": "lineInitialize",
+    "005c12a8": "lineNegotiateAPIVersion",
+    "005c1270": "lineGetLineDevStatus"
+  },
+  "state": {
+    "canonical_owner_search": "No existing source cpp/hpp or accepted VA/body owner for these two scalar cells or new bodies; Run391 declares accessor only.",
+    "006a57a0": {
+      "type": "uint32 signed-comparison bits",
+      "initial": 0
+    },
+    "006a57b8": {
+      "type": "x86 pointer bits",
+      "initial": 0
+    },
+    "image_mapping": {
+      "section": ".data",
+      "rva": "001cb000",
+      "virtual_size": "000f6538",
+      "raw_size": "0001c000",
+      "zero_fill_start_va": "005e7000",
+      "proof": "Both cells lie beyond file-backed bytes and within virtual section; PE loader zero-fill, no raw file bytes invented."
+    },
+    "references": {
+      "006a57a0": [],
+      "006a57b8": []
+    }
+  },
+  "lifecycle": {
+    "initializer": "0055e4d0,522B; lineInitialize/lineNegotiateAPIVersion/lineGetLineDevStatus wrappers, modemBuf/tapiname allocation labels. Not recovered by this batch.",
+    "layout": "Initializer allocates0xf0 and initializes20 records at12B stride; not a new independent fixed-capacity game array. Getter computes addresses without dereferencing. Cleanup frees nonzero +8 strings then current table.",
+    "reloads": "Getter invokes enumeration before signed index validation; result ignored; rereads count/table. Cleanup reloads table after each string free and count each loop; final table free then clears pointer only, count retained."
+  },
+  "native": {
+    "receipt": "local/experiments/v2-device-table-native-401/003/receipt.json",
+    "cases_per_variant": 1710,
+    "total_cases": 3420,
+    "checks_per_variant": 6840,
+    "mutations": 6,
+    "input_pins": 157,
+    "pin_check": "all unchanged",
+    "attempt001": "Both baselines passed. First detected mutation exited1 without flushing stdout; receipt correctly rejected missing differential marker. Fixture flush corrected; production unchanged; final002 completePASS.",
+    "final003": "Native003 repeats full batch after normalizing configuration CRLF to repository LF before staging; source/fixture semantics unchanged. Required proof now pins exact committed configuration bytes."
+  },
+  "rea": {
+    "config": "iterations/v2/001-original-recovery/runs/401-device-table/rea-queries.json",
+    "attempt": "003",
+    "audit": "Final003 PASS3dossiers with repositoryLF configuration;002 historicalPASS,001sandboxspawnEPERM preserved."
+  },
+  "boundary": "Controlled enumeration/free effects, bounded valid cleanup records; getter also verifies nondereferenced high-bit/wrapping address tokens. Real TAPI enumeration, allocator, concurrency, adversarial cleanup aliases, livegame not accepted."
+}

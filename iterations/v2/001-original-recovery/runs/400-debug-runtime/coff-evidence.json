@@ -1,0 +1,76 @@
+{
+  "tool": {
+    "path": "local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+    "sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5"
+  },
+  "objects": [
+    {
+      "path": "local/experiments/v2-debug-runtime-native-400/002/od-0.obj",
+      "sha256": "adb05d2cd2e61bf48473a2af3ff7c86f764c27a47d51a3e0ede4ff6524b6809d",
+      "symbols": {
+        "path": "local/experiments/v2-debug-runtime-native-400/coff-002/od-0-symbols.txt",
+        "sha256": "8ccf3da72ef20fbe4f068d2a200e2f0a9a59bb3482f165996628cf8989244aba"
+      },
+      "relevant_symbols": [
+        "00F 00000000 UNDEF  notype       External     | __imp__DebugBreak@0",
+        "010 00000000 UNDEF  notype       External     | __imp__GetProcAddress@8",
+        "011 00000000 UNDEF  notype       External     | __imp__LoadLibraryA@4",
+        "012 00000000 SECT5  notype ()    External     | ?startup_debugger_query_005af090@porsche@@YAHXZ (int __cdecl porsche::startup_debugger_query_005af090(void))",
+        "013 00000000 SECT4  notype ()    External     | ?startup_debug_break_005af0c0@porsche@@YAXXZ (void __cdecl porsche::startup_debug_break_005af0c0(void))",
+        "014 00000000 UNDEF  notype       External     | ?window_event_flag_005de020@porsche@@3IA (unsigned int porsche::window_event_flag_005de020)"
+      ],
+      "disassembly": {
+        "path": "local/experiments/v2-debug-runtime-native-400/coff-002/od-0-disassembly.txt",
+        "sha256": "7563ad17f61f331f357fd2dc6cf1c5513035bf6608e392c4eb01c46112e7170a"
+      },
+      "actual_int3_instructions": [
+        "  00000017: CC                 int         3"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-debug-runtime-native-400/002/od-1.obj",
+      "sha256": "85b365153133a06072a5b49e7ba091de93e8644b4c3d8b62940457c6239f5e7f",
+      "symbols": {
+        "path": "local/experiments/v2-debug-runtime-native-400/coff-002/od-1-symbols.txt",
+        "sha256": "a05a8ffa39cd9ec2a3cb90f1acf12e27d05a709282c6ce905d1756d55dc70fc9"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?window_event_flag_005de020@porsche@@3IA (unsigned int porsche::window_event_flag_005de020)"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-debug-runtime-native-400/002/o2-0.obj",
+      "sha256": "bf8d2b5afc60e9e03eace2cd349aa83d5ac7d45517578924c96d4094d6c23650",
+      "symbols": {
+        "path": "local/experiments/v2-debug-runtime-native-400/coff-002/o2-0-symbols.txt",
+        "sha256": "87b372193b8d957fac0fea5c972b8768a9fdf4b07038e0b78047417f587a2336"
+      },
+      "relevant_symbols": [
+        "00F 00000000 UNDEF  notype       External     | __imp__DebugBreak@0",
+        "010 00000000 UNDEF  notype       External     | __imp__GetProcAddress@8",
+        "011 00000000 UNDEF  notype       External     | __imp__LoadLibraryA@4",
+        "012 00000000 SECT5  notype ()    External     | ?startup_debugger_query_005af090@porsche@@YAHXZ (int __cdecl porsche::startup_debugger_query_005af090(void))",
+        "013 00000000 SECT3  notype ()    External     | ?startup_debug_break_005af0c0@porsche@@YAXXZ (void __cdecl porsche::startup_debug_break_005af0c0(void))",
+        "014 00000000 UNDEF  notype       External     | ?window_event_flag_005de020@porsche@@3IA (unsigned int porsche::window_event_flag_005de020)"
+      ],
+      "disassembly": {
+        "path": "local/experiments/v2-debug-runtime-native-400/coff-002/o2-0-disassembly.txt",
+        "sha256": "de948619afb9bd60a991e8f38657705307474b6bd9dca6325a92f0bf1f731878"
+      },
+      "actual_int3_instructions": [
+        "  0000002E: CC                 int         3"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-debug-runtime-native-400/002/o2-1.obj",
+      "sha256": "2b4273ddcd6107b0c299b213c9a6ef7277a611c3417d576e31e8aff2774173af",
+      "symbols": {
+        "path": "local/experiments/v2-debug-runtime-native-400/coff-002/o2-1-symbols.txt",
+        "sha256": "acbbfbdc2cd1cdaf42fe55a8170bc8ddf9f481400d800cfa535ca8073bc0d1ec"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?window_event_flag_005de020@porsche@@3IA (unsigned int porsche::window_event_flag_005de020)"
+      ]
+    }
+  ]
+}

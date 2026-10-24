@@ -10605,20 +10605,20 @@
         "0052df00",
         "0048d9b0",
         "0048a9a0",
-        "004902c0"
+        "004902c0",
+        "0055eb70"
       ],
       "unrecovered_dependencies": [
         "0048ff30",
         "00560a90",
         "005607d0",
-        "0055eb70",
         "00560340"
       ],
       "binary_matched": false,
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
       "verification_boundary": "Full686B compared with both actual entry and facade at /Od,/O2; valid0x268B receiver, writable nonnull sentinel allocations and NULterminated canonical text<=31; controlled children/state, exact sparse writes/order/late reloads. Actual child composition/destructor/provider/callback behavior, alias consolidation and live startup remain open.",
-      "integration_verification_report": "iterations/v2/001-original-recovery/runs/398-network-member-integration/validation.json"
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10632,15 +10632,15 @@
         "0055f780",
         "005a246e",
         "005322b0",
-        "005322c0"
-      ],
-      "unrecovered_dependencies": [
+        "005322c0",
         "005af0c0"
       ],
+      "unrecovered_dependencies": [],
       "binary_matched": false,
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
-      "verification_boundary": "Complete356B control flow, native short-input domain length0..252, initial2/1 mode/cache, callback/mode/cache/lock rereads, exact Win32IAT boundaries and actual copy/exit wrappers. For length>=253 byte253 remains opaque/uninitialized and is NOT accepted. Concurrency/live platform/full terminal composition remain HOLD."
+      "verification_boundary": "Complete356B control flow, native short-input domain length0..252, initial2/1 mode/cache, callback/mode/cache/lock rereads, exact Win32IAT boundaries and actual copy/exit wrappers. For length>=253 byte253 remains opaque/uninitialized and is NOT accepted. Concurrency/live platform/full terminal composition remain HOLD.",
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10710,6 +10710,72 @@
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/398-network-member-integration/validation.json",
       "verification_boundary": "Complete81B original/native comparison; actual canonical heap-state owner/accessor linked, captured manager versus replaced global, lock/head reloads, controlled refill and byte-overlap aliases, PAGE_NOACCESS opaque argument and ABI. No allocator/lock/OS/full-game composition acceptance."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "005af090",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0, full signed BOOL EAX",
+      "recovered_dependencies": [
+        "LoadLibraryA",
+        "GetProcAddress"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json",
+      "verification_boundary": "Original42B and exact own-IAT imports; failures, fullBOOL, strings/module lifetime/call order and normal ABI. Controlled API responses, not live debugger acceptance."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "005af0c0",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0, RET0/EAXunused",
+      "recovered_dependencies": [
+        "005af090",
+        "DebugBreak"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json",
+      "verification_boundary": "Original26B, canonical window_event_flag005de020, actual INT3 continuation and exact DebugBreak import transport. Bounded handler proves normal-return ABI; internal exception-stack layout/live debugger/concurrency remain open."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0055eb70",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl uint32 index bits, RET0/uint32 EAX",
+      "recovered_dependencies": [],
+      "unrecovered_dependencies": [
+        "0055e4d0"
+      ],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json",
+      "verification_boundary": "Original46B; signed bounds, initialize before rejection, postchild reloads, wrap32 arithmetic; canonical zero-fill scalar owners only. Real modem/TAPI enumeration remains unresolved, no storage capacity invented."
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0055ddf0",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl0, RET0/EAXunused",
+      "recovered_dependencies": [
+        "00531f90"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration/validation.json",
+      "verification_boundary": "Original83B; valid bounded12B records, sparse strings, count/table changes by controlled free, table reloads and pointer-only final clear. Actual allocator/TAPI/teardown/concurrency and arbitrary aliases remain open."
     }
   ]
 }

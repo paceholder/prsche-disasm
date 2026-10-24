@@ -1,0 +1,341 @@
+{
+  "kind": "original-debug-predicate-and-break-gate",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [
+    "005af090",
+    "005af0c0"
+  ],
+  "new_body_bytes": 68,
+  "new_mutable_state": [],
+  "abi": {
+    "005af090": "cdecl noargs; EAX full signedBOOL/zero; preserve nonvolatiles",
+    "005af0c0": "cdecl noargs; voidreturn contractmatching390; no incidental EAXstatus claim"
+  },
+  "source": {
+    "path": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+    "sha256": "9232b4dc0e6845ab8ee3e9efba53d09f4c9ab174617453a1104c17143a55785e"
+  },
+  "header": {
+    "path": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.hpp",
+    "sha256": "2f6740da4732cb24fe80de80a7869e39c41edb60a864e3bcb085d42b2ab1cac0"
+  },
+  "original_bodies": [
+    {
+      "token": "@PREDICATE@",
+      "va": "005af090",
+      "bytes": 42,
+      "sha256": "03fdbf5d5cbba425bbec8247d33b94ec782481c7a0480d55bcc293cb3fe40d54"
+    },
+    {
+      "token": "@GATE@",
+      "va": "005af0c0",
+      "bytes": 26,
+      "sha256": "dcd68ff3ba5ad1e0bd705712a11689ecc126b9c1f33b9fd7b231a0a2e5ab6eb7"
+    }
+  ],
+  "instructions": {
+    "005af090": [
+      {
+        "line": 533790,
+        "instruction": "005af090  56  PUSH ESI"
+      },
+      {
+        "line": 533791,
+        "instruction": "005af091  6800515e00  PUSH 0x5e5100"
+      },
+      {
+        "line": 533792,
+        "instruction": "005af096  33f6  XOR ESI,ESI"
+      },
+      {
+        "line": 533793,
+        "instruction": "005af098  ff1550205b00  CALL dword ptr [0x005b2050]"
+      },
+      {
+        "line": 533794,
+        "instruction": "005af09e  85c0  TEST EAX,EAX"
+      },
+      {
+        "line": 533795,
+        "instruction": "005af0a0  7414  JZ 0x005af0b6"
+      },
+      {
+        "line": 533796,
+        "instruction": "005af0a2  68ec505e00  PUSH 0x5e50ec"
+      },
+      {
+        "line": 533797,
+        "instruction": "005af0a7  50  PUSH EAX"
+      },
+      {
+        "line": 533798,
+        "instruction": "005af0a8  ff155c205b00  CALL dword ptr [0x005b205c]"
+      },
+      {
+        "line": 533799,
+        "instruction": "005af0ae  85c0  TEST EAX,EAX"
+      },
+      {
+        "line": 533800,
+        "instruction": "005af0b0  7404  JZ 0x005af0b6"
+      },
+      {
+        "line": 533801,
+        "instruction": "005af0b2  ffd0  CALL EAX"
+      },
+      {
+        "line": 533802,
+        "instruction": "005af0b4  5e  POP ESI"
+      },
+      {
+        "line": 533803,
+        "instruction": "005af0b5  c3  RET"
+      },
+      {
+        "line": 533804,
+        "instruction": "005af0b6  8bc6  MOV EAX,ESI"
+      },
+      {
+        "line": 533805,
+        "instruction": "005af0b8  5e  POP ESI"
+      },
+      {
+        "line": 533806,
+        "instruction": "005af0b9  c3  RET"
+      }
+    ],
+    "005af0c0": [
+      {
+        "line": 533809,
+        "instruction": "005af0c0  a120e05d00  MOV EAX,[0x005de020]"
+      },
+      {
+        "line": 533810,
+        "instruction": "005af0c5  85c0  TEST EAX,EAX"
+      },
+      {
+        "line": 533811,
+        "instruction": "005af0c7  740a  JZ 0x005af0d3"
+      },
+      {
+        "line": 533812,
+        "instruction": "005af0c9  e8c2ffffff  CALL 0x005af090"
+      },
+      {
+        "line": 533813,
+        "instruction": "005af0ce  85c0  TEST EAX,EAX"
+      },
+      {
+        "line": 533814,
+        "instruction": "005af0d0  7402  JZ 0x005af0d4"
+      },
+      {
+        "line": 533815,
+        "instruction": "005af0d2  cc  INT3"
+      },
+      {
+        "line": 533816,
+        "instruction": "005af0d3  c3  RET"
+      },
+      {
+        "line": 533817,
+        "instruction": "005af0d4  ff25a8205b00  JMP dword ptr [0x005b20a8]"
+      }
+    ]
+  },
+  "index_queries": [
+    "005af090",
+    "005af0c0",
+    "005de020",
+    "005b20a8",
+    "005e5100",
+    "005e50ec",
+    "0059fca2",
+    "0059fd36"
+  ],
+  "registry_entry_body_overlap_hits": [],
+  "registry_note": "Ownership/body-range inspection only; whole growing registry is not a native input pin.",
+  "canonical_state": {
+    "symbol": "window_event_flag_005de020",
+    "size": 4,
+    "raw_initial": 0,
+    "owner": {
+      "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/window_event_translation.cpp",
+      "sha256": "b3896bfbba4b7ceb3f923f6cc3d9d97554c72a978029d5db5a9aeb61119ade7a"
+    },
+    "header": {
+      "path": "iterations/v2/001-original-recovery/source/include/porsche/window_event_translation.hpp",
+      "sha256": "7b030b7d2efcabcc81936dba86562f5f68f245a0d6e75cc18ca11972e20d7721"
+    },
+    "known_consumers": [
+      {
+        "from_va": "005600e8",
+        "to_va": "005de020",
+        "from_function": "00560080",
+        "type": "READ",
+        "source": "DEFAULT",
+        "target_symbol": "DAT_005de020"
+      },
+      {
+        "from_va": "005af0c0",
+        "to_va": "005de020",
+        "from_function": "005af0c0",
+        "type": "READ",
+        "source": "DEFAULT",
+        "target_symbol": "DAT_005de020"
+      },
+      {
+        "from_va": "005af0d4",
+        "to_va": "005b20a8",
+        "from_function": "005af0c0",
+        "type": "INDIRECTION",
+        "source": "DEFAULT",
+        "target_symbol": "PTR_DebugBreak_005b20a8"
+      },
+      {
+        "from_va": "005b20a8",
+        "to_va": "EXTERNAL:0000001d",
+        "type": "DATA",
+        "source": "IMPORTED",
+        "target_symbol": "KERNEL32.DLL::DebugBreak"
+      }
+    ],
+    "fixture": "Actual canonical owner TU linked, initialvalue asserted before resets. No new production alias/copy. Other owner consumers failclosed in fixture."
+  },
+  "raw_data": [
+    {
+      "token": "@FLAG@",
+      "va": "005de020",
+      "bytes": 4,
+      "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+      "raw_hex": "00000000"
+    },
+    {
+      "token": "@KERNEL@",
+      "va": "005e5100",
+      "bytes": 13,
+      "sha256": "d89b4bfe0229ab034c8597fbd9c4b70af3690382b8c700ec05d6923da518275c",
+      "raw_hex": "6b65726e656c33322e646c6c00"
+    },
+    {
+      "token": "@QUERY@",
+      "va": "005e50ec",
+      "bytes": 18,
+      "sha256": "a2f601560f754c96071c069c4b5139eab9044cbe790add7ab59eba02ac4ca5f8",
+      "raw_hex": "4973446562756767657250726573656e7400"
+    }
+  ],
+  "original_imports": [
+    {
+      "path": "Porsche.exe",
+      "dll": "KERNEL32.dll",
+      "symbol": "LoadLibraryA",
+      "iat_rva": "0x1b2050"
+    },
+    {
+      "path": "Porsche.exe",
+      "dll": "KERNEL32.dll",
+      "symbol": "GetProcAddress",
+      "iat_rva": "0x1b205c"
+    },
+    {
+      "path": "Porsche.exe",
+      "dll": "KERNEL32.dll",
+      "symbol": "DebugBreak",
+      "iat_rva": "0x1b20a8"
+    }
+  ],
+  "predicate": "LoadLibraryA exactkernel32.dll; ifnonnull GetProcAddress exactIsDebuggerPresent; ifnonnull call stdcall query andreturnfullEAX; otherwise return0. No FreeLibrary orcache introduced.",
+  "gate": "Read canonicalflag once; zero returns. Nonzero calls predicate. Nonzeroresult executes actualINT3 andreturns ifcontinued. Zeroresult reachesoriginalJMP[005b20a8]DebugBreak; C++ uses realWin32import. Doesnotrereadflag afterchild effects.",
+  "native_receipt": {
+    "path": "local/experiments/v2-debug-runtime-native-400/002/receipt.json",
+    "sha256": "abb69f69d5b80233902aaf275a2d3a1b2b0bae4e4dc5a37ca5ef05eba5e28979"
+  },
+  "native_counts": {
+    "per_optimization": 16384,
+    "optimizations": [
+      "/Od",
+      "/O2"
+    ],
+    "total": 32768,
+    "checks_per_optimization": 65536,
+    "mutations": 7
+  },
+  "oracle": "Raw42Bpredicate+26Bgate; checkedbothliteraloperands,3IAToperands,canonicalflagoperand andgateCALLrel32 before relocation. Originalgate calls originalpredicate; C++gate uses actualC++predicate. No oracleINT3 rewriting.",
+  "int3_proof": "Actual0xCC executed inraw005af0d2 andcompiledC++__debugbreak atOd/O2. Narrow VEH acceptsEXCEPTION_BREAKPOINT onlyinsideactivegate addressrange,on0xCC,withEIPatCCorCC+1,recordsnormalizedevent then resumesCC+1. Normalreturn andnonvolatile/ESP ABIchecked aftercontinuation. SourceCOFF disassemblypinned.",
+  "checks": [
+    "Initialrawflag0 andactualcanonicalowner default0 beforefixturesreset",
+    "Predicate+composedgate flags0/1/0x80000000/0xffffffff, modules0/0x12345000/0x80000000/0xffffffff, missing/presentproc",
+    "Queryfull0/1/-1/INT_MIN returns; nocanonicalboolean normalization",
+    "Load/proc/querycontrolled effects independentlyleaveflagunchanged orset0/1/0x80000000; originalgate capturesflagdecision beforeeffects",
+    "Call order,args,exactAPIstrings,recordedflagstate,finalflag,predicateEAX",
+    "ImportedDebugBreak eventdistinctfromactualINT3 event; nocall whenflagzero",
+    "ESP/EBP/EBX/ESI/EDI onnormalreturns includingcontinuedINT3; gatevoidEAXintentionallyignored"
+  ],
+  "mutation_controls": [
+    {
+      "name": "flag-polarity",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "7592bff0ec986a2a2632501ca0b6bc17c37f0a53bd585ff7b8e99f25d2f2df48"
+    },
+    {
+      "name": "query-return",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "aab9de27a5b1c472730e473464b9cd8d88395966cec9d3a3976b8e64dc20b698"
+    },
+    {
+      "name": "module-argument",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "dfdd28ace625a08c5df3c00384906a5baec370c0fc9401fd9d9131253b44489f"
+    },
+    {
+      "name": "failure-result",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "5d413700db7bf6a95e36b95a8c827f4b59d5e8018a12d19d4f2f93a1b782c83b"
+    },
+    {
+      "name": "int3-kind",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "63f84ff45c0f73fa0ef6effdeb41dc1d3dc5aed199cee5cbb9c6dab6a5f4ff2e"
+    },
+    {
+      "name": "fallback-flag-reread",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "c79fd3eabd060168f828e562345c5892daaf50a7ee40da9bed4ab9738f8b5478"
+    },
+    {
+      "name": "predicate-condition",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "0d8c834e9f56d392f926f2eb52f2b1aed578abcf0b677f1dbdca22ec9549ccfd"
+    }
+  ],
+  "coff_evidence": {
+    "path": "iterations/v2/001-original-recovery/runs/400-debug-runtime/coff-evidence.json",
+    "sha256": "5c17bdce4beb2ccf6e3399d3ec1b0ae54add12d04d2a76382c15f3aece089dfb"
+  },
+  "attempt_notes": {
+    "001": "BaselineOd/O2PASS; mutationremovingonlyDebugBreakcall removedrequiredIATentry andwasrejectedbeforecomparison. Revisedcontrol retainsimport andaddswrongflagrecheck.",
+    "002": "FinalPASS32768+7mutations; productionunchanged; source/config/fixturefrozen."
+  },
+  "boundaries": [
+    "OwnIAT controlledAPIendpoints establish exacttransport/return/sideeffect semantics; liveOSdynamicloader/debugger behavior remainsoutsidefixture",
+    "VEH continuation establishes actualINT3 andreturnABI whenhandled; realattacheddebugger decisions, exceptionstacklayout/internalcallstack andliveDebugBreakexception behavior remainseparate",
+    "Indexedreadconsumers confirmcanonicalflagownership; computedaliases/concurrentwrites remainHOLD",
+    "No full390terminal/debugger/window/session orlivegame acceptance claimed; productiongraph integrationownedbycoordinator"
+  ]
+}

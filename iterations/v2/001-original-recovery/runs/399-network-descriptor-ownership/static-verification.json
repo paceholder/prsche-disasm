@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "status": "PASS static ownership/byte-transcription checks only",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "capstone_version": "5.0.7",
+  "tables": 5,
+  "slot_cells": 93,
+  "nonzero_highlow_slots": 87,
+  "distinct_targets": 78,
+  "accepted_target_owners": 0,
+  "unindexed_entries": 61,
+  "closed_navigation_entries": 46,
+  "closed_navigation_bytes": 976,
+  "consumer_bodies": 8,
+  "absolute_operand_sites": 66,
+  "listing_gaps_resolved": 4,
+  "remaining_undecoded_sites": 0,
+  "unchanged395_native_inputs": 170,
+  "artifacts_sha256": {
+    "callback-inventory.json": "2e57cff34c2c8a86387fab5cb3a15f8fede1d0c380f2fdedc6dea60b95405180",
+    "navigation-candidates.jsonl": "339e10c4552d8e95935c2b0b73a4951bae204ac22c349dabfbb78aa64d977630",
+    "ownership-trace.json": "bb86e72b5aa7b5902824d7ee70c7a1ba970495433c19a062e75e5f88f23a2d29",
+    "README.md": "2a21f0981be8b836e6b0e1b7cf29df65e79db4760afa966edb682fd34e8dbdfb"
+  },
+  "no_production_changes": true,
+  "no_new_native_execution": true
+}

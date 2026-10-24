@@ -1,5 +1,12 @@
 # Отложенные проверки восстановления v2
 
+Run402: debugpredicate/gate68B +modemaccessor/cleanup129B accepted after36188
+nativecases/13mutations and543-pin audit;218TUs195names203refs,noEXE. RealINT3
+continued-return ABI and exactimports are bounded proof, not live debugger/internal
+exceptionstack acceptance. Modem522B initializer/TAPI/actualallocator/composition,
+concurrency and adversarialcleanupaliases remain open. Diagnosticlongtext stays
+PARTIAL.395/399 transport descriptors remainresearch; all prior livegameholds remain.
+
 Run398 integrates original81B memberconstructor:2592 nativecases/seven mutations,
 538-pin audit;216TUs196names204refs,no EXE. Actual heapstateowner and refill reused;
 whole allocator/network/OS composition stays open.395 transportdriver descriptor

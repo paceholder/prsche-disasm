@@ -1,0 +1,112 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "debug_runtime.hpp"
+#include "porsche/window_event_translation.hpp"
+#include "porsche/application_instance.hpp"
+#include "porsche/window_runtime.hpp"
+using U=std::uint32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+static const B original_predicate[42]={@PREDICATE@},original_gate[26]={@GATE@};
+static const B raw_flag[4]={@FLAG@},raw_kernel[13]={@KERNEL@},raw_query[18]={@QUERY@};
+static B* code;static DWORD import_values[3],*import_cells[3],old_imports[3];static PVOID handler;
+static U cases,checks,allow_int3,side;
+struct Case {U flag,module,proc;std::int32_t query;U load_effect,proc_effect,query_effect;};
+static Case cfg;
+struct Event {U kind,a,b,flag;char name[32];};
+struct State {U count,flag,result;Event events[5];};
+static State observed;
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void die(const char* what){std::printf("fixture %s\n",what);std::fflush(stdout);ExitProcess(98);}
+static void record(U kind,U a=0,U b=0,const char* name=nullptr){if(observed.count>=5)die("event-limit");auto& e=observed.events[observed.count++];e.kind=kind;e.a=a;e.b=b;e.flag=porsche::window_event_flag_005de020;if(name){if(std::strlen(name)>=sizeof e.name)die("name-size");std::strcpy(e.name,name);}}
+static void effect(U value){if(value)porsche::window_event_flag_005de020=value==1?0:value==2?1:0x80000000u;}
+extern "C" BOOL WINAPI query_endpoint(){record(3);effect(cfg.query_effect);return cfg.query;}
+extern "C" HMODULE WINAPI load_endpoint(LPCSTR name){record(1,0,0,name);effect(cfg.load_effect);return reinterpret_cast<HMODULE>(cfg.module);}
+extern "C" FARPROC WINAPI proc_endpoint(HMODULE module,LPCSTR name){record(2,ptr(module),0,name);effect(cfg.proc_effect);return cfg.proc?reinterpret_cast<FARPROC>(&query_endpoint):nullptr;}
+extern "C" void WINAPI break_endpoint(){record(5);}
+namespace porsche {
+// Unused consumers from the actual flag owner fail closed.
+std::uint32_t window_create_state_005de024=0;
+const std::uint8_t* __cdecl window_event_key_state_0055feb0(U){die("unused-input");return nullptr;}
+void __cdecl application_instance_exit_005a246e(U){die("unused-exit");}
+}
+static LONG CALLBACK exception_handler(EXCEPTION_POINTERS* info){
+    if(info->ExceptionRecord->ExceptionCode!=EXCEPTION_BREAKPOINT)return EXCEPTION_CONTINUE_SEARCH;
+    if(!allow_int3)die("unexpected-int3");
+    const U at=ptr(info->ExceptionRecord->ExceptionAddress);
+    const U begin=side==0?ptr(code+128):ptr(reinterpret_cast<const void*>(&porsche::startup_debug_break_005af0c0));
+    if(at<begin||at>=begin+256||*reinterpret_cast<const B*>(at)!=0xcc)die("int3-address");
+    if(info->ContextRecord->Eip!=at&&info->ContextRecord->Eip!=at+1)die("int3-eip");
+    record(4,EXCEPTION_BREAKPOINT,0xcc);
+    // Bounded harness continuation of the actualCC instruction, not a fake API.
+    info->ContextRecord->Eip=at+1;
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+static void patch_imports(){
+    auto* base=reinterpret_cast<B*>(GetModuleHandleW(nullptr));auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
+    if(dos->e_magic!=IMAGE_DOS_SIGNATURE||nt->Signature!=IMAGE_NT_SIGNATURE||nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR32_MAGIC)die("pe");
+    const char* names[3]={"LoadLibraryA","GetProcAddress","DebugBreak"};bool seen[3]{};
+    auto* desc=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+    for(;desc->Name;++desc){if(!desc->OriginalFirstThunk)die("original-thunks");
+        auto* name=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->OriginalFirstThunk);auto* iat=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->FirstThunk);
+        for(;name->u1.AddressOfData;++name,++iat){if(IMAGE_SNAP_BY_ORDINAL32(name->u1.Ordinal))continue;
+            auto* item=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+name->u1.AddressOfData);
+            for(U i=0;i<3;++i)if(!_stricmp(reinterpret_cast<const char*>(base+desc->Name),"KERNEL32.dll")&&!std::strcmp(reinterpret_cast<const char*>(item->Name),names[i])){
+                if(seen[i])die("duplicate-import");DWORD old,ignored;import_cells[i]=&iat->u1.Function;old_imports[i]=iat->u1.Function;
+                if(!old_imports[i]||!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("protect");*import_cells[i]=import_values[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("protect-mode");seen[i]=true;
+            }
+        }
+    }for(bool found:seen)if(!found)die("missing-exact-import");
+}
+static void restore_imports(){for(U i=0;i<3;++i){DWORD old,ignored;if(!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("restore-protect");*import_cells[i]=old_imports[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("restore-mode");}}
+static void absolute(B* output,const B* original,U off,U expected,const void* target){if(word(original+off)!=expected)die("absolute-original");U value=ptr(target);std::memcpy(output+off,&value,4);}
+static void install(){
+    if(word(raw_flag)!=0||porsche::window_event_flag_005de020!=0)die("initial-flag");
+    if(std::memcmp(raw_kernel,"kernel32.dll",13)||std::memcmp(raw_query,"IsDebuggerPresent",18))die("raw-literals");
+    import_values[0]=ptr(reinterpret_cast<const void*>(&load_endpoint));import_values[1]=ptr(reinterpret_cast<const void*>(&proc_endpoint));import_values[2]=ptr(reinterpret_cast<const void*>(&break_endpoint));
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("alloc");std::memcpy(code,original_predicate,42);std::memcpy(code+128,original_gate,26);
+    absolute(code,original_predicate,2,0x5e5100,raw_kernel);absolute(code,original_predicate,10,0x5b2050,import_values);absolute(code,original_predicate,19,0x5e50ec,raw_query);absolute(code,original_predicate,26,0x5b205c,import_values+1);
+    absolute(code+128,original_gate,1,0x5de020,&porsche::window_event_flag_005de020);absolute(code+128,original_gate,22,0x5b20a8,import_values+2);
+    if(original_gate[9]!=0xe8||0x5af0c0u+14+word(original_gate+10)!=0x5af090||original_gate[18]!=0xcc||original_gate[19]!=0xc3||original_gate[20]!=0xff||original_gate[21]!=0x25)die("gate-original");
+    U delta=ptr(code)-ptr(code+128+14);std::memcpy(code+128+10,&delta,4);
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),code,4096);patch_imports();
+    handler=AddVectoredExceptionHandler(1,&exception_handler);if(!handler)die("handler");
+}
+struct Capture {U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,result;};
+static Capture invoke(const void* fn){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,fn
+        call ecx
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+static State execute(U kind,U which){observed={};porsche::window_event_flag_005de020=cfg.flag;side=which;allow_int3=kind==1;
+    const void* fn=which==0?static_cast<const void*>(code+(kind?128:0)):kind?reinterpret_cast<const void*>(&porsche::startup_debug_break_005af0c0):reinterpret_cast<const void*>(&porsche::startup_debugger_query_005af090);
+    auto result=invoke(fn);if(!abi(result))die("ABI divergence");observed.flag=porsche::window_event_flag_005de020;observed.result=kind?0:result.result;return observed;
+}
+static void compare(U kind){auto expected=execute(kind,0);auto actual=execute(kind,1);++cases;checks+=4;if(std::memcmp(&expected,&actual,sizeof actual)){
+    std::printf("divergence debug kind=%u case=%u flag=%x module=%x proc=%u query=%x effects=%u,%u,%u count=%u/%u result=%x/%x\n",kind,cases,cfg.flag,cfg.module,cfg.proc,static_cast<U>(cfg.query),cfg.load_effect,cfg.proc_effect,cfg.query_effect,expected.count,actual.count,expected.result,actual.result);std::fflush(stdout);ExitProcess(1);
+}}
+int main(){install();for(U flag:{0u,1u,0x80000000u,0xffffffffu})for(U module:{0u,0x12345000u,0x80000000u,0xffffffffu})for(U proc:{0u,1u})for(std::int32_t query:{0,1,-1,static_cast<std::int32_t>(0x80000000u)})for(U le:{0u,1u,2u,3u})for(U pe:{0u,1u,2u,3u})for(U qe:{0u,1u,2u,3u}){
+    cfg={flag,module,proc,query,le,pe,qe};compare(0);compare(1);
+}restore_imports();if(!RemoveVectoredExceptionHandler(handler))die("remove-handler");std::printf("debug_runtime_original_vs_cpp=PASS cases=%u checks=%u real_int3=PASS\n",cases,checks);return 0;}

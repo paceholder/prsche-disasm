@@ -1,5 +1,10 @@
 # Индекс оригинальных бинарников
 
+Run399: [transport callback navigation](../../iterations/v2/001-original-recovery/runs/399-network-descriptor-ownership/README.md)
+records five original callback tables and46 raw closed-RET navigation candidates,
+including omitted registry enumeration00580140. Evidence-only: no accepted callback
+provider, inferred table capacity or automatic global function-count increase.
+
 Run387: [startup-diagnostic-387.jsonl](supplemental/startup-diagnostic-387.jsonl)
 adds omitted0059fbc0..0059fc1c (93B/fullRET), rawPE/SHA, callers andstate evidence.
 388 integrates its actualhostpointer; terminal0059fc20 remains unrecovered.

@@ -11,8 +11,8 @@
 
 ## Текущий результат
 
-Current2026-10-24: [Run398](iterations/v2/001-original-recovery/runs/398-network-member-integration/README.md)
-compiles216TUs;196 unresolved names/204refs,no gameEXE.
+Current2026-10-24: [Run402](iterations/v2/001-original-recovery/runs/402-debug-modem-integration/README.md)
+compiles218TUs;195 unresolved names/203refs,no gameEXE.
 [PR24/Run431](iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md)
 adds reviewed research lowering, outside the game graph. Older checkpoints below
 are historical; active work is tracked in the iteration PLAN.

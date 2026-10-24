@@ -1,5 +1,21 @@
 # v2 / 001 - original source recovery plan
 
+Current402,2026-10-24: debug400(68B) andmodemtable401(129B) integrated.
+36188 nativecases/13mutations,3REA dossiers and543-pin audit PASS. Actual218TUs/
+8projects compile;195names203refs,noEXE. Two frontiernamesclose; real522B modem
+initializer0055e4d0 opens. Four original bodies, no duplicated existingstate;
+401 adds only two proved loaderzero scalarowners, no backingarray/capacityguess.
+Final401 native/REA003 and402 build002 pin repositoryLF configs; superseded
+config/audit evidence is preserved.400 sourceproof002 remainsunchanged.
+400/401 native inputs frozen. Diagnostic0059fc20 staysPARTIAL; game/visual holdsopen.
+Active: diagnostic_terminal_390 owns403 modeminitializer/callback; network_constructor_391
+completed399 transportownership evidence and now owns404 platformfacade bindings;
+coordinator owns sharedacceptance/commits.
+Next: original modeminitializer using401 owners/REA002; no guessed TAPI backend.
+GitHub MCP/search work remains deferred until aftercurrentiteration peruser.
+
+Historical checkpoint398 follows.
+
 Current398,2026-10-24: original396 memberconstructor now integrated after2592
 nativecases/7mutations; actualcanonicalheapstateowner linked and reused. Sharedaudit
 PASS538pins.216TUs/8projects compile;196names204refs,noEXE. One oldnamecloses,
@@ -12,9 +28,7 @@ parsers. Native bounded candidate proof exists; descriptor/registry storage and
 completecallbackbindings remain unproved and MUST NOT enter the game graph.
 395 final002 PASS:4608 four-call sequences/variant,18432 calls/variant,6mutations;
 170 receipt pins verified unchanged. Research-only archive; no game/registry intake.
-Active owners: network_constructor_391 traces399 descriptor/registry ownership;
-diagnostic_terminal_390 recovers400 debug predicate/gate; coordinator traces
-0055eb70 table accessor/initialization and owns shared intake.
+The398 assignments below are historical; currentowners are listed above.
 Next concrete recovery: descriptor lifecycle/consumer/ABI ownership for original
 transport tables, debug runtime and actual child composition. Do not fillunknownslots withzero,
 map raworiginalfunctionVAs to hostpointers or define independentinteriorcells.

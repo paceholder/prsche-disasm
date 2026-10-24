@@ -1,0 +1,5 @@
+{
+  "run": "iterations/v2/001-original-recovery/runs/402-debug-modem-integration",
+  "build": "local/builds/v2/debug-modem-402",
+  "experiment": "local/experiments/v2-debug-modem-game-402"
+}

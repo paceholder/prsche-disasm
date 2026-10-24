@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "experiment": "local/experiments/v2-device-table-401-rea",
+  "queries": [
+    {
+      "label": "function-0055eb70",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0055eb70"
+      }
+    },
+    {
+      "label": "function-0055ddf0",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0055ddf0"
+      }
+    },
+    {
+      "label": "function-0055e4d0",
+      "tool": "analyze_function",
+      "arguments": {
+        "procedure": "0x0055e4d0"
+      }
+    }
+  ]
+}

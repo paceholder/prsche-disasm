@@ -1,10 +1,10 @@
 # План восстановления Porsche Unleashed
 
-Current [Run398](iterations/v2/001-original-recovery/runs/398-network-member-integration/README.md):
-216 C++ TUs/8 projects compile;196 unresolved names/204 refs,no EXE. Original
-member constructor integrated after2592 native cases/seven mutations;538-pin audit
-PASS. Prior Run392 is pushed as a648e79. Driver descriptors remain separate research;
-GitHub MCP and search discoverability are queued after the current iteration.
+Current [Run402](iterations/v2/001-original-recovery/runs/402-debug-modem-integration/README.md):
+218 C++ TUs/8 projects compile;195 unresolved names/203 refs,no EXE. Original
+68B debug runtime and129B modem table bodies integrated after36188 nativecases/
+13mutations;543-pin sharedaudit PASS. Next: original modem enumeration;
+transport descriptors remain separate research. GitHub MCP/search work is deferred.
 
 Older checkpoints below are historical.
 

@@ -1,0 +1,108 @@
+{
+  "run": 400,
+  "experiment": "local/experiments/v2-debug-runtime-native-400",
+  "timeout_seconds": 60,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/window_event_translation.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/400-debug-runtime/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/source/include",
+    "iterations/v2/001-original-recovery/runs/400-debug-runtime"
+  ],
+  "headers": [],
+  "original_bodies": [
+    {
+      "token": "@PREDICATE@",
+      "va": "005af090",
+      "bytes": 42,
+      "sha256": "03fdbf5d5cbba425bbec8247d33b94ec782481c7a0480d55bcc293cb3fe40d54"
+    },
+    {
+      "token": "@GATE@",
+      "va": "005af0c0",
+      "bytes": 26,
+      "sha256": "dcd68ff3ba5ad1e0bd705712a11689ecc126b9c1f33b9fd7b231a0a2e5ab6eb7"
+    },
+    {
+      "token": "@FLAG@",
+      "va": "005de020",
+      "bytes": 4,
+      "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+    },
+    {
+      "token": "@KERNEL@",
+      "va": "005e5100",
+      "bytes": 13,
+      "sha256": "d89b4bfe0229ab034c8597fbd9c4b70af3690382b8c700ec05d6923da518275c"
+    },
+    {
+      "token": "@QUERY@",
+      "va": "005e50ec",
+      "bytes": 18,
+      "sha256": "a2f601560f754c96071c069c4b5139eab9044cbe790add7ab59eba02ac4ca5f8"
+    }
+  ],
+  "pass_marker": "debug_runtime_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "flag-polarity",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "if (!window_event_flag_005de020)",
+      "new": "if (window_event_flag_005de020)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "query-return",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "return query();",
+      "new": "return query() != 0;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "module-argument",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "::GetProcAddress(module,\"IsDebuggerPresent\")",
+      "new": "::GetProcAddress(nullptr,\"IsDebuggerPresent\")",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "failure-result",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "    return 0;",
+      "new": "    return 1;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "int3-kind",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "        __debugbreak();",
+      "new": "        ::DebugBreak();",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "fallback-flag-reread",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "    ::DebugBreak();\n}",
+      "new": "    if (!window_event_flag_005de020) ::DebugBreak();\n}",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "predicate-condition",
+      "source": "iterations/v2/001-original-recovery/runs/400-debug-runtime/debug_runtime.cpp",
+      "old": "if (startup_debugger_query_005af090())",
+      "new": "if (startup_debugger_query_005af090() == 1)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

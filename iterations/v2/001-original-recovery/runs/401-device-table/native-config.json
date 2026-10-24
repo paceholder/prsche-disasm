@@ -1,0 +1,80 @@
+{
+  "run": 401,
+  "experiment": "local/experiments/v2-device-table-native-401",
+  "timeout_seconds": 60,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/401-device-table/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/401-device-table"
+  ],
+  "headers": [],
+  "original_bodies": [
+    {
+      "token": "@GETTER@",
+      "va": "0055eb70",
+      "bytes": 46,
+      "sha256": "0dc9ccb0e64c783bfbcf6fd0b8fbee50d908d9641921409c642b3ad2a5851306"
+    },
+    {
+      "token": "@CLEAR@",
+      "va": "0055ddf0",
+      "bytes": 83,
+      "sha256": "ffc76ec72b6f3ac6a3dcfa7dc37ed016b95b8440471c2839250c4c2901126e49"
+    }
+  ],
+  "pass_marker": "device_table_original_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "skip-enumeration",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "old": "if (!device_table_pointer_006a57b8) device_table_enumerate_0055e4d0();",
+      "new": "/* enumeration omitted */",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "index-boundary",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "old": ">=static_cast<std::int32_t>(device_table_count_006a57a0)",
+      "new": ">static_cast<std::int32_t>(device_table_count_006a57a0)",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "stride",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "old": "+index*12u",
+      "new": "+index*8u",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "table-reload",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "old": "table=device_table_pointer_006a57b8;\n            }",
+      "new": "/* reload omitted */\n            }",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "count-reload",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "old": "static_cast<std::int32_t>(index)<static_cast<std::int32_t>(device_table_count_006a57a0)",
+      "new": "static_cast<std::int32_t>(index)<1",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "clear-final",
+      "source": "iterations/v2/001-original-recovery/runs/401-device-table/device_table.cpp",
+      "old": "device_table_pointer_006a57b8=0;\n}",
+      "new": "/* final clear omitted */\n}",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

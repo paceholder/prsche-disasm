@@ -1,0 +1,97 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "device_table.hpp"
+using U=std::uint32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+static const B getter_raw[46]={@GETTER@},clear_raw[83]={@CLEAR@};
+static B *getter,*clearer,*memory;static U cases,checks;
+static U word(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U load(const void* p){U x;std::memcpy(&x,p,4);return x;}
+static void put(void* p,U x){std::memcpy(p,&x,4);}
+static void die(const char* s){std::printf("divergence fixture %s\n",s);std::fflush(stdout);ExitProcess(1);}
+struct Case{U table,count,index,init,effect,pattern;};static Case cfg;
+struct Event{U kind,arg,table,count;};
+struct State{U used,result,table,count;Event event[12];B bytes[256];};static State seen,want,got;
+static void event(U kind,U arg){if(seen.used>=12)die("event-limit");seen.event[seen.used++]={kind,arg,porsche::device_table_pointer_006a57b8,porsche::device_table_count_006a57a0};}
+namespace porsche {
+U __cdecl device_table_enumerate_0055e4d0(){event(1,0);
+ if(cfg.init==1){device_table_pointer_006a57b8=word(memory);device_table_count_006a57a0=3;}
+ if(cfg.init==2){device_table_pointer_006a57b8=0;device_table_count_006a57a0=5;}
+ if(cfg.init==3){device_table_pointer_006a57b8=0xfffffff8u;device_table_count_006a57a0=0x7fffffffu;}
+ if(cfg.init==4){device_table_pointer_006a57b8=word(memory+128);device_table_count_006a57a0=0xffffffffu;}
+ return 0xbad01234u;
+}
+U __cdecl free_00531f90(void* p){event(2,word(p));if(seen.used==1){
+ if(cfg.effect==1)device_table_pointer_006a57b8=word(memory+128);
+ if(cfg.effect==2)device_table_count_006a57a0=1;
+ if(cfg.effect==3)device_table_count_006a57a0=5;
+ if(cfg.effect==4){device_table_pointer_006a57b8=0;device_table_count_006a57a0=0xffffffffu;}
+ }return 0xdeadbeefu;
+}
+}
+static void absolute(B* code,const B* raw,U size,U old,U target){U hits=0;for(U i=0;i+4<=size;++i)if(load(raw+i)==old){put(code+i,target);++hits;i+=3;}if(!hits)die("missing-operand");}
+static void relative(B* code,const B* raw,U size,U base,U target,const void* replacement){U hits=0;for(U i=0;i+5<=size;++i)if(raw[i]==0xe8&&base+i+5+load(raw+i+1)==target){put(code+i+1,word(replacement)-word(code+i+5));++hits;i+=4;}if(!hits)die("missing-call");}
+static void install(){
+ if(porsche::device_table_count_006a57a0||porsche::device_table_pointer_006a57b8)die("production-defaults");
+ memory=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+ getter=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));clearer=getter+256;
+ if(!memory||!getter)die("allocation");std::memcpy(getter,getter_raw,46);std::memcpy(clearer,clear_raw,83);
+ for(auto code:{getter,clearer}){const B* raw=code==getter?getter_raw:clear_raw;U size=code==getter?46:83;
+ absolute(code,raw,size,0x6a57a0,word(&porsche::device_table_count_006a57a0));
+ absolute(code,raw,size,0x6a57b8,word(&porsche::device_table_pointer_006a57b8));}
+ relative(getter,getter_raw,46,0x55eb70,0x55e4d0,reinterpret_cast<const void*>(&porsche::device_table_enumerate_0055e4d0));
+ relative(clearer,clear_raw,83,0x55ddf0,0x531f90,reinterpret_cast<const void*>(&porsche::free_00531f90));
+ DWORD old;if(!VirtualProtect(getter,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),getter,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,result;};
+static Capture invoke(const void* fn,bool argument){Capture r{};U arg=cfg.index;
+ __asm {
+ mov ebx,13579bdfh
+ mov esi,2468ace0h
+ mov edi,6a31c5e7h
+ lea edx,r
+ mov [edx],esp
+ mov [edx+8],ebp
+ mov [edx+16],ebx
+ mov [edx+24],esi
+ mov [edx+32],edi
+ cmp argument,0
+ je no_arg
+ push arg
+no_arg:
+ mov eax,fn
+ call eax
+ cmp argument,0
+ je no_pop
+ add esp,4
+no_pop:
+ lea edx,r
+ mov [edx+40],eax
+ mov [edx+4],esp
+ mov [edx+12],ebp
+ mov [edx+20],ebx
+ mov [edx+28],esi
+ mov [edx+36],edi
+ }return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+static void reset(bool query){seen={};for(U i=0;i<256;++i)memory[i]=static_cast<B>(i*7+0x65);
+ for(U t:{0u,128u})for(U i=0;i<5;++i)put(memory+t+12*i+8,((i+cfg.pattern)%4==0)?0:0xa0000000u+t+i);
+ porsche::device_table_count_006a57a0=cfg.count;
+ const U tokens[]={0,word(memory),word(memory+128),1,0xfffffff8u};
+ porsche::device_table_pointer_006a57b8=tokens[cfg.table];
+}
+static void execute(const void* fn,bool query,State& s){reset(query);Capture r=invoke(fn,query);if(!abi(r))die("ABI");seen.result=query?r.result:0;
+ seen.table=porsche::device_table_pointer_006a57b8;seen.count=porsche::device_table_count_006a57a0;std::memcpy(seen.bytes,memory,256);s=seen;
+}
+static void compare(bool query){execute(query?getter:clearer,query,want);execute(query?reinterpret_cast<const void*>(&porsche::network_environment_0055eb70):reinterpret_cast<const void*>(&porsche::device_table_clear_0055ddf0),query,got);++cases;checks+=4;
+ if(std::memcmp(&want,&got,sizeof got)){std::printf("divergence case=%u query=%u table=%u count=%x index=%x init=%u effect=%u pattern=%u\n",cases,query,cfg.table,cfg.count,cfg.index,cfg.init,cfg.effect,cfg.pattern);std::fflush(stdout);ExitProcess(1);}}
+int main(){install();
+ for(U t:{0u,1u,2u,3u,4u})for(U n:{0u,1u,3u,0x7fffffffu,0x80000000u,0xffffffffu})for(U i:{0u,1u,2u,3u,0x15555555u,0x7ffffffeu,0x7fffffffu,0x80000000u,0xffffffffu})for(U init:{0u,1u,2u,3u,4u}){cfg={t,n,i,init,0,0};compare(true);}
+ for(U t:{0u,1u,2u})for(U n:{0u,1u,3u,5u,0x80000000u,0xffffffffu})for(U effect:{0u,1u,2u,3u,4u})for(U pattern:{0u,1u,2u,3u}){cfg={t,n,0,0,effect,pattern};compare(false);}
+ std::printf("device_table_original_vs_cpp=PASS cases=%u checks=%u\n",cases,checks);return 0;
+}
