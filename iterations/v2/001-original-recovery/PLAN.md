@@ -1,18 +1,20 @@
 # v2 / 001 - original source recovery plan
 
-Current392,2026-10-24: accepted networkctor391 +leaves393 +boundedterminal390
-and exactGetTickCount binding394. SharedauditPASS38948cases/23mutations/535pins;
-215TUs/8projects compile,197names205refs,noEXE. Exact3oldnamesclose/6childrenopen.
-390longmessage>=253 remainspartial; defaultmode/cache/timeout2/1/400 verified.
-Canonicalstate/import/COFFproviders checked; originals and passednativeinputs frozen.
-Game001/002 retained; onlyunnecessaryclockheader changed between builds. See392README
-andacceptance.json for exactcommands andboundaries. Rootiteration NOT complete.
+Current398,2026-10-24: original396 memberconstructor now integrated after2592
+nativecases/7mutations; actualcanonicalheapstateowner linked and reused. Sharedaudit
+PASS538pins.216TUs/8projects compile;196names204refs,noEXE. One oldnamecloses,
+no newdependency. Prior392/a648e79 was38948cases/23mutations,215TUs197names205refs.
+Passed390/391/393/396 source/config/fixture inputs remain frozen; no successful
+nativeproof repeated. Rootv2/001 remains open; no livegame/visual acceptance.
 
-Separate nextwork: worker395 transportdriverinitializers00560a90/005607d0
-(legacyoptionfacade names), extern-only descriptors/unknowncallbackownership;
-no guessedtable/storage intake. Worker396 memberconstructor004902c0 nowPASS2592cases/
-7mutations, actualcanonicalheapstateowner linked; separateintakepending.
-No furtherworker subtask starts after these handoffs. Coordinator owns nextintake.
+Separate395 research: two transportdriverinitializers005607d0/00560a90, not option
+parsers. Native bounded candidate proof exists; descriptor/registry storage and
+completecallbackbindings remain unproved and MUST NOT enter the game graph.
+395 labels are corrected from original descriptor names; finalhandoff pending.
+396 worker complete;395 worker finishes handoff only, no further subtasks.
+Next concrete recovery: descriptor lifecycle/consumer/ABI ownership for original
+transport tables, then actual child composition. Do not fillunknownslots withzero,
+map raworiginalfunctionVAs to hostpointers or define independentinteriorcells.
 
 USER QUEUE2026-10-24, aftercurrentrecoveryiteration checkpoint: verify/connect
 GitHub MCP in this environment, then improve public search discoverability of

@@ -1,0 +1,147 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include "network_member_constructor.hpp"
+#include "porsche/application_heap_state.hpp"
+#include "porsche/application_heap.hpp"
+#include "porsche/application_heap_init.hpp"
+#include "porsche/application_context_base.hpp"
+#include "porsche/application_alloc.hpp"
+#include "porsche/application_pool.hpp"
+#include "porsche/application_main.hpp"
+#include "porsche/context_effects.hpp"
+#include "porsche/heap.hpp"
+#include "porsche/install_paths.hpp"
+using U=std::uint32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+static const B original[81]={@BODY@};
+static const B raw_current[8]={@CURRENT@};
+static const B raw_default[40]={@DEFAULT@},raw_live[40]={@LIVE@};
+static B *code,*arena,*opaque_guard;static U cases,checks;
+static constexpr U ARENA=0x40000u;
+static U word(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U load(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void store(void* p,U v){std::memcpy(p,&v,4);}
+static void* addr(void* p,U off){return reinterpret_cast<void*>(word(p)+off);}
+static void die(const char* s){std::printf("fixture %s\n",s);std::fflush(stdout);ExitProcess(98);}
+struct Case {U manager,empty,node,alias,enter_effect,refill_effect,leave_effect,opaque;};
+static Case cfg;static void *receiver,*selected_node,*captured_pool;static U next_value;
+struct Event {U kind,a,b,current,lock0,head0,lock1,head1;};
+struct State {U count,result;Event events[4];B heap[sizeof(porsche::ApplicationHeapContexts)],runtime[sizeof(porsche::ApplicationHeapRuntime)],memory[ARENA];};
+static State observed,expected,actual;
+static void* manager(U i){return i?static_cast<void*>(&porsche::application_heap_contexts.live):static_cast<void*>(&porsche::application_heap_contexts.defaults);}
+static void* pool(U i){return addr(manager(i),0x28);}
+static void record(U kind,U a=0,U b=0){if(observed.count>=4)die("event-limit");observed.events[observed.count++]={kind,a,b,word(porsche::application_heap_contexts.current),load(pool(0)),load(addr(pool(0),0x10)),load(pool(1)),load(addr(pool(1),0x10))};}
+static void effects(U which){
+    if(which==1)porsche::application_heap_contexts.current=manager(1-cfg.manager);
+    if(which==2)store(captured_pool,0xabcdef01u);
+    if(which==3){store(addr(captured_pool,0x10),word(arena+0x2000));store(arena+0x2004,0x789abcdeu);}
+    if(which==4){store(addr(captured_pool,0x10),0);porsche::application_heap_contexts.current=manager(1-cfg.manager);}
+    if(which==5){porsche::application_heap_contexts.current=manager(1-cfg.manager);store(captured_pool,0xf1234567u);}
+}
+namespace porsche {
+void __cdecl heap_enter_005322b0(void* lock){record(1,word(lock));effects(cfg.enter_effect);}
+void __cdecl heap_leave_005322c0(void* lock){record(3,word(lock));effects(cfg.leave_effect);}
+void __cdecl application_context_new_head_0059eeb0(U kind,U mode){record(2,kind,mode);
+    // Controlled child effect: satisfy captured pool while optionally switching manager.
+    store(addr(captured_pool,0x10),word(selected_node));effects(cfg.refill_effect);
+}
+// Static callback fields and unrelated shutdown paths in the real owner are
+// linked for ownership/default proof. These unused callees fail closed.
+void* __cdecl application_allocator_entry_00531f70(const char*,U,U){die("unused-allocate");return nullptr;}
+U __cdecl free_00531f90(void*){die("unused-free");return 0;}
+void* __cdecl resize_00569640(void*,std::int32_t){die("unused-resize");return nullptr;}
+void* __cdecl application_heap_block_005aef20(void*){die("unused-block");return nullptr;}
+U __cdecl install_paths_size_00556640(const void*){die("unused-size");return 0;}
+const char* __cdecl heap_name_00556650(void*){die("unused-name");return nullptr;}
+U __cdecl application_heap_tag_00556680(const void*){die("unused-tag");return 0;}
+U __cdecl application_heap_measure_00569ad0(U){die("unused-measure");return 0;}
+void __cdecl application_pool_shutdown_005678f0(){die("unused-pool-shutdown");}
+void __cdecl application_heap_secondary_stop_0055ec30(){die("unused-secondary-stop");}
+void __cdecl application_heap_queue_clean_0059ee30(U){die("unused-queue-clean");}
+U __cdecl application_heap_destroy_005699f0(U){die("unused-destroy");return 0;}
+U __cdecl application_virtual_free(void*,U,U){die("unused-virtual-free");return 0;}
+}
+static void relative(U off,U va,const void* target){if(original[off]!=0xe8||0x4902c0u+off+5+load(original+off+1)!=va)die("relative-original");U delta=word(target)-word(code+off+5);std::memcpy(code+off+1,&delta,4);}
+static void install(){
+    if(load(raw_current)!=0x5e3e18||load(raw_current+4)!=0x6af374||porsche::application_heap_contexts.current!=&porsche::application_heap_contexts.defaults||porsche::application_heap_contexts.selectors!=porsche::application_heap_runtime.selectors)die("initial-current");
+    if(load(raw_default)!=0x6af374||load(raw_live)!=0x6af374)die("raw-selectors");
+    // Prior340 proves the entire table; assert the unchanged initialized owner
+    // and original callback tokens before any pool resets.
+    const U defaults[10]={0x6af374,0x59e9c0,0x59e9c0,0x59e9b0,0x59e9c0,0,0x59e9c0,0x59e9c0,0x59e9c0,0x59e9c0};
+    const U live[10]={0x6af374,0x531f70,0x531f90,0x569640,0x5aef20,0,0x556640,0x556650,0x556680,0x569ad0};
+    if(std::memcmp(raw_default,defaults,40)||std::memcmp(raw_live,live,40))die("raw-header");
+    if(porsche::application_heap_contexts.defaults.header[0]!=word(porsche::application_heap_runtime.selectors)||porsche::application_heap_contexts.live.header[0]!=word(porsche::application_heap_runtime.selectors))die("owner-header");
+    for(B b:porsche::application_heap_contexts.defaults.records)if(b)die("owner-default-records");
+    for(B b:porsche::application_heap_contexts.live.records)if(b)die("owner-live-records");
+    for(B b:reinterpret_cast<const B(&)[sizeof(porsche::application_heap_runtime)]>(porsche::application_heap_runtime))if(b)die("owner-runtime");
+    arena=static_cast<B*>(VirtualAlloc(reinterpret_cast<void*>(0x02000000u),ARENA,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(word(arena)!=0x02000000u)die("arena");
+    opaque_guard=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_NOACCESS));if(!opaque_guard)die("guard");
+    code=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!code)die("code");std::memcpy(code,original,81);
+    if(original[0]!=0xa1||load(original+1)!=0x5e4fe8||original[78]!=0xc2||original[79]!=4||original[80]!=0)die("raw-entry-ret");
+    // Canonical physical current cell: original A1 reads this field directly.
+    U cell=word(&porsche::application_heap_contexts.current);std::memcpy(code+1,&cell,4);
+    relative(0x11,0x5322b0,reinterpret_cast<const void*>(&porsche::heap_enter_005322b0));
+    relative(0x24,0x59eeb0,reinterpret_cast<const void*>(&porsche::application_context_new_head_0059eeb0));
+    relative(0x38,0x5322c0,reinterpret_cast<const void*>(&porsche::heap_leave_005322c0));
+    DWORD old;if(!VirtualProtect(code,4096,PAGE_EXECUTE_READ,&old))die("code-protect");FlushInstructionCache(GetCurrentProcess(),code,81);
+}
+struct Capture {U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,result;};
+static Capture invoke(const void* fn){Capture r{};const void* opaque=cfg.opaque==0?nullptr:cfg.opaque==1?opaque_guard:cfg.opaque==2?reinterpret_cast<void*>(0xffffffffu):arena+0x35000;
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov eax,opaque
+        push eax
+        mov ecx,receiver
+        mov edx,87654321h
+        mov eax,fn
+        call eax
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+static void reset(){observed={};for(U i=0;i<ARENA;++i)arena[i]=static_cast<B>(i*13+0x5a);
+    for(U j=0;j<2;++j){auto* m=static_cast<porsche::ApplicationHeapManager*>(manager(j));for(U i=0;i<sizeof m->records;++i)m->records[i]=static_cast<B>(0x31u+i*7u+j);store(pool(j),j?0x99aabbccu:0x11223344u);store(addr(pool(j),0x10),word(arena+(j?0x3000:0x4000)));}
+    porsche::application_heap_contexts.current=manager(cfg.manager);captured_pool=pool(cfg.manager);
+    selected_node=cfg.node==0?static_cast<void*>(arena+0x1000):cfg.node==1?static_cast<void*>(arena+0x2100):cfg.node==2?captured_pool:cfg.node==3?addr(captured_pool,0x10):cfg.node==4?static_cast<void*>(arena+0x6000):addr(pool(1-cfg.manager),0x10);
+    next_value=0x76543210u;store(addr(selected_node,4),next_value);
+    store(addr(captured_pool,0x10),cfg.empty?0:word(selected_node));
+    store(arena+0x2004,0x789abcdeu);
+    receiver=cfg.alias==0?static_cast<void*>(arena+0x8000):cfg.alias<=4?addr(selected_node,cfg.alias-1):cfg.alias==5?addr(captured_pool,0x10):cfg.alias==6?captured_pool:static_cast<void*>(&porsche::application_heap_contexts.current);
+}
+static void execute(const void* fn,State& result){reset();auto abi_result=invoke(fn);if(!abi(abi_result)||abi_result.result!=word(receiver))die("ABI/result divergence");observed.result=abi_result.result;
+    std::memcpy(observed.heap,&porsche::application_heap_contexts,sizeof observed.heap);std::memcpy(observed.runtime,&porsche::application_heap_runtime,sizeof observed.runtime);std::memcpy(observed.memory,arena,ARENA);result=observed;
+}
+static void compare(){execute(code,expected);execute(reinterpret_cast<const void*>(&porsche::network_member_construct_004902c0),actual);++cases;checks+=4;
+    if(std::memcmp(&expected,&actual,sizeof actual)){
+        std::printf("divergence member case=%u manager=%u empty=%u node=%u alias=%u enter=%u refill=%u leave=%u opaque=%u events=%u/%u\n",cases,cfg.manager,cfg.empty,cfg.node,cfg.alias,cfg.enter_effect,cfg.refill_effect,cfg.leave_effect,cfg.opaque,expected.count,actual.count);
+        for(U i=0;i<4;++i)if(std::memcmp(expected.events+i,actual.events+i,sizeof(Event)))std::printf(" event%u kind=%u/%u a=%x/%x head=%x/%x\n",i,expected.events[i].kind,actual.events[i].kind,expected.events[i].a,actual.events[i].a,expected.events[i].head0,actual.events[i].head0);
+        std::fflush(stdout);ExitProcess(1);
+    }
+}
+int main(){install();
+    for(U m:{0u,1u})for(U empty:{0u,1u})for(U node:{0u,1u,2u,3u,4u,5u})for(U alias:{0u,1u,2u,3u,4u,5u,6u,7u})for(U opaque:{0u,1u,2u,3u}){
+        if(alias>=2&&alias<=4&&node>=2)continue;cfg={m,empty,node,alias,0,0,0,opaque};compare();
+    }
+    for(U m:{0u,1u})for(U empty:{0u,1u})for(U enter:{0u,1u,2u,3u,4u,5u})for(U refill:{0u,1u,2u,3u,5u})for(U leave:{0u,1u,2u,3u,4u,5u}){
+        cfg={m,empty,0,0,enter,refill,leave,1};compare();
+    }
+    std::printf("network_member_constructor_original_vs_cpp=PASS cases=%u checks=%u ignored_argument_guard=PASS\n",cases,checks);return 0;
+}

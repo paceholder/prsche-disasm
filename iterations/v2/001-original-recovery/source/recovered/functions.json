@@ -10604,20 +10604,21 @@
         "0048e790",
         "0052df00",
         "0048d9b0",
-        "0048a9a0"
+        "0048a9a0",
+        "004902c0"
       ],
       "unrecovered_dependencies": [
         "0048ff30",
         "00560a90",
         "005607d0",
-        "004902c0",
         "0055eb70",
         "00560340"
       ],
       "binary_matched": false,
       "verification": "scripts/research/audit-v2-native-game-batch.py",
       "verification_report": "iterations/v2/001-original-recovery/runs/392-startup-integration/validation.json",
-      "verification_boundary": "Full686B compared with both actual entry and facade at /Od,/O2; valid0x268B receiver, writable nonnull sentinel allocations and NULterminated canonical text<=31; controlled children/state, exact sparse writes/order/late reloads. Actual child composition/destructor/provider/callback behavior, alias consolidation and live startup remain open."
+      "verification_boundary": "Full686B compared with both actual entry and facade at /Od,/O2; valid0x268B receiver, writable nonnull sentinel allocations and NULterminated canonical text<=31; controlled children/state, exact sparse writes/order/late reloads. Actual child composition/destructor/provider/callback behavior, alias consolidation and live startup remain open.",
+      "integration_verification_report": "iterations/v2/001-original-recovery/runs/398-network-member-integration/validation.json"
     },
     {
       "module": "Porsche.exe",
@@ -10691,6 +10692,24 @@
         "symbol": "GetTickCount",
         "iat_rva": "0x1b2080"
       }
+    },
+    {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "004902c0",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "ECX receiver, opaque stackpointer ignored, RET4/EAXself; fastcall adapter with unused EDX",
+      "recovered_dependencies": [
+        "005322b0",
+        "005322c0",
+        "0059eeb0"
+      ],
+      "unrecovered_dependencies": [],
+      "binary_matched": false,
+      "verification": "scripts/research/audit-v2-native-game-batch.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/398-network-member-integration/validation.json",
+      "verification_boundary": "Complete81B original/native comparison; actual canonical heap-state owner/accessor linked, captured manager versus replaced global, lock/head reloads, controlled refill and byte-overlap aliases, PAGE_NOACCESS opaque argument and ABI. No allocator/lock/OS/full-game composition acceptance."
     }
   ]
 }

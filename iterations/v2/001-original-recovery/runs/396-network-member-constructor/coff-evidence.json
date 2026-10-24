@@ -1,0 +1,64 @@
+{
+  "tool": {
+    "path": "local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+    "sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5"
+  },
+  "objects": [
+    {
+      "path": "local/experiments/v2-network-member-constructor-native-396/001/od-0.obj",
+      "sha256": "e940bf47a532957c67e68faf5a7f221fb064982785c519ec54bbff451551a483",
+      "symbols": {
+        "path": "local/experiments/v2-network-member-constructor-native-396/coff-001/od-0-symbols.txt",
+        "sha256": "30f5566ebc5e9414ee7ce6cd51a6b821d9b103f7770b1836a3eeeacb7256ca41"
+      },
+      "relevant_symbols": [
+        "011 00000000 SECT7  notype ()    External     | ?network_member_construct_004902c0@porsche@@YIPAXPAX0PBX@Z (void * __fastcall porsche::network_member_construct_004902c0(void *,void *,void const *))",
+        "016 00000000 UNDEF  notype ()    External     | ?heap_enter_005322b0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_enter_005322b0(void *))",
+        "017 00000000 UNDEF  notype ()    External     | ?heap_leave_005322c0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_leave_005322c0(void *))",
+        "018 00000000 UNDEF  notype ()    External     | ?application_context_heap_state_005e4fe8@porsche@@YAPAXXZ (void * __cdecl porsche::application_context_heap_state_005e4fe8(void))",
+        "019 00000000 UNDEF  notype ()    External     | ?application_context_new_head_0059eeb0@porsche@@YAXII@Z (void __cdecl porsche::application_context_new_head_0059eeb0(unsigned int,unsigned int))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-network-member-constructor-native-396/001/od-1.obj",
+      "sha256": "8d208c649a456b9b72e57cf6302db4c2be2c4212ee49c16336b6c879a17ff6f3",
+      "symbols": {
+        "path": "local/experiments/v2-network-member-constructor-native-396/coff-001/od-1-symbols.txt",
+        "sha256": "d8b9aa48195cd12084103254ed414bdf5305e71f6dc107c0a0b079eb60c03f58"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?application_heap_contexts@porsche@@3UApplicationHeapContexts@1@A (struct porsche::ApplicationHeapContexts porsche::application_heap_contexts)",
+        "00C 00000000 SECT4  notype       External     | ?application_heap_runtime@porsche@@3UApplicationHeapRuntime@1@A (struct porsche::ApplicationHeapRuntime porsche::application_heap_runtime)",
+        "040 00000000 SECT8  notype ()    External     | ?application_context_heap_state_005e4fe8@porsche@@YAPAXXZ (void * __cdecl porsche::application_context_heap_state_005e4fe8(void))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-network-member-constructor-native-396/001/o2-0.obj",
+      "sha256": "4cc870102089ad46b2a9129770483d2aa6768bdd11b1236e2e6772e06d3d222a",
+      "symbols": {
+        "path": "local/experiments/v2-network-member-constructor-native-396/coff-001/o2-0-symbols.txt",
+        "sha256": "b63cb33f19e3681ebb7952f4d9eeb108631455c723c983b5bfbd00c1c14a5e34"
+      },
+      "relevant_symbols": [
+        "01B 00000000 SECTB  notype ()    External     | ?network_member_construct_004902c0@porsche@@YIPAXPAX0PBX@Z (void * __fastcall porsche::network_member_construct_004902c0(void *,void *,void const *))",
+        "020 00000000 UNDEF  notype ()    External     | ?heap_enter_005322b0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_enter_005322b0(void *))",
+        "021 00000000 UNDEF  notype ()    External     | ?heap_leave_005322c0@porsche@@YAXPAX@Z (void __cdecl porsche::heap_leave_005322c0(void *))",
+        "022 00000000 UNDEF  notype ()    External     | ?application_context_heap_state_005e4fe8@porsche@@YAPAXXZ (void * __cdecl porsche::application_context_heap_state_005e4fe8(void))",
+        "023 00000000 UNDEF  notype ()    External     | ?application_context_new_head_0059eeb0@porsche@@YAXII@Z (void __cdecl porsche::application_context_new_head_0059eeb0(unsigned int,unsigned int))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-network-member-constructor-native-396/001/o2-1.obj",
+      "sha256": "171bf462a2a952a852bb20a92cd47742d6d29d5940f9d9e7bbb2633425fae59f",
+      "symbols": {
+        "path": "local/experiments/v2-network-member-constructor-native-396/coff-001/o2-1-symbols.txt",
+        "sha256": "d61c9b2b176cf9b827603b4ebeb85f0762d57b9c7820c7c41091cc6c5fddca6b"
+      },
+      "relevant_symbols": [
+        "009 00000000 SECT3  notype       External     | ?application_heap_contexts@porsche@@3UApplicationHeapContexts@1@A (struct porsche::ApplicationHeapContexts porsche::application_heap_contexts)",
+        "00C 00000000 SECT4  notype       External     | ?application_heap_runtime@porsche@@3UApplicationHeapRuntime@1@A (struct porsche::ApplicationHeapRuntime porsche::application_heap_runtime)",
+        "058 00000000 SECT9  notype ()    External     | ?application_context_heap_state_005e4fe8@porsche@@YAPAXXZ (void * __cdecl porsche::application_context_heap_state_005e4fe8(void))"
+      ]
+    }
+  ]
+}

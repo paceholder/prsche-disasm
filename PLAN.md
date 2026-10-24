@@ -1,10 +1,10 @@
 # План восстановления Porsche Unleashed
 
-Current [Run392](iterations/v2/001-original-recovery/runs/392-startup-integration/README.md):
-215TUs/8projects compile;197 unresolved names/205refs,noEXE. Network constructor,
-file callback/word initializer, bounded diagnostic terminal and exact clock import
-integrated after38948cases/23mutations; shared535-pin auditPASS.395/396 remain separate
-nextwork; GitHub MCP/search discoverability queued aftercurrentiteration checkpoint.
+Current [Run398](iterations/v2/001-original-recovery/runs/398-network-member-integration/README.md):
+216 C++ TUs/8 projects compile;196 unresolved names/204 refs,no EXE. Original
+member constructor integrated after2592 native cases/seven mutations;538-pin audit
+PASS. Prior Run392 is pushed as a648e79. Driver descriptors remain separate research;
+GitHub MCP and search discoverability are queued after the current iteration.
 
 Older checkpoints below are historical.
 

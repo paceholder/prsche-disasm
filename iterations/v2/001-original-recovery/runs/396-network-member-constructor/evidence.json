@@ -1,0 +1,352 @@
+{
+  "kind": "original-network-member-sentinel-constructor",
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "new_original_vas": [
+    "004902c0"
+  ],
+  "new_body_bytes": 81,
+  "new_mutable_state": [],
+  "abi": "thiscall ECXreceiver plus one opaque pointer argument, RET4, EAXreceiver; typed fastcall C++ binding with unused EDX",
+  "source": {
+    "path": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+    "sha256": "e85a9ef07e3d49b24b14b5c60a442a2bd24c104b19d5666214745185c704dd25"
+  },
+  "header": {
+    "path": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.hpp",
+    "sha256": "baab0db42a8eff82dda5ad9f83fdae2931ceab2251da87c826c2f6fd0f0a046b"
+  },
+  "original_body": {
+    "token": "@BODY@",
+    "va": "004902c0",
+    "bytes": 81,
+    "sha256": "2935a380ee1bcafe88846850b833da1c6b284ff0a71af3d94573a68c0c26d016"
+  },
+  "instructions": [
+    {
+      "line": 180595,
+      "instruction": "004902c0  a1e84f5e00  MOV EAX,[0x005e4fe8]"
+    },
+    {
+      "line": 180596,
+      "instruction": "004902c5  53  PUSH EBX"
+    },
+    {
+      "line": 180597,
+      "instruction": "004902c6  56  PUSH ESI"
+    },
+    {
+      "line": 180598,
+      "instruction": "004902c7  8bd9  MOV EBX,ECX"
+    },
+    {
+      "line": 180599,
+      "instruction": "004902c9  8b4828  MOV ECX,dword ptr [EAX + 0x28]"
+    },
+    {
+      "line": 180600,
+      "instruction": "004902cc  8d7028  LEA ESI,[EAX + 0x28]"
+    },
+    {
+      "line": 180601,
+      "instruction": "004902cf  57  PUSH EDI"
+    },
+    {
+      "line": 180602,
+      "instruction": "004902d0  51  PUSH ECX"
+    },
+    {
+      "line": 180603,
+      "instruction": "004902d1  e8da1f0a00  CALL 0x005322b0"
+    },
+    {
+      "line": 180604,
+      "instruction": "004902d6  8b4610  MOV EAX,dword ptr [ESI + 0x10]"
+    },
+    {
+      "line": 180605,
+      "instruction": "004902d9  83c404  ADD ESP,0x4"
+    },
+    {
+      "line": 180606,
+      "instruction": "004902dc  85c0  TEST EAX,EAX"
+    },
+    {
+      "line": 180607,
+      "instruction": "004902de  750c  JNZ 0x004902ec"
+    },
+    {
+      "line": 180608,
+      "instruction": "004902e0  6a00  PUSH 0x0"
+    },
+    {
+      "line": 180609,
+      "instruction": "004902e2  6a01  PUSH 0x1"
+    },
+    {
+      "line": 180610,
+      "instruction": "004902e4  e8c7eb1000  CALL 0x0059eeb0"
+    },
+    {
+      "line": 180611,
+      "instruction": "004902e9  83c408  ADD ESP,0x8"
+    },
+    {
+      "line": 180612,
+      "instruction": "004902ec  8b7e10  MOV EDI,dword ptr [ESI + 0x10]"
+    },
+    {
+      "line": 180613,
+      "instruction": "004902ef  8b5704  MOV EDX,dword ptr [EDI + 0x4]"
+    },
+    {
+      "line": 180614,
+      "instruction": "004902f2  895610  MOV dword ptr [ESI + 0x10],EDX"
+    },
+    {
+      "line": 180615,
+      "instruction": "004902f5  8b06  MOV EAX,dword ptr [ESI]"
+    },
+    {
+      "line": 180616,
+      "instruction": "004902f7  50  PUSH EAX"
+    },
+    {
+      "line": 180617,
+      "instruction": "004902f8  e8c31f0a00  CALL 0x005322c0"
+    },
+    {
+      "line": 180618,
+      "instruction": "004902fd  893b  MOV dword ptr [EBX],EDI"
+    },
+    {
+      "line": 180619,
+      "instruction": "004902ff  893f  MOV dword ptr [EDI],EDI"
+    },
+    {
+      "line": 180620,
+      "instruction": "00490301  8b03  MOV EAX,dword ptr [EBX]"
+    },
+    {
+      "line": 180621,
+      "instruction": "00490303  83c404  ADD ESP,0x4"
+    },
+    {
+      "line": 180622,
+      "instruction": "00490306  894004  MOV dword ptr [EAX + 0x4],EAX"
+    },
+    {
+      "line": 180623,
+      "instruction": "00490309  5f  POP EDI"
+    },
+    {
+      "line": 180624,
+      "instruction": "0049030a  8bc3  MOV EAX,EBX"
+    },
+    {
+      "line": 180625,
+      "instruction": "0049030c  5e  POP ESI"
+    },
+    {
+      "line": 180626,
+      "instruction": "0049030d  5b  POP EBX"
+    },
+    {
+      "line": 180627,
+      "instruction": "0049030e  c20400  RET 0x4"
+    }
+  ],
+  "index_queries": [
+    "004902c0",
+    "0048fcd9",
+    "005e4fe8",
+    "005e3e18",
+    "005e4700",
+    "0059eeb0",
+    "005322b0",
+    "005322c0"
+  ],
+  "registry_precheck": {
+    "candidate_entry_hits": [],
+    "refill_entry": {
+      "module": "Porsche.exe",
+      "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+      "entry_va": "0059eeb0",
+      "source": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/context_ranges.cpp",
+      "status": "native-differential-verified",
+      "calling_convention": "cdecl x86; range wrapper nine DWORD by-value layout; node destructor ECX/RET4 via fastcall",
+      "binary_matched": false,
+      "verification": "scripts/research/verify-v2-context-ranges.py",
+      "verification_report": "iterations/v2/001-original-recovery/runs/153-services-integration/context-ranges/verification.json",
+      "recovered_dependencies": [
+        "005322b0",
+        "005322c0"
+      ],
+      "unrecovered_dependencies": [
+        "0059e9c0"
+      ],
+      "unrecovered_indirect_dependencies": [],
+      "verification_boundary": "Complete indexed bodies with original state/return/effect comparisons. Remaining typed callees are explicit recording seams; no live game or unknown-callee parity. Sign005a3edb uses actual original native x86 hardware oracle; Unicorn flag discrepancies remain documented."
+    },
+    "note": "Inspection only; growing registry intentionally not a final native-input pin. Full81B catalog and entry ownership checked; no new state or refill provider.",
+    "accepted_catalog_body_overlaps": [],
+    "overlap_method": "Intersect accepted Porsche.exe entry set with every indexed inclusive body range against004902c0..00490310; zero hits. Canonical0059eeb0 has exact existing entry/body owner."
+  },
+  "state_owner": {
+    "source": {
+      "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/application_heap_state.cpp",
+      "sha256": "28fe34aa714511432b2adead3ab255c23f6d3b01f29acddc9740ae81bc43ee3b"
+    },
+    "header": {
+      "path": "iterations/v2/001-original-recovery/source/include/porsche/application_heap_state.hpp",
+      "sha256": "3e3bd34f871c0146d2b379a7d7d6a8a4134e0fe6403c199b7404fb863d8bda3e"
+    },
+    "physical_current": "application_heap_contexts.current at offsetof0x11d0; getter application_context_heap_state_005e4fe8 returns it",
+    "default": "application_heap_contexts.defaults, corresponding to original005e3e18",
+    "pool": "capture application_heap_address(current,0x28) once, no guessed manager struct cast in396",
+    "proof_reuse": {
+      "receipt": {
+        "path": "local/experiments/v2-heap-context-native-340/025/receipt.json",
+        "sha256": "9c3b78b073d9433bd6c0c7e04a982037e327902f7bc07da813b3bc3465f137af"
+      },
+      "actual_owner_source_hash_matches": true
+    },
+    "fixture": "Actual canonical owner source linked; no fixture definition of globals/accessor. Only unrelated static callbacks/shutdown callees fail closed."
+  },
+  "raw_data": [
+    {
+      "token": "@CURRENT@",
+      "va": "005e4fe8",
+      "bytes": 8,
+      "sha256": "7d2903ca0df99f0c8c5289bd6c7d4a065527041550031820be15a4549f5cb7d4",
+      "raw_hex": "183e5e0074f36a00"
+    },
+    {
+      "token": "@DEFAULT@",
+      "va": "005e3e18",
+      "bytes": 40,
+      "sha256": "4d7e1c885999f95787b3e6660a88f280112df34065717d473527d51fb99ae707",
+      "raw_hex": "74f36a00c0e95900c0e95900b0e95900c0e9590000000000c0e95900c0e95900c0e95900c0e95900"
+    },
+    {
+      "token": "@LIVE@",
+      "va": "005e4700",
+      "bytes": 40,
+      "sha256": "45229d0e3ac8dedd1cb95271a99d85abfd70b12ce86f0e0f6796a897a145fb82",
+      "raw_hex": "74f36a00701f5300901f53004096560020ef5a0000000000406655005066550080665500d09a5600"
+    }
+  ],
+  "canonical_calls": [
+    {
+      "va": "005322b0",
+      "symbol": "heap_enter_005322b0",
+      "fixture": "recording controlled effect seam"
+    },
+    {
+      "va": "005322c0",
+      "symbol": "heap_leave_005322c0",
+      "fixture": "recording controlled effect seam"
+    },
+    {
+      "va": "0059eeb0",
+      "symbol": "application_context_new_head_0059eeb0",
+      "source": {
+        "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/context_ranges.cpp",
+        "sha256": "292bb1baa981cd4639e28f4e280ee72efb5f6448baf95138dbe2d7d973bcc761"
+      },
+      "prior_report": {
+        "path": "iterations/v2/001-original-recovery/runs/153-services-integration/context-ranges/verification.json",
+        "sha256": "36e5beb6817cf31923bcae64cef28f7f624a5df41cfb9af077a3935355e0fc14"
+      },
+      "fixture": "controlled refill effect; original canonical provider reused in game; not a new recovered allocator"
+    }
+  ],
+  "native_receipt": {
+    "path": "local/experiments/v2-network-member-constructor-native-396/001/receipt.json",
+    "sha256": "82f560f62d2848ae41014e779ad78b2270efbdc8a011d124820b4d34fbcc52fd"
+  },
+  "native_counts": {
+    "per_optimization": 1296,
+    "optimizations": [
+      "/Od",
+      "/O2"
+    ],
+    "total": 2592,
+    "checks_per_optimization": 5184,
+    "mutations": 7
+  },
+  "oracle": "All81 original bytes, checked A1current operand andthree CALLrel32 operands before relocation; retain original RET4. Original A1points directly to canonical physical current cell. C++ calls actual canonical getter.",
+  "checks": [
+    "Raw current005e3e18/selectors006af374 anddefault/live10wordheaders pinned before relocation/reset; canonical initializedcurrent/selectors/recordBSS/runtimeBSS checked",
+    "Currentmanager captured beforeenter andretained whenenter/refill/leave switchglobalmanager",
+    "Initialempty/nonempty pool; refill exact(1,0), node reload afterchild; lock reread afterpop",
+    "Six node locations includinglockcell/headcell/othermanagerhead; receiver separate,node,node+1/+2/+3,capturedlock/head,currentcell",
+    "Byte-overlap aliases remain mapped andprovably require reloadreceiver afterfirst selflink; all0x40000B arena bytes andentire actualcontexts/runtime snapshotcompared",
+    "Enter/refill/leave effects changelock/head/current; order,args,callback-visiblehead/lock,currentcaptured",
+    "Opaque argument nullptr,PAGE_NOACCESS,0xffffffff,mappedpointer; never dereferenced byrawbody orC++",
+    "Live ESP andEBP/EBX/ESI/EDI preserved; RET4 andEAXreceiver checked"
+  ],
+  "opaque_argument_evidence": "The81B rawbody contains no stackargument read; stack operations save/restore registers andpasscallee arguments; sole callerstack cleanup is RET4. Ignore pointervalue/content even when uninitialized caller byte or unreadable pointer.",
+  "mutations": [
+    {
+      "name": "manager-recapture",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "f977bd43e3c85dadb17c49a4f7879a0062b65b3a8b59fcbec9aadcf85b422963"
+    },
+    {
+      "name": "refill-kind",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "26daed54f95a76f690d30aa2ca1453e84d59b494463bfecabcc69d903d09b00d"
+    },
+    {
+      "name": "pop-next",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "386716ee96ceaf2244113f862119ba548064de6fdd2fefcf68c8fb8296cd416a"
+    },
+    {
+      "name": "leave-lock",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "7a0f4a6d69f6c56582bd9c0a9612637e2681be1b81fefb7ea5e2863a819e10bb"
+    },
+    {
+      "name": "first-self-link",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "eb1cd943dcb72ac17191cf251cc68156422c39ae7cc9dad9fa864a65c4dd8a6f"
+    },
+    {
+      "name": "receiver-reload",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 1,
+      "log_sha256": "616b6b0c5b269945f498675067732b3eb9d5f5c40cea0459a6ae6aef1cf662d5"
+    },
+    {
+      "name": "return-self",
+      "source": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/network_member_constructor.cpp",
+      "detected": true,
+      "exit_code": 98,
+      "log_sha256": "d31c83b337af51012d8411460b1431ba08c0e237f0b6f0b4db7646ca7833516d"
+    }
+  ],
+  "coff_evidence": {
+    "path": "iterations/v2/001-original-recovery/runs/396-network-member-constructor/coff-evidence.json",
+    "sha256": "1c7f27b16391912a126cb8595f1ab024af9d54192b2d18668f54f5d45bd8c73b"
+  },
+  "boundaries": [
+    "Refill/lock are controlled child-effect seams; actual allocator/OS/lock integration andlive startup/game remain unaccepted",
+    "Valid mapped receiver,node,next-read memory required; rawbody has no postrefill-null guard, no invented failure return",
+    "Arbitrary unmapped/malformed aliases andconcurrent writes remain HOLD; tested byteoverlap aliases mapentire destinationinsidefixture arena",
+    "Original argument transport is proved ignored; no opaque byte content reading or initialization claimed"
+  ],
+  "next": "Freeze396; coordinator handles nextintegration separately after392. No registry/rootplan/CMake edits orcommits."
+}
