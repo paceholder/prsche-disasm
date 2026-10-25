@@ -14,8 +14,10 @@ and Git history.
 The presentation cleanup and pending recovery batches are closed out.
 [PR #25 intake](docs/research/pr25-integration-review-2026-10-26.md) integrates its
 Rust prototype changes and original-code evidence, with scoped author attribution
-and explicit unsupported domains. Next is the requested Xerj evaluation, then the
-existing C++ dependency work; recovery acceptance remains unchanged.
+and explicit unsupported domains. The requested
+[Xerj evaluation](docs/research/xerj-evaluation-2026-10-26.md) is complete: an optional
+bounded retrieval trial could measure its benefit. Next is the existing C++
+dependency work; recovery acceptance remains unchanged.
 
 ## Recovery milestones
 

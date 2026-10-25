@@ -43,7 +43,9 @@
   "known_integration_issue": "Fallback collision mass mismatch corrected during intake of d317929. Prototype units and normal original-AI path preserved. Exact local speech layouts remain unsupported; strict negative cases and next trace are in the validation backlog.",
   "review_artifact": "local/reports/pr25-review-20261025/physics/review-evidence.json",
   "latest_reviewed_head": "d31792977c65880f3df0be820d6b2729e53ee8bb",
-  "review_comment": "https://github.com/xfynx/prsche-disasm/pull/25#issuecomment-6396767808",
+  "review_comment": "https://github.com/xfynx/prsche-disasm/pull/25#issuecomment-6402819411",
+  "preliminary_review_comment": "https://github.com/xfynx/prsche-disasm/pull/25#issuecomment-6396767808",
+  "merge_commit": "38efbd2a469cd17a56d5f3e3b4be70aaff4a4098",
   "integration_review": "docs/research/pr25-integration-review-2026-10-26.md",
   "current_validation": {
     "fixtures": "33 regenerated;32 match after LF normalization; known928coupeGTS54.sim revision differs",

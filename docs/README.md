@@ -10,6 +10,7 @@
 ## Recovery and formats
 
 - [Recovery automation](recovery-automation.md), [validation backlog](recovery-validation-backlog.md).
+- [Xerj evaluation](research/xerj-evaluation-2026-10-26.md): optional evidence-retrieval trial.
 - [Shared proof manifests](../research/v2/proof-manifests/README.md).
 - [CRP format](crp-format.md), [track topology](track-topology-formats.md).
 - [Reverse-engineering notes](reversing-notes.md), [scripts](scripts.md), [decisions](decisions.md).

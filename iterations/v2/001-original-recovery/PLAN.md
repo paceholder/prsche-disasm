@@ -7,7 +7,10 @@ SIM928assetrevision isknown. Road18520queries/2368steps andbrowserQuickRace pass
 Exactspeecharchive hasunsupportedlayouts; strictrejections remain explicit in
 backlog. Detailedintake/checks: docs/research/pr25-integration-review-2026-10-26.md.
 C++Run413225TUs190names198refs/noEXE remainsunchanged. No newrecoverybatch started.
-Nextuserfollowup: Xerj evaluation, then0055e340 and realplatform/game composition.
+PR25 merged/pushed as38efbd2; GitHub stateclosed/merged and reviewcomment6402819411
+verified. Xerj sourceassessment complete: docs/research/xerj-evaluation-2026-10-26.md.
+Optionalretrievaltrial hasno measuredgain yet; noinstallation/configchange performed.
+Next:0055e340 and realplatform/game composition under existingrecoverycriteria.
 
 Historical413 closeout follows.
 

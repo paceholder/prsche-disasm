@@ -38,6 +38,10 @@ Its [intake review](docs/research/pr25-integration-review-2026-10-26.md) records
 build/test/browser evidence and unsupported speech-archive boundary. Its recorders
 are available for C++ recovery; the C++ checkpoint above is unchanged.
 
+[Xerj source review](docs/research/xerj-evaluation-2026-10-26.md) is complete.
+A bounded local retrieval trial could measure its value; no performance gain or
+runtime/MCP integration has been verified here.
+
 ## Evidence and remaining checks
 
 Use the [binary index](research/binary-index/README.md), [recovery runs](iterations/v2/001-original-recovery/runs/),
