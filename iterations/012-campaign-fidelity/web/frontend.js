@@ -233,14 +233,14 @@ export function loadingTileLayout() {
 
 // ---- drawing ---------------------------------------------------------------------------
 
-function textWidth(font, text) {
+export function textWidth(font, text) {
   if (!font) return 0;
   let w = 0;
   for (const ch of text) w += (font.glyphs.get(ch.charCodeAt(0)) ?? font.glyphs.get(32))?.advance ?? 0;
   return w;
 }
 
-function drawText(ctx, fe, font, text, x, y, color) {
+export function drawText(ctx, fe, font, text, x, y, color) {
   if (!font || !text) return;
   const atlas = fe.assets.tintedAtlas(font, cssColor(color));
   let pen = x;

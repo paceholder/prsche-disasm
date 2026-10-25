@@ -14,8 +14,8 @@ export class FeAssets {
     this.strings = {};
   }
 
-  async loadStrings(language = 0) {
-    const bytes = await this.readFile("FEData/Locale/festrings.loc");
+  async loadStrings(language = 0, path = "FEData/Locale/festrings.loc") {
+    const bytes = await this.readFile(path);
     if (bytes) this.strings = JSON.parse(this.api.fe_parse_strings(bytes, language));
   }
 
@@ -54,11 +54,11 @@ export class FeAssets {
     return this.packs.get(key);
   }
 
-  async font(file) {
-    const key = file.toLowerCase();
+  async font(file, dir = "FEData/Art") {
+    const key = `${dir}/${file}`.toLowerCase();
     if (!this.fonts.has(key)) {
       this.fonts.set(key, (async () => {
-        const bytes = await this.readFile(`FEData/Art/${file}`);
+        const bytes = await this.readFile(`${dir}/${file}`);
         if (!bytes) return null;
         const f = this.api.fe_parse_font(bytes);
         const rgba = new Uint8ClampedArray(f.width * f.height * 4);

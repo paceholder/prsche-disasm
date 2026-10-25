@@ -542,165 +542,9 @@ body:not(.menu-hidden) #menuButton {
   font: 11px/1.5 Consolas, monospace;
 }
 
-/* ==========================================================================
-   AUTHENTIC IN-RACE GAUGE CLUSTER POD (#hud)
-   ========================================================================== */
-.porsche-hud {
-  position: absolute;
-  bottom: 24px;
-  right: 28px;
-  pointer-events: none;
-  user-select: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  z-index: 15;
-}
-.porsche-cluster-pod {
-  position: relative;
-  width: 210px;
-  height: 210px;
-  background: radial-gradient(circle at center, #1e252d 0%, #101418 65%, #080a0c 100%);
-  border: 4px solid #3e4752;
-  border-radius: 50%;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), inset 0 0 24px rgba(0, 0, 0, 0.95), inset 0 2px 4px rgba(255, 255, 255, 0.15);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.cluster-dial-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.dial-outer-ring {
-  fill: none;
-  stroke: #475569;
-  stroke-width: 1.5;
-}
-.dial-inner-ring {
-  fill: none;
-  stroke: #1e293b;
-  stroke-width: 1;
-}
-.dial-redline-arc {
-  fill: none;
-  stroke: #e11d48;
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-.dial-ticks text {
-  font-family: Consolas, monospace;
-  font-size: 13px;
-  font-weight: bold;
-  fill: #cbd5e1;
-  text-anchor: middle;
-  dominant-baseline: central;
-}
-.dial-ticks .redline-num {
-  fill: #f43f5e;
-}
-.dial-sub {
-  font-size: 9px;
-  fill: #64748b;
-  text-anchor: middle;
-  font-weight: bold;
-  letter-spacing: 0.05em;
-}
-.cluster-needle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 80px;
-  background: linear-gradient(180deg, #ff2222 0%, #e11d48 70%, #881337 100%);
-  transform-origin: 50% 90%;
-  transform: translate(-50%, -90%) rotate(-125deg);
-  box-shadow: 0 0 10px rgba(255, 34, 34, 0.85);
-  transition: transform 0.05s linear;
-  z-index: 5;
-  border-radius: 2px;
-}
-.cluster-center-cap {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
-  background: radial-gradient(circle, #475569 0%, #1e293b 100%);
-  border: 2px solid #94a3b8;
-  border-radius: 50%;
-  z-index: 6;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
-}
-.cluster-digital-box {
-  z-index: 7;
-  margin-top: 48px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.hud-speed-gauge {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-}
-.speed-val {
-  min-width: 54px;
-  font: 900 32px/1 Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  color: var(--porsche-gold-bright);
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-}
-.speed-unit {
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: #94a3b8;
-  font-weight: bold;
-}
-.hud-gear-container {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #090c10;
-  border: 1px solid #334155;
-  border-radius: 3px;
-  padding: 1px 8px;
-  margin-top: 4px;
-}
-.gear-title {
-  font-size: 8px;
-  letter-spacing: 0.1em;
-  color: #64748b;
-  font-weight: bold;
-}
-.gear-val {
-  font: 900 15px/1 Consolas, monospace;
-  color: #22c55e;
-}
-.gear-val.reverse {
-  color: #ef4444;
-}
-.hud-rpm-wrapper {
-  width: 110px;
-  height: 3px;
-  margin-top: 6px;
-  background: #1e293b;
-  border-radius: 2px;
-  overflow: hidden;
-  z-index: 7;
-}
-.hud-rpm-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--porsche-gold);
-  transition: width 0.05s linear;
-}
+/* Original race HUD canvas (race-hud.js) and the debug hint overlay (#hud, ?hints=1 / Backquote). */
+.hud-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 14; }
+.porsche-hud { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); pointer-events: none; user-select: none; z-index: 15; }
 .hud-hint {
   font-size: 10px;
   color: #94a3b8;
@@ -713,23 +557,18 @@ body:not(.menu-hidden) #menuButton {
 /* ==========================================================================
    RACE LOOP TOP HUD (Race stats & cues)
    ========================================================================== */
-.race-hud-top {
+.fac-badge {
   position: absolute;
-  top: 18px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
   background: rgba(15, 19, 24, 0.92);
   border: 1px solid #334155;
-  border-top: 3px solid var(--porsche-gold);
   border-radius: 4px;
-  padding: 7px 20px;
+  padding: 6px 16px;
   pointer-events: none;
   user-select: none;
   z-index: 15;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
 }
 .race-badge {
   display: flex;
@@ -1290,10 +1129,6 @@ body:not(.menu-hidden) #menuButton {
   .shell-main-stage { grid-template-columns: 1fr; gap: 16px; padding: 16px; overflow-y: auto; }
   .shell-top-bar, .shell-bottom-bar { padding: 0 16px; }
   .briefing-layout-grid { grid-template-columns: 1fr; }
-  .porsche-hud { bottom: 16px; right: 16px; }
-  .porsche-cluster-pod { width: 170px; height: 170px; }
-  .cluster-needle { height: 64px; }
-  .speed-val { font-size: 26px; }
 }
 /* Standalone race setup shares the shell controls. */
 .quick-race-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

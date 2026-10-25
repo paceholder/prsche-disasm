@@ -491,6 +491,41 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Original race HUD telemetry `[speed_ec4 m/s, rpm, gear_raw, redline, damage x8]`
+    /// (car+0xec4 VA 0x40eec0, car+0xd82, car+0xee0, car+0x4e4 VA 0x422470).
+    pub fn get_hud_telemetry(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_hud_telemetry())
+            .unwrap_or_default()
+    }
+
+    /// Race standings JSON array (`name, player, rank, laps, progress, finished`).
+    pub fn get_race_standings_json(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_race_standings_json())
+            .unwrap_or_else(|| "[]".to_string())
+    }
+
+    /// Course racing line as x,z pairs (not the original SimD node centre line,
+    /// `HTrackMap_BuildOutline` 0x432230).
+    pub fn get_course_outline(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_course_outline())
+            .unwrap_or_default()
+    }
+
+    /// Car markers, 8 floats per car (player first): x, z, fwd_x, fwd_z, half_width,
+    /// half_length, is_player, paint index or -1.
+    pub fn get_car_markers(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_markers())
+            .unwrap_or_default()
+    }
+
     /// SIM redline RPM of the loaded car.
     pub fn get_car_redline_rpm(&self) -> f32 {
         self.renderer

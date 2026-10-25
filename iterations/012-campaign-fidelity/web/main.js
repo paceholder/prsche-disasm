@@ -98,9 +98,7 @@ function cycleCarCamera() {
 }
 const paintButton = document.querySelector("#paintButton");
 const hud = document.querySelector("#hud");
-const speedValue = document.querySelector("#speedValue");
-const gearValue = document.querySelector("#gearValue");
-const rpmBar = document.querySelector("#rpmBar");
+const hudCanvas = document.querySelector("#hudCanvas");
 const loadButton = document.querySelector("#loadButton");
 const resetButton = document.querySelector("#resetButton");
 const statusLine = document.querySelector("#status");
@@ -108,17 +106,8 @@ const summary = document.querySelector("#summary");
 const menuButton = document.querySelector("#menuButton");
 const hudButton = document.querySelector("#hudButton");
 const detailsButton = document.querySelector("#detailsButton");
-const raceHudTop = document.querySelector("#raceHudTop");
-const racePos = document.querySelector("#racePos");
-const raceTotalPos = document.querySelector("#raceTotalPos");
-const raceLap = document.querySelector("#raceLap");
-const raceTotalLaps = document.querySelector("#raceTotalLaps");
-const raceLapTime = document.querySelector("#raceLapTime");
-const raceBestLap = document.querySelector("#raceBestLap");
-const racePosBadge = document.querySelector("#racePosBadge");
-const raceLapBadge = document.querySelector("#raceLapBadge");
-const raceTimeLabel = document.querySelector("#raceTimeLabel");
 const facStatusBadge = document.querySelector("#facStatusBadge");
+const facStatusLabel = document.querySelector("#facStatusLabel");
 const facStatusVal = document.querySelector("#facStatusVal");
 const facStatusSub = document.querySelector("#facStatusSub");
 const countdownBanner = document.querySelector("#countdownBanner");
@@ -132,6 +121,13 @@ const raceRestartBtn = document.querySelector("#raceRestartBtn");
 
 let menuVisible = true;
 let hudVisible = true;
+// Debug hint bar (#hud): ?hints=1 or the Backquote key.
+let hintsVisible = typeof URLSearchParams !== "undefined" && typeof location !== "undefined"
+  && new URLSearchParams(location.search).get("hints") === "1";
+let raceHud = null; // original 2D HUD (race-hud.js), created on first use
+let raceHudLoading = false;
+let raceHudCarIndex = null;
+let lightsOn = false;
 let lastPhase = 0;
 
 function formatRaceTime(secs) {
@@ -1889,6 +1885,7 @@ function setMenuVisible(visible) {
 function toggleHud() {
   hudVisible = !hudVisible;
   hudButton.setAttribute("aria-pressed", String(hudVisible));
+  if (!hudVisible && raceHud) raceHud.clear();
   syncTourButton();
 }
 
@@ -2275,6 +2272,7 @@ async function loadCarSim(simName) {
 // without it the first record with this model and SIM is used.
 async function loadRaceCar(model, simName, bank = "", gauges = null) {
   const target = model.toLowerCase();
+  raceHudCarIndex = quickRaceCars.find(c => c.model_name.toLowerCase() === target)?.index ?? null;
   let files;
   if (useCustomFiles && selectedFiles.length > 0) {
     const selected = selectedFiles.filter(file => {
@@ -2659,12 +2657,10 @@ function syncTourButton() {
 
   const isDriveAndCar = isDrive && hasCar;
   if (hud) {
-    hud.hidden = !(isDriveAndCar && hudVisible);
+    hud.hidden = !(isDriveAndCar && hintsVisible);
   }
-  const isRacingActive = isDriveAndCar && viewer && viewer.get_race_phase && viewer.get_race_phase() > 0;
-  if (raceHudTop) {
-    raceHudTop.hidden = !(isRacingActive && hudVisible);
-  }
+  if (hudCanvas) hudCanvas.hidden = !(isDriveAndCar && hudVisible);
+  if (!isDriveAndCar && raceHud) raceHud.clear();
   if (!isDriveAndCar) {
     if (countdownBanner) countdownBanner.hidden = true;
     if (wrongWayBanner) wrongWayBanner.hidden = true;
@@ -2809,8 +2805,14 @@ window.addEventListener("keydown", (event) => {
   if (!quickRaceModal.hidden) return;
   if (isTyping(event)) return;
   if (event.ctrlKey || event.altKey || event.metaKey) return;
-  if (event.code === "KeyH" && !event.repeat) {
+  if ((event.code === "KeyH" || event.code === "F5") && !event.repeat) {
+    if (event.code === "F5") event.preventDefault?.();
     toggleHud();
+    return;
+  }
+  if (event.code === "Backquote" && !event.repeat) {
+    hintsVisible = !hintsVisible;
+    syncTourButton();
     return;
   }
 
@@ -2944,6 +2946,7 @@ window.addEventListener("keydown", (event) => {
     // Light switch (original Controller.Lights): headlights and tail lights.
     if (viewer && typeof viewer.toggle_lights === "function" && viewer.has_car()) {
       const on = viewer.toggle_lights();
+      lightsOn = Boolean(on);
       setStatus(on ? "Фары включены (L)" : "Фары выключены (L)");
       queueFrame();
     }
@@ -2985,6 +2988,43 @@ window.addEventListener("keyup", (event) => {
   activeKeys.delete(event.code);
 });
 
+// Original 2D race HUD (web/race-hud.js, docs/re/hud.md).
+async function ensureRaceHud() {
+  if (raceHud || raceHudLoading || !hudCanvas) return;
+  raceHudLoading = true;
+  try {
+    const { RaceHud } = await import("./race-hud.js");
+    const hudView = new RaceHud({
+      canvas: hudCanvas, view: canvas, readFile: readGamePath,
+      api: { fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings },
+    });
+    await hudView.init();
+    const records = await readGamePath("FEData/Data/nfs5.car");
+    hudView.carRecords = records;
+    hudView.setCarRecord(records, raceHudCarIndex);
+    raceHud = hudView;
+  } catch (error) {
+    console.error("race HUD failed", error);
+  } finally {
+    raceHudLoading = false;
+  }
+}
+
+function drawRaceHud(dt) {
+  if (!hudCanvas || typeof viewer?.get_hud_telemetry !== "function") return;
+  if (!raceHud) { ensureRaceHud(); return; }
+  if (!hudVisible) return;
+  if (raceHud.boundIndex !== raceHudCarIndex) {
+    raceHud.boundIndex = raceHudCarIndex;
+    raceHud.setCarRecord(raceHud.carRecords, raceHudCarIndex);
+  }
+  try {
+    raceHud.draw(viewer, { dt, lights: lightsOn });
+  } catch (error) {
+    console.error("race HUD draw failed", error);
+  }
+}
+
 function clearNavigation() {
   activeKeys.clear();
   velForward = 0;
@@ -3025,27 +3065,6 @@ function updateNavigation(dt) {
     engineSound.update(dt, viewer.get_car_engine_rpm(), viewer.get_car_redline_rpm(),
       Math.max(0, throttle), viewer.get_car_view(), gear);
 
-    if (speedValue) speedValue.textContent = String(speed);
-    if (gearValue) {
-      gearValue.textContent = gear < 0 ? "R" : gear === 0 ? "N" : String(gear);
-      gearValue.classList.toggle("reverse", gear < 0);
-    }
-    if (rpmBar) {
-      rpmBar.style.width = `${Math.round(rpm * 100)}%`;
-      if (rpm > 0.82) {
-        rpmBar.style.background = "#ef4444";
-      } else if (rpm > 0.65) {
-        rpmBar.style.background = "#f59e0b";
-      } else {
-        rpmBar.style.background = "#d3bd83";
-      }
-    }
-    const gaugeNeedle = document.querySelector("#gaugeNeedle");
-    if (gaugeNeedle) {
-      const angle = -125 + rpm * 250;
-      gaugeNeedle.style.transform = `translate(-50%, -90%) rotate(${angle}deg)`;
-    }
-
     // Update Race HUD
     const phase = viewer.get_race_phase ? viewer.get_race_phase() : 0;
     const isRacingActive = phase > 0;
@@ -3054,70 +3073,40 @@ function updateNavigation(dt) {
     // a new attempt actually begins, including keyboard and toolbar restarts.
     if (!isFinished) eventFinishedHandled = false;
 
-    if (raceHudTop) {
-      raceHudTop.hidden = !(hudVisible && isRacingActive);
-      if (isRacingActive) {
-        const isFactory = Boolean(activeCareerEvent?.is_factory);
-        const isDuel = activeCareerEvent?.mission_obj?.type === "duel" || (activeCareerEvent?.mission_obj?.title || "").toLowerCase().includes("duel");
-
-        if (isFactory) {
-          if (racePosBadge) racePosBadge.style.display = isDuel ? "flex" : "none";
-          if (raceLapBadge) raceLapBadge.style.display = isDuel ? "flex" : "none";
-          if (facStatusBadge) facStatusBadge.style.display = "flex";
-
-          if (raceTimeLabel) raceTimeLabel.textContent = "ВРЕМЯ ЗАДАНИЯ";
-          const elapsed = (typeof viewer.get_mission_elapsed_time === "function")
-            ? viewer.get_mission_elapsed_time()
-            : viewer.get_current_lap_time();
-          if (raceLapTime) raceLapTime.textContent = formatRaceTime(elapsed);
-
-          const timeLimit = activeCareerEvent.time_limit || 0;
-          if (raceBestLap) {
-            if (timeLimit > 0) {
-              const remaining = Math.max(0, timeLimit - elapsed);
-              raceBestLap.textContent = `ЛИМИТ: ${timeLimit.toFixed(1)}с (ОСТ: ${remaining.toFixed(1)}с)`;
-            } else {
-              raceBestLap.textContent = "ЦЕЛЬ: ПОБЕДА";
-            }
+    // Factory missions keep a minimal status badge; races use the original HUD canvas.
+    const isFactoryRun = Boolean(activeCareerEvent?.is_factory);
+    if (facStatusBadge) {
+      facStatusBadge.hidden = !(hudVisible && isRacingActive && isFactoryRun);
+      if (isRacingActive && isFactoryRun) {
+        const elapsed = (typeof viewer.get_mission_elapsed_time === "function")
+          ? viewer.get_mission_elapsed_time()
+          : viewer.get_current_lap_time();
+        const timeLimit = activeCareerEvent.time_limit || 0;
+        const limitText = timeLimit > 0 ? `${formatRaceTime(elapsed)} / ${timeLimit.toFixed(1)}с` : formatRaceTime(elapsed);
+        const label = facStatusLabel;
+        if (label) label.textContent = `ИСПЫТАНИЕ · ${limitText}`;
+        if (facStatusVal && typeof viewer.get_cone_hits === "function") {
+          const hits = viewer.get_cone_hits();
+          facStatusVal.textContent = `КОНУСЫ: ${hits}`;
+          facStatusVal.style.color = hits > 0 ? "#ef4444" : "#22c55e";
+        }
+        if (facStatusSub && typeof viewer.get_stunt_180 === "function") {
+          const h180 = viewer.get_stunt_180();
+          const h360 = viewer.get_stunt_360();
+          const hj = viewer.get_stunt_jturn();
+          let statusText = "ТЕСТ В ПРОЦЕССЕ";
+          if (activeCareerEvent.mission_obj?.type === "spin360") {
+            statusText = h360 ? "360°: ВЫПОЛНЕНО ✓" : "360°: ТРЕБУЕТСЯ";
+          } else if (activeCareerEvent.mission_obj?.type === "slide180") {
+            statusText = h180 ? "180°: ВЫПОЛНЕНО ✓" : "180°: ТРЕБУЕТСЯ";
+          } else if (h360 || h180 || hj) {
+            statusText = `СТАНТ: ${h360 ? "360° " : ""}${h180 ? "180° " : ""}${hj ? "J-TURN " : ""}✓`;
           }
-
-          if (facStatusVal && typeof viewer.get_cone_hits === "function") {
-            const hits = viewer.get_cone_hits();
-            facStatusVal.textContent = `КОНУСЫ: ${hits}`;
-            facStatusVal.style.color = hits > 0 ? "#ef4444" : "#22c55e";
-          }
-          if (facStatusSub && typeof viewer.get_stunt_180 === "function") {
-            const h180 = viewer.get_stunt_180();
-            const h360 = viewer.get_stunt_360();
-            const hj = viewer.get_stunt_jturn();
-            let statusText = "ТЕСТ В ПРОЦЕССЕ";
-            if (activeCareerEvent.mission_obj?.type === "spin360") {
-              statusText = h360 ? "360°: ВЫПОЛНЕНО ✓" : "360°: ТРЕБУЕТСЯ";
-            } else if (activeCareerEvent.mission_obj?.type === "slide180") {
-              statusText = h180 ? "180°: ВЫПОЛНЕНО ✓" : "180°: ТРЕБУЕТСЯ";
-            } else if (h360 || h180 || hj) {
-              statusText = `СТАНТ: ${h360 ? "360° " : ""}${h180 ? "180° " : ""}${hj ? "J-TURN " : ""}✓`;
-            }
-            facStatusSub.textContent = statusText;
-          }
-        } else {
-          if (racePosBadge) racePosBadge.style.display = "flex";
-          if (raceLapBadge) raceLapBadge.style.display = "flex";
-          if (facStatusBadge) facStatusBadge.style.display = "none";
-          if (raceTimeLabel) raceTimeLabel.textContent = "ВРЕМЯ КРУГА";
-
-          if (racePos) racePos.textContent = String(viewer.get_player_position());
-          if (raceTotalPos) raceTotalPos.textContent = `/${viewer.get_total_participants()}`;
-          if (raceLap) raceLap.textContent = String(viewer.get_current_lap());
-          if (raceTotalLaps) raceTotalLaps.textContent = `/${viewer.get_total_laps()}`;
-          if (raceLapTime) raceLapTime.textContent = formatRaceTime(viewer.get_current_lap_time());
-          if (raceBestLap) {
-            const best = viewer.get_best_lap_time();
-            raceBestLap.textContent = `ЛУЧШИЙ ${formatRaceTime(best)}`;
-          }
+          facStatusSub.textContent = statusText;
         }
       }
     }
+    drawRaceHud(dt);
 
     // Countdown Banner
     if (countdownBanner) {
@@ -3403,6 +3392,7 @@ let debugError = null;
 window.__nfs = {
   get ready() { return debugReady; },
   get error() { return debugError; },
+  get viewer() { return viewer; },
   state() {
     if (!viewer) return { ready: false, error: debugError };
     const pose = viewer.get_car_pose?.() ?? [];
@@ -3429,6 +3419,7 @@ window.__nfs = {
         context: soundManager.ctx?.state ?? "none",
         log: gameAudio.log.slice(-40),
       },
+      hud: { ...(raceHud?.last ?? {}), carIndex: raceHudCarIndex, lights: lightsOn, ready: Boolean(raceHud) },
       pose: Array.from(pose),
       status: statusLine.textContent,
       sparks: Array.from(viewer.get_spark_stats?.() ?? []),
@@ -3459,7 +3450,7 @@ async function autostartRace(params) {
       debugVehicleModel = "original";
       setVehicleModelBadge(true);
     }
-    if (params.get("lights") === "1") viewer.toggle_lights();
+    if (params.get("lights") === "1") lightsOn = Boolean(viewer.toggle_lights());
     const cam = params.get("cam");
     for (let i = 0; cam && i < 12 && viewer.get_camera_name() !== cam; i++) cycleCarCamera();
     queueFrame();

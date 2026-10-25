@@ -80,11 +80,12 @@ context.testApi.setViewer({
   get_car_view: () => 0,
 });
 context.testApi.syncTourButton();
-assert.equal(element("#hud").hidden, true, "HUD hidden before driving");
+assert.equal(element("#hudCanvas").hidden, true, "HUD hidden before driving");
 element("#tourButton").dispatch("click");
 assert.equal(driving, true);
 assert.equal(document.body.classes.has("menu-hidden"), true);
-assert.equal(element("#hud").hidden, false);
+assert.equal(element("#hudCanvas").hidden, false);
+assert.equal(element("#hud").hidden, true, "debug hint bar is off by default");
 assert.equal(focused, element("#viewport"));
 // Exercise actual keyboard listeners and navigation, including both key layouts.
 const key = (type, code, extra = {}) => window.dispatch(type, {
@@ -132,6 +133,10 @@ assert.equal(element("#cameraBadge").textContent, "C: Free", "V toggles the free
 key("keydown", "KeyV");
 assert.equal(element("#cameraBadge").textContent, "C: TailCam0");
 window.dispatch("keydown", { code: "KeyH", target: new Element(), repeat: false });
+assert.equal(element("#hudCanvas").hidden, true);
+window.dispatch("keydown", { code: "Backquote", target: new Element(), repeat: false });
+assert.equal(element("#hud").hidden, false, "Backquote shows the hint bar");
+window.dispatch("keydown", { code: "Backquote", target: new Element(), repeat: false });
 assert.equal(element("#hud").hidden, true);
 window.dispatch("keydown", { code: "Escape", target: new Element(), repeat: false, preventDefault() {} });
 assert.equal(document.body.classes.has("menu-hidden"), false);
@@ -151,7 +156,7 @@ assert.equal(element("#summary").hidden, true);
 element("#tourButton").dispatch("click");
 assert.equal(driving, false);
 assert.equal(document.body.classes.has("menu-hidden"), false);
-assert.equal(element("#hud").hidden, true);
+assert.equal(element("#hudCanvas").hidden, true);
 
 // 009 Shell UI & Modals regression checks
 // Sound is on by default; the button toggles it off and on again.

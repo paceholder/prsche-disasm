@@ -3702,6 +3702,145 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.car.as_ref().map(|c| c.rpm * 7000.0).unwrap_or(0.0)
     }
 
+    /// Original race HUD telemetry: `[speed_ec4 m/s, engine_rpm, gear_raw, redline_rpm,
+    /// damage x8]`. `speed_ec4` is the original car+0xec4 (VA 0x40eec0):
+    /// `max(|vx|,|vz|) + 0.25*min(|vx|,|vz|)` of the world velocity. `gear_raw` is the
+    /// car+0xd82 encoding (0 R, 1 N, 2.. 1st..). Damage is car+0x4e4..0x504 (VA 0x422470)
+    /// for the original model, zeros otherwise.
+    pub fn get_hud_telemetry(&self) -> Vec<f32> {
+        let mut damage = [0.0f32; 8];
+        let (vx, vz, gear_raw);
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            vx = v.car.velocity_33c[0];
+            vz = v.car.velocity_33c[2];
+            gear_raw = v.car.gear_d82 as f32;
+            damage.copy_from_slice(&v.car.damage_4e4[..8]);
+        } else if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
+            vx = sim.body.linear_velocity.x;
+            vz = sim.body.linear_velocity.z;
+            gear_raw = (self.get_car_gear() + 1).max(0) as f32;
+        } else {
+            let fwd = self.car.as_ref().map(|c| c.forward());
+            let ms = self.get_car_speed_kmh() / 3.6;
+            vx = fwd.map(|f| f.x * ms).unwrap_or(0.0);
+            vz = fwd.map(|f| f.z * ms).unwrap_or(0.0);
+            gear_raw = (self.get_car_gear() + 1).max(0) as f32;
+        }
+        let (a, b) = (vx.abs(), vz.abs());
+        let speed = a.max(b) + 0.25 * a.min(b);
+        let mut out = vec![
+            speed,
+            self.get_car_engine_rpm(),
+            gear_raw,
+            self.get_car_redline_rpm(),
+        ];
+        out.extend_from_slice(&damage);
+        out
+    }
+
+    /// Race standings as a JSON array, one object per participant:
+    /// `{"name","player","rank","laps","progress","finished"}` (`finished` is the total
+    /// time in seconds or null). Empty array without a race.
+    pub fn get_race_standings_json(&self) -> String {
+        let Some(session) = &self.race_session else {
+            return "[]".to_string();
+        };
+        let items: Vec<String> = session
+            .participants
+            .iter()
+            .map(|p| {
+                let name: String = p
+                    .name
+                    .chars()
+                    .flat_map(|c| match c {
+                        '"' => "\\\"".chars().collect::<Vec<_>>(),
+                        '\\' => "\\\\".chars().collect(),
+                        c if (c as u32) < 0x20 => " ".chars().collect(),
+                        c => vec![c],
+                    })
+                    .collect();
+                let fin = match p.total_time_secs {
+                    Some(t) if t.is_finite() => format!("{t}"),
+                    _ => "null".to_string(),
+                };
+                let progress = if p.distance_along_track.is_finite() {
+                    p.distance_along_track
+                } else {
+                    0.0
+                };
+                format!(
+                    "{{\"name\":\"{}\",\"player\":{},\"rank\":{},\"laps\":{},\"progress\":{},\"finished\":{}}}",
+                    name, p.is_player, p.current_position, p.laps_completed, progress, fin
+                )
+            })
+            .collect();
+        format!("[{}]", items.join(","))
+    }
+
+    /// Track course polyline as x,z pairs in world units. This is the racing line (the
+    /// `.lsp` spline), not the original SimD node centre line (`HTrackMap_BuildOutline`
+    /// 0x432230).
+    pub fn get_course_outline(&self) -> Vec<f32> {
+        self.track_course
+            .as_ref()
+            .map(|c| {
+                c.waypoints
+                    .iter()
+                    .flat_map(|w| [w.position[0], w.position[2]])
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Car markers, 8 floats per car, player first then AI:
+    /// `x, z, forward_x, forward_z, half_width, half_length, is_player, paint index or -1`.
+    /// Half extents come from the original car `+0x3a8` when the original model drives,
+    /// else 0.9 / 2.1.
+    pub fn get_car_markers(&self) -> Vec<f32> {
+        let mut out = Vec::new();
+        let (mut hw, mut hl) = (0.9f32, 2.1f32);
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            hw = v.car.half_extents_3a8[0];
+            hl = v.car.half_extents_3a8[2];
+        }
+        let paint = self
+            .car
+            .as_ref()
+            .map(|c| c.paint_color_idx as f32)
+            .unwrap_or(-1.0);
+        let pose = if self.sim_mode {
+            self.sim_car
+                .as_ref()
+                .map(|s| (s.body.position, s.body.forward()))
+        } else {
+            self.car.as_ref().map(|c| (c.pos, c.forward()))
+        };
+        if let Some((p, f)) = pose {
+            out.extend_from_slice(&[p.x, p.z, f.x, f.z, hw, hl, 1.0, paint]);
+        }
+        for ai in &self.ai_opponents {
+            out.extend_from_slice(&[
+                ai.position[0],
+                ai.position[2],
+                ai.forward[0],
+                ai.forward[2],
+                0.9,
+                2.1,
+                0.0,
+                -1.0,
+            ]);
+        }
+        out
+    }
+
     /// SIM redline RPM of the loaded car (7000 when the arcade car is driven).
     pub fn get_car_redline_rpm(&self) -> f32 {
         if let Some(v) = self
