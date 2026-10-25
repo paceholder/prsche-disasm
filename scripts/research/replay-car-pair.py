@@ -19,7 +19,7 @@ import random
 import struct
 
 from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_INVALID
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ESP, UC_X86_REG_EIP
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_FPCW
 
 ROOT = Path(__file__).resolve().parents[2]
 CAR_A, CAR_B, RES, POINT, NORMAL = 0x2000000, 0x2004000, 0x2008000, 0x2009000, 0x2009100
@@ -42,6 +42,11 @@ CAR_OUTPUTS = [('pos', 0x330, 3), ('vel', 0x33c, 3), ('ang', 0x388, 3), ('impact
                ('contact_pos', 0x440, 3), ('damage', 0x4e4, 9)]
 
 
+# The real game runs with x87 control word 0x27f (53-bit precision; the CRT calls
+# _controlfp(_PC_53)); Unicorn starts at 0 (24-bit), which rounds intermediates differently.
+DEFAULT_FPCW = 0x27f
+
+
 def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
@@ -57,7 +62,8 @@ def load_module(module_name, game_dir):
 
 
 class Machine:
-    def __init__(self, module, data):
+    def __init__(self, module, data, fpcw=DEFAULT_FPCW):
+        self.fpcw = fpcw
         self.uc = uc = Uc(UC_ARCH_X86, UC_MODE_32)
         base = int(module['image_base'], 16)
         sections = module['sections']
@@ -98,6 +104,7 @@ class Machine:
         frame = struct.pack('<I', EXIT) + b''.join(struct.pack('<I', a) for a in args)
         self.uc.mem_write(sp, frame)
         self.uc.reg_write(UC_X86_REG_ESP, sp)
+        self.uc.reg_write(UC_X86_REG_FPCW, self.fpcw)
         try:
             self.uc.emu_start(entry, EXIT, count=200000)
         except UcError as error:
@@ -251,9 +258,10 @@ def main():
     parser.add_argument('--game-dir', type=Path, default=ROOT / 'local/game')
     parser.add_argument('--out-dir', type=Path, required=True)
     parser.add_argument('--random', type=int, default=200)
+    parser.add_argument('--fpcw', type=lambda v: int(v, 0), default=DEFAULT_FPCW, help='x87 control word (default 0x27f)')
     args = parser.parse_args()
     module, data = load_module(args.module, args.game_dir)
-    m = Machine(module, data)
+    m = Machine(module, data, args.fpcw)
     rng = random.Random(4980)
     cases = named_cases() + random_cases(rng, args.random)
     results = [run_pair(m, name, a, b, damage) for name, a, b in cases for damage in (0, 1)]

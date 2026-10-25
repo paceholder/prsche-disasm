@@ -74,6 +74,11 @@ impl AiProfile {
     }
 }
 
+/// Deceleration of impact motion through tyre friction, m/s² (about 0.8 g).
+const IMPACT_FRICTION_DECEL: f32 = 7.8;
+/// Gentle braking used by the debug speed cap, m/s².
+const CAP_BRAKE_DECEL: f32 = 4.0;
+
 /// An active AI vehicle in the race session.
 #[derive(Debug, Clone)]
 pub struct AiOpponent {
@@ -230,12 +235,26 @@ impl AiOpponent {
         course: &TrackCourse,
         elevation_fn: impl Fn(f32, f32) -> f32,
     ) {
-        let controls = self.update_controls(course, dt);
+        let mut controls = self.update_controls(course, dt);
+        // Debug cap: at or above the limit the car coasts instead of driving,
+        // so impacts can still push a parked or slowed car.
+        if let Some(limit) = self.speed_limit {
+            if self.current_speed >= limit {
+                controls.throttle = 0.0;
+                controls.brake = 0.0;
+            }
+        }
 
-        // Impact motion persists across controller steps, then dissipates through tires.
-        let impact_decay = (-2.5 * dt.max(0.0)).exp();
-        self.collision_velocity[0] *= impact_decay;
-        self.collision_velocity[2] *= impact_decay;
+        // Impact motion persists across controller steps and slides out
+        // through tyre friction (about 0.8 g). Approximation: AI cars are
+        // kinematic, not physics bodies.
+        let speed =
+            (self.collision_velocity[0].powi(2) + self.collision_velocity[2].powi(2)).sqrt();
+        if speed > 0.0 {
+            let scale = (speed - IMPACT_FRICTION_DECEL * dt.max(0.0)).max(0.0) / speed;
+            self.collision_velocity[0] *= scale;
+            self.collision_velocity[2] *= scale;
+        }
 
         // Acceleration and braking
         let accel_rate = 8.5; // m/s^2
@@ -251,10 +270,10 @@ impl AiOpponent {
         } else {
             self.current_speed = (self.current_speed - (2.5 + drag) * dt).max(0.0);
         }
-        // Debug cap: brake down to the limit instead of jumping to it.
+        // Debug cap: brake gently only when clearly above the limit.
         if let Some(limit) = self.speed_limit {
-            if self.current_speed > limit {
-                self.current_speed = (self.current_speed - brake_rate * dt).max(limit);
+            if self.current_speed > limit + 3.0 {
+                self.current_speed = (self.current_speed - CAP_BRAKE_DECEL * dt).max(limit);
             }
         }
 
@@ -464,15 +483,24 @@ mod tests {
         let dt = 1.0 / 60.0;
         ai.step_kinematics(dt, &course, |_, _| 0.0);
         assert!(ai.current_speed > 30.0 / 3.6, "cap must brake, not jump");
-        for _ in 0..240 {
+        for _ in 0..60 * 12 {
             ai.step_kinematics(dt, &course, |_, _| 0.0);
         }
         assert!(ai.current_speed <= 30.0 / 3.6 + 1e-4);
         ai.speed_limit = Some(0.0);
-        for _ in 0..120 {
+        for _ in 0..60 * 10 {
             ai.step_kinematics(dt, &course, |_, _| 0.0);
         }
         assert_eq!(ai.current_speed, 0.0);
+
+        // A parked car keeps a push instead of stopping it at once.
+        ai.apply_collision_velocity([ai.forward[0] * 8.0, 0.0, ai.forward[2] * 8.0]);
+        ai.step_kinematics(dt, &course, |_, _| 0.0);
+        assert!(
+            ai.current_speed > 7.5,
+            "push braked away: {}",
+            ai.current_speed
+        );
     }
 
     #[test]
@@ -491,6 +519,15 @@ mod tests {
         assert!((ai.current_speed - 5.0).abs() < 1e-5);
         ai.step_kinematics(1.0 / 60.0, &course, |_, _| 0.0);
         assert!(ai.velocity[0] > 7.0, "side impact was erased by steering");
+        // Friction slides the impact out within about a second, not instantly.
+        for _ in 0..30 {
+            ai.step_kinematics(1.0 / 60.0, &course, |_, _| 0.0);
+        }
+        assert!(
+            ai.velocity[0] > 3.0 && ai.velocity[0] < 7.0,
+            "{:?}",
+            ai.velocity
+        );
     }
 
     #[test]
