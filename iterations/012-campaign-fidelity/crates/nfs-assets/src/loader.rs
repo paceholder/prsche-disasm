@@ -502,6 +502,14 @@ fn frames_or_zero(declared: u8, meshes: &[InCarMesh]) -> u8 {
     declared.min(present as u8)
 }
 
+/// Wheel articles of the base geometry: domain 13 front / 14 rear with article class 10. The
+/// article id differs per body variant (77/78 stock, 106/107 `WheelFront1`/`WheelRear1`, 132
+/// `WheelRear2`: wide-body styles such as the 993 turbo, 901 RSR); the shadow articles of the same
+/// domains are class 11. Only the style-selected article reaches here, so pivot and meshes are unique.
+fn is_wheel_article(geometry: u8, class: u8, _id: u8) -> bool {
+    matches!(geometry, 13 | 14) && class == 10
+}
+
 fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
     [v[0], v[1], -v[2]]
 }
@@ -958,8 +966,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         // Base geometry domains 13/14 are the selected front/rear wheel articles.
         // Keep their source pivots and mesh membership instead of guessing axle
         // widths from unrelated SIM scalars or mesh-name substrings.
-        if matches!((info[0], info[2], info[3]), (13, 10, 77) | (14, 10, 78))
-            && first_mesh < scene.meshes.len()
+        if is_wheel_article(info[0], info[2], info[3]) && first_mesh < scene.meshes.len()
         {
             let center = [
                 -translation[0] * 5.0,
@@ -1505,6 +1512,77 @@ mod tests {
             ["intglass.fsh", "shadow.fsh", "cabrio.fsh"]
         );
     }
+    #[test]
+    fn wheel_article_rule_covers_wide_body_variants() {
+        assert!(is_wheel_article(13, 10, 77) && is_wheel_article(14, 10, 78));
+        assert!(is_wheel_article(13, 10, 106) && is_wheel_article(14, 10, 107));
+        assert!(is_wheel_article(14, 10, 132));
+        // shadows (class 11), wheel wells (domain 12) and other domains are not wheels
+        assert!(!is_wheel_article(13, 11, 186) && !is_wheel_article(12, 255, 23));
+        assert!(!is_wheel_article(15, 10, 77));
+    }
+
+    #[test]
+    fn local_993_turbo_style_has_wheel_articulation() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/CarModel");
+        if !root.join("993.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in ["993.crp", "993.tpg", "INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh"] {
+            if let Ok(bytes) = std::fs::read(root.join(name)) {
+                files.insert(name.into(), bytes);
+            }
+        }
+        // Quick Race '95 911 Turbo 3.6 uses TPG style 8 (turbocoupe) with WheelFront1/WheelRear1.
+        for style in [0, 8] {
+            let scene = load(&files, "993", style).unwrap();
+            assert_eq!(scene.car_wheels.len(), 4, "style {style}: {:?}", scene.diagnostics);
+            assert!(scene.car_wheels.iter().all(|w| !w.mesh_indices.is_empty()));
+        }
+    }
+
+    #[test]
+    fn local_every_car_style_has_wheel_articulation() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/CarModel");
+        let Ok(dir) = std::fs::read_dir(&root) else {
+            return;
+        };
+        let mut bad = Vec::new();
+        for entry in dir.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref() != Some("crp") {
+                continue;
+            }
+            let car = path.file_stem().unwrap().to_string_lossy().to_string();
+            let Ok(tpg) = std::fs::read(path.with_extension("tpg")) else {
+                continue;
+            };
+            let mut files = AssetFiles::new();
+            files.insert(format!("{car}.crp"), std::fs::read(&path).unwrap());
+            files.insert(format!("{car}.tpg"), tpg.clone());
+            for name in ["INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh"] {
+                if let Ok(bytes) = std::fs::read(root.join(name)) {
+                    files.insert(name.into(), bytes);
+                }
+            }
+            let styles = nfs_formats::parse_ini(&tpg)
+                .ok()
+                .and_then(|ini| ini.get("header").and_then(|h| h.get("numstyles")).and_then(|v| v.parse::<u32>().ok()))
+                .unwrap_or(1);
+            for style in 0..styles.max(1) {
+                match load(&files, &car, style) {
+                    Ok(scene) if scene.car_wheels.len() == 4 => {}
+                    Ok(_) => bad.push(format!("{car} style {style}")),
+                    Err(_) => {}
+                }
+            }
+        }
+        assert!(bad.is_empty(), "no wheel articulation: {bad:?}");
+    }
+
     #[test]
     fn local_boxster_wheel_pivots_drive_geometry_and_visual_centers() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
