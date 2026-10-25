@@ -233,6 +233,15 @@ pub use car_catalogue::{
     catalogue_json, find_car, parse_car_catalogue, playable, CarEntry, CAR_RECORD_SIZE,
 };
 
+pub mod lay;
+pub use lay::{layout_json, parse_lay, LaySection, Layout};
+
+pub mod loc;
+pub use loc::parse_loc;
+
+pub mod ffn;
+pub use ffn::{parse_ffn, Font, Glyph};
+
 pub mod viv;
 pub use viv::{parse_viv, viv_file, VivEntry, VIV_MAGIC};
 
@@ -387,6 +396,9 @@ pub struct FshEntry {
     pub format: u32,
     pub width: u32,
     pub height: u32,
+    /// Signed header fields +8/+10 (usually the shape centre). The front end places track
+    /// pictures at their absolute values [VA 0x4a4a70].
+    pub center: (i16, i16),
     pub image: Result<Image>,
 }
 
@@ -553,12 +565,17 @@ pub fn parse_fsh_entries(input: &[u8]) -> Result<Vec<FshEntry>> {
             let format = u32le(&d, o).map_or(0, |c| c & 255);
             let width = u16le(&d, o + 4).unwrap_or(0) as u32;
             let height = u16le(&d, o + 6).unwrap_or(0) as u32;
+            let center = (
+                u16le(&d, o + 8).unwrap_or(0) as i16,
+                u16le(&d, o + 10).unwrap_or(0) as i16,
+            );
             FshEntry {
                 index: i,
                 name,
                 format,
                 width,
                 height,
+                center,
                 image: fsh_entry(&d, i),
             }
         })

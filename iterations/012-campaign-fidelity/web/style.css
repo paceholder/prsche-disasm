@@ -34,6 +34,10 @@ html, body, .viewer { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   user-select: none;
 }
 .menu-hidden #menu, .menu-hidden #summary { display: none !important; }
+/* Original front end (frontend.js): 640x480 canvas over the 3D room, under the dialogs. */
+.fe-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; z-index: 30; touch-action: none; }
+.fe-active .fe-canvas { display: block; }
+.fe-active #menu, .fe-active #summary, .fe-active #menuButton { display: none !important; }
 
 /* Top Brand & Driver Header */
 .shell-top-bar {

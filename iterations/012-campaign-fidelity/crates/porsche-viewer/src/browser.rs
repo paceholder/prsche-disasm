@@ -19,6 +19,8 @@ pub struct BrowserViewer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     renderer: Option<Renderer>,
+    /// `Date.now()` when the front-end room appeared; the room yaw follows wall time.
+    room_started_ms: f64,
 }
 
 #[wasm_bindgen]
@@ -67,6 +69,7 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         device,
         queue,
         renderer: None,
+        room_started_ms: 0.0,
     })
 }
 
@@ -108,6 +111,50 @@ impl BrowserViewer {
         } else {
             Err(JsValue::from_str("Renderer not initialized"))
         }
+    }
+
+    /// Front-end 3D room (`room=` of a layout, e.g. `ID_GARAGE`) from its `FEData/Models`
+    /// files; replaces the scene. Returns false for rooms that are not drawn yet.
+    pub fn load_room(&mut self, names: Array, bytes: Array, room: String) -> Result<bool, JsValue> {
+        let Some(spec) = crate::fe_room::spinning_room(&room) else {
+            return Ok(false);
+        };
+        let mut scene = files_from_js(names, bytes)
+            .and_then(|files| load_car(&files, spec.model))
+            .map_err(|e| JsValue::from_str(&e))?;
+        crate::fe_room::prepare_room_scene(&mut scene);
+        self.set_scene(scene)?;
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room = Some(crate::fe_room::RoomView::new(spec));
+        }
+        self.room_started_ms = js_sys::Date::now();
+        Ok(true)
+    }
+
+    /// Car shown in the room (layouts with a `3DCAR` control); `set_car_model` files.
+    pub fn set_room_car(&mut self, names: Array, bytes: Array, car: String) -> Result<(), JsValue> {
+        self.set_car_model(names, bytes, car)?;
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_car = true;
+        }
+        Ok(())
+    }
+
+    pub fn show_room_car(&mut self, show: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_car = show && renderer.fe_room.is_some();
+        }
+    }
+
+    /// Screens whose layout names an empty room (`ID_NONE`) show no 3D scene.
+    pub fn hide_room(&mut self, hidden: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_hidden = hidden && renderer.fe_room.is_some();
+        }
+    }
+
+    pub fn has_room(&self) -> bool {
+        self.renderer.as_ref().is_some_and(|r| r.fe_room.is_some())
     }
 
     /// Install the selected car's original 328-byte physics profile.
@@ -640,6 +687,9 @@ impl BrowserViewer {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
+        if let Some(room) = &mut renderer.fe_room {
+            room.seconds = (js_sys::Date::now() - self.room_started_ms).max(0.0) / 1000.0;
+        }
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,

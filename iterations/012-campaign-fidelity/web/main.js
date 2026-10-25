@@ -1,4 +1,4 @@
-import init, { create_viewer, EngineAudio, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings } from "./package/viewer_impl.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -1518,6 +1518,12 @@ if (raceContinueBtn) {
 
 function setMenuVisible(visible) {
   menuVisible = visible;
+  // The original front end replaces the web shell's menu when it is active.
+  if (frontEnd) {
+    if (visible) showFrontEnd();
+    else frontEnd.hide();
+    syncFrontEndClasses();
+  }
   document.body.classList.toggle("menu-hidden", !visible);
   menuButton.setAttribute("aria-expanded", String(visible));
   clearNavigation();
@@ -2051,6 +2057,12 @@ quickRaceStartBtn.addEventListener('click', async () => {
   activeCareerEvent = null;
   if (raceResultsModal) raceResultsModal.hidden = true;
   try {
+    if (frontEnd) {
+      // Race loading screen: era0tr.fsh outside Evolution plus the track picture [VA 0x4a4a70].
+      quickRaceModal.hidden = true;
+      await frontEnd.showLoading({ pack: "era0tr.fsh", track });
+      syncFrontEndClasses();
+    }
     modeSelect.value = 'track';
     updateOptions();
     targetSelect.value = track;
@@ -2065,6 +2077,10 @@ quickRaceStartBtn.addEventListener('click', async () => {
     setStatus(`Quick Race: ${car.display_name} · ${track}${lastEngineSoundError ? ` · ${lastEngineSoundError}` : ""}`);
   } catch (error) {
     quickRaceStatus.textContent = error instanceof Error ? error.message : String(error);
+    if (frontEnd) {
+      await showFrontEnd();
+      quickRaceModal.hidden = false;
+    }
   } finally {
     quickRaceStartBtn.disabled = false;
     quickRaceCancelBtn.disabled = false;
@@ -2900,10 +2916,16 @@ function resizeCanvas() {
     }
     queueFrame();
   }
+  if (frontEnd) frontEnd.resize(width, height);
 }
 
 function animate(now = 0) {
   resizeCanvas();
+  if (frontEnd?.visible) {
+    frontEnd.render(now);
+    // The room turns continuously (one turn per 30 s).
+    if (viewer?.has_room?.()) needsFrame = true;
+  }
 
   if (document.hasFocus() && !document.hidden && lastTime > 0 && now > 0) {
     const dt = Math.min((now - lastTime) / 1000, 0.1);
@@ -2938,7 +2960,9 @@ async function boot() {
     animate();
 
     const hasGame = await checkLocalGame();
-    if (hasGame && !useCustomFiles) {
+    if (hasGame && !useCustomFiles && new URLSearchParams(location.search).get("shell") !== "web") {
+      await startFrontEnd();
+    } else if (hasGame && !useCustomFiles) {
       await loadTarget();
     } else {
       setStatus("WebGPU готов. Выберите локальные файлы игры.");
@@ -2948,5 +2972,139 @@ async function boot() {
     loadButton.disabled = true;
   }
 }
+
+// ---- original front end (web/frontend.js; docs/re/frontend.md) ----
+let frontEnd = null;
+let frontEndRoom = null;
+let frontEndCar = null;
+const feCanvas = document.querySelector("#feCanvas");
+
+function syncFrontEndClasses() {
+  document.body.classList.toggle("fe-active", Boolean(frontEnd?.visible));
+}
+
+// Game file by path relative to the game folder, matched case-insensitively.
+async function readGamePath(path) {
+  const want = path.replace(/\\/g, "/").toLowerCase();
+  const rel = localGameFiles.find(p => p.replace(/\\/g, "/").toLowerCase() === want);
+  if (!rel) return null;
+  const resp = await fetch("/game/" + rel.replace(/\\/g, "/"));
+  return resp.ok ? new Uint8Array(await resp.arrayBuffer()) : null;
+}
+
+async function frontEndQuickRaceCar() {
+  if (!quickRaceCars.length) {
+    quickRaceCars = buildQuickRaceCars(await loadCarCatalogueRecords(), availableCars, localGameFiles);
+  }
+  return quickRaceCars.find(car => car.id === quickRaceCar.value) ?? quickRaceCars[0] ?? null;
+}
+
+// room= of the shown layout; a 3DCAR control adds the selected car [VA 0x4bfdc0].
+async function loadFrontEndRoom(room, carAccessor) {
+  const id = (room || "").toUpperCase();
+  const model = { ID_GARAGE: "garage", ID_FACTORY: "factory" }[id];
+  try {
+    // Rooms without a drawn model (ID_NONE, ID_TESTROOM, ID_TRACK, ...) show an empty scene.
+    viewer.hide_room?.(!model);
+    if (!model) return;
+    if (frontEndRoom !== id || !viewer.has_room()) {
+      const names = [`FEData/Models/${model}.crp`, `FEData/Models/${model}.tpg`];
+      const bytes = await Promise.all(names.map(readGamePath));
+      if (bytes.some(b => !b)) throw new Error(`missing ${model}.crp/.tpg`);
+      viewer.load_room(names, bytes, id);
+      frontEndRoom = id;
+      frontEndCar = null;
+    }
+    if (carAccessor) {
+      const car = await frontEndQuickRaceCar();
+      if (car && frontEndCar !== car.model_name) {
+        const files = await fetchGameFiles(findCarFilesFromCatalog(car.model_name.toLowerCase()));
+        viewer.set_room_car(files.names, files.bytes, car.model_name.toLowerCase());
+        frontEndCar = car.model_name;
+      }
+      viewer.show_room_car(Boolean(car));
+    } else {
+      viewer.show_room_car(false);
+    }
+  } catch (error) {
+    setStatus(`Front end room: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  queueFrame();
+}
+
+function frontEndAction(name) {
+  switch (name) {
+    case "SETTYPECAREERMODE": openEvolutionTournaments(); return true;
+    case "SETTYPEFACTORYDRIVER": openFactoryLadder(); return true;
+    case "PLAYGAME":
+    case "COMBOBOX": openQuickRace(); return true;
+    case "OPTIONS":
+    case "QUIT":
+      // Web shell (developer tools) until the options screens are restored.
+      frontEnd.hide();
+      syncFrontEndClasses();
+      return true;
+    default: return false;
+  }
+}
+
+async function showFrontEnd() {
+  if (!frontEnd) return;
+  frontEndRoom = null;
+  if (!frontEnd.stack.length) await frontEnd.start("gamesetup");
+  else await frontEnd.show(frontEnd.stack[frontEnd.stack.length - 1]);
+  syncFrontEndClasses();
+}
+
+async function startFrontEnd() {
+  try {
+    const { FrontEnd } = await import("./frontend.js");
+    frontEnd = new FrontEnd(feCanvas, {
+      api: { fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings },
+      readFile: readGamePath,
+      onRoom: loadFrontEndRoom,
+      onAction: frontEndAction,
+      accessor: name => {
+        if ((name || "").startsWith("zMergedList.Car")) {
+          const car = quickRaceCars.find(c => c.id === quickRaceCar.value) ?? quickRaceCars[0];
+          return car?.display_name ?? "";
+        }
+        if ((name || "").startsWith("Track1.Track")) return quickRaceTrack.value || "";
+        if (name === "Game.NumOpponents") return document.querySelector("#quickRaceOpponents")?.value ?? "";
+        return "";
+      },
+      career: () => false,
+      requestFrame: queueFrame,
+    });
+    await frontEnd.init();
+    resizeCanvas();
+    frontEnd.resize(canvas.width, canvas.height);
+    // Start-up loading screen (loadscrn.fsh) while the menu and the garage load [VA 0x4dd600].
+    await frontEnd.showLoading({ pack: "loadscrn.fsh" });
+    syncFrontEndClasses();
+    // Visual check: ?feloading=<pack>[,<track>] keeps a loading screen up.
+    const preview = new URLSearchParams(location.search).get("feloading");
+    if (preview) {
+      const [pack, track] = preview.split(",");
+      await frontEnd.showLoading({ pack, track: track || null });
+      return;
+    }
+    await frontEnd.start("gamesetup");
+    menuVisible = true;
+    syncFrontEndClasses();
+    setStatus("Original front end (?shell=web: web shell)");
+  } catch (error) {
+    frontEnd = null;
+    syncFrontEndClasses();
+    setStatus(`Original front end failed: ${error instanceof Error ? error.message : String(error)}`);
+    await loadTarget();
+  }
+}
+
+quickRaceCar.addEventListener("change", () => {
+  if (frontEnd?.visible && frontEnd.screen?.controls.some(c => c.type === "3DCAR")) {
+    loadFrontEndRoom(frontEnd.screen.screenAttrs.room, "zMergedList.Car");
+  }
+});
 
 boot();

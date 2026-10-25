@@ -408,6 +408,14 @@ fn pair_car_box_corners(car: &nfs_assets::physics::original_pair::PairCar) -> (V
     (from_original(car.position_330), out)
 }
 
+/// Lift that puts the car's lowest point on the garage floor (raw y -0.15 below the room
+/// origin, `garage.crp` Floor). Stands in for the original car offset +0x3ac [VA 0x4d1700],
+/// approximation A16.
+fn fe_room_car_lift(lowest_y: f32) -> f32 {
+    const GARAGE_FLOOR_Y: f32 = -0.15;
+    GARAGE_FLOOR_Y - lowest_y
+}
+
 struct CarRenderState {
     meshes: Vec<GpuMesh>,
     materials: Vec<GpuMaterial>,
@@ -415,6 +423,8 @@ struct CarRenderState {
     wheels: Vec<CarWheelRender>,
     /// Source body bounds in driving coordinates, before the physics adapter.
     body_bounds: Option<[Vec3; 2]>,
+    /// Lowest vertex y of the whole model (wheels included), body space.
+    lowest_y: f32,
 }
 
 #[derive(Clone)]
@@ -477,6 +487,12 @@ pub struct Renderer {
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
     car_render: Option<CarRenderState>,
+    /// Front-end 3D room shown behind the menus (`crate::fe_room`); the scene is its model.
+    pub fe_room: Option<crate::fe_room::RoomView>,
+    /// Draw the loaded car in the front-end room (layouts with a 3D car control).
+    pub fe_room_car: bool,
+    /// Front-end screen with an empty room (`ID_NONE`): draw nothing but the clear colour.
+    pub fe_room_hidden: bool,
     /// Rendered source-model bounds adapter; original selected bounds getter
     /// and body/model origin equivalence still require comparison.
     trigger_half_extents: Option<Vec3>,
@@ -1189,6 +1205,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 chassis_mesh_indices: (0..geom.parts.len()).collect(),
                 wheels: Vec::new(),
                 body_bounds: None,
+                lowest_y: 0.0,
             });
         }
 
@@ -1323,6 +1340,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
             car_render,
+            fe_room: None,
+            fe_room_car: false,
+            fe_room_hidden: false,
             trigger_half_extents: None,
             scenario_props,
             prop_hit: vec![false; scene.prop_instances.len()],
@@ -1472,12 +1492,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if self.width == 0 || self.height == 0 {
             return;
         }
-        // Update camera uniform with identity model matrix
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::bytes_of(&self.camera.uniform(self.width, self.height)),
-        );
+        // Front-end room: fixed original camera, the room model turns [VA 0x4e9ff0].
+        let mut static_model = Mat4::IDENTITY;
+        if let Some(room) = &self.fe_room {
+            self.camera.mode = CameraMode::Drive;
+            self.camera.drive_pos = room.eye();
+            self.camera.drive_target = room.target();
+            self.camera.drive_up = Vec3::Y;
+            self.camera.drive_hfov = Some(room.room.horizontal_fov_deg);
+            self.camera.drive_near = 0.1;
+            static_model = room.room_matrix();
+        }
+        // Update camera uniform with the static model matrix (identity outside rooms)
+        let mut static_uniform = self.camera.uniform(self.width, self.height);
+        static_uniform.model = static_model.to_cols_array_2d();
+        self.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&static_uniform));
 
         // Update sky camera if present
         if let Some(sky) = &self.sky {
@@ -1530,7 +1560,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
             // 2. Draw static geometry (identity model matrix)
             pass.set_bind_group(0, &self.camera_group, &[]);
-            let mut order: Vec<usize> = (0..self.static_mesh_count).collect();
+            let mut order: Vec<usize> = if self.fe_room_hidden {
+                Vec::new()
+            } else {
+                (0..self.static_mesh_count).collect()
+            };
             let eye = self.camera.eye();
             order.sort_by(|&a, &b| {
                 let a = &self.meshes[a];
@@ -1625,8 +1659,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             );
         }
 
+        // 3.4. Car in the front-end room: same position and yaw as the room.
+        if let (Some(room), Some(car_render), true) = (
+            &self.fe_room,
+            &self.car_render,
+            self.fe_room_car && !self.fe_room_hidden,
+        ) {
+            let all_meshes: Vec<usize> = (0..car_render.meshes.len()).collect();
+            self.draw_car_meshes(
+                target,
+                "front-end room car",
+                car_render,
+                room.car_matrix(fe_room_car_lift(car_render.lowest_y)),
+                &all_meshes,
+            );
+        }
+
         // 3.5. Draw car on track (if present)
-        if let (Some(car), Some(car_render)) = (&self.car, &self.car_render) {
+        if let (Some(car), Some(car_render), None) = (&self.car, &self.car_render, &self.fe_room) {
             // The bumper view looks out from inside the body: like the
             // original BumperCam, the player's own car isn't drawn.
             let bumper_view = self.camera.mode == CameraMode::Drive
@@ -3208,6 +3258,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .collect();
         let mut body_min = Vec3::splat(f32::INFINITY);
         let mut body_max = Vec3::splat(f32::NEG_INFINITY);
+        let mut lowest_y = f32::INFINITY;
         for (scene_mesh_index, mesh) in scene.meshes.iter().enumerate() {
             if mesh.vertices.is_empty() || mesh.indices.is_empty() {
                 continue;
@@ -3226,6 +3277,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     uv: v.uv,
                 })
                 .collect();
+            lowest_y = vertices
+                .iter()
+                .fold(lowest_y, |low, v| low.min(v.position[1]));
             let material_name = scene
                 .materials
                 .get(mesh.material)
@@ -3320,6 +3374,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 && body_max.is_finite()
                 && (body_max - body_min).min_element() > 0.0)
                 .then_some([body_min, body_max]),
+            lowest_y: if lowest_y.is_finite() { lowest_y } else { 0.0 },
         });
 
         self.configure_sim_for_model(car_name);
