@@ -27,9 +27,12 @@
 //!   `0x49b8e0`) in the scheduler order ([`scheduler_step`], [`step_64hz`]).
 //! - [`driver`]: the engine integration (model switch, 64 Hz clock, input
 //!   word, collision view, [`OriginalVehicle`]).
-//! - [`ground`]: the ground-contact adapter standing in for
-//!   `Car_GroundContactTick` `0x49bd40` until V6 (approximation).
+//! - [`attitude`]: V6, wheel ground contact, suspension and the kinematic
+//!   pitch/roll model (`0x499a70`, `0x49a900`, `0x49bc80`, `0x499730`).
+//! - [`ground`]: V6, `Car_GroundContactTick` `0x49bd40` (vertical contact,
+//!   landing) and the engine's per-wheel ground queries.
 
+pub mod attitude;
 pub mod car;
 pub mod controls;
 pub mod driver;
@@ -39,11 +42,14 @@ pub mod sim;
 pub mod step;
 pub mod tyre;
 
+pub use attitude::{wheel_ground_and_attitude, WheelGround};
 pub use car::{OriginalCar, OriginalGlobals, OriginalWheel};
 pub use controls::{apply_controls, gear_request, read_inputs, ControlsCar, ControlsEnv};
 pub use driver::{input_word, OriginalVehicle, StepClock, VehicleModel};
 pub use engine::{auto_gearbox, engine_drive_force, EngineCar, EngineEnv};
-pub use ground::{FlatGround, GroundAdapter, GroundHit, GroundQuery, RoadGround};
+pub use ground::{
+    ground_contact_tick, FlatGround, GroundAdapter, GroundHit, GroundQuery, RoadGround,
+};
 pub use sim::{derive, CarSpecs, Tuning};
 pub use step::{scheduler_step, step_64hz, GroundContact, Inputs, Phase, StepQueue};
 pub use tyre::{grip_limits, tyre_force, TyreCar, TyreEnv, WheelRecord};

@@ -22,12 +22,13 @@ use nfs_assets::physics::original_vehicle::{
 };
 
 const HALF: [f32; 3] = [0.9, 0.6, 2.1];
-/// Wheel ground points relative to the box centre (R, U, F): FR, FL, RR, RL.
+/// Wheel ground points relative to the box centre (R, U, F): FL, FR, RL, RR
+/// (the quadrant order of `0x49abc0`).
 const WHEELS: [[f32; 3]; 4] = [
-    [0.75, -0.6, 1.2],
     [-0.75, -0.6, 1.2],
-    [0.75, -0.6, -1.2],
+    [0.75, -0.6, 1.2],
     [-0.75, -0.6, -1.2],
+    [0.75, -0.6, -1.2],
 ];
 const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
@@ -69,8 +70,8 @@ impl Queue {
 }
 
 impl StepQueue for Queue {
-    fn ground(&mut self, car: &mut OriginalCar) {
-        self.ground.ground_step(car, &mut flat());
+    fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
+        self.ground.ground_step(car, &mut flat(), lcg);
     }
     fn collide(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
         let before = car.velocity_33c;
@@ -126,10 +127,17 @@ fn full_throttle_accelerates_on_the_ground() {
     let c = &v.car;
     assert!(c.vel_fwd_d60() > 20.0, "d60 {}", c.vel_fwd_d60());
     assert!(c.gear_d82 >= 3, "gear {}", c.gear_d82);
+    // On the road; the acceleration squat (V6 pitch) moves the box centre
+    // by a few millimetres.
     assert!(
-        (c.position_330[1] - 0.6).abs() < 1e-4,
+        (c.position_330[1] - 0.6).abs() < 0.02,
         "{:?}",
         c.position_330
+    );
+    assert!(
+        c.axes_364[2][1] > 0.0,
+        "nose up under power: {:?}",
+        c.axes_364[2]
     );
     assert!(c.position_330[0].abs() < 1e-3, "{:?}", c.position_330);
     assert!(c.position_330[2] > 30.0);

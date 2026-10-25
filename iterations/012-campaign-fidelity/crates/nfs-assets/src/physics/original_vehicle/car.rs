@@ -6,11 +6,15 @@
 //! ([`TyreCar`], [`EngineCar`], [`ControlsCar`]); this struct holds each
 //! field once and builds those views for every call.
 //!
-//! Wheel order (fixed by the V5 closed-loop fixtures): wheel 0 front right,
-//! 1 front left, 2 rear right, 3 rear left, where "right" is the ground-frame
-//! axis `R` (`+0x490`). Positive steer input (`(right − left)` in the input
-//! word) turns the car towards `R`, and positive yaw rate `ω.y` (`+0x38c`,
-//! turns/s) rotates `F` towards `R`.
+//! Wheel order: wheel 0 front left, 1 front right, 2 rear left, 3 rear right,
+//! where "right" is the body axis `R` (`+0x364`, the driver's right). The
+//! body point setup `0x49abc0` sorts the model's points by height and puts
+//! the four lowest in this quadrant order (`−x +z`, `+x +z`, `−x −z`,
+//! `+x −z`), and wheel `i` uses body point `i`; with it the contact normal
+//! of `0x499a70` points up (V6). Wheels 0,1 are front (`w+0xc0`). Positive
+//! steer input (`(right − left)` in the input word) turns the car towards
+//! `R`, and positive yaw rate `ω.y` (`+0x38c`, turns/s) rotates `F` towards
+//! `R`.
 //!
 //! Globals that the original keeps process-wide (scheduler step, throttle,
 //! contact flags, options) live in [`OriginalGlobals`]; the random
@@ -28,8 +32,30 @@ pub type Axes = [[f32; 3]; 3];
 /// One wheel record (`car+0x7b8 + i*0xc4`).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct OriginalWheel {
-    /// `w+0x40`: world wheel point, moved with the body at 64 Hz.
+    /// `w+0x34`: ground query point (body point `+0x1dc[i]` raised by
+    /// `sim+0x120·U.y`), written by `0x499a70`.
+    pub query_34: [f32; 3],
+    /// `w+0x40`: contact point under the wheel (`0x499a70`), moved with the
+    /// body at 64 Hz.
     pub point_40: [f32; 3],
+    /// `w+0x4c`: support normal at the contact point.
+    pub normal_4c: [f32; 3],
+    /// `w+0x58..0x60`: gap along the body axes `(R.y, U.y, F.y)·gap` times
+    /// the overtravel multiplier; `.y` plus the slide term is the
+    /// compression the pitch/roll model uses.
+    pub disp_58: [f32; 3],
+    /// `w+0x64`: contact y − query y.
+    pub gap_64: f32,
+    /// `w+0x68`: suspension compression along U, clamped to the travel
+    /// (`0x499a70` first loop, `0x49aec0`).
+    pub compression_68: f32,
+    /// `w+0x6c`: `gap·U.y/U.y` on the ground, `0.8·gap·U.y` in the air.
+    pub load_6c: f32,
+    /// `w+0x70`: suspension arm angle (asin), negated on wheels 1, 3.
+    pub angle_70: f32,
+    /// `w+0x74/0x78/0x7c`: material height noise previous / current /
+    /// phase (`0x499730`).
+    pub noise_74: [f32; 3],
     /// `w+0x84`: wheel off the ground (both wheels of an axle and height
     /// `+0x424 > 0.05` make the axle airborne).
     pub airborne_84: i32,
@@ -74,6 +100,8 @@ pub struct OriginalGlobals {
     /// skips the slope gravity.
     pub mode_6573e8: i32,
     pub pair_damp_657408: i32,
+    /// `[0x657a2c]`: enables the flip event of `0x49bd40` (writer unknown).
+    pub flip_events_657a2c: i32,
 }
 
 /// Results of the damage helpers (0 without parts, the only case covered).
@@ -106,17 +134,25 @@ pub struct OriginalCar {
     pub res_518: i32,
     pub damage: DamageHelpers,
 
+    /// `car+0x2c`: flags word of the body support owner (`car+8`); its low
+    /// nibble picks the bounce of a hard landing.
+    pub body_surface_2c: u16,
     /// Remote/replay input source fields (`dac != 0`).
     pub remote_steer_38: i8,
     pub remote_brake_3a: u8,
     pub remote_bits_3b: u8,
+    /// `+0x7c`: enables `Car_GroundContactTick` (with `+0x7f`).
+    pub ground_on_7c: u8,
     /// `+0x7d` frozen (no integration) / `+0x7f` active.
     pub frozen_7d: u8,
     pub active_7f: u8,
     /// `+0x80`: integration calls until the next re-orthonormalisation.
     pub reortho_80: u8,
-    /// `+0x84`: written by the grip (`0x4a1900`).
+    /// `+0x84`: written by the grip (`0x4a1900`); scales the gravity step of
+    /// `0x49bd40`.
     pub field_84: f32,
+    /// `+0x88`: scheduler step of the last ground tick.
+    pub ground_step_88: i32,
     /// Body points (`+0x8c`, count `+0x32c`) and their world positions
     /// (`+0x1dc`), from `Car_UpdateWorldPoints` `0x49ae30`.
     pub body_points_8c: Vec<[f32; 3]>,
@@ -124,15 +160,36 @@ pub struct OriginalCar {
 
     pub position_330: [f32; 3],
     pub velocity_33c: [f32; 3],
+    /// `+0x348`: unit velocity (forward axis at rest), `0x49bd40`.
+    pub vel_dir_348: [f32; 3],
     /// Speed (`max + 0.25·min` of `|v.x|`, `|v.z|`, from the ground step).
     pub speed_35c: f32,
     pub axes_364: Axes,
     /// Angular velocity, turns/s.
     pub angular_388: [f32; 3],
+    /// Body right / forward · ground normal (`+0x39c`, `+0x3a4`).
+    pub ground_right_39c: f32,
     /// Ground normal · up; ≥ 0.5 enables the tyres.
     pub ground_up_3a0: f32,
-    /// Height above the ground.
+    pub ground_fwd_3a4: f32,
+    /// Collision box half extents (`+0x3a8`); x and y lift the car on one
+    /// side in `0x499a70`.
+    pub half_extents_3a8: [f32; 3],
+    /// Alternate support plane: normal `+0x3e8`, point `+0x400` (written by
+    /// the track code `0x499520`/`0x49b090`, not ported).
+    pub alt_normal_3e8: [f32; 3],
+    pub alt_base_400: [f32; 3],
+    /// `+0x40c`: filtered change of `+0x420`.
+    pub ground_ay_40c: f32,
+    /// `+0x418`: two or more wheels off the ground.
+    pub wheels_off_418: u16,
+    /// `+0x41c`: mean contact height; `+0x420`: its rate (m/s).
+    pub ground_41c: f32,
+    pub ground_vy_420: f32,
+    /// Height above the ground (`0x49a900`).
     pub height_424: f32,
+    /// `+0x428`: second height measure of `0x49a900` (gates the gravity).
+    pub height_428: f32,
     /// Track surface (3 adds the high-speed damping).
     pub surface_464: i32,
     /// Ground frame rows right / normal / forward (`+0x490`, `+0x49c`,
@@ -140,8 +197,12 @@ pub struct OriginalCar {
     pub ground_490: Axes,
     /// Damage zones `+0x4e4..` (`+0x4e4`/`+0x4ec` pull the steering).
     pub damage_4e4: [f32; 10],
+    /// `+0x504`: flip event timer (`0x49bd40` rollover branch).
+    pub flip_504: f32,
     pub player_520: i32,
     pub flags_52c: u8,
+    /// Second byte of `+0x52c` (bit 2 = 0x400 keeps `+0x418` on landing).
+    pub flags_52d: u8,
     pub field_540: i32,
     pub field_544: i32,
     /// Rev-limiter cut steps / boost.
@@ -152,6 +213,8 @@ pub struct OriginalCar {
     pub wheels: [OriginalWheel; 4],
     /// `+0xac8/+0xacc`: 50/50 smoothed front steer (rendering).
     pub steer_smooth_ac8: [f32; 2],
+    /// `+0xad0`: closing speed of the last hard landing.
+    pub landing_ad0: f32,
     pub field_b50: i32,
     pub field_d2c: i32,
     /// World angular / linear accel of the last step (`+0xd34`, `+0xd40`).
@@ -203,6 +266,10 @@ pub struct OriginalCar {
     pub filter_e08: f32,
     pub ai_side_eb0: i32,
     pub ai_side_ed0: f32,
+    /// Effect events queued by `0x40f020` (`+0x110c` count, up to 7
+    /// records of 6 dwords at `+0x1110`): landing, flip. Nothing in the
+    /// ported code consumes them.
+    pub events_1110: Vec<[u32; 6]>,
     pub lights_1230: u16,
     pub lights_1232: u16,
 
@@ -212,8 +279,10 @@ pub struct OriginalCar {
 impl OriginalCar {
     /// A car at rest at the origin: identity axes and ground frame, upright
     /// on the ground (`+0x3a0 = 1`), front flags on wheels 0,1 (as the
-    /// reset `0x49e220`), active, re-orthonormalisation counter 0x20, gear N.
-    /// Everything else is zero.
+    /// reset `0x49e220`), active with the ground tick on (`+0x7c`),
+    /// re-orthonormalisation counter 0x20, gear N, body surface 1, the
+    /// alternate plane `y = 0`, velocity direction `+z`. Everything else is
+    /// zero.
     pub fn new(specs: CarSpecs) -> Self {
         const IDENTITY: Axes = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
         let mut wheels = [OriginalWheel::default(); 4];
@@ -227,27 +296,43 @@ impl OriginalCar {
             res_24: 0,
             res_518: 0,
             damage: DamageHelpers::default(),
+            body_surface_2c: 1,
             remote_steer_38: 0,
             remote_brake_3a: 0,
             remote_bits_3b: 0,
+            ground_on_7c: 1,
             frozen_7d: 0,
             active_7f: 1,
             reortho_80: 0x20,
             field_84: 0.0,
+            ground_step_88: 0,
             body_points_8c: Vec::new(),
             world_points_1dc: Vec::new(),
             position_330: [0.0; 3],
             velocity_33c: [0.0; 3],
+            vel_dir_348: [0.0, 0.0, 1.0],
             speed_35c: 0.0,
             axes_364: IDENTITY,
             angular_388: [0.0; 3],
+            ground_right_39c: 0.0,
             ground_up_3a0: 1.0,
+            ground_fwd_3a4: 0.0,
+            half_extents_3a8: [0.0; 3],
+            alt_normal_3e8: [0.0, 1.0, 0.0],
+            alt_base_400: [0.0; 3],
+            ground_ay_40c: 0.0,
+            wheels_off_418: 0,
+            ground_41c: 0.0,
+            ground_vy_420: 0.0,
             height_424: 0.0,
+            height_428: 0.0,
             surface_464: 0,
             ground_490: IDENTITY,
             damage_4e4: [0.0; 10],
+            flip_504: 0.0,
             player_520: 0,
             flags_52c: 0,
+            flags_52d: 0,
             field_540: 0,
             field_544: 0,
             limiter_548: 0,
@@ -255,6 +340,7 @@ impl OriginalCar {
             feedback_55c: [0.0; 3],
             wheels,
             steer_smooth_ac8: [0.0; 2],
+            landing_ad0: 0.0,
             field_b50: 0,
             field_d2c: 0,
             angular_accel_d34: [0.0; 3],
@@ -296,6 +382,7 @@ impl OriginalCar {
             filter_e08: 0.0,
             ai_side_eb0: 0,
             ai_side_ed0: 0.0,
+            events_1110: Vec::new(),
             lights_1230: 0,
             lights_1232: 0,
             globals: OriginalGlobals::default(),

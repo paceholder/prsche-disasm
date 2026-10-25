@@ -1,72 +1,89 @@
-//! Ground-contact adapter: `Car_GroundContactTick` `0x49bd40` until V6.
+//! V6: `Car_GroundContactTick` `0x49bd40` and the engine's ground queries.
 //!
-//! The planar model (V5) reads its ground from fields the ground step writes:
-//! `+0x3a0` (ground normal · body up), the ground frame `+0x490..` built by
-//! `Car_BuildGroundFrame` `0x49ba30`, the height `+0x424`, and per wheel the
-//! airborne flag `w+0x84` and the surface `w+0x8c`. The ground step also keeps
-//! the car on the road (vertical position and velocity).
+//! Source: the x87 instructions of `0x49bd40` (32 Hz queue, prio 0x1e,
+//! after `Car_DynamicsTick`), with `Car_WheelGroundAndAttitude` `0x499a70`
+//! ([`super::attitude`]), `Car_BuildGroundFrame` `0x49ba30`, the landing
+//! compression clamp `0x49aec0`, the event queue `0x40f020` and
+//! `Car_ClampAngularVelocityB` `0x49bba0`:
+//! 1. Gate: `+0x7f`, `+0x7c` set, `+0x7d` clear, and the scheduler-rate
+//!    query `0x414b10(1, 3, +0x78, car, …, +0x10b8)`. For the player car it
+//!    gives 32 steps/s, 1 step and runs on every call (row 3 index 6 of
+//!    `[0x5cc770]`, recorded by the V6 recorder).
+//! 2. `0x499a70`: wheel contacts, suspension, pitch/roll, height `+0x424`.
+//! 3. Ground rate `+0x420 = 32·Δ(mean contact y)` and its filter `+0x40c`,
+//!    `+0x39c/+0x3a0/+0x3a4` = body axes · ground normal, the ground frame.
+//! 4. Gravity `0.30625·+0x84` per step when `+0x428 > 0.005` (or light
+//!    mode), speed `+0x35c = max + 0.25·min` of `|v.x|, |v.z|`.
+//! 5. Contact, when upright (`+0x3a0 ≥ 0.939`) or above the ground
+//!    (`+0x424 ≥ 0.001`): with a closing speed above 6 m/s and the body
+//!    more than 0.05 m in the ground, a hard landing (event, body to −0.05,
+//!    bounce `0.4·[0x5d0b98 + 8·surface]·closing` from the body surface
+//!    `car+0x2c`, ω clamp); else below 0.005 m the soft contact (body onto
+//!    the ground, vertical speed at least the ground's).
+//! 6. Velocity direction `+0x348`.
 //!
-//! What is the original here (ported from the pseudo-C, not yet replayed):
-//! - The order and the formulas of `0x49bd40` around its call to
-//!   `Car_WheelGroundAndAttitude` `0x499a70`: `+0x39c/+0x3a0/+0x3a4` as dots of
-//!   the body axes with the ground normal, the ground frame, the slope
-//!   gravity `0.30625·+0x84` per step when `+0x428 > 0.005`, the ground
-//!   vertical speed from the change of the mean contact height, the
-//!   speed `+0x35c`, the soft contact (height below 0.005: snap onto the
-//!   road, take the road's vertical speed) and the hard landing (bounce from
-//!   `[0x5d0b98]`).
-//! - From `0x499a70`: the query point `+0x1dc[i] + sim+0x120·U.y`, the mean
-//!   contact point, the airborne test `contact.y − query.y < −0.20416667`
-//!   (`w+0x84`), the ground normal from the contact diagonals, and the
-//!   surface copy with the handling-mode remap (1, 10 → 2).
-//! - `0x49a900` (height `+0x424`/`+0x428` from the first four world points).
+//! What is approximated (docs/approximations.md):
+//! - The engine's support query stands in for the original polygon owners
+//!   (`GroundQuery`; A24). The alternate plane `+0x3e8/+0x400`, written by
+//!   the track code in the original, is the last contact plane with all
+//!   four wheels on a support polygon ([`GroundAdapter`]).
+//! - The rollover contact `0x496610` (tilted car on the ground) is replaced
+//!   by the soft contact (A27). The overhead query `0x473330` (roof over the
+//!   car, flips an upward vertical speed) is taken as "none", and the body
+//!   surface `car+0x2c` (body support owner `car+8`, picks the landing
+//!   bounce) follows wheel 0's surface (A28).
+//! - The `+0x52c` bit 7 path `0x4998c0` and the flag-1 call `0x493dd0` on a
+//!   hard landing are not ported (never set for the player).
 //!
-//! What is approximated (docs/approximations.md, ground-contact adapter):
-//! - The per-wheel ground comes from the engine's support query
-//!   ([`GroundQuery`]: the original support tree of upstream's loader, or the
-//!   legacy triangle grid), without the material height noise, the front
-//!   wobble or the alternate plane `+0x3e8/+0x400` (`0x499a70`). A miss or a
-//!   plane more than 4 m from `+0x334` reuses the wheel's last plane.
-//! - Attitude: instead of the kinematic pitch/roll model (V6, `0x499a70`
-//!   tail), on the ground the body up axis is set to the ground normal and
-//!   the pitch/roll part of the angular velocity is dropped.
-//! - `0x414b10`'s outputs are taken as 32 steps/s and one step; the rollover
-//!   contact `0x496610` (tilted car on the ground) is replaced by the soft
-//!   contact; the bounce surface `car+0x2c` is wheel 0's surface; the landing
-//!   effects, the ω clamp after a landing, the wheel compressions `0x49aec0`
-//!   and the track query `0x473330` are not run.
+//! Verified against `scripts/research/replay-vehicle-ground.py` (tests
+//! `tests/original_vehicle_ground.rs`).
 
 // Negated comparisons keep the x87 branches on unordered (NaN) operands.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
 use glam::Vec3;
 
+use super::attitude::{wheel_ground_and_attitude, WheelGround};
 use super::car::OriginalCar;
 use super::step::{
-    abs87, build_ground_frame, c, cross, dot, dot_ext, ground_speed, normalize,
-    update_world_points, x,
+    build_ground_frame, c, dot, ground_speed, normalize, scale, update_world_points, x,
 };
 use crate::physics::original_adapter::{from_original, to_original};
+use crate::physics::original_lcg::OriginalLcg;
 use crate::physics::original_support_owner::OriginalSupportOwner;
 use crate::surface::RoadSurface;
 
-/// Ground under one wheel's query point, in original world axes.
+/// Support plane under one wheel's query point, in original world axes
+/// (what the owner methods `0x474420`/`0x4745f0` return).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GroundHit {
-    /// Support plane height at the query point's x, z.
-    pub height: f32,
     /// Plane normal.
     pub normal: [f32; 3],
+    /// A point of the plane (the polygon's vertex 0).
+    pub base: [f32; 3],
     /// Support polygon flags word, copied to `w+0x8c`.
     pub surface: u16,
 }
 
-/// The engine's per-wheel support query, in original world axes.
+impl GroundHit {
+    /// The plane through `(point.x, height, point.z)`: its height at
+    /// `point` is exactly `height`.
+    pub fn at(point: [f32; 3], height: f32, normal: [f32; 3], surface: u16) -> Self {
+        Self {
+            normal,
+            base: [point[0], height, point[2]],
+            surface,
+        }
+    }
+}
+
+/// The engine's per-wheel support query (`0x474060` on the wheel's owner
+/// `w+4`), in original world axes. `None`: no support polygon.
 pub trait GroundQuery {
     fn wheel_ground(&mut self, wheel: usize, point: [f32; 3]) -> Option<GroundHit>;
 }
 
-/// A horizontal plane (tests and the V5 setup).
+/// A horizontal plane (tests).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlatGround {
     pub height: f32,
@@ -74,12 +91,13 @@ pub struct FlatGround {
 }
 
 impl GroundQuery for FlatGround {
-    fn wheel_ground(&mut self, _wheel: usize, _point: [f32; 3]) -> Option<GroundHit> {
-        Some(GroundHit {
-            height: self.height,
-            normal: [0.0, 1.0, 0.0],
-            surface: self.surface,
-        })
+    fn wheel_ground(&mut self, _wheel: usize, point: [f32; 3]) -> Option<GroundHit> {
+        Some(GroundHit::at(
+            point,
+            self.height,
+            [0.0, 1.0, 0.0],
+            self.surface,
+        ))
     }
 }
 
@@ -104,22 +122,32 @@ impl GroundQuery for RoadGround<'_> {
         } else {
             self.surface.query(scene.x, scene.z, scene.y, 2.0, 4.0)?
         };
-        Some(GroundHit {
-            height: hit.height,
-            normal: to_original(Vec3::from(hit.normal)),
-            surface: hit.flags_word_a.unwrap_or(LEGACY_SURFACE),
-        })
+        if !hit.height.is_finite() {
+            return None;
+        }
+        Some(GroundHit::at(
+            point,
+            hit.height,
+            to_original(Vec3::from(hit.normal)),
+            hit.flags_word_a.unwrap_or(LEGACY_SURFACE),
+        ))
     }
 }
 
-const K_AIRBORNE: u32 = 0xbe51_1111; // -0.20416667
-const K_GRAVITY_STEP: u32 = 0x3e9c_cccd; // 0.30625 = 9.8 / 32
-const K_UPRIGHT: u32 = 0x3f70_624e; // 0.939
-const K_ATTITUDE: u32 = 0x3f34_fdf4; // 0.707
-const K_SNAP: u32 = 0x3ba3_d70a; // 0.005
-const K_LANDING: u32 = 0xbd4c_cccd; // -0.05
-const K_0_4: u32 = 0x3ecc_cccd;
-/// `0x414b10` outputs: steps per second and steps since the last call.
+const K_GRAVITY_STEP: u32 = 0x3e9c_cccd; // 0x5b4a20, 0.30625 = 9.8 / 32
+const K_UPRIGHT: u32 = 0x3f70_624e; // 0x5b4a0c, 0.939
+const K_ATTITUDE: u32 = 0x3f34_fdf4; // 0x5b2698, 0.707
+const K_SNAP: u32 = 0x3ba3_d70a; // 0x5b2738, 0.005
+const K_TOUCH: u32 = 0x3a83_126f; // 0x5b27b4, 0.001
+const K_LANDING: u32 = 0xbd4c_cccd; // 0x5b4a18, -0.05
+const K_0_4: u32 = 0x3ecc_cccd; // 0x5b261c
+const K_0_9: u32 = 0x3f66_6666; // 0x5b25e8
+const K_0_86: u32 = 0x3f5c_28f6; // 0x5b49d8
+const K_NEG_0_86: u32 = 0xbf5c_28f6; // 0x5b4a1c
+const K_0_95: u32 = 0x3f73_3333; // 0x5b2610
+const K_ANG_LIGHT: u32 = 0x4010_0000; // 0x5b49c0, 2.25
+const K_ANG_SIMPLE: u32 = 0x40d8_0000; // 0x5b49bc, 6.75
+/// `0x414b10` for the player car: steps per second and steps per call.
 const STEPS_PER_SECOND: f64 = 32.0;
 const STEPS: f64 = 1.0;
 /// Bounce per surface `[0x5d0b98 + 8·s]` (`nfs5.exe` .data).
@@ -141,266 +169,233 @@ const BOUNCE: [u32; 16] = [
     0x3f80_0000,
     0x3f80_0000,
 ];
-/// A support plane more than this far from `+0x334` is not taken (as the
-/// original's switch to the alternate plane, `0x499a70`).
-const MAX_PLANE_DISTANCE: f64 = 4.0;
 
-/// A plane through `base` with `normal`, evaluated at the query's x, z
-/// (`0x499a70`).
-fn plane(query: [f32; 3], normal: [f32; 3], base: [f32; 3]) -> f32 {
-    ((-((x(query[0]) - x(base[0])) * x(normal[0])) - (x(query[2]) - x(base[2])) * x(normal[2]))
-        / x(normal[1])
-        + x(base[1])) as f32
+/// `0x40f020`: queue an effect event (up to 7, `+0x110c`).
+pub fn push_event(car: &mut OriginalCar, event: [u32; 6]) {
+    if car.events_1110.len() < 7 {
+        car.events_1110.push(event);
+    }
 }
 
-/// Ground normal from the four contact points (`0x499a70`): the front−rear
-/// and left−right diagonals, normalised, crossed, normalised, pointing up;
-/// `(0, 1, 0)` if a diagonal is zero.
-pub fn contact_normal(p: &[[f32; 3]; 4]) -> [f32; 3] {
-    let along: [f32; 3] =
-        [0, 1, 2].map(|k| (((x(p[1][k]) + x(p[0][k])) - (x(p[3][k]) + x(p[2][k]))) * 0.5) as f32);
-    let across: [f32; 3] =
-        [0, 1, 2].map(|k| (((x(p[3][k]) + x(p[1][k])) - (x(p[2][k]) + x(p[0][k]))) * 0.5) as f32);
-    if across == [0.0; 3] || along == [0.0; 3] {
-        return [0.0, 1.0, 0.0];
+/// `0x49aec0`: after the body moved up by `dh`, the compressions `w+0x68`
+/// lose `dh·U.y`, clamped to `(travel − ride)·(0.9 front | 0.75 rear)` and
+/// `−travel`.
+pub fn clamp_compressions(car: &mut OriginalCar, dh: f32) {
+    if car.flags_52c & 0x80 != 0 {
+        return;
     }
-    let n = normalize(cross(normalize(along), normalize(across)));
-    if n[1] < 0.0 {
-        n.map(|v| -v)
+    let travel = car.specs.suspension_travel_124;
+    let ride = car.specs.ride_height_120;
+    let uy = car.axes_364[1][1];
+    for (i, w) in car.wheels.iter_mut().enumerate() {
+        let v = -(x(dh) * x(uy)) + x(w.compression_68);
+        let v32 = v as f32;
+        w.compression_68 = if v > 0.0 {
+            let factor = if i < 2 { c(K_0_9) } else { 0.75 };
+            let lim = (x(travel) - x(ride)) * factor;
+            if x(v32) > lim {
+                lim as f32
+            } else {
+                v32
+            }
+        } else if !(x(v32) > -x(travel)) {
+            -travel
+        } else {
+            v32
+        };
+    }
+}
+
+/// `Car_ClampAngularVelocityB` `0x49bba0`: ω to ±0.75 turns/s (2.25 in
+/// light mode, 6.75 with `+0x52c` bit 7 below `+0x354 = 0.75`).
+pub fn clamp_angular_b(car: &mut OriginalCar, field_354: f32) {
+    let lim = if car.res_518 != 0 {
+        f32::from_bits(K_ANG_LIGHT)
+    } else if car.flags_52c & 0x80 != 0 && field_354 < 0.75 {
+        f32::from_bits(K_ANG_SIMPLE)
     } else {
-        n
-    }
-}
-
-/// `0x49a900`: height of the car above the ground plane through `mean` with
-/// `normal`. Upright (`+0x3a0 > 0.939`, not flag 0x80): the mean of the four
-/// lowest of the first four world points' plane distances with the lowest,
-/// halved, into `+0x424` and `+0x428`. Otherwise the lowest of all world
-/// points into `+0x424` and the mean of the three lowest into `+0x428`.
-/// Returns `(+0x424, +0x428)`.
-pub fn ground_height(car: &OriginalCar, normal: [f32; 3], mean: [f32; 3]) -> (f32, f32) {
-    let mut low = [1000.0f32; 4];
-    let mut insert = |d: f64| {
-        if !(x(low[0]) < d) {
-            low = [d as f32, low[0], low[1], low[2]];
-        } else if !(x(low[1]) < d) {
-            low = [low[0], d as f32, low[1], low[2]];
-        } else if !(x(low[2]) < d) {
-            low[3] = low[2];
-            low[2] = d as f32;
-        } else if d <= x(low[3]) {
-            low[3] = d as f32;
-        }
+        0.75
     };
-    let rel = |p: [f32; 3]| [0, 1, 2].map(|k| (x(p[k]) - x(mean[k])) as f32);
-    let upright = car.ground_up_3a0 > f32::from_bits(K_UPRIGHT) && car.flags_52c & 0x80 == 0;
-    let points = &car.world_points_1dc;
-    if upright {
-        for &p in points.iter().take(4) {
-            insert(dot_ext(normal, rel(p)));
+    for v in &mut car.angular_388 {
+        if !(lim >= *v) {
+            *v = lim;
+        } else if -lim > *v {
+            *v = -lim;
         }
-        let h = (((x(low[3]) + x(low[2]) + x(low[1]) + x(low[0])) * 0.25 + x(low[0])) * 0.5) as f32;
-        return (h, h);
     }
-    for &p in points {
-        insert(dot_ext(normal, rel(p)));
-    }
-    let mean3 = ((x(low[2]) + x(low[1]) + x(low[0])) * f32::from_bits(0x3eaa_aaab) as f64) as f32;
-    (low[0], mean3)
 }
 
-/// State the ground step keeps between calls (fields of the original car
-/// struct that the V5 kernels don't read, and the adapter's own planes).
+/// The soft contact of `0x49bd40` (`0x49c28e..`): the body onto the
+/// ground, the vertical speed at least the ground's.
+fn soft_contact(car: &mut OriginalCar, h: f32, rise: f32, vy: f32) {
+    car.position_330[1] = (x(car.position_330[1]) - x(h)) as f32;
+    car.height_424 = 0.0;
+    if car.flags_52d & 0x04 == 0 && car.ground_up_3a0 > f32::from_bits(K_0_86) {
+        car.wheels_off_418 = 0;
+    }
+    car.velocity_33c[1] = if vy > 0.0 && rise > 0.0 {
+        if rise > vy {
+            rise
+        } else {
+            vy
+        }
+    } else {
+        rise
+    };
+    clamp_compressions(car, -h);
+}
+
+/// `Car_GroundContactTick` `0x49bd40` (see the module docs). Returns the
+/// wheel ground result, or `None` when the tick is gated off.
+pub fn ground_contact_tick(
+    car: &mut OriginalCar,
+    query: &mut impl GroundQuery,
+    lcg: &mut OriginalLcg,
+) -> Option<WheelGround> {
+    if car.active_7f == 0 || car.ground_on_7c == 0 || car.frozen_7d != 0 {
+        return None;
+    }
+    let wg = wheel_ground_and_attitude(car, query, lcg);
+    let normal = wg.normal;
+    let h = car.height_424;
+    let rise = ((x(wg.mean[1]) - x(car.ground_41c)) * STEPS_PER_SECOND) as f32;
+    car.ground_41c = wg.mean[1];
+    let [r, u, f] = car.axes_364;
+    car.ground_right_39c = dot(r, normal);
+    car.ground_up_3a0 = dot(u, normal);
+    car.ground_fwd_3a4 = dot(f, normal);
+    build_ground_frame(car, normal, car.ground_up_3a0);
+    let gravity = if car.height_428 > f32::from_bits(K_SNAP) || car.res_518 != 0 {
+        STEPS * c(K_GRAVITY_STEP) * x(car.field_84)
+    } else {
+        0.0
+    };
+    let vy = (x(car.velocity_33c[1]) - gravity) as f32;
+    car.velocity_33c[1] = vy;
+    car.speed_35c = ground_speed(car.velocity_33c);
+    car.ground_ay_40c =
+        (((x(rise) - x(car.ground_vy_420)) + x(car.ground_ay_40c) * 7.0) * 0.125) as f32;
+    car.ground_vy_420 = rise;
+    let closing = (x(rise) - x(vy)) as f32;
+    let upright = car.ground_up_3a0 >= f32::from_bits(K_UPRIGHT) && car.flags_52c & 0x80 == 0;
+    if upright || h >= f32::from_bits(K_TOUCH) {
+        if closing > 6.0 {
+            if h < f32::from_bits(K_LANDING) {
+                push_event(car, [1, u32::MAX, 0, 5, closing.to_bits(), 0]);
+                let dh_ext = c(K_LANDING) - x(h);
+                let dh = dh_ext as f32;
+                car.height_424 = f32::from_bits(K_LANDING);
+                car.position_330[1] = (dh_ext + x(car.position_330[1])) as f32;
+                clamp_compressions(car, dh);
+                if car.flags_52d & 0x04 == 0 && car.ground_up_3a0 > f32::from_bits(K_0_9) {
+                    car.wheels_off_418 = 0;
+                }
+                let s = (car.body_surface_2c & 0xf) as usize;
+                car.landing_ad0 = closing;
+                car.velocity_33c[1] = (c(BOUNCE[s]) * c(K_0_4) * x(closing) + x(rise)) as f32;
+                clamp_angular_b(car, 0.0);
+            }
+        } else if h < f32::from_bits(K_SNAP) {
+            soft_contact(car, h, rise, vy);
+        }
+    } else {
+        // Rollover contact 0x496610 (not ported): the soft contact stands
+        // in (approximation A27). The rest of the branch is original.
+        if h < f32::from_bits(K_SNAP) {
+            soft_contact(car, h, rise, vy);
+        }
+        if car.ground_up_3a0 < 0.0 {
+            car.start_db0 = 0;
+        }
+        if car.ground_up_3a0 < f32::from_bits(K_ATTITUDE) && vy < -2.0 {
+            let s = (car.body_surface_2c & 0xf) as usize;
+            let v = &mut car.velocity_33c;
+            v[1] = (x(v[1]) - c(BOUNCE[s]) * x(vy)) as f32;
+            v[0] = (x(v[0]) * c(K_0_95)) as f32;
+            v[2] = (x(v[2]) * c(K_0_95)) as f32;
+            car.angular_388 = scale(car.angular_388, f32::from_bits(K_0_95));
+        }
+        if car.globals.flip_events_657a2c != 0
+            && car.ground_up_3a0 < f32::from_bits(K_NEG_0_86)
+            && car.flip_504 < 40.0
+            && car.field_b50 == 0
+        {
+            push_event(car, [1, u32::MAX, 4, 3, 40.0f32.to_bits(), 0]);
+            car.flip_504 = 40.0;
+        }
+    }
+    car.ground_step_88 = car.globals.sched_step_606ac4;
+    // 0x473330: no support over the car (approximation A28).
+    let v = car.velocity_33c;
+    car.vel_dir_348 = if v[0] != 0.0 || v[1] != 0.0 || v[2] != 0.0 {
+        normalize(v)
+    } else {
+        car.axes_364[2]
+    };
+    Some(wg)
+}
+
+/// The engine side of the ground step: the original tick plus the
+/// stand-in for the track code's alternate plane (approximation A24).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GroundAdapter {
-    /// Last accepted support plane per wheel (point, normal): stand-in for
-    /// the alternate plane `+0x3e8/+0x400`.
-    pub planes: [Option<([f32; 3], [f32; 3])>; 4],
-    /// `+0x41c`: mean contact height of the last step (`None` before the
-    /// first step: the road is taken as not moving).
-    pub ground_41c: Option<f32>,
-    /// `+0x420`: vertical speed of the ground under the car.
-    pub ground_vy_420: f32,
-    /// `+0x40c`: filtered change of `+0x420`.
-    pub ground_ay_40c: f32,
-    /// `+0x428`: second height measure of `0x49a900` (gates the gravity).
-    pub height_428: f32,
-    /// `+0x39c`/`+0x3a4`: body right / forward · ground normal.
-    pub right_39c: f32,
-    pub forward_3a4: f32,
-    /// Wheels off the ground in the last step (`0x499a70` `local_c8`; 4
-    /// when the ground normal is steeper than 60°).
-    pub wheels_off: u32,
-    /// Ground normal of the last step.
-    pub normal: [f32; 3],
+    /// Result of the last tick.
+    pub last: Option<WheelGround>,
 }
 
 impl GroundAdapter {
-    /// The `0x499a70` part: per-wheel ground, contact points `w+0x40`,
-    /// surfaces `w+0x8c`, airborne flags `w+0x84`, the ground normal, the
-    /// attitude stand-in, the world points and the height `+0x424`. Returns
-    /// the mean contact height.
-    fn wheels(&mut self, car: &mut OriginalCar, query: &mut impl GroundQuery) -> f32 {
-        let ride = x(car.specs.ride_height_120);
-        let up_y = x(car.axes_364[1][1]);
-        let pos = car.position_330;
-        let handling = car.globals.handling_mode_6573f8 != 0;
-        let mut queries = [[0.0f32; 3]; 4];
-        let mut contacts = [[0.0f32; 3]; 4];
-        let mut sum = [0.0f32; 3];
-        for i in 0..4 {
-            let mut q = car.world_points_1dc.get(i).copied().unwrap_or(pos);
-            q[1] = (ride * up_y + x(q[1])) as f32;
-            let hit = query.wheel_ground(i, q).filter(|h| {
-                h.height.is_finite()
-                    && abs87(x(h.height) - x(pos[1])) <= MAX_PLANE_DISTANCE
-                    && h.normal[1] > 0.0
-            });
-            let height = match hit {
-                Some(h) => {
-                    self.planes[i] = Some(([q[0], h.height, q[2]], h.normal));
-                    let w = &mut car.wheels[i].tyre;
-                    w.surface_8c = if handling && matches!(h.surface & 15, 1 | 10) {
-                        2
-                    } else {
-                        h.surface as i32
-                    };
-                    h.height
-                }
-                None => match self.planes[i] {
-                    Some((base, normal)) => plane(q, normal, base),
-                    None => q[1],
-                },
-            };
-            let contact = [q[0], height, q[2]];
-            for k in 0..3 {
-                sum[k] = (x(sum[k]) + x(contact[k])) as f32;
+    /// One `Car_GroundContactTick`; then, if all four wheels stood on a
+    /// support polygon, the alternate plane `+0x3e8/+0x400` becomes the
+    /// contact plane (ground normal through the mean contact point), and the
+    /// body surface `car+0x2c` becomes wheel 0's surface for the next tick.
+    pub fn ground_step(
+        &mut self,
+        car: &mut OriginalCar,
+        query: &mut impl GroundQuery,
+        lcg: &mut OriginalLcg,
+    ) {
+        let r = ground_contact_tick(car, query, lcg);
+        if let Some(g) = r {
+            if g.on_support.iter().all(|&s| s) {
+                car.alt_normal_3e8 = g.normal;
+                car.alt_base_400 = g.mean;
             }
-            car.wheels[i].point_40 = contact;
-            queries[i] = q;
-            contacts[i] = contact;
+            // The body support owner (car+8) is not queried: its surface
+            // `car+0x2c` follows wheel 0's (approximation A28).
+            car.body_surface_2c = car.wheels[0].tyre.surface_8c as u16;
         }
-        let mean = sum.map(|s| (x(s) * 0.25) as f32);
-        let mut off = 0;
-        for i in 0..4 {
-            let d = (x(contacts[i][1]) - x(queries[i][1])) as f32;
-            let airborne = !(x(f32::from_bits(K_AIRBORNE)) <= x(d));
-            car.wheels[i].airborne_84 = airborne as i32;
-            off += airborne as u32;
-        }
-        let normal = contact_normal(&contacts);
-        if normal[1] < 0.5 {
-            off = 4;
-        }
-        self.wheels_off = off;
-        self.normal = normal;
-        if off < 4 {
-            align_to_ground(car, normal);
-        }
-        update_world_points(car);
-        let (h424, h428) = ground_height(car, normal, mean);
-        car.height_424 = h424;
-        self.height_428 = h428;
-        mean[1]
-    }
-
-    /// Stand-in for `Car_GroundContactTick` `0x49bd40` (see the module docs).
-    pub fn ground_step(&mut self, car: &mut OriginalCar, query: &mut impl GroundQuery) {
-        if car.active_7f == 0 || car.frozen_7d != 0 {
-            return;
-        }
-        let ground = self.wheels(car, query);
-        let normal = self.normal;
-        let height = car.height_424;
-        let prev = self.ground_41c.unwrap_or(ground);
-        let rise = ((x(ground) - x(prev)) * STEPS_PER_SECOND) as f32;
-        self.ground_41c = Some(ground);
-        let [r, u, f] = car.axes_364;
-        self.right_39c = dot(r, normal);
-        car.ground_up_3a0 = dot(u, normal);
-        self.forward_3a4 = dot(f, normal);
-        build_ground_frame(car, normal, car.ground_up_3a0);
-        let gravity = if self.height_428 > f32::from_bits(K_SNAP) || car.res_518 != 0 {
-            (STEPS * c(K_GRAVITY_STEP) * x(car.field_84)) as f32
-        } else {
-            0.0
-        };
-        let vy = (x(car.velocity_33c[1]) - x(gravity)) as f32;
-        car.velocity_33c[1] = vy;
-        car.speed_35c = ground_speed(car.velocity_33c);
-        let prev_rise = self.ground_vy_420;
-        self.ground_vy_420 = rise;
-        self.ground_ay_40c =
-            ((x(self.ground_ay_40c) * 7.0 + (x(rise) - x(prev_rise))) * 0.125) as f32;
-        let closing = (x(rise) - x(vy)) as f32;
-        let contact = (car.ground_up_3a0 >= f32::from_bits(K_UPRIGHT) && car.flags_52c & 0x80 == 0)
-            || height >= 0.001;
-        // Not upright and touching: the original's rollover contact
-        // `0x496610` is not ported; the soft contact stands in.
-        if !(closing <= 6.0) && contact {
-            if height < f32::from_bits(K_LANDING) {
-                let landing = f32::from_bits(K_LANDING);
-                car.height_424 = landing;
-                car.position_330[1] = ((x(landing) - x(height)) + x(car.position_330[1])) as f32;
-                let s = (car.wheels[0].tyre.surface_8c & 0xf) as usize;
-                car.velocity_33c[1] = (c(BOUNCE[s]) * c(K_0_4) * x(closing) + x(rise)) as f32;
-            }
-        } else if height < f32::from_bits(K_SNAP) {
-            car.height_424 = 0.0;
-            car.position_330[1] = (x(car.position_330[1]) - x(height)) as f32;
-            car.velocity_33c[1] = if vy <= 0.0 || rise <= 0.0 || vy < rise {
-                rise
-            } else {
-                vy
-            };
-        }
+        self.last = r;
     }
 
     /// Places the car on the ground at its current x, z (spawn, model
-    /// switch): a ground step with the road taken as not moving, the body
-    /// moved down onto the road if it is above it, and a second step there.
-    /// The vertical velocity is kept.
-    pub fn place(&mut self, car: &mut OriginalCar, query: &mut impl GroundQuery) {
-        let vy = car.velocity_33c[1];
+    /// switch): a trial tick on a copy measures the height, the body moves
+    /// down (or up) by it, and a tick there with the ground taken as not
+    /// moving. The velocity and angular velocity are kept.
+    pub fn place(
+        &mut self,
+        car: &mut OriginalCar,
+        query: &mut impl GroundQuery,
+        lcg: &mut OriginalLcg,
+    ) {
+        let (v, w) = (car.velocity_33c, car.angular_388);
         update_world_points(car);
-        self.ground_41c = None;
-        self.ground_step(car, query);
-        if car.height_424 > 0.0 {
-            car.position_330[1] = (x(car.position_330[1]) - x(car.height_424)) as f32;
+        let mut probe = car.clone();
+        let mut probe_lcg = *lcg;
+        if let Some(g) = ground_contact_tick(&mut probe, query, &mut probe_lcg) {
+            if probe.height_424.is_finite() {
+                car.position_330[1] = (x(car.position_330[1]) - x(probe.height_424)) as f32;
+            }
+            car.alt_normal_3e8 = g.normal;
+            car.alt_base_400 = g.mean;
+            car.ground_41c = g.mean[1];
             update_world_points(car);
-            self.ground_41c = None;
-            self.ground_step(car, query);
         }
-        car.velocity_33c[1] = vy;
+        self.ground_step(car, query, lcg);
+        car.velocity_33c = v;
+        car.angular_388 = w;
+        car.pitch_filter_dc4 = 0.0;
+        car.roll_filter_dc8 = 0.0;
     }
-}
-
-/// Attitude stand-in until V6 (approximation): the body up axis becomes the
-/// ground normal (heading kept: forward projected onto the ground plane), and
-/// the angular velocity keeps only its part about the normal. Skipped when
-/// the car is already aligned and has no pitch/roll rate, so a flat run is
-/// untouched; and for a car tilted more than 45° against the ground.
-fn align_to_ground(car: &mut OriginalCar, normal: [f32; 3]) {
-    let [_, u, f] = car.axes_364;
-    let un = dot_ext(u, normal);
-    if !(un >= c(K_ATTITUDE)) {
-        return;
-    }
-    let w = car.angular_388;
-    let yaw = dot_ext(w, normal);
-    let tilt = [0, 1, 2].map(|k| x(w[k]) - yaw * x(normal[k]));
-    let aligned = un >= 1.0 - 1e-6;
-    if aligned && tilt == [0.0; 3] {
-        return;
-    }
-    if !aligned {
-        let fd = dot_ext(f, normal);
-        let fp = [0, 1, 2].map(|k| (x(f[k]) - fd * x(normal[k])) as f32);
-        let nf = normalize(fp);
-        let nr = normalize(cross(normal, nf));
-        car.axes_364 = [nr, normal, nf];
-    }
-    car.angular_388 = normal.map(|n| (yaw * x(n)) as f32);
 }
 
 #[cfg(test)]
@@ -409,28 +404,22 @@ mod tests {
     use crate::physics::original_vehicle::sim::CarSpecs;
 
     fn car() -> OriginalCar {
-        let mut car = OriginalCar::new(CarSpecs::from_bytes(&[0u8; 0x1c4]));
+        let mut specs = CarSpecs::from_bytes(&[0u8; 0x1c4]);
+        specs.suspension_travel_124 = 0.12;
+        specs.max_pitch_rate_134 = 1.0;
+        specs.max_roll_rate_138 = 1.0;
+        let mut car = OriginalCar::new(specs);
         car.position_330 = [0.0, 0.6, 0.0];
         car.body_points_8c = vec![
-            [0.75, -0.6, 1.2],
             [-0.75, -0.6, 1.2],
-            [0.75, -0.6, -1.2],
+            [0.75, -0.6, 1.2],
             [-0.75, -0.6, -1.2],
+            [0.75, -0.6, -1.2],
         ];
+        car.field_84 = 1.16;
+        car.globals.sched_step_606ac4 = 0x200;
         update_world_points(&mut car);
         car
-    }
-
-    #[test]
-    fn flat_normal_is_up() {
-        let p = [
-            [0.75, 0.0, 1.2],
-            [-0.75, 0.0, 1.2],
-            [0.75, 0.0, -1.2],
-            [-0.75, 0.0, -1.2],
-        ];
-        let n = contact_normal(&p);
-        assert_eq!(n.map(|v| v.abs()), [0.0, 1.0, 0.0]);
     }
 
     #[test]
@@ -441,7 +430,7 @@ mod tests {
             height: 0.25,
             surface: 1,
         };
-        g.place(&mut c, &mut ground);
+        g.place(&mut c, &mut ground, &mut OriginalLcg::default());
         assert!(
             (c.position_330[1] - 0.85).abs() < 1e-6,
             "{:?}",
@@ -456,19 +445,19 @@ mod tests {
     fn car_above_the_road_falls_and_lands() {
         let mut c = car();
         c.position_330[1] = 2.0;
-        c.field_84 = 1.16;
         update_world_points(&mut c);
         let mut g = GroundAdapter::default();
+        let mut lcg = OriginalLcg::default();
         let mut ground = FlatGround {
             height: 0.0,
             surface: 1,
         };
-        g.ground_step(&mut c, &mut ground);
+        g.ground_step(&mut c, &mut ground, &mut lcg);
         assert!(c.wheels.iter().all(|w| w.airborne_84 == 1));
         assert!(c.height_424 > 1.3);
         let mut landed = false;
         for _ in 0..64 {
-            g.ground_step(&mut c, &mut ground);
+            g.ground_step(&mut c, &mut ground, &mut lcg);
             for _ in 0..2 {
                 c.position_330[1] += c.velocity_33c[1] / 64.0;
                 update_world_points(&mut c);
@@ -480,29 +469,5 @@ mod tests {
         }
         assert!(landed, "{:?} h {}", c.position_330, c.height_424);
         assert!(c.position_330[1] >= 0.6 - 0.06);
-    }
-
-    #[test]
-    fn body_up_follows_a_slope() {
-        let mut c = car();
-        // 10 % uphill along +z.
-        struct Slope;
-        impl GroundQuery for Slope {
-            fn wheel_ground(&mut self, _: usize, p: [f32; 3]) -> Option<GroundHit> {
-                let n = Vec3::new(0.0, 1.0, -0.1).normalize();
-                Some(GroundHit {
-                    height: 0.1 * p[2],
-                    normal: n.to_array(),
-                    surface: 1,
-                })
-            }
-        }
-        let mut g = GroundAdapter::default();
-        g.place(&mut c, &mut Slope);
-        let u = Vec3::from(c.axes_364[1]);
-        let n = Vec3::new(0.0, 1.0, -0.1).normalize();
-        assert!(u.dot(n) > 0.9999, "{u:?}");
-        assert!(Vec3::from(c.axes_364[2]).dot(n).abs() < 1e-5);
-        assert!(c.ground_up_3a0 > 0.9999);
     }
 }

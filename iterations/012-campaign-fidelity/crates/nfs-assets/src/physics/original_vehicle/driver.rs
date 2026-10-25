@@ -4,8 +4,8 @@
 //! [`OriginalVehicle`], the player car runtime the renderer drives.
 //!
 //! The step order itself is [`scheduler_step`]; the renderer supplies the
-//! ground (the [`GroundAdapter`]), the collision pass and the camera through
-//! [`StepQueue`].
+//! ground (`Car_GroundContactTick` through the [`GroundAdapter`] on its road
+//! query), the collision pass and the camera through [`StepQueue`].
 
 use super::car::{Axes, OriginalCar};
 use super::ground::{GroundAdapter, GroundQuery};
@@ -252,7 +252,8 @@ impl OriginalVehicle {
     /// Car from a `.sim` file (V1 with default tuning for `model`, no parts),
     /// its collision box half extents and its four wheel ground points
     /// relative to the box centre in the car's axes (R, U, F), wheel order
-    /// FR, FL, RR, RL. Resource flags: `res+0x14 = 1` (steering rate limit,
+    /// FL, FR, RL, RR (the quadrant order of `0x49abc0`: `−R +F`, `+R +F`,
+    /// `−R −F`, `+R −F`). Resource flags: `res+0x14 = 1` (steering rate limit,
     /// as in the V5 recordings), others 0; automatic box.
     pub fn from_sim(
         raw_sim: &[u8],
@@ -299,6 +300,7 @@ impl OriginalVehicle {
         let old = &self.car;
         let mut car = OriginalCar::new(old.specs.clone());
         car.body_points_8c = old.body_points_8c.clone();
+        car.half_extents_3a8 = self.half_extents;
         car.position_330 = old.position_330;
         car.axes_364 = old.axes_364;
         car.res_14 = 1;
@@ -331,7 +333,7 @@ impl OriginalVehicle {
         car.velocity_33c = velocity;
         car.angular_388 = angular;
         self.ground = GroundAdapter::default();
-        self.ground.place(car, ground);
+        self.ground.place(car, ground, &mut self.lcg);
         // Ground-frame velocities for the first step's consumers.
         let [r, n, f] = car.ground_490;
         let d = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -365,6 +367,23 @@ impl OriginalVehicle {
     /// Gear for the HUD: −1 R, 0 N, 1.. forward.
     pub fn hud_gear(&self) -> i32 {
         self.car.gear_d82 as i32 - 1
+    }
+
+    /// Suspension lift of wheel `i` for drawing, along U in metres: the arm
+    /// angle `w+0x70` (`0x499a70`, read per wheel by the model animation
+    /// `0x438440`) as `10·sin`, which is `ride + compression` while the
+    /// wheel is compressed and `ride` otherwise (approximation A37: how the
+    /// model applies the angle is not read).
+    pub fn draw_wheel_lift(&self, wheel: usize) -> f32 {
+        let Some(w) = self.car.wheels.get(wheel) else {
+            return 0.0;
+        };
+        let a = if wheel == 1 || wheel == 3 {
+            -w.angle_70
+        } else {
+            w.angle_70
+        };
+        10.0 * a.sin()
     }
 
     /// Front wheel steer angle for drawing, in turns: `sim+0xfc·steer/17`
@@ -441,13 +460,14 @@ mod tests {
     }
 
     impl StepQueue for Recorder {
-        fn ground(&mut self, car: &mut OriginalCar) {
+        fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
             self.ground.ground_step(
                 car,
                 &mut FlatGround {
                     height: 0.0,
                     surface: 1,
                 },
+                lcg,
             );
         }
         fn trace(&mut self, phase: Phase, car: &OriginalCar) {

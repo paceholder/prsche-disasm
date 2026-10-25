@@ -27,7 +27,9 @@
 //! ([`ground_contact`]): it writes the given ground normal·up, height and
 //! normal, builds the ground frame with `0x49ba30`, and computes the speed
 //! `+0x35c` with the formula of `0x49bd40`. It does not run the wheel ground
-//! query, pitch/roll or vertical velocity (V6). Not run either: the track
+//! query, pitch/roll or vertical velocity; the original ground step is
+//! [`super::ground::ground_contact_tick`] (V6), which the engine runs through
+//! [`scheduler_step`]. Not run either: the track
 //! locate/progress, collisions, and the `0x490140` path of
 //! `0x49b8e0` (pair damping with a remote car, `[0x657408]` and `+0xdac`).
 //!
@@ -707,8 +709,9 @@ pub enum Phase {
 /// ground step, the collision pass and the camera. Each runs at its place in
 /// [`scheduler_step`]. `trace` is called before every phase (tests).
 pub trait StepQueue {
-    /// `Car_GroundContactTick` `0x49bd40` (even steps).
-    fn ground(&mut self, car: &mut OriginalCar);
+    /// `Car_GroundContactTick` `0x49bd40` (even steps). The material height
+    /// noise of `0x499730` draws from the shared random generator.
+    fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg);
     /// `Car_CollideTick` `0x498ff0` (even steps). The pair response draws
     /// from the shared random generator.
     fn collide(&mut self, _car: &mut OriginalCar, _lcg: &mut OriginalLcg) {}
@@ -740,7 +743,7 @@ pub fn scheduler_step(
         queue.trace(Phase::Dynamics, car);
         dynamics_tick(car, lcg);
         queue.trace(Phase::Ground, car);
-        queue.ground(car);
+        queue.ground(car, lcg);
         queue.trace(Phase::Collide, car);
         queue.collide(car, lcg);
     }
@@ -758,7 +761,7 @@ pub fn scheduler_step(
 pub fn step_64hz(car: &mut OriginalCar, inputs: &Inputs, lcg: &mut OriginalLcg) {
     struct StandIn<'a>(&'a GroundContact);
     impl StepQueue for StandIn<'_> {
-        fn ground(&mut self, car: &mut OriginalCar) {
+        fn ground(&mut self, car: &mut OriginalCar, _lcg: &mut OriginalLcg) {
             ground_contact(car, self.0);
         }
     }

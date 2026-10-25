@@ -701,24 +701,31 @@ fn original_body_matrix(car: &nfs_assets::physics::original_vehicle::OriginalCar
     )
 }
 
+/// Original wheel record of a drawn wheel at mesh-space offset `p` from the box centre
+/// (forward is mesh −z, right is +x): the quadrant order of `0x49abc0`, FL, FR, RL, RR.
+fn original_wheel_index(p: Vec3) -> usize {
+    let front = if p.z < 0.0 { 0 } else { 2 };
+    front + usize::from(p.x >= 0.0)
+}
+
 /// Wheel mesh transform in mesh space for the original car: steer of the front wheels from
-/// the smoothed steer `+0xac8/+0xacc`, spin from `w+0x88` (turns). The wheel record is
-/// picked by the wheel's position (FR, FL, RR, RL); no suspension travel until V6.
+/// the smoothed steer `+0xac8/+0xacc`, spin from `w+0x88` (turns), and the suspension lift
+/// along the body up from the arm angle `w+0x70` (`draw_wheel_lift`, approximation A37).
 fn original_wheel_matrix(
     v: &nfs_assets::physics::original_vehicle::OriginalVehicle,
     wheel: &CarWheelRender,
     center: Vec3,
 ) -> Mat4 {
     use std::f32::consts::TAU;
-    let p = wheel.source_center - center;
-    let index = if p.z < 0.0 { 0 } else { 2 } + usize::from(p.x < 0.0);
+    let index = original_wheel_index(wheel.source_center - center);
     let steer = if index < 2 {
         v.draw_steer_turns(index) * TAU
     } else {
         0.0
     };
     let spin = v.car.wheels[index].spin_88 * TAU;
-    Mat4::from_translation(wheel.source_center)
+    let lift = v.draw_wheel_lift(index);
+    Mat4::from_translation(wheel.source_center + Vec3::Y * lift)
         * Mat4::from_rotation_y(-steer)
         * Mat4::from_rotation_x(-spin)
         * Mat4::from_translation(-wheel.source_center)
@@ -3426,23 +3433,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// Ground points of the drawn car's wheels (wheel centre minus radius) relative to the
-    /// collision box centre, in the original car axes (R, U, F) and wheel order FR, FL, RR, RL
-    /// (picked by position: forward is mesh −z, right is +x). Without wheel meshes: points
-    /// inside the box at its bottom.
+    /// collision box centre, in the original car axes (R, U, F) and the body point order of
+    /// `0x49abc0`: FL, FR, RL, RR (picked by position, `original_wheel_index`). Without wheel
+    /// meshes: points inside the box at its bottom.
     fn original_wheel_points(&self) -> [[f32; 3]; 4] {
         let (center, half) = self.collision_box_or_fallback();
         let (x, z) = (half[0] - 0.1, half[2] * 0.6);
         let mut points = [
-            [x, -half[1], z],
             [-x, -half[1], z],
-            [x, -half[1], -z],
+            [x, -half[1], z],
             [-x, -half[1], -z],
+            [x, -half[1], -z],
         ];
         if let Some(render) = &self.car_render {
             for w in &render.wheels {
                 let p = w.source_center - Vec3::Y * w.radius - center;
-                let index = if p.z < 0.0 { 0 } else { 2 } + usize::from(p.x < 0.0);
-                points[index] = [p.x, p.y, -p.z];
+                points[original_wheel_index(p)] = [p.x, p.y, -p.z];
             }
         }
         points
@@ -3612,7 +3618,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             camera: &'a mut nfs_assets::camera::PlayerCamera,
         }
         impl StepQueue for Queue<'_> {
-            fn ground(&mut self, car: &mut OriginalCar) {
+            fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
                 match self.surface {
                     Some(surface) => self.ground.ground_step(
                         car,
@@ -3620,6 +3626,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                             surface,
                             owners: self.owners,
                         },
+                        lcg,
                     ),
                     None => self.ground.ground_step(
                         car,
@@ -3627,6 +3634,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                             height: 0.0,
                             surface: nfs_assets::physics::original_vehicle::ground::LEGACY_SURFACE,
                         },
+                        lcg,
                     ),
                 }
             }

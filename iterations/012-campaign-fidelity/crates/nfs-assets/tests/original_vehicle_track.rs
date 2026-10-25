@@ -44,11 +44,12 @@ fn track(name: &str) -> Option<nfs_assets::Scene> {
 }
 
 const HALF: [f32; 3] = [0.9, 0.6, 2.1];
+/// FL, FR, RL, RR (the quadrant order of `0x49abc0`).
 const WHEELS: [[f32; 3]; 4] = [
-    [0.75, -0.6, 1.2],
     [-0.75, -0.6, 1.2],
-    [0.75, -0.6, -1.2],
+    [0.75, -0.6, 1.2],
     [-0.75, -0.6, -1.2],
+    [0.75, -0.6, -1.2],
 ];
 
 struct Queue<'a> {
@@ -61,13 +62,18 @@ struct Queue<'a> {
 }
 
 impl StepQueue for Queue<'_> {
-    fn ground(&mut self, car: &mut OriginalCar) {
+    fn ground(
+        &mut self,
+        car: &mut OriginalCar,
+        lcg: &mut nfs_assets::physics::original_lcg::OriginalLcg,
+    ) {
         self.ground.ground_step(
             car,
             &mut RoadGround {
                 surface: self.surface,
                 owners: &mut self.owners,
             },
+            lcg,
         );
     }
     fn collide(
