@@ -24,6 +24,12 @@ User-requested Open-Unleashed review iscomplete atb0ec06e: substantialRustport,
 gaps. No externalcodecopied/executed. Proposednextcomparison: isolatedWindowsv0.1.4
 trial withourassets before anotherlarge recoverytranche; goal/licensingunchanged.
 GitHub MCP/search remainsdeferred until aftercurrentiteration peruserinstruction.
+Open-Unleashed research closeout2026-10-25: usage and crossref notes are current;
+14,868 exact source spans validated against pinned b0ec06e. Distributed metadata
+contains address/offset references, provenance hashes and author markers; external
+comment text/code is not imported. Index-reference hits are navigation only.
+The isolated trial and repository presentation/MCP work are already complete.
+Run411/412 closeout is active; no new source-recovery scope beyond these batches.
 
 Historical407 follows.
 

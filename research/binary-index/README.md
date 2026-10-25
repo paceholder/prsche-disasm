@@ -1,5 +1,10 @@
 # Индекс оригинальных бинарников
 
+Open-Unleashed: [metadata cross-reference](supplemental/open-unleashed-crossref.jsonl)
+and [source validation](supplemental/open-unleashed-crossref-validation.json) provide
+14,868 pinned file/line/address references. This is external navigation, not original
+semantic proof; [usage and boundaries](../../docs/research/open-unleashed-usage-2026-10-25.md).
+
 PR #25: [original-function evidence map](pr25-evidence.json) links SIM/collision
 recorders and fixed-snapshot source addresses useful for C++ recovery. These are
 reviewed external Unicorn fixtures, not accepted game implementations; module hashes,
