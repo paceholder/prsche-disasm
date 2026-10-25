@@ -40,7 +40,8 @@ export function attrInt(attrs, key, fallback = 0) {
 export function attrPair(attrs, key, fallback = [0, 0]) {
   const text = attrs?.[key.toLowerCase()];
   if (!text) return fallback;
-  const parts = text.split(",").map(part => parseInt(part, 10));
+  // An empty half (e.g. `size=150,`) reads as 0.
+  const parts = text.split(",").map(part => (part.trim() === "" ? 0 : parseInt(part, 10)));
   return parts.length === 2 && parts.every(Number.isFinite) ? parts : fallback;
 }
 
@@ -91,15 +92,28 @@ export function transitionState(name, elapsedMs) {
   }
 }
 
-// Screen stack after FE_GotoLayout(name, offset) [VA 0x4d2100]: offset > 0 pushes,
-// 0 replaces the top, < 0 pops one level and then pushes (Hypothesis, branch structure).
-export function nextStack(stack, name, offset) {
-  const next = stack.slice();
-  if (offset > 0 || next.length === 0) next.push(name);
-  else if (offset === 0) next[next.length - 1] = name;
+// Screen levels after FE_GotoLayout(name, offset) [VA 0x4d2100]: the FE keeps a vector of
+// levels (+0xd8); level 0 is the full screen, higher levels are pop-ups drawn over it
+// [VA 0x4d2f30]. offset > 0 opens a new pop-up level; 0 (or < 0 with one level) goes to the
+// screen in the top level, keeping its history; < 0 closes the top pop-up level first and
+// then goes to the screen in the level below. (History kept per level: Hypothesis.)
+export function nextLevels(levels, name, offset) {
+  const next = levels.map(level => level.slice());
+  if (offset > 0 || next.length === 0) next.push([name]);
+  else if (offset === 0 || next.length < 2) next[next.length - 1].push(name);
   else {
     next.pop();
-    next.push(name);
+    next[next.length - 1].push(name);
   }
+  return next;
+}
+
+// GOBACK: previous screen of the top level, or close the top pop-up (Hypothesis).
+export function backLevels(levels) {
+  const next = levels.map(level => level.slice());
+  const top = next[next.length - 1];
+  if (top && top.length > 1) top.pop();
+  else if (next.length > 1) next.pop();
+  else return null;
   return next;
 }

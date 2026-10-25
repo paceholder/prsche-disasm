@@ -7,6 +7,9 @@
 //! The bank offset is confirmed by the original loader (`docs/formats/engine-sound-curves.md`).
 use crate::Result;
 
+/// Front-end logo pack name and logo index [VA 0x4c1660].
+const LOGO_PACK_AT: usize = 0x147;
+const LOGO_INDEX_AT: usize = 0x1f6;
 pub const CAR_RECORD_SIZE: usize = 1648;
 const DISPLAY_NAME_AT: usize = 0x02;
 const SHORT_NAME_AT: usize = 0x34;
@@ -14,6 +17,14 @@ const MODEL_AT: usize = 0x7F;
 const FAMILY_AT: usize = 0x115;
 const SIM_NAME_AT: usize = 0xB1;
 const BANK_NAME_AT: usize = 0x179;
+const KIND_AT: usize = 0x1f4;
+const CLASS_AT: usize = 0x204;
+const ERA_AT: usize = 0x1b0;
+const GROUP_AT: usize = 0x1ac;
+const YEAR_AT: usize = 0x1f8;
+const COLOUR_COUNT_AT: usize = 0x3e6;
+const COLOUR_AT: usize = 0x3ec;
+const COLOUR_END: usize = 0x528;
 const FIELD_LEN: usize = 32;
 /// Gauge calibration `+0x2f0..+0x2fc` (4 f32): written by the front end as the race config
 /// keys `.TACH0RPM`, `.TACH1000RPM`, `.SPEEDO0KM`, `.SPEEDO100KM` (`FE_WriteCarConfig`
@@ -37,6 +48,44 @@ pub struct CarEntry {
     /// Needle calibration in turns: rev needle at 0 rpm, per 1000 rpm; speed needle at 0,
     /// per unit of `0.144·v` (`GAUGES_AT`).
     pub gauges: [f32; 4],
+    /// Front-end logo: FSH pack in `FEData/Art` (+0x147, `finallogos1`/`finallogos2`) and the
+    /// first of two shapes, 2 × i16 at +0x1f6 [VA 0x4c1660].
+    pub logo_pack: String,
+    pub logo_shape: i32,
+    /// i16 at +0x1f4: 0 car, 1 traffic, 2 cop (the i32 there also holds a logo word in the high half).
+    pub kind: i32,
+    /// i32 at +0x204 (0 and 2 appear in the original Quick Race list, 1 and 3 do not).
+    pub class: i32,
+    /// i32 at +0x1b0: string id 521..523.
+    pub era: i32,
+    /// i32 at +0x1ac: 501..504.
+    pub group: i32,
+    /// i16 at +0x1f8.
+    pub year: i32,
+    /// Paint colours: u16 count at +0x3e6, entries of 4 packed u32 from +0x3ec (raw values).
+    pub colours: Vec<[u32; 4]>,
+}
+
+fn le_i32(r: &[u8], at: usize) -> i32 {
+    i32::from_le_bytes([r[at], r[at + 1], r[at + 2], r[at + 3]])
+}
+
+fn le_i16(r: &[u8], at: usize) -> i32 {
+    i16::from_le_bytes([r[at], r[at + 1]]) as i32
+}
+
+fn parse_colours(r: &[u8]) -> Vec<[u32; 4]> {
+    let n = (u16::from_le_bytes([r[COLOUR_COUNT_AT], r[COLOUR_COUNT_AT + 1]]) as usize)
+        .min((COLOUR_END - COLOUR_AT) / 16)
+        .min(64);
+    (0..n)
+        .map(|i| {
+            std::array::from_fn(|j| {
+                let o = COLOUR_AT + 16 * i + 4 * j;
+                u32::from_le_bytes([r[o], r[o + 1], r[o + 2], r[o + 3]])
+            })
+        })
+        .collect()
 }
 
 fn cstr(r: &[u8], at: usize, len: usize) -> String {
@@ -69,6 +118,14 @@ pub fn parse_car_catalogue(d: &[u8]) -> Result<Vec<CarEntry>> {
                 let o = GAUGES_AT + 4 * i;
                 f32::from_le_bytes([r[o], r[o + 1], r[o + 2], r[o + 3]])
             }),
+            logo_pack: cstr(r, LOGO_PACK_AT, 16),
+            logo_shape: 2 * i16::from_le_bytes([r[LOGO_INDEX_AT], r[LOGO_INDEX_AT + 1]]) as i32,
+            kind: le_i16(r, KIND_AT),
+            class: le_i32(r, CLASS_AT),
+            era: le_i32(r, ERA_AT),
+            group: le_i32(r, GROUP_AT),
+            year: le_i16(r, YEAR_AT),
+            colours: parse_colours(r),
         })
         .collect())
 }
@@ -132,6 +189,8 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
         out.push_str(&format!("{{\"index\":{},", e.index));
         for (k, v) in [
             ("display_name", &e.display_name),
+            ("short_name", &e.short_name),
+            ("logo_pack", &e.logo_pack),
             ("model", &e.model),
             ("sim_name", &e.sim_name),
             ("bank", &e.bank_name),
@@ -151,10 +210,45 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
                 }
             })
             .collect();
-        out.push_str(&format!("\"gauges\":[{}]}}", g.join(",")));
+        let colours: Vec<String> = e
+            .colours
+            .iter()
+            .map(|c| format!("[{},{},{},{}]", c[0], c[1], c[2], c[3]))
+            .collect();
+        out.push_str(&format!(
+            "\"logo_shape\":{},\"gauges\":[{}],\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}]}}",
+            e.logo_shape,
+            g.join(","),
+            e.kind,
+            e.class,
+            e.era,
+            e.group,
+            e.year,
+            colours.join(",")
+        ));
     }
     out.push(']');
     out
+}
+
+/// Cars of the original Quick Race list: kind 0 (not traffic/cop), class 0 or 2, ordered by
+/// (era, group, year); catalogue order breaks ties.
+pub fn quick_race_cars(entries: &[CarEntry]) -> Vec<&CarEntry> {
+    let mut v: Vec<&CarEntry> = entries
+        .iter()
+        .filter(|e| e.kind == 0 && matches!(e.class, 0 | 2))
+        .collect();
+    v.sort_by_key(|e| (e.era, e.group, e.year));
+    v
+}
+
+/// JSON array of the record indices of `quick_race_cars`.
+pub fn quick_race_json(entries: &[CarEntry]) -> String {
+    let v: Vec<String> = quick_race_cars(entries)
+        .iter()
+        .map(|e| e.index.to_string())
+        .collect();
+    format!("[{}]", v.join(","))
 }
 
 #[cfg(test)]
@@ -211,10 +305,18 @@ mod tests {
             sim_name: "996T".into(),
             bank_name: "sd7a".into(),
             gauges: [-0.07, 0.14, -0.01, 0.17],
+            logo_pack: "finallogos1".into(),
+            logo_shape: 4,
+            kind: 0,
+            class: 2,
+            era: 523,
+            group: 503,
+            year: 2000,
+            colours: vec![[1, 2, 3, 4], [5, 6, 7, 8]],
         };
         assert_eq!(
             catalogue_json(&[e]),
-            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"gauges\":[-0.07,0.14,-0.01,0.17]}]"
+            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"gauges\":[-0.07,0.14,-0.01,0.17],\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]]}]"
         );
         assert_eq!(catalogue_json(&[]), "[]");
     }
@@ -239,6 +341,42 @@ mod tests {
         // Gauge calibration (docs/re/cockpit.md): 356A record 8 and 993 record 56.
         assert_eq!(e[8].gauges, [-0.07, 0.14, -0.01, 0.17]);
         assert_eq!(e[56].gauges, [-0.37, 0.09, -0.37, 0.07]);
+        // Logos [VA 0x4c1660]: '50 356 index 4 -> shapes 8/9 of finallogos2,
+        // '00 996 Turbo index 20 -> shapes 40/41 ("turb") of finallogos1.
+        assert_eq!(
+            (e[0].logo_pack.as_str(), e[0].logo_shape),
+            ("finallogos2", 8)
+        );
+        assert_eq!(
+            (e[65].logo_pack.as_str(), e[65].logo_shape),
+            ("finallogos1", 40)
+        );
+    }
+
+    #[test]
+    fn installed_quick_race_list() {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/FEData/Data/nfs5.car");
+        let Ok(d) = std::fs::read(&p) else {
+            eprintln!("skip: nfs5.car not installed");
+            return;
+        };
+        let e = parse_car_catalogue(&d).unwrap();
+        assert_eq!(e[19].colours.len(), 19);
+        assert_eq!(e[19].colours[0][0], 0x964300ff);
+        assert_eq!((e[19].kind, e[19].class, e[19].era), (0, 0, 521));
+        assert_eq!((e[19].group, e[19].year), (501, 1959));
+        assert_eq!(e[42].kind, 2);
+        assert_eq!(e[80].kind, 1);
+        assert!(e.iter().all(|c| c.colours.len() <= 64));
+        let q = quick_race_cars(&e);
+        let names: Vec<&str> = q.iter().map(|c| c.display_name.as_str()).collect();
+        assert_eq!(q.len(), 15, "{names:?}");
+        assert!(names[0].starts_with("'59 356 A 1600 Super Convertible D"));
+        assert!(names[1].starts_with("'60 356 B 1600 Super Coup"));
+        assert!(names.contains(&"'87 959"));
+        assert!(names.contains(&"'98 911 GT3 Cup"));
+        assert_eq!(quick_race_json(&e).matches(',').count(), 14);
     }
 
     fn stems(dir: &str, ext: &str) -> Option<Vec<String>> {

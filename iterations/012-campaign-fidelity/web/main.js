@@ -1,4 +1,4 @@
-import init, { create_viewer, EngineAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json } from "./package/viewer_impl.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -2433,6 +2433,11 @@ quickRaceStartBtn.addEventListener('click', async () => {
   const track = quickRaceTrack.value;
   const laps = Number(document.querySelector('#quickRaceLaps').value);
   const opponents = Number(document.querySelector('#quickRaceOpponents').value);
+  await launchQuickRace({ car, track, laps, opponents, fromDialog: true });
+});
+
+// Load and start a Quick Race (web dialog or the original front end's PLAYGAME).
+async function launchQuickRace({ car, track, laps, opponents, fromDialog = false }) {
   quickRaceStartBtn.disabled = true;
   quickRaceCancelBtn.disabled = true;
   quickRaceStatus.textContent = 'Загрузка заезда…';
@@ -2461,15 +2466,16 @@ quickRaceStartBtn.addEventListener('click', async () => {
     setStatus(`Quick Race: ${car.display_name} · ${track}${lastEngineSoundError ? ` · ${lastEngineSoundError}` : ""}`);
   } catch (error) {
     quickRaceStatus.textContent = error instanceof Error ? error.message : String(error);
+    setStatus(quickRaceStatus.textContent);
     if (frontEnd) {
       await showFrontEnd();
-      quickRaceModal.hidden = false;
+      if (fromDialog) quickRaceModal.hidden = false;
     }
   } finally {
     quickRaceStartBtn.disabled = false;
     quickRaceCancelBtn.disabled = false;
   }
-});
+}
 
 async function loadTarget(specificScn = null) {
   if (!viewer) {
@@ -3486,10 +3492,43 @@ async function readGamePath(path) {
 }
 
 async function frontEndQuickRaceCar() {
-  if (!quickRaceCars.length) {
-    quickRaceCars = buildQuickRaceCars(await loadCarCatalogueRecords(), availableCars, localGameFiles);
+  return frontEndSetup?.currentCar() ?? null;
+}
+
+// Original Quick Race lists (web/fe-quickrace.js): the 15 nfs5.car records of class 0/2 in
+// the original order [VA 0x4f3e40, 0x4f0f50] that are installed, and the quick-race tracks
+// of nfs5.trk [VA 0x4fbc10] that are installed.
+let frontEndSetup = null;
+async function buildFrontEndSetup(strings) {
+  const { QuickRaceSetup, quickRaceTracks } = await import("./fe-quickrace.js");
+  const records = await loadCarCatalogueRecords();
+  quickRaceCars = buildQuickRaceCars(records, availableCars, localGameFiles);
+  const carBytes = await readGamePath("FEData/Data/nfs5.car");
+  const order = JSON.parse(fe_quick_race_cars_json(carBytes));
+  const byIndex = new Map(records.map(r => [r.index, r]));
+  const cars = order
+    .map(i => {
+      const installed = quickRaceCars.find(c => c.index === i);
+      const r = byIndex.get(i);
+      return installed && r ? { ...installed, short_name: r.short_name, colours: r.colours,
+        logo_pack: r.logo_pack, logo_shape: r.logo_shape } : null;
+    })
+    .filter(Boolean);
+  const trackBytes = await readGamePath("FEData/Data/nfs5.trk");
+  const tracks = trackBytes ? quickRaceTracks(JSON.parse(fe_track_catalog_json(trackBytes)), availableTracks) : [];
+  frontEndSetup = new QuickRaceSetup({ strings, cars, tracks });
+}
+
+async function frontEndPlayGame() {
+  const p = frontEndSetup?.raceParams();
+  if (!p?.car || !p.track) {
+    setStatus("Quick Race: no installed car or track");
+    return;
   }
-  return quickRaceCars.find(car => car.id === quickRaceCar.value) ?? quickRaceCars[0] ?? null;
+  // Direction, traffic and opponent car mode are chosen but not raced yet, and the race
+  // supports 0 or 3 opponents only (A100).
+  const opponents = p.opponents > 0 ? 3 : 0;
+  await launchQuickRace({ car: p.car, track: p.track.internal_name.toLowerCase(), laps: p.laps, opponents });
 }
 
 // room= of the shown layout; a 3DCAR control adds the selected car [VA 0x4bfdc0].
@@ -3529,8 +3568,12 @@ function frontEndAction(name) {
   switch (name) {
     case "SETTYPECAREERMODE": openEvolutionTournaments(); return true;
     case "SETTYPEFACTORYDRIVER": openFactoryLadder(); return true;
-    case "PLAYGAME":
-    case "COMBOBOX": openQuickRace(); return true;
+    // SETTYPEQUICKRACE resets the race settings and the car index [VA 0x510c30, 0x4fc730];
+    // returning false lets the button go on to its destination.
+    case "SETTYPEQUICKRACE": frontEndSetup?.reset(); return false;
+    case "TRACK1INC": frontEndSetup?.stepTrack(1); queueFrame(); return true;
+    case "TRACK1DEC": frontEndSetup?.stepTrack(-1); queueFrame(); return true;
+    case "PLAYGAME": frontEndPlayGame(); return true;
     case "OPTIONS":
     case "QUIT":
       // Web shell (developer tools) until the options screens are restored.
@@ -3544,8 +3587,8 @@ function frontEndAction(name) {
 async function showFrontEnd() {
   if (!frontEnd) return;
   frontEndRoom = null;
-  if (!frontEnd.stack.length) await frontEnd.start("gamesetup");
-  else await frontEnd.show(frontEnd.stack[frontEnd.stack.length - 1]);
+  if (!frontEnd.levels.length) await frontEnd.start("gamesetup");
+  else await frontEnd.refresh();
   syncFrontEndClasses();
 }
 
@@ -3557,19 +3600,27 @@ async function startFrontEnd() {
       readFile: readGamePath,
       onRoom: loadFrontEndRoom,
       onAction: frontEndAction,
-      accessor: name => {
-        if ((name || "").startsWith("zMergedList.Car")) {
-          const car = quickRaceCars.find(c => c.id === quickRaceCar.value) ?? quickRaceCars[0];
-          return car?.display_name ?? "";
+      accessor: name => frontEndSetup?.accessor(name) ?? null,
+      // FECallBackList update [VA 0x50cc30]: ID_MERGEDLISTCOLOR when 0x4f4df0 is true,
+      // ID_MERGEDLISTCARSETUP otherwise. Hypothesis: 0x4f4df0 = "the car is not owned";
+      // Quick Race offers only unowned (catalogue) cars here, so colour shows, car setup not.
+      controlVisible: name => name !== "ID_MERGEDLISTCARSETUP",
+      carLogo: () => {
+        const car = frontEndSetup?.currentCar();
+        return car?.logo_pack ? { pack: car.logo_pack, shape: car.logo_shape } : null;
+      },
+      onChange: name => {
+        // A new car (or colour) is shown in the garage at once.
+        if (/^(zMergedList|GenericCar)\./.test(name || "") && frontEnd.screen?.controls.some(c => c.type === "3DCAR")) {
+          loadFrontEndRoom(frontEnd.screen.screenAttrs.room, "zMergedList.Car");
         }
-        if ((name || "").startsWith("Track1.Track")) return quickRaceTrack.value || "";
-        if (name === "Game.NumOpponents") return document.querySelector("#quickRaceOpponents")?.value ?? "";
-        return "";
+        queueFrame();
       },
       career: () => false,
       requestFrame: queueFrame,
     });
     await frontEnd.init();
+    await buildFrontEndSetup(frontEnd.assets.strings);
     resizeCanvas();
     frontEnd.resize(canvas.width, canvas.height);
     // Start-up loading screen (loadscrn.fsh) while the menu and the garage load [VA 0x4dd600].
@@ -3587,17 +3638,12 @@ async function startFrontEnd() {
     syncFrontEndClasses();
     setStatus("Original front end (?shell=web: web shell)");
   } catch (error) {
+    console.error("front end:", error);
     frontEnd = null;
     syncFrontEndClasses();
     setStatus(`Original front end failed: ${error instanceof Error ? error.message : String(error)}`);
     await loadTarget();
   }
 }
-
-quickRaceCar.addEventListener("change", () => {
-  if (frontEnd?.visible && frontEnd.screen?.controls.some(c => c.type === "3DCAR")) {
-    loadFrontEndRoom(frontEnd.screen.screenAttrs.room, "zMergedList.Car");
-  }
-});
 
 boot();

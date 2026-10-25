@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   backdropLayoutName, parseLayoutJson, attrInt, attrPair, parseColor, fitViewport,
-  toLayoutPoint, transitionState, nextStack,
+  toLayoutPoint, transitionState, nextLevels, backLevels,
 } from "./fe-core.js";
 
 test("screen ids map to backdrop layouts (VA 0x4e1470)", () => {
@@ -25,6 +25,7 @@ test("layout JSON keeps order and control types", () => {
   assert.deepEqual(attrPair(sections[1].attrs, "pos"), [448, 274]);
   assert.equal(attrInt(sections[1].attrs, "flip"), 3);
   assert.equal(attrInt({ flip: "" }, "flip", 0), 0);
+  assert.deepEqual(attrPair({ size: "150," }, "size", [50, 50]), [150, 0]);
   assert.equal(attrInt({ v: "0x10" }, "v"), 16);
   assert.deepEqual(parseColor("0xFFBC0000"), { a: 255, r: 188, g: 0, b: 0 });
   assert.deepEqual(parseColor("0x30FF0000"), { a: 48, r: 255, g: 0, b: 0 });
@@ -47,13 +48,18 @@ test("transitions take 0.5 s (VA 0x4e09e0)", () => {
   assert.deepEqual(transitionState("SAME", 0), { alpha: 1, dx: 0, dy: 0 });
 });
 
-test("goto offsets push, replace and pop (VA 0x4d2100)", () => {
-  let stack = nextStack([], "gamesetup", 1);
-  stack = nextStack(stack, "singleplayer", 1);
-  assert.deepEqual(stack, ["gamesetup", "singleplayer"]);
-  // singleplayer -> quickrace uses offset -1: quick race replaces singleplayer.
-  assert.deepEqual(nextStack(stack, "quickrace", -1), ["gamesetup", "quickrace"]);
-  assert.deepEqual(nextStack(stack, "credits", 0), ["gamesetup", "credits"]);
+test("goto offsets open pop-ups and keep history (VA 0x4d2100)", () => {
+  let levels = nextLevels([], "gamesetup", 1);
+  levels = nextLevels(levels, "singleplayer", 1);
+  assert.deepEqual(levels, [["gamesetup"], ["singleplayer"]]);
+  // singleplayer -> quickrace (offset -1) closes the pop-up and goes on in the main level.
+  levels = nextLevels(levels, "quickrace", -1);
+  assert.deepEqual(levels, [["gamesetup", "quickrace"]]);
+  levels = nextLevels(levels, "location", 0);
+  assert.deepEqual(levels, [["gamesetup", "quickrace", "location"]]);
+  assert.deepEqual(backLevels(levels), [["gamesetup", "quickrace"]]);
+  assert.deepEqual(backLevels([["gamesetup"], ["settings"]]), [["gamesetup"]]);
+  assert.equal(backLevels([["gamesetup"]]), null);
 });
 
 test("loading screen tiles cover 640x480 with 45 shapes (VA 0x4a4a70)", async () => {
@@ -64,4 +70,49 @@ test("loading screen tiles cover 640x480 with 45 shapes (VA 0x4a4a70)", async ()
   assert.deepEqual(tiles[20], [20, 0, 32]);
   assert.deepEqual(tiles[30], [30, 0, 96]);
   assert.deepEqual(tiles[44], [44, 512, 352]);
+});
+
+test("quick race settings follow the original lists (VA 0x4f9790, 0x4fc0b0)", async () => {
+  const { QuickRaceSetup, quickRaceTracks, carColourCss } = await import("./fe-quickrace.js");
+  const strings = { 300: "Monte Carlo Circuit 1", 340: "Monte Carlo 1", 301: "Alps Run", 341: "Alps",
+    410: "forward", 411: "backward", 412: "forward/mirrored", 413: "backward/mirrored",
+    400: "heavy", 401: "medium", 402: "light", 403: "none", 420: "1", 421: "2", 422: "3",
+    640: "same car", 641: "random car", 642: "same era", 643: "same class", 644: "same era/class",
+    645: "era/class", 451: "advanced" };
+  const records = [
+    { internal_name: "monaco1", name_string: 300, circuit: true, unlock: 0, difficulty: 1 },
+    { internal_name: "skidpad", name_string: 316, circuit: true, unlock: 0, difficulty: 0 },
+    { internal_name: "alps", name_string: 301, circuit: false, unlock: 0, difficulty: 1 },
+    { internal_name: "castle", name_string: 302, circuit: false, unlock: 3, difficulty: 2 },
+  ];
+  const tracks = quickRaceTracks(records, ["monaco1", "skidpad", "alps", "castle"]);
+  assert.deepEqual(tracks.map(t => t.internal_name), ["monaco1", "alps"]);
+  const cars = [{ display_name: "'59 356 A", short_name: "356 A", colours: [[0x592208ff, 0, 0, 0]] },
+    { display_name: "'87 959", short_name: "959", colours: [] }];
+  const q = new QuickRaceSetup({ strings, cars, tracks });
+  assert.equal(q.accessor("Track1.Track(SHORT)").text(), "Monte Carlo 1");
+  assert.equal(q.accessor("Track1.Track").text(), "Monte Carlo Circuit 1");
+  assert.equal(q.accessor("Track1.Track(DIFFICULTY)").text(), "advanced");
+  assert.equal(q.accessor("Track1.Traffic").text(), "none");
+  assert.equal(q.accessor("Track1.Laps").text(), "2");
+  assert.equal(q.accessor("OpponentCar.Car(SHORT)").text(), "same car");
+  assert.equal(q.accessor("Game.NumOpponents").text(), "4");
+  assert.equal(q.accessor("zMergedList.Car(SHORT)").text(), "356 A");
+  assert.equal(q.accessor("GenericCar.Colour").color(), "rgb(8,34,89)");
+  assert.equal(carColourCss(0x0000ffff), "rgb(255,0,0)");
+  assert.equal(q.accessor("No.Such"), null);
+  let p = q.raceParams();
+  assert.deepEqual([p.track.internal_name, p.laps, p.reverse, p.mirror, p.opponents], ["monaco1", 2, false, false, 4]);
+  q.accessor("Track1.Direction(SHORT)").select(3);
+  q.accessor("Track1.Laps").select(7);
+  q.stepTrack(1);
+  p = q.raceParams();
+  // Alps is not a circuit: one lap whatever the lap setting.
+  assert.deepEqual([p.track.internal_name, p.laps, p.reverse, p.mirror], ["alps", 1, true, true]);
+  q.stepTrack(1);
+  assert.equal(q.currentTrack().internal_name, "monaco1");
+  q.accessor("zMergedList.Car").step(-1);
+  assert.equal(q.currentCar().short_name, "959");
+  q.reset();
+  assert.deepEqual([q.car, q.track, q.direction, q.lapsIndex, q.traffic], [0, 0, 0, 1, 0]);
 });

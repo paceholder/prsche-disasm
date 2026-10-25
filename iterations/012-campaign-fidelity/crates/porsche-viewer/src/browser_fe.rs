@@ -108,3 +108,17 @@ pub fn fe_parse_strings(bytes: Uint8Array, language: u32) -> Result<String, JsVa
     out.push('}');
     Ok(out)
 }
+
+/// Track table of `nfs5.trk` as a JSON array.
+#[wasm_bindgen]
+pub fn fe_track_catalog_json(bytes: Uint8Array) -> Result<String, JsValue> {
+    let t = nfs_formats::parse_track_catalog(&bytes.to_vec()).map_err(|e| JsValue::from_str(&e))?;
+    Ok(nfs_formats::track_catalog_json(&t))
+}
+
+/// Record indices of the original Quick Race car list from `nfs5.car`, as a JSON array.
+#[wasm_bindgen]
+pub fn fe_quick_race_cars_json(bytes: Uint8Array) -> Result<String, JsValue> {
+    let c = nfs_formats::parse_car_catalogue(&bytes.to_vec()).map_err(|e| JsValue::from_str(&e))?;
+    Ok(nfs_formats::quick_race_json(&c))
+}
