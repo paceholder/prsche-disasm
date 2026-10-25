@@ -418,7 +418,8 @@ impl OriginalVehicle {
     /// Back to the start state (the race start): a fresh car with the same
     /// specs and body points, at rest in neutral, the scheduler at
     /// [`COUNTDOWN_SCHED_STEP`] with the start counter at [`START_DB0`], so
-    /// the original gating holds the brake until the green light. The pose
+    /// the original gating holds the brake until the green light, and the
+    /// random generator seeded as the race init `0x414eb0` seeds it. The pose
     /// is kept.
     pub fn restart(&mut self) {
         let old = &self.car;
@@ -437,7 +438,8 @@ impl OriginalVehicle {
         update_world_points(&mut car);
         self.car = car;
         self.apply_setup();
-        self.lcg = OriginalLcg::default();
+        // The race init `0x414eb0` seeds the generator (`Rand_Seed 0x4a4780`).
+        self.lcg = OriginalLcg::race_start();
         self.ground = GroundAdapter::default();
         self.locator = Default::default();
         self.owners = Default::default();

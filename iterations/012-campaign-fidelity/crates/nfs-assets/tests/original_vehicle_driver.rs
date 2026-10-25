@@ -149,6 +149,24 @@ fn full_throttle_accelerates_on_the_ground() {
 }
 
 #[test]
+fn engine_damage_does_not_stall_the_car() {
+    // Playtest 2026-10-25: after the first car hit (zone damage on) the gas did nothing.
+    // Car_DamageEngine 0x4938a0 feeds zone 1 into the misfire draw of 0x49e440; with the
+    // unseeded generator every step misfired. Seeded as the race init 0x414eb0 does, a
+    // damaged engine still pulls.
+    skip_without_local_fixtures!(fixture::CARS);
+    let mut v = boxster();
+    v.car.damage_4e4[1] = 30.0;
+    let mut q = Queue::new(&v, vec![]);
+    drive(&mut v, &mut q, START_S, 0);
+    drive(&mut v, &mut q, 6.0, input_word(1.0, 0.0, 0.0, false));
+    let c = &v.car;
+    let d60 = c.vel_fwd_d60();
+    assert!(d60 > 15.0, "d60 {d60} rpm {}", c.rpm_db4);
+    assert!(c.rpm_db4 > 1000.0, "rpm {}", c.rpm_db4);
+}
+
+#[test]
 fn steering_right_turns_toward_r() {
     skip_without_local_fixtures!(fixture::CARS);
     let mut v = boxster();
