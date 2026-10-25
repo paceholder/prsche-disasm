@@ -335,7 +335,25 @@ impl VehicleSimulation {
         // Speed-sensitive steering angle limit to prevent violent spinouts at high velocity
         let speed_mps = self.body.forward_speed();
         let speed_factor = (1.0 / (1.0 + speed_mps.abs() * 0.025)).clamp(0.20, 1.0);
-        let target_steer = controls.steer.clamp(-1.0, 1.0) * self.max_steer_angle * speed_factor;
+        // Approximation A115: full lock may not ask for more lateral
+        // acceleration than the front tyres hold. The old limit
+        // (1 / (1 + 0.025 v)) left 18 degrees at 29 m/s, which is 2.8 g of
+        // kinematic turn demand: every keyboard turn at speed was a slide.
+        // The grip-limited angle is mu·g·L / v² (the original gives about
+        // 1.5 degrees at 36 m/s on full input, `Car_PlanarDynamics` step 6).
+        let grip_limited = {
+            let w: Vec<_> = self.suspension.wheels.iter().collect();
+            let front_z = w.iter().filter(|w| w.is_steered).map(|w| w.hardpoint_body.z).sum::<f32>()
+                / w.iter().filter(|w| w.is_steered).count().max(1) as f32;
+            let rear_z = w.iter().filter(|w| !w.is_steered).map(|w| w.hardpoint_body.z).sum::<f32>()
+                / w.iter().filter(|w| !w.is_steered).count().max(1) as f32;
+            let base = w.iter().filter(|w| w.is_steered).map(|w| w.tire.base_friction_coeff * w.tire.grip_multiplier).sum::<f32>()
+                / w.iter().filter(|w| w.is_steered).count().max(1) as f32;
+            let wheelbase = (front_z - rear_z).abs().max(1.0);
+            (2.0 * base * GRAVITY * wheelbase / (speed_mps * speed_mps).max(1.0)).max(0.02)
+        };
+        let max_angle = (self.max_steer_angle * speed_factor).min(grip_limited);
+        let target_steer = controls.steer.clamp(-1.0, 1.0) * max_angle;
 
         for _ in 0..num_sub_steps {
             // Smooth steer input towards target
@@ -399,7 +417,19 @@ impl VehicleSimulation {
             .filter(|w| w.is_driven)
             .count()
             .max(1) as f32;
-        let per_wheel_drive_torque = drive_torque / driven_count;
+        // Approximation A114: the drive torque is shared between the driven
+        // wheels in proportion to their normal load, as the original splits
+        // the drive demand by the wheels' grip limits (`Car_PlanarDynamics`
+        // 0x49f160, `w+0xa8 = share·w+0xac·F/sum`). An equal split let the
+        // unloaded inside wheel of a corner spin up (open differential), and
+        // the box then read the wheel overspeed as wheelspin.
+        let driven_load: f32 = self
+            .suspension
+            .wheels
+            .iter()
+            .filter(|w| w.is_driven)
+            .map(|w| w.tire.normal_load.max(0.0))
+            .sum();
 
         // 3. Braking distribution
         let brake_in = controls.brake.clamp(0.0, 1.0);
@@ -411,7 +441,11 @@ impl VehicleSimulation {
             let is_front = idx == WHEEL_FL || idx == WHEEL_FR;
 
             let wheel_drive = if wheel.is_driven {
-                per_wheel_drive_torque
+                if driven_load > 1.0 {
+                    drive_torque * wheel.tire.normal_load.max(0.0) / driven_load
+                } else {
+                    drive_torque / driven_count
+                }
             } else {
                 0.0
             };
@@ -837,7 +871,9 @@ pub(crate) mod tests {
     #[test]
     fn auto_box_holds_its_gear_through_power_oversteer() {
         // Full throttle, then full lock at full throttle (inside rear wheel
-        // spinning): every upshift must come from the road speed.
+        // spinning): every upshift must come from the road speed. The rule
+        // (engine rpm while below 1.2 x road rpm) allows an upshift from
+        // road rpm 0.92 / 1.2 = 0.767 of redline upward.
         let mut v = VehicleSimulation::from_sim(&test_boxster_sim());
         v.reset(Vec3::Y * v.resting_height(), 0.0);
         let r = v.powertrain.redline_rpm;
@@ -852,7 +888,7 @@ pub(crate) mod tests {
             let after = v.powertrain.current_gear;
             if after > before && before >= 1 {
                 assert!(
-                    rpm > 0.8 * r,
+                    rpm > 0.76 * r,
                     "frame {frame}: upshift {before}->{after} at road rpm {rpm}"
                 );
             }

@@ -4,6 +4,10 @@
 
 use glam::Vec2;
 
+/// Longitudinal force per unit slip ratio in units of the peak friction force
+/// (approximation A113): the force saturates at 1/12 slip ratio.
+pub const LONG_SLIP_STIFFNESS: f32 = 12.0;
+
 /// State and forces for a single tire.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tire {
@@ -96,9 +100,7 @@ impl Tire {
 
         // 1. Longitudinal slip ratio kappa = (omega * r - v_x) / max(|v_x|, 1.0)
         let v_long = wheel_forward_speed;
-        let v_roll = self.omega * self.radius;
         let denom = v_long.abs().max(1.0);
-        self.slip_ratio = ((v_roll - v_long) / denom).clamp(-1.0, 1.0);
 
         // 2. Lateral slip angle alpha = -atan2(v_lat, |v_long| + 0.1)
         self.slip_angle = -wheel_lateral_speed.atan2(v_long.abs().max(0.5));
@@ -107,9 +109,20 @@ impl Tire {
         let mu_peak = self.base_friction_coeff * self.grip_multiplier;
         let max_traction = mu_peak * self.normal_load;
 
-        // 4. Unconstrained requested forces:
-        // Longitudinal force proportional to slip ratio:
-        let f_long_req = self.slip_ratio * max_traction * 2.0;
+        // 4. Longitudinal force proportional to slip ratio with stiffness
+        // `LONG_SLIP_STIFFNESS` (peak at about 8 % slip). The stiffness is so
+        // high that an explicit wheel update is unstable (k·dt·r²/I ≫ 2), so
+        // the wheel speed used for the slip is the implicit solution of
+        // I·dω/dt = T_drive − r·a·(ω·r − v), a = stiffness·F_max/denom.
+        // Without the implicit step the stiffness had to stay at 2 (peak at
+        // 50 % slip), which made every ordinary acceleration run at 20-40 %
+        // wheel overspeed (approximation A113).
+        let a = LONG_SLIP_STIFFNESS * max_traction / denom;
+        let r = self.radius;
+        let omega_implicit = (self.omega + dt / self.inertia * (drive_torque + r * a * v_long))
+            / (1.0 + dt * r * r * a / self.inertia);
+        self.slip_ratio = ((omega_implicit * r - v_long) / denom).clamp(-1.0, 1.0);
+        let f_long_req = self.slip_ratio * max_traction * LONG_SLIP_STIFFNESS;
 
         // Lateral cornering force proportional to slip angle:
         let f_lat_req = (self.slip_angle * self.cornering_stiffness * self.normal_load)
@@ -212,13 +225,16 @@ mod tests {
         for load in [0.0, 4000.0] {
             for direction in [-1.0, 1.0] {
                 let mut tire = Tire::new(0.31, 1.0);
-                tire.step(load, 0.0, 0.0, direction * 2400.0, 1200.0, 1.0 / 240.0);
+                // The brake plus, on the ground, the road's traction torque at
+                // the friction limit hold the wheel; drive must beat both.
+                let drive = 1200.0 + load * tire.radius + 1000.0;
+                tire.step(load, 0.0, 0.0, direction * drive, 1200.0, 1.0 / 240.0);
                 assert!(
                     tire.omega * direction > 0.0,
                     "drive torque exceeding brake must release stationary wheel"
                 );
                 assert!(
-                    tire.omega.abs() < 2400.0 / tire.inertia / 240.0,
+                    tire.omega.abs() < drive / tire.inertia / 240.0,
                     "brake must still oppose the applied torque"
                 );
             }
@@ -236,6 +252,22 @@ mod tests {
         assert!(forces.x > 0.0);
         assert!(forces.x <= normal_force * 1.08 * 1.05); // capped by friction
         assert_eq!(forces.y, 0.0); // no lateral slip
+    }
+
+    #[test]
+    fn moderate_drive_holds_with_small_slip() {
+        // 40 % of the friction limit on a loaded wheel rolling at 20 m/s: the
+        // wheel overspeed settles under 8 % (it was 20 % and more with the
+        // soft longitudinal stiffness of 2).
+        let mut tire = Tire::new(0.31, 1.0);
+        let n = 4000.0;
+        tire.omega = 20.0 / 0.31;
+        let drive = 0.4 * n * 0.31;
+        for _ in 0..480 {
+            tire.step(n, 20.0, 0.0, drive, 0.0, 1.0 / 240.0);
+        }
+        assert!(tire.slip_ratio > 0.0 && tire.slip_ratio < 0.08, "{}", tire.slip_ratio);
+        assert!((tire.longitudinal_force - 0.4 * n).abs() < 0.03 * n, "{}", tire.longitudinal_force);
     }
 
     #[test]
