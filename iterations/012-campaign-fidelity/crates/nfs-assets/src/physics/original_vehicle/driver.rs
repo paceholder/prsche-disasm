@@ -51,6 +51,11 @@ impl StepClock {
         }
         steps
     }
+
+    /// Fraction of the next step already elapsed (0..1), the render interpolation alpha.
+    pub fn fraction(&self) -> f32 {
+        (self.pending * STEP_HZ).clamp(0.0, 1.0) as f32
+    }
 }
 
 /// Input word `[0x5e9664]` from the engine's controls (`Input_PollControllers`

@@ -402,6 +402,24 @@ impl BrowserViewer {
             .unwrap_or_default()
     }
 
+    /// Drawn pose of the original car (the 64 Hz states blended for display): box centre in
+    /// scene axes, then forward. Empty when the original model isn't driving.
+    pub fn get_drawn_pose(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .and_then(|r| r.drawn_original_pose())
+            .map(|(p, f)| [p.to_array(), f.to_array()].concat())
+            .unwrap_or_default()
+    }
+
+    /// Eye of the drawn camera (scene axes), for smoothness checks.
+    pub fn get_camera_eye(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.camera.eye().to_array().to_vec())
+            .unwrap_or_default()
+    }
+
     pub fn get_car_gear(&self) -> i32 {
         self.renderer
             .as_ref()

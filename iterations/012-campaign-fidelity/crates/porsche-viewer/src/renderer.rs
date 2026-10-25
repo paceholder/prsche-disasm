@@ -546,6 +546,14 @@ pub struct Renderer {
     /// The player car on the original model, built from the car's `.sim`.
     /// While it drives, the 6 DOF body mirrors its pose.
     pub original_vehicle: Option<nfs_assets::physics::original_vehicle::OriginalVehicle>,
+    /// Previous and current 64 Hz states of the drawn original car and camera, blended by the
+    /// step clock's leftover (approximation A106).
+    drawn_states: Option<nfs_assets::render_interp::DrawnStates>,
+    /// Same for the camera alone while the prototype car drives (A106).
+    proto_view: Option<nfs_assets::render_interp::ViewStates>,
+    proto_prev_car: Option<nfs_assets::camera::CarView>,
+    /// Previous and current 64 Hz poses of the original AI cars (A106).
+    drawn_ai: Vec<[nfs_assets::render_interp::CarPose; 2]>,
     /// The loaded `.sim` bytes and model name (`res+0x2a8`), to rebuild the
     /// original car when the car model changes.
     original_sim: Option<(Vec<u8>, String)>,
@@ -739,13 +747,28 @@ fn set_body_from_original(
 /// Model matrix of the original car: scene axes from the original R, U, F (`+0x364`), at
 /// the box centre `+0x330` (Z mirrored, `original_adapter`). Body −z is forward.
 fn original_body_matrix(car: &nfs_assets::physics::original_vehicle::OriginalCar) -> Mat4 {
+    pose_matrix(&car_pose(car))
+}
+
+/// Box-centre pose of the original car (the interpolated state).
+fn car_pose(
+    car: &nfs_assets::physics::original_vehicle::OriginalCar,
+) -> nfs_assets::render_interp::CarPose {
+    nfs_assets::render_interp::CarPose {
+        position: car.position_330,
+        axes: car.axes_364,
+    }
+}
+
+/// `original_body_matrix` of a (possibly interpolated) pose.
+fn pose_matrix(pose: &nfs_assets::render_interp::CarPose) -> Mat4 {
     use nfs_assets::physics::original_adapter::from_original;
-    let [r, u, f] = car.axes_364.map(from_original);
+    let [r, u, f] = pose.axes.map(from_original);
     Mat4::from_cols(
         r.extend(0.0),
         u.extend(0.0),
         (-f).extend(0.0),
-        from_original(car.position_330).extend(1.0),
+        from_original(pose.position).extend(1.0),
     )
 }
 
@@ -1546,6 +1569,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             collision_model: Default::default(),
             vehicle_model: Default::default(),
             original_vehicle: None,
+            drawn_states: None,
+            proto_view: None,
+            proto_prev_car: None,
+            drawn_ai: Vec::new(),
             original_sim: None,
             original_ai_track: scene.ai_track.clone(),
             original_ais: None,
@@ -1711,11 +1738,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.queue.submit([encoder.finish()]);
     }
 
+    /// Drawn box centre and forward (scene axes) of the original car, for telemetry.
+    pub fn drawn_original_pose(&self) -> Option<(Vec3, Vec3)> {
+        let d = self.drawn_states.as_ref().filter(|_| self.original_active())?;
+        let m = pose_matrix(&d.car_pose());
+        Some((m.w_axis.truncate(), -m.z_axis.truncate()))
+    }
+
+    /// Body matrix of the original car for drawing: the blend of its last two 64 Hz states.
+    fn drawn_body_matrix(&self, car: &nfs_assets::physics::original_vehicle::OriginalCar) -> Mat4 {
+        match &self.drawn_states {
+            Some(d) => pose_matrix(&d.car_pose()),
+            None => original_body_matrix(car),
+        }
+    }
+
     /// Car-mesh-to-world matrix of the player car body (original model or 6 DOF prototype).
     fn player_body_matrix(&self, car_render: &CarRenderState) -> Option<Mat4> {
         if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
             let (center, _) = self.collision_box_or_fallback();
-            return Some(original_body_matrix(&v.car) * Mat4::from_translation(-center));
+            return Some(self.drawn_body_matrix(&v.car) * Mat4::from_translation(-center));
         }
         let sim = self.sim_car.as_ref().filter(|_| self.sim_mode)?;
         Some(sim.body.transform_matrix() * Mat4::from_translation(car_chassis_adapter_body(sim, car_render)))
@@ -2050,7 +2092,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 .filter(|_| self.original_active())
             {
                 let (center, _) = self.collision_box_or_fallback();
-                let body_matrix = original_body_matrix(&v.car) * Mat4::from_translation(-center);
+                let body_matrix = self.drawn_body_matrix(&v.car) * Mat4::from_translation(-center);
                 self.draw_car_meshes(
                     target,
                     "original car chassis",
@@ -2210,7 +2252,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 // Same matrix as the original car's chassis draw.
                 _ if original.is_some() => {
                     let (center, _) = self.collision_box_or_fallback();
-                    original_body_matrix(&original.unwrap().car) * Mat4::from_translation(-center)
+                    self.drawn_body_matrix(&original.unwrap().car) * Mat4::from_translation(-center)
                 }
                 (Some(sim), true) => {
                     sim.body.transform_matrix()
@@ -2949,6 +2991,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     pub fn reset_car(&mut self) {
         self.player_camera.restart();
+        self.proto_view = None;
         self.body_support_owner = Default::default();
         self.collision_clock = Default::default();
         self.vehicle_contact_count = 0;
@@ -3577,8 +3620,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // No track nodes or ceilings yet: flat slope, no clamp (approximation). The
         // original vehicle model steps the camera in its scheduler.
         if !self.original_active() {
-            self.player_camera
-                .advance(dt, &car, &mut nfs_assets::camera::FlatWorld);
+            // The prototype car moves per frame; the 64 Hz camera steps see it where it was at
+            // the step's time (A106).
+            let prev = self.proto_prev_car.replace(car).unwrap_or(car);
+            let mut states = self.proto_view.take();
+            let mut steps = Vec::new();
+            self.player_camera.advance_sampled(
+                dt,
+                |f| nfs_assets::render_interp::blend_car_view(&prev, &car, f),
+                &mut nfs_assets::camera::FlatWorld,
+                |c, car| steps.push(c.peek_view(car.pos_330)),
+            );
+            let current = self.player_camera.peek_view(car.pos_330);
+            let st = states.get_or_insert_with(|| nfs_assets::render_interp::ViewStates::new(current));
+            for v in steps {
+                st.push(v);
+            }
+            st.alpha = self.player_camera.fraction();
+            self.proto_view = states;
+        } else {
+            self.proto_view = None;
+            self.proto_prev_car = None;
         }
         if self.camera.mode != CameraMode::Drive {
             return;
@@ -3586,10 +3648,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if self.free_camera {
             self.camera.use_world_view();
             self.camera.drive_fov = 55.0;
-            self.camera.drive_target = from_original(car.pos_330);
+            let target = match (self.original_active(), &self.drawn_states) {
+                (true, Some(d)) => d.car_pose().position,
+                _ => car.pos_330,
+            };
+            self.camera.drive_target = from_original(target);
             return;
         }
-        let view = self.player_camera.view(car.pos_330);
+        let mut view = self.player_camera.view(car.pos_330);
+        if let (true, Some(d)) = (self.original_active(), &self.drawn_states) {
+            view = d.camera_view();
+        } else if let Some(d) = &self.proto_view {
+            view = d.camera_view();
+        }
         apply_original_view(&mut self.camera, &view);
     }
 
@@ -3616,6 +3687,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.free_camera = false;
             self.player_camera
                 .cycle(&car, &mut nfs_assets::camera::FlatWorld);
+            self.drawn_states = None;
+            self.proto_view = None;
             if self.camera.mode == CameraMode::Drive {
                 let view = self.player_camera.view(car.pos_330);
                 apply_original_view(&mut self.camera, &view);
@@ -4150,6 +4223,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     /// Race (re)start of the original car at the 6 DOF body's spawn pose.
     fn restart_original_vehicle(&mut self) {
+        self.drawn_states = None;
         if let Some(v) = &mut self.original_vehicle {
             v.restart();
             self.sync_original_from_sim(false);
@@ -4164,6 +4238,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         use nfs_assets::physics::original_vehicle::VehicleModel;
         match self.vehicle_model {
             VehicleModel::Prototype if self.original_vehicle.is_some() => {
+                self.drawn_states = None;
                 self.sync_original_from_sim(true);
                 self.vehicle_model = VehicleModel::Original;
                 self.rebuild_original_ai();
@@ -4199,7 +4274,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.sync_sim_from_original(false);
             return;
         }
+        let drawn = self.drawn_states.take();
         let Some(v) = self.original_vehicle.as_mut() else {
+            self.drawn_states = drawn;
             return;
         };
         let OriginalVehicle {
@@ -4300,9 +4377,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             &camera_car(car, *half_extents),
             &mut nfs_assets::camera::FlatWorld,
         );
+        let sample = |car: &OriginalCar, camera: &nfs_assets::camera::PlayerCamera| {
+            (car_pose(car), camera.peek_view(car.position_330))
+        };
+        let mut states = drawn.unwrap_or_else(|| {
+            let (pose, view) = sample(car, queue.camera);
+            nfs_assets::render_interp::DrawnStates::new(pose, view)
+        });
         for _ in 0..clock.advance(dt) {
             scheduler_step(car, word, lcg, &mut queue);
+            let (pose, view) = sample(car, queue.camera);
+            states.push(pose, view);
         }
+        states.alpha = clock.fraction();
+        self.drawn_states = Some(states);
         self.sync_sim_from_original(false);
     }
 

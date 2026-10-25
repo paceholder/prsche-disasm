@@ -142,7 +142,8 @@ impl Renderer {
             }
         }
         self.original_ai = Some(field);
-        self.mirror_original_ai(0.0);
+        self.drawn_ai.clear();
+        self.mirror_original_ai(0.0, None);
     }
 
     /// One frame of the player and the original AI cars (instead of the player-only
@@ -165,10 +166,38 @@ impl Renderer {
             &nfs_assets::physics::original_vehicle::driver::camera_car(&player.car, player.half_extents),
             &mut nfs_assets::camera::FlatWorld,
         );
+        // Previous and current 64 Hz states for drawing (A106).
+        let sample = |player: &nfs_assets::physics::original_vehicle::OriginalVehicle,
+                      camera: &nfs_assets::camera::PlayerCamera| {
+            (car_pose(&player.car), camera.peek_view(player.car.position_330))
+        };
+        let mut states = self.drawn_states.take().unwrap_or_else(|| {
+            let (pose, view) = sample(player, queue.camera);
+            nfs_assets::render_interp::DrawnStates::new(pose, view)
+        });
+        let ai_poses = |field: &OriginalAiField| -> Vec<_> {
+            field.cars.iter().map(|c| car_pose(&c.vehicle.car)).collect()
+        };
+        if self.drawn_ai.len() != field.cars.len() {
+            self.drawn_ai = ai_poses(field).into_iter().map(|p| [p, p]).collect();
+        }
         for _ in 0..player.clock.advance(dt) {
             field.step(player, word, &mut self.pair_globals, &mut queue);
+            let (pose, view) = sample(player, queue.camera);
+            states.push(pose, view);
+            for (d, p) in self.drawn_ai.iter_mut().zip(ai_poses(field)) {
+                *d = [d[1], p];
+            }
         }
-        self.mirror_original_ai(dt);
+        states.alpha = player.clock.fraction();
+        let alpha = states.alpha;
+        self.drawn_states = Some(states);
+        let blended: Vec<_> = self
+            .drawn_ai
+            .iter()
+            .map(|d| nfs_assets::render_interp::blend_pose(&d[0], &d[1], alpha))
+            .collect();
+        self.mirror_original_ai(dt, Some(&blended));
     }
 
     /// JSON of the original AI cars (debugging / headless checks): node, laps,
@@ -195,17 +224,19 @@ impl Renderer {
     }
 
     /// Copies each AI car's pose, speed and controls into its `AiOpponent`.
-    fn mirror_original_ai(&mut self, dt: f32) {
+    fn mirror_original_ai(&mut self, dt: f32, drawn: Option<&[nfs_assets::render_interp::CarPose]>) {
         use nfs_assets::physics::original_adapter::from_original;
         let (center, _) = self.collision_box_or_fallback();
         let Some(field) = &self.original_ai else {
             return;
         };
-        for (ai, c) in self.ai_opponents.iter_mut().zip(&field.cars) {
+        for (i, (ai, c)) in self.ai_opponents.iter_mut().zip(&field.cars).enumerate() {
             let car = &c.vehicle.car;
-            let [r, u, f] = car.axes_364.map(from_original);
+            // Drawn pose: the blend of the last two 64 Hz states (A106).
+            let pose = drawn.and_then(|d| d.get(i)).copied().unwrap_or_else(|| car_pose(car));
+            let [r, u, f] = pose.axes.map(from_original);
             let q = Quat::from_mat3(&glam::Mat3::from_cols(r, u, -f)).normalize();
-            ai.position = (from_original(car.position_330) - q * center).to_array();
+            ai.position = (from_original(pose.position) - q * center).to_array();
             ai.rotation_override = Some(glam::Mat3::from_quat(q));
             ai.velocity = from_original(car.velocity_33c).to_array();
             let fwd = -(q * Vec3::Z);

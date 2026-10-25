@@ -3445,6 +3445,8 @@ window.__nfs = {
   state() {
     if (!viewer) return { ready: false, error: debugError };
     const pose = viewer.get_car_pose?.() ?? [];
+    const drawnPose = viewer.get_drawn_pose?.() ?? [];
+    const cameraEye = viewer.get_camera_eye?.() ?? [];
     return {
       ready: debugReady,
       speed: viewer.get_car_speed(),
@@ -3470,6 +3472,8 @@ window.__nfs = {
       },
       hud: { ...(raceHud?.last ?? {}), carIndex: raceHudCarIndex, lights: lightsOn, ready: Boolean(raceHud) },
       pose: Array.from(pose),
+      drawnPose: Array.from(drawnPose),
+      cameraEye: Array.from(cameraEye),
       status: statusLine.textContent,
       sparks: Array.from(viewer.get_spark_stats?.() ?? []),
       ai: JSON.parse(viewer.original_ai_state?.() ?? "null"),

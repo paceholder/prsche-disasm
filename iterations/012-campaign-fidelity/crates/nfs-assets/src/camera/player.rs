@@ -207,29 +207,62 @@ impl PlayerCamera {
     /// after the car update, as the camera runs after the car callbacks). The first call sets
     /// the camera of the cycle index (end of the race intro). Returns the number of steps.
     pub fn advance(&mut self, dt: f32, car: &CarView, world: &mut impl CameraWorld) -> u32 {
+        self.advance_sampled(dt, |_| *car, world, |_, _| {})
+    }
+
+    /// [`advance`](Self::advance) for a car that moves per frame: `car_at(f)` is the car at
+    /// fraction `f` (0..1) of the frame in which the step falls, and `after_step` sees the
+    /// camera and that car after every step (render interpolation samples each 64 Hz state).
+    pub fn advance_sampled(
+        &mut self,
+        dt: f32,
+        mut car_at: impl FnMut(f32) -> CarView,
+        world: &mut impl CameraWorld,
+        mut after_step: impl FnMut(&Self, &CarView),
+    ) -> u32 {
         if !self.started {
             self.started = true;
             self.set(
                 CYCLE_LIST[(self.cycle_index as u16 & 3) as usize],
-                car,
+                &car_at(1.0),
                 world,
             );
         }
         let step = 1.0 / UPDATE_HZ as f64;
-        self.clock += (dt as f64).clamp(0.0, MAX_FRAME_S);
+        let frame = (dt as f64).clamp(0.0, MAX_FRAME_S);
+        let start = self.clock;
+        self.clock += frame;
         let mut steps = 0;
         while self.clock >= step {
             self.clock -= step;
-            self.step(car, world);
             steps += 1;
+            let f = if frame > 0.0 {
+                ((steps as f64 * step - start) / frame).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            let car = car_at(f as f32);
+            self.step(&car, world);
+            after_step(self, &car);
         }
         steps
+    }
+
+    /// Fraction of the next step already elapsed (0..1).
+    pub fn fraction(&self) -> f32 {
+        (self.clock * UPDATE_HZ as f64).clamp(0.0, 1.0) as f32
     }
 
     /// Per-frame view from the latest step (no interpolation), looking at `target` (the
     /// looked-at car's `+0x330`).
     pub fn view(&mut self, target: [f32; 3]) -> CameraView {
         build_view(&mut self.record, target)
+    }
+
+    /// The view of the current state without touching the record (render interpolation
+    /// samples every step; `view()` writes the look-at matrix once per frame).
+    pub fn peek_view(&self, target: [f32; 3]) -> CameraView {
+        build_view(&mut self.record.clone(), target)
     }
 }
 

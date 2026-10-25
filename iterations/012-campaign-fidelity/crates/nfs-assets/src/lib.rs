@@ -9,6 +9,7 @@ pub mod lights;
 pub mod sparks;
 pub mod physics;
 pub mod race;
+pub mod render_interp;
 pub mod surface;
 pub use physics::{VehicleControls, VehicleSimulation, VehicleTelemetry};
 pub use race::{
