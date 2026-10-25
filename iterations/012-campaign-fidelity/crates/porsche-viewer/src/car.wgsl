@@ -1,5 +1,7 @@
-// Approximation A22: gamma-space factor for prelit colours (2 = MODULATE2X).
-const PRELIT_SCALE: f32 = 2.0;
+// Approximation A22: gamma-space factor for prelit colours (2 = MODULATE2X) and
+// how much of their hue is kept (0 = brightness only, 1 = full colour).
+const PRELIT_SCALE: f32 = 1.6;
+const PRELIT_SATURATION: f32 = 0.3;
 struct Camera {
     view_projection: mat4x4<f32>,
     eye: vec4<f32>,
@@ -53,7 +55,9 @@ fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
         // Prelit track geometry: texture times its `df` vertex colour
         // (approximation A22: the original combine mode is not recovered).
         // The scale applies to the gamma-space colour (like D3D MODULATE2X).
-        let shade = srgb_to_linear(min(in.color.rgb * PRELIT_SCALE, vec3<f32>(2.0)));
+        let grey = dot(in.color.rgb, vec3<f32>(0.299, 0.587, 0.114));
+        let tinted = mix(vec3<f32>(grey), in.color.rgb, PRELIT_SATURATION);
+        let shade = srgb_to_linear(min(tinted * PRELIT_SCALE, vec3<f32>(2.0)));
         return vec4<f32>(min(base.rgb * shade, vec3<f32>(1.0)), out_alpha);
     }
     let normal = normalize(select(-in.normal, in.normal, front));

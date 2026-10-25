@@ -2,6 +2,12 @@ struct SkyCamera { view_projection: mat4x4<f32> };
 @group(0) @binding(0) var<uniform> sky_camera: SkyCamera;
 @group(1) @binding(0) var sky_texture: texture_2d<f32>;
 @group(1) @binding(1) var sky_sampler: sampler;
+// Approximation A4: sky map and cloud map projected on a flat sky plane behind the
+// horizon panorama, horizon haze from `hzcl`; no scrolling, wind or warp.
+@group(1) @binding(2) var sky_map: texture_2d<f32>;
+@group(1) @binding(3) var cloud_map: texture_2d<f32>;
+@group(1) @binding(4) var haze_map: texture_2d<f32>;
+@group(1) @binding(5) var layer_sampler: sampler;
 struct SkyOutput {
     @builtin(position) clip: vec4<f32>,
     @location(0) direction: vec3<f32>,
@@ -37,7 +43,18 @@ struct SkyOutput {
     let u = (tile_u * 255.0 + 0.5) / 256.0;
     let v = v_base + (v_local * 126.0 + 0.5) / 256.0;
 
-    let sample_color = textureSample(sky_texture, sky_sampler, vec2<f32>(u, v)).rgb;
+    let panorama = textureSample(sky_texture, sky_sampler, vec2<f32>(u, v));
+    // Sky behind the panorama: the horz tiles are transparent above the skyline.
+    let plane = dir.xz / max(dir.y, 0.05);
+    var sky = textureSample(sky_map, layer_sampler, plane * 0.08).rgb;
+    let cloud = textureSample(cloud_map, layer_sampler, plane * 0.15 + vec2<f32>(0.3, 0.7));
+    sky = mix(sky, cloud.rgb, cloud.a);
+    let haze = textureSample(haze_map, layer_sampler, vec2<f32>(u360, 0.25));
+    sky = mix(sky, haze.rgb, haze.a * (1.0 - smoothstep(0.0, 0.3, elev)));
+    // Above the panorama (elev > elev_max) only the sky shows.
+    let above = elev > elev_max;
+    let cover = select(panorama.a, 0.0, above);
+    let sample_color = mix(sky, panorama.rgb, cover);
     // Fade to uniform ground color below horizon to avoid vertical streaking into the abyss
     let ground_color = vec3<f32>(0.647, 0.518, 0.388);
     let ground_fade = clamp((elev_min - elev) / 0.1, 0.0, 1.0);

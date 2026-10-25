@@ -2529,8 +2529,8 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "KeyO" && !event.repeat) {
     if (viewer) {
       const original = viewer.toggle_vehicle_model();
-      const badge = document.getElementById("vehicleModelBadge");
-      if (badge) badge.textContent = original ? "O: original car" : "O: prototype car";
+      debugVehicleModel = original ? "original" : "prototype";
+      setVehicleModelBadge(original);
       setStatus(
         original
           ? "Vehicle model: original NFS5 (O)"
@@ -2990,7 +2990,10 @@ async function boot() {
     animate();
 
     const hasGame = await checkLocalGame();
-    if (hasGame && !useCustomFiles && new URLSearchParams(location.search).get("shell") !== "web") {
+    const autostartParams = new URLSearchParams(location.search);
+    if (hasGame && !useCustomFiles && autostartParams.get("race")) {
+      await autostartRace(autostartParams);
+    } else if (hasGame && !useCustomFiles && autostartParams.get("shell") !== "web") {
       await startFrontEnd();
     } else if (hasGame && !useCustomFiles) {
       await loadTarget();
@@ -3001,6 +3004,72 @@ async function boot() {
     setStatus(error instanceof Error ? error.message : String(error));
     loadButton.disabled = true;
   }
+}
+
+// ---- URL autostart and debug hook (tools/browser-shot.mjs) ----
+// ?race=<track>&car=<id>&opponents=<n>&laps=<n>&model=original|prototype&lights=0|1&cam=<name>
+// skips the front end and starts a Quick Race through the same calls as the Quick Race dialog.
+let debugVehicleModel = "prototype";
+let debugReady = false;
+let debugError = null;
+window.__nfs = {
+  get ready() { return debugReady; },
+  get error() { return debugError; },
+  state() {
+    if (!viewer) return { ready: false, error: debugError };
+    const pose = viewer.get_car_pose?.() ?? [];
+    return {
+      ready: debugReady,
+      speed: viewer.get_car_speed(),
+      rpm: viewer.get_car_rpm(),
+      gear: viewer.get_car_gear(),
+      camera: viewer.get_camera_name(),
+      model: debugVehicleModel,
+      phase: viewer.get_race_phase(),
+      position: viewer.get_player_position(),
+      pose: Array.from(pose),
+      status: statusLine.textContent,
+    };
+  },
+};
+
+async function autostartRace(params) {
+  try {
+    quickRaceCars = buildQuickRaceCars(await loadCarCatalogueRecords(), availableCars, localGameFiles);
+    const wantCar = (params.get("car") || "").toLowerCase();
+    const car = quickRaceCars.find(c => c.id.toLowerCase() === wantCar || c.model_name.toLowerCase() === wantCar) ?? quickRaceCars[0];
+    if (!car) throw new Error("autostart: no cars");
+    const track = params.get("race").toLowerCase();
+    modeSelect.value = "track";
+    updateOptions();
+    targetSelect.value = track;
+    clearNavigation();
+    activeCareerEvent = null;
+    if (!await loadTarget()) throw new Error(statusLine.textContent);
+    await loadRaceCar(car.model_name, car.sim_name, car.bank || "");
+    if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
+    viewer.configure_quick_race(Number(params.get("laps") || 3), Number(params.get("opponents") ?? 3));
+    if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
+    setMenuVisible(false);
+    syncTourButton();
+    if (params.get("model") === "original" && viewer.toggle_vehicle_model()) {
+      debugVehicleModel = "original";
+      setVehicleModelBadge(true);
+    }
+    if (params.get("lights") === "1") viewer.toggle_lights();
+    const cam = params.get("cam");
+    for (let i = 0; cam && i < 12 && viewer.get_camera_name() !== cam; i++) cycleCarCamera();
+    queueFrame();
+    debugReady = true;
+  } catch (error) {
+    debugError = error instanceof Error ? error.message : String(error);
+    setStatus(`Autostart failed: ${debugError}`);
+  }
+}
+
+function setVehicleModelBadge(original) {
+  const badge = document.getElementById("vehicleModelBadge");
+  if (badge) badge.textContent = original ? "O: original car" : "O: prototype car";
 }
 
 // ---- original front end (web/frontend.js; docs/re/frontend.md) ----

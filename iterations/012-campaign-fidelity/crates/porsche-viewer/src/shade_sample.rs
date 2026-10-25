@@ -12,6 +12,17 @@ const CELL: f32 = 4.0;
 /// Only vertices within this height of the car count (bridges, tunnels).
 const MAX_DY: f32 = 3.0;
 
+/// Share of the prelit hue that is kept (approximation A22/A23, as
+/// `PRELIT_SATURATION` in `car.wgsl`): the data is strongly blue on Alps,
+/// Forest and Autobahn.
+pub const PRELIT_SATURATION: f32 = 0.3;
+
+/// Pull a prelit colour towards its grey (Rec. 601 luma) by `PRELIT_SATURATION`.
+pub fn desaturate(c: [f32; 3]) -> [f32; 3] {
+    let grey = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+    c.map(|v| grey + (v - grey) * PRELIT_SATURATION)
+}
+
 pub struct ShadeGrid {
     cells: HashMap<(i32, i32), Vec<([f32; 3], [f32; 3])>>,
 }
@@ -98,6 +109,15 @@ mod tests {
             }],
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn desaturate_keeps_grey_and_luma() {
+        assert_eq!(desaturate([0.5; 3]), [0.5; 3]);
+        let c = desaturate([0.29, 0.42, 0.6]);
+        let luma = |c: [f32; 3]| 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        assert!((luma(c) - luma([0.29, 0.42, 0.6])).abs() < 1e-6);
+        assert!(c[2] - c[0] < 0.1, "blue cast reduced: {c:?}");
     }
 
     #[test]

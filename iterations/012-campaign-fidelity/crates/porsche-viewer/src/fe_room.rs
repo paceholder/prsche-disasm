@@ -104,8 +104,7 @@ impl RoomView {
     }
 
     /// Car: race body space (raw x mirrored, see `Renderer::set_car_model`) to engine world.
-    /// `lift` raises the car so it stands on the floor (stands in for the car's +0x3ac
-    /// offset added by 0x4d1700, approximation A16).
+    /// `lift` is the car's +0x3ac offset added by 0x4d1700 (`fe_room_car_lift`, A16).
     pub fn car_matrix(&self, lift: f32) -> Mat4 {
         Mat4::from_translation(self.position() + Vec3::Y * lift)
             * self.rotation()

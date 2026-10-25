@@ -165,6 +165,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         scenario_name: None,
         scenario_gates: Vec::new(),
         sky_texture: None,
+        sky_layers: [None, None, None],
         sun_position: None,
         topology: None,
         road_surface: None,
@@ -653,6 +654,18 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         if let Some(sky_data) = files.get(&sky_key) {
             match parse_fsh(sky_data) {
                 Ok(sky_images) => {
+                    // Region A sky map and cloud map (`st1a`, `sc1a` in Sky/<track>.txt)
+                    // and the horizon haze strip.
+                    for (slot, prefix) in ["st", "sc", "hzcl"].iter().enumerate() {
+                        scene.sky_layers[slot] = sky_images
+                            .iter()
+                            .find(|img| img.name.starts_with(prefix))
+                            .map(|img| SkyTexture {
+                                width: img.width,
+                                height: img.height,
+                                rgba: img.rgba.clone(),
+                            });
+                    }
                     // Look for the horizon panorama texture ("horz")
                     if let Some(horz) = sky_images.iter().find(|img| img.name == "horz") {
                         scene.sky_texture = Some(SkyTexture {
@@ -823,6 +836,17 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     Ok(scene)
 }
 
+/// A `df` colour (D3D ARGB word, bytes B, G, R, A) as RGBA 0..1.
+///
+/// Evidence for the byte order: the original packs byte +2 into the high five
+/// bits of the RGB555 road colour (0x475574..0x47559d), which `Road_SampleColour`
+/// 0x474700 returns as red; `LayerIndexedColour::Apply` 0x4499e0 copies the words
+/// unchanged into the vertex colour, the same slot that gets the glare colours,
+/// where the brake light word 0xffff0000 is red.
+fn df_rgba(px: &[u8]) -> [f32; 4] {
+    [px[2], px[1], px[0], px[3]].map(|b| f32::from(b) / 255.0)
+}
+
 fn parse_mesh(
     pr: &Entry,
     df: Option<&Entry>,
@@ -913,7 +937,7 @@ fn parse_mesh(
         if let (Some(df), Some(&(off, adj))) = (df, channels.get(&3)) {
             let c_ix = off.map_or(i, |off| raw[off + i] as usize) + adj;
             if let Some(px) = df.data.get(c_ix * 4..c_ix * 4 + 4) {
-                color = [px[2], px[1], px[0], px[3]].map(|b| f32::from(b) / 255.0);
+                color = df_rgba(px);
             }
         }
 
@@ -1004,6 +1028,15 @@ fn parse_mesh(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn df_words_are_argb() {
+        // Alps road RD1136C: bytes 99 6b 4b ff = ARGB 0xff4b6b99.
+        let c = df_rgba(&[0x99, 0x6b, 0x4b, 0xff]);
+        assert_eq!(c, [0x4b as f32 / 255.0, 0x6b as f32 / 255.0, 0x99 as f32 / 255.0, 1.0]);
+        // Brake glare colour word 0xffff0000 (bytes 00 00 ff ff) is red.
+        assert_eq!(df_rgba(&[0, 0, 0xff, 0xff]), [1.0, 0.0, 0.0, 1.0]);
+    }
 
     #[test]
     fn local_skidpad_loads_to_valid_scene() {

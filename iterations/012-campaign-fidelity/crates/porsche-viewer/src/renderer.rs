@@ -459,12 +459,12 @@ fn pair_car_box_corners(car: &nfs_assets::physics::original_pair::PairCar) -> (V
     (from_original(car.position_330), out)
 }
 
-/// Lift that puts the car's lowest point on the garage floor (raw y -0.15 below the room
-/// origin, `garage.crp` Floor). Stands in for the original car offset +0x3ac [VA 0x4d1700],
-/// approximation A16.
-fn fe_room_car_lift(lowest_y: f32) -> f32 {
-    const GARAGE_FLOOR_Y: f32 = -0.15;
-    GARAGE_FLOOR_Y - lowest_y
+/// Lift of the car in the front-end room: `FE3DObject_SetPos` 0x4d1700 sets the car's y to
+/// the room y plus `+0x3ac`, the half height of the collision box (CRP level 5,
+/// `CarModel_SetCollisionExtents` 0x445090), so the box bottom stands at the room origin.
+/// Taking `+0x330` as the box centre is approximation A16.
+fn fe_room_car_lift(box_center: Vec3, half: [f32; 3]) -> f32 {
+    half[1] - box_center.y
 }
 
 struct CarRenderState {
@@ -474,8 +474,6 @@ struct CarRenderState {
     wheels: Vec<CarWheelRender>,
     /// Source body bounds in driving coordinates, before the physics adapter.
     body_bounds: Option<[Vec3; 2]>,
-    /// Lowest vertex y of the whole model (wheels included), body space.
-    lowest_y: f32,
 }
 
 #[derive(Clone)]
@@ -1026,6 +1024,7 @@ impl Renderer {
                 sky_tex.width,
                 sky_tex.height,
                 &sky_tex.rgba,
+                &scene.sky_layers,
             )
         });
 
@@ -1362,7 +1361,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 chassis_mesh_indices: (0..geom.parts.len()).collect(),
                 wheels: Vec::new(),
                 body_bounds: None,
-                lowest_y: 0.0,
             });
         }
 
@@ -1839,7 +1837,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 target,
                 "front-end room car",
                 car_render,
-                room.car_matrix(fe_room_car_lift(car_render.lowest_y)),
+                room.car_matrix({
+                    let (center, half) = self.collision_box_or_fallback();
+                    fe_room_car_lift(center, half)
+                }),
                 &all_meshes,
             );
         }
@@ -2017,7 +2018,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             };
         let mut cars: Vec<(Mat4, &nfs_assets::lights::LightGroups)> = Vec::new();
         if !in_car_view {
+            let original = self.original_vehicle.as_ref().filter(|_| self.original_active());
             let model = match (&self.sim_car, self.sim_mode) {
+                // Same matrix as the original car's chassis draw.
+                _ if original.is_some() => {
+                    let (center, _) = self.collision_box_or_fallback();
+                    original_body_matrix(&original.unwrap().car) * Mat4::from_translation(-center)
+                }
                 (Some(sim), true) => {
                     sim.body.transform_matrix()
                         * Mat4::from_translation(car_chassis_adapter_body(sim, car_render))
@@ -2649,6 +2656,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 .shade_grid
                 .as_ref()
                 .and_then(|grid| grid.sample(model.w_axis.truncate()))
+                .map(crate::shade_sample::desaturate)
                 .unwrap_or([1.0; 3]);
             lighting.apply(&mut uniform, road);
         }
@@ -2662,6 +2670,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.light_clock_s += f64::from(dt.max(0.0));
         let now_ms = (self.light_clock_s * 1000.0) as u32;
         let blink = blink_phase(self.light_clock_s);
+        let mut player = player;
+        if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
+            // The original vehicle has the fields R3DCar_UpdateLights 0x439360 reads.
+            let car = &v.car;
+            player.brake = if car.reverse_d98 != 0 { car.gas_eff_d7f } else { car.brake_eff_d80 };
+            player.reverse_gear = car.gear_d82 == 0;
+        }
         self.player_lights.update(&player, now_ms, blink);
         self.ai_lights.resize(self.ai_opponents.len(), Default::default());
         for (lights, ai) in self.ai_lights.iter_mut().zip(&self.ai_opponents) {
@@ -3913,7 +3928,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .collect();
         let mut body_min = Vec3::splat(f32::INFINITY);
         let mut body_max = Vec3::splat(f32::NEG_INFINITY);
-        let mut lowest_y = f32::INFINITY;
         for (scene_mesh_index, mesh) in scene.meshes.iter().enumerate() {
             if mesh.vertices.is_empty() || mesh.indices.is_empty() {
                 continue;
@@ -3933,9 +3947,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     color: v.color,
                 })
                 .collect();
-            lowest_y = vertices
-                .iter()
-                .fold(lowest_y, |low, v| low.min(v.position[1]));
             let material_name = scene
                 .materials
                 .get(mesh.material)
@@ -4030,7 +4041,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 && body_max.is_finite()
                 && (body_max - body_min).min_element() > 0.0)
                 .then_some([body_min, body_max]),
-            lowest_y: if lowest_y.is_finite() { lowest_y } else { 0.0 },
         });
 
         self.car_glares = scene.car_glares.clone();
@@ -4409,6 +4419,20 @@ fn generate_sky_sphere() -> (Vec<SkyVertex>, Vec<u16>) {
 }
 
 #[allow(clippy::too_many_arguments)]
+fn sky_layer_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn create_sky_state(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -4419,6 +4443,7 @@ fn create_sky_state(
     tex_width: u32,
     tex_height: u32,
     tex_rgba: &[u8],
+    layers: &[Option<nfs_assets::SkyTexture>; 3],
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
@@ -4454,6 +4479,15 @@ fn create_sky_state(
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            sky_layer_entry(2),
+            sky_layer_entry(3),
+            sky_layer_entry(4),
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
@@ -4533,6 +4567,26 @@ fn create_sky_state(
         min_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
+    // Layers missing from the pack: plain blue sky map, no clouds, no haze.
+    let fallbacks: [[u8; 4]; 3] = [[140, 170, 210, 255], [0; 4], [0; 4]];
+    let layer_views: Vec<wgpu::TextureView> = layers
+        .iter()
+        .zip(fallbacks)
+        .map(|(layer, fallback)| match layer {
+            Some(t) if t.rgba.len() as u64 == u64::from(t.width) * u64::from(t.height) * 4 => {
+                upload_texture(device, queue, t.width, t.height, &t.rgba)
+            }
+            _ => upload_texture(device, queue, 1, 1, &fallback),
+        })
+        .collect();
+    let layer_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("sky layer sampler"),
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
     let texture_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("sky texture"),
         layout: &sky_texture_layout,
@@ -4544,6 +4598,22 @@ fn create_sky_state(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: wgpu::BindingResource::Sampler(&sky_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(&layer_views[0]),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(&layer_views[1]),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&layer_views[2]),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::Sampler(&layer_sampler),
             },
         ],
     });

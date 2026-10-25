@@ -44,6 +44,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+    let (mut blue, mut warm) = (0usize, 0usize);
+    for a in &crp.articles {
+        for c in a.children.iter().filter(|c| c.tag == "df") {
+            for px in c.data.chunks_exact(4) {
+                let (b, r) = (px[0] as i32, px[2] as i32);
+                if b - r > 30 { blue += 1 }
+                if r - b > 30 { warm += 1 }
+            }
+        }
+    }
+    println!("df byte0-byte2 > 30: {:.0}%, byte2-byte0 > 30: {:.0}%", 100.0 * blue as f64 / n, 100.0 * warm as f64 / n);
     println!("df byte means {:?} (bytes 0..3)", sum.map(|s| (s / n).round()));
     println!("df byte histograms (/32) {hist:?}");
     println!("tags {tags:?}");

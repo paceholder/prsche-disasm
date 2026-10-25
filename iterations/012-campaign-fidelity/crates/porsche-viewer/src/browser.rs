@@ -58,7 +58,9 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         height,
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: caps.alpha_modes[0],
-        view_formats: vec![],
+        // WebGPU canvases offer only non-sRGB formats (bgra8unorm); render through an
+        // sRGB view so the shaders' linear output is encoded as on native targets.
+        view_formats: if format.is_srgb() { vec![] } else { vec![format.add_srgb_suffix()] },
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
@@ -717,6 +719,7 @@ impl BrowserViewer {
     }
 
     pub fn render(&mut self) -> Result<(), JsValue> {
+        let view_format = self.view_format();
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
@@ -737,7 +740,10 @@ impl BrowserViewer {
                 return Err(JsValue::from_str("Ошибка проверки поверхности WebGPU"));
             }
         };
-        let view = frame.texture.create_view(&Default::default());
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(view_format),
+            ..Default::default()
+        });
         renderer.render(&view);
         self.queue.present(frame);
         Ok(())
@@ -745,12 +751,17 @@ impl BrowserViewer {
 }
 
 impl BrowserViewer {
+    /// Format the renderer draws in: the sRGB view of the canvas.
+    fn view_format(&self) -> wgpu::TextureFormat {
+        self.config.view_formats.first().copied().unwrap_or(self.config.format)
+    }
+
     fn set_scene(&mut self, scene: Scene) -> Result<String, JsValue> {
         let summary = summarize(&scene);
         let renderer = Renderer::new(
             self.device.clone(),
             self.queue.clone(),
-            self.config.format,
+            self.view_format(),
             self.config.width,
             self.config.height,
             &scene,

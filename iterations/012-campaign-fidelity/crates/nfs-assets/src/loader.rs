@@ -502,6 +502,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         scenario_name: None,
         scenario_gates: Vec::new(),
         sky_texture: None,
+        sky_layers: [None, None, None],
         sun_position: None,
         topology: None,
         road_surface: None,
