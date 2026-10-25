@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 pub mod audio;
 pub mod camera;
 pub mod collision_box;
+pub mod lights;
 pub mod physics;
 pub mod race;
 pub mod surface;
@@ -20,6 +21,8 @@ pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub uv: [f32; 2],
+    /// Vertex colour, sRGB-encoded RGBA (track `df` prelit colours; white elsewhere).
+    pub color: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +31,33 @@ pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     pub material: usize,
+}
+
+/// A car light glare: a `Glare*` CRP article with an `ef` record of type 5
+/// (`R3DCar_DrawGlares` 0x43d800, `docs/re/lighting.md`). Mirrored copies
+/// (`ef+0x50 & 8`) are separate entries in their own group.
+/// Coordinates are driving body meters like [`CarWheel`]: [-raw X, raw Y, raw Z].
+#[derive(Debug, Clone, PartialEq)]
+pub struct CarGlare {
+    pub name: String,
+    /// `ef+0x08`, plus the article's `tr` translation if it has one.
+    pub position: [f32; 3],
+    /// Sprite size axis (`ef+0x18`): the half size is `|A|·intensity`.
+    pub axis_a: [f32; 3],
+    /// Stretch axis (`ef+0x28`).
+    pub axis_b: [f32; 3],
+    /// Unit facing direction, the original's `B x A` converted to body space.
+    pub normal: [f32; 3],
+    /// ARGB colours of the two sprite passes (`ef+0x48`, `ef+0x4c`).
+    pub colors: [u32; 2],
+    /// Glare type (`ef+0x54`), index into the original type table 0x5cd73c.
+    pub kind: u8,
+    /// Light group (`Base+0x50`, or `ef+0x56` for the mirrored copy).
+    pub group: u8,
+    /// Headlight beam / lens flare flag (`ef+0x57`).
+    pub beam: bool,
+    /// Animated part the glare follows (`Base+0x4b`: 6/7 doors, 8 hood), 0 = body.
+    pub pivot: u8,
 }
 
 /// Selected CRP wheel article, shared by vehicle geometry and articulation.
@@ -67,6 +97,8 @@ pub struct Material {
     pub double_sided: bool,
     /// Signed material depth offset; separates coplanar detail surfaces.
     pub depth_bias: i32,
+    /// Shaded by its vertex colours only (prelit track geometry), not by the car lights.
+    pub prelit: bool,
 }
 
 /// A library prop template extracted from the track CRP (articles with `Base & 0x8000`).
@@ -138,6 +170,11 @@ pub struct Scene {
     /// defaults applied); `None` for tracks and synthetic scenes.
     pub car_driver_camera: Option<camera::DriverCamera>,
     pub car_wheels: Vec<CarWheel>,
+    /// Light glares of a car scene (empty for tracks).
+    pub car_glares: Vec<CarGlare>,
+    /// Car effect textures from `GameData/Render/common.fsh`, named by their
+    /// FSH entry (`CARG`, `SPIK`, `GLNT`, `SHAD`, ...); empty if the file is absent.
+    pub effect_textures: Vec<Texture>,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub bounds: [[f32; 3]; 2],
@@ -157,6 +194,9 @@ pub struct Scene {
     pub scenario_gates: Vec<ScenarioGate>,
     /// Sky horizon panorama texture, if available.
     pub sky_texture: Option<SkyTexture>,
+    /// Sun position of `Sky/<track>.bin` in scene coordinates (`Sky_SunPosition`
+    /// 0x461090); its direction lights the cars.
+    pub sun_position: Option<[f32; 3]>,
     /// Track topology (boundaries, junctions, map), if available.
     pub topology: Option<TrackTopology>,
     /// CPU-only support grid constructed from static road candidate geometry.
@@ -174,6 +214,8 @@ impl Default for Scene {
             car_driver_camera: None,
             meshes: Vec::new(),
             car_wheels: Vec::new(),
+            car_glares: Vec::new(),
+            effect_textures: Vec::new(),
             textures: Vec::new(),
             materials: Vec::new(),
             bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
@@ -185,6 +227,7 @@ impl Default for Scene {
             scenario_name: None,
             scenario_gates: Vec::new(),
             sky_texture: None,
+            sun_position: None,
             topology: None,
             road_surface: None,
             course: None,

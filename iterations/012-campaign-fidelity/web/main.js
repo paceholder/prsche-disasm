@@ -1774,7 +1774,7 @@ function findTrackFilesFromCatalog(target, specificScn = null) {
     const stem = basename.replace(/\.[^.]+$/, "");
     const ext = basename.split(".").pop();
 
-    if (fullPath.includes("/sky/") && ext === "fsh" && stem === targetLower) {
+    if (fullPath.includes("/sky/") && (ext === "fsh" || ext === "bin") && stem === targetLower) {
       matching.push(relPath);
       continue;
     }
@@ -1835,6 +1835,11 @@ function findCarFilesFromCatalog(target) {
     const stem = basename.replace(/\.[^.]+$/, "");
     const ext = basename.split(".").pop();
 
+    // Glare and shadow textures (R3DCar_DrawGlare 0x43cdd0, R3DCar_DrawShadow 0x43b820).
+    if (fullPath.endsWith("/render/common.fsh")) {
+      matching.push(relPath);
+      continue;
+    }
     if (!fullPath.includes("carmodel")) continue;
 
     if (stem === targetLower && ["crp", "tpg", "clr"].includes(ext)) {
@@ -2121,7 +2126,7 @@ async function loadTarget(specificScn = null) {
           const stem = basename.replace(/\.[^.]+$/, "");
           const ext = basename.split(".").pop();
 
-          if (fullPath.includes("/sky/") && ext === "fsh" && stem === target) {
+          if (fullPath.includes("/sky/") && (ext === "fsh" || ext === "bin") && stem === target) {
             names.push(selectedName(file));
             bytes.push(new Uint8Array(await file.arrayBuffer()));
             continue;
@@ -2528,6 +2533,15 @@ window.addEventListener("keydown", (event) => {
       } else {
         viewer.cycle_paint_color();
       }
+      queueFrame();
+    }
+    return;
+  }
+  if (event.code === "KeyL" && !event.repeat) {
+    // Light switch (original Controller.Lights): headlights and tail lights.
+    if (viewer && typeof viewer.toggle_lights === "function" && viewer.has_car()) {
+      const on = viewer.toggle_lights();
+      setStatus(on ? "Фары включены (L)" : "Фары выключены (L)");
       queueFrame();
     }
     return;

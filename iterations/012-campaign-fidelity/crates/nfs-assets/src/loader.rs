@@ -159,6 +159,130 @@ fn parked_levels(article: &Entry, style: &StyleSelection) -> Result<Vec<u16>, St
     Ok(levels)
 }
 
+/// Glare and shadow textures of `Render/common.fsh` (`R3DCar_DrawGlare` 0x43cdd0 and
+/// `R3DCar_DrawShadow` 0x43b820 look them up by FSH name). Absent file: no effects.
+fn effect_textures(files: &AssetFiles) -> Result<Vec<Texture>, String> {
+    let Ok(data) = find(files, "common.fsh") else {
+        return Ok(Vec::new());
+    };
+    let images = nfs_formats::parse_fsh(data).map_err(|e| format!("common.fsh: {e}"))?;
+    // parse_fsh lowercases names, but common.fsh has both `spik` and `SPIK`;
+    // the original looks textures up by exact FourCC, so keep the raw names.
+    let raw = if data.starts_with(&[0x10, 0xfb]) {
+        nfs_formats::decompress(data).map_err(|e| format!("common.fsh: {e}"))?
+    } else {
+        data.to_vec()
+    };
+    Ok(images
+        .into_iter()
+        .enumerate()
+        .map(|(i, image)| Texture {
+            name: raw
+                .get(16 + i * 8..20 + i * 8)
+                .map(|n| String::from_utf8_lossy(n).trim_end().to_string())
+                .unwrap_or(image.name),
+            width: image.width,
+            height: image.height,
+            rgba: image.rgba,
+        })
+        .collect())
+}
+
+/// `ef` record type of a glare (`*piVar8 == 5` in `R3DCar_DrawGlares` 0x43d800).
+const EF_GLARE: u32 = 5;
+/// `ef+0x50` bit: also draw a copy mirrored in x (0x43d800, `& 8`).
+const EF_MIRRORED: u32 = 8;
+
+/// Glare articles selected by the TPG style, with mirrored copies expanded.
+///
+/// Glare `Base` records (112 bytes) carry the same part info at 0x44 as geometry
+/// articles: GeomIndex, TypeIndex, pivot at +7, light group at +0xc (0x43d8c4).
+/// Each glare appears once per detail level (Base level masks, as geometry);
+/// the scene level is used, like the parked-car geometry.
+fn car_glares(
+    crp: &nfs_formats::Crp,
+    style: &StyleSelection,
+    scene_lod: u16,
+) -> Result<Vec<CarGlare>, String> {
+    let vec3 = |d: &[u8], o: usize| -> Result<[f32; 3], String> {
+        Ok([f32le(d, o)?, f32le(d, o + 4)?, f32le(d, o + 8)?])
+    };
+    // Raw CRP model space -> driving body space ([-x, y, z], as CarWheel).
+    let body = |v: [f32; 3]| [-v[0], v[1], v[2]];
+    let cross = |a: [f32; 3], b: [f32; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let unit = |v: [f32; 3]| {
+        let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        if l > 0.0 { v.map(|x| x / l) } else { v }
+    };
+    let mut out: Vec<CarGlare> = Vec::new();
+    for a in &crp.articles {
+        let Some(ef) = a.children.iter().find(|e| e.tag == "ef") else {
+            continue;
+        };
+        if ef.data.len() < 0x58 || u32le(&ef.data, 0)? != EF_GLARE {
+            continue;
+        }
+        let Some(base) = a.find("Base", 0) else {
+            continue;
+        };
+        let info = bytes(&base.data, 0x44, 16)?;
+        if u32::from(info[1]) != style.geometry.get(&u32::from(info[0])).copied().unwrap_or(0) {
+            continue;
+        }
+        let level_count = (u32le(&base.data, 12)? as usize).min(15);
+        let levels = (0..level_count)
+            .map(|i| u16le(&base.data, 108 + i * 12))
+            .collect::<Result<Vec<_>, _>>()?;
+        if !levels.contains(&scene_lod) && !levels.contains(&0) {
+            continue;
+        }
+        let name = a.find("Name", 0).map(text).unwrap_or_default();
+        let mut position = vec3(&ef.data, 0x08)?;
+        if let Some(tr) = a.children.iter().find(|e| e.tag == "tr" && e.data.len() >= 64) {
+            let t = vec3(&tr.data, 48)?;
+            for k in 0..3 {
+                position[k] += t[k];
+            }
+        }
+        let (axis_a, axis_b, axis_c) = (vec3(&ef.data, 0x18)?, vec3(&ef.data, 0x28)?, vec3(&ef.data, 0x38)?);
+        let colors = [u32le(&ef.data, 0x48)?, u32le(&ef.data, 0x4c)?];
+        let flags = u32le(&ef.data, 0x50)?;
+        let (kind, mirror_group, beam) = (ef.data[0x54], ef.data[0x56], ef.data[0x57] != 0);
+        let glare = |name: String, p: [f32; 3], a: [f32; 3], b: [f32; 3], group: u8| CarGlare {
+            name,
+            position: body(p),
+            axis_a: body(a),
+            axis_b: body(b),
+            normal: body(unit(cross(b, a))),
+            colors,
+            kind,
+            group,
+            beam,
+            pivot: info[7],
+        };
+        let _ = axis_c; // ef+0x38 (mirrored with x negated) has no use in the sprite.
+        let mut found = vec![glare(name.clone(), position, axis_a, axis_b, info[0xc])];
+        if flags & EF_MIRRORED != 0 {
+            // 0x43dae8..: pos.x, A (all), B.x, C.x negated.
+            found.push(glare(
+                format!("{name} (mirrored)"),
+                [-position[0], position[1], position[2]],
+                axis_a.map(|x| -x),
+                [-axis_b[0], axis_b[1], axis_b[2]],
+                mirror_group,
+            ));
+        }
+        out.extend(found);
+    }
+    Ok(out)
+}
+
 fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
     [v[0], v[1], -v[2]]
 }
@@ -359,6 +483,8 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
         car_driver_camera: Some(driver_camera(&ini, DRIVER_CAMERA_STYLE)),
         car_wheels: Vec::new(),
+        car_glares: car_glares(&crp, &style, scene_lod)?,
+        effect_textures: effect_textures(files)?,
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
@@ -376,6 +502,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         scenario_name: None,
         scenario_gates: Vec::new(),
         sky_texture: None,
+        sun_position: None,
         topology: None,
         road_surface: None,
         course: None,
@@ -506,6 +633,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
             alpha_cutoff,
             double_sided,
             depth_bias: u32le(&e.data, 0x114)? as i32,
+            prelit: false,
         });
     }
     for (ai, a) in crp.articles.iter().enumerate() {
@@ -746,6 +874,7 @@ fn mesh(
             position,
             normal,
             uv: tex,
+            color: [1.0; 4],
         });
     }
     Ok(Mesh {
@@ -1217,6 +1346,57 @@ mod tests {
                 sim.body.up()
             );
         }
+    }
+
+    #[test]
+    fn local_356a_glares_follow_the_tpg_style() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in ["356a.crp", "356a.tpg", "INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh"] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        let scene = load(&files, "356a").unwrap();
+        let find = |name: &str| scene.car_glares.iter().find(|g| g.name == name);
+        // 356a.tpg [style1] "13Cabrio": geometry7 type3 selects the cabrio variants.
+        let brake = find("GlareBrakeCabrio").expect("cabrio brake light");
+        assert!(find("GlareBrakeCoupe").is_none() && find("GlareBrake").is_none());
+        assert_eq!((brake.group, brake.kind), (2, 1));
+        assert_eq!(brake.colors, [0xffff0000; 2], "red, ARGB");
+        assert!(brake.normal[2] > 0.5, "faces backwards (+z): {:?}", brake.normal);
+        let mirrored = find("GlareBrakeCabrio (mirrored)").unwrap();
+        assert_eq!(mirrored.group, 3);
+        assert_eq!(mirrored.position[0], -brake.position[0]);
+        let head = find("GlareHeadLight").unwrap();
+        assert_eq!((head.group, head.kind, head.beam), (0, 0, true));
+        assert!(head.normal[2] < -0.9, "faces forwards (-z)");
+        assert_eq!(find("GlareMirror1").unwrap().pivot, 6, "follows the left door");
+        // Each glare appears once per detail level; only the scene level is used.
+        assert_eq!(scene.car_glares.iter().filter(|g| g.name == "GlareHeadLight").count(), 1);
+    }
+
+    #[test]
+    fn local_render_common_has_the_effect_textures() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Render/common.fsh");
+        if !path.exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        files.insert("gamedata/render/common.fsh".into(), std::fs::read(path).unwrap());
+        let textures = effect_textures(&files).unwrap();
+        for name in ["CARG", "SPIK", "GLNT", "SHAD", "FEGL"] {
+            let t = textures.iter().find(|t| t.name == name).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!((t.width, t.height), (64, 64), "{name}");
+        }
+        let shad = textures.iter().find(|t| t.name == "SHAD").unwrap();
+        let max_alpha = shad.rgba.chunks_exact(4).map(|p| p[3]).max().unwrap();
+        assert_eq!(max_alpha, 136, "shadow is about half dark");
+        assert!(effect_textures(&AssetFiles::new()).unwrap().is_empty());
     }
 
     #[test]

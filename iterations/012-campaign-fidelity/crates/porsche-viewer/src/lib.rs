@@ -1,5 +1,7 @@
 pub mod arcade;
 pub mod car_mesh;
+mod effects;
+mod shade_sample;
 pub mod engine_audio;
 pub mod fe_room;
 #[cfg(not(target_arch = "wasm32"))]

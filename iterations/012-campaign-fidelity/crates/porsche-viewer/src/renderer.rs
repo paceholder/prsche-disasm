@@ -291,6 +291,9 @@ impl Camera {
             matrix: self.view_projection(width, height).to_cols_array_2d(),
             eye: [eye.x, eye.y, eye.z, 1.0],
             model: Mat4::IDENTITY.to_cols_array_2d(),
+            sun: [0.0; 4],
+            ambient: [[0.0; 4]; 2],
+            diffuse: [[0.0; 4]; 2],
         }
     }
 }
@@ -301,6 +304,52 @@ struct CameraUniform {
     matrix: [[f32; 4]; 4],
     eye: [f32; 4],
     model: [[f32; 4]; 4],
+    /// Unit vector towards the sun; `w = 1` enables the original car lighting.
+    sun: [f32; 4],
+    /// Light slots 0 (body) and 1 (interior): ambient and diffuse colours.
+    ambient: [[f32; 4]; 2],
+    diffuse: [[f32; 4]; 2],
+}
+
+/// Car light state of `R3DCar_UpdateLighting` 0x43a560 for one track: slot 0
+/// `ambient`/`tint`, slot 1 `ambient·interior`/`interiordiffuse` from
+/// `<track>.map [header]`, light from the sun of `Sky/<track>.bin`.
+/// Approximation A23: road colour sample `S = 1`, layer factors 1, no tunnels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CarLighting {
+    pub sun: Vec3,
+    pub ambient: [[f32; 3]; 2],
+    pub diffuse: [[f32; 3]; 2],
+}
+
+impl CarLighting {
+    pub(crate) fn from_track(scene: &Scene) -> Option<Self> {
+        let header = &scene.topology.as_ref()?.map.as_ref()?.header;
+        let sun = Vec3::from(scene.sun_position?).normalize_or_zero();
+        if sun == Vec3::ZERO {
+            return None;
+        }
+        let rgb = |c: [f32; 4]| [c[1], c[2], c[3]];
+        let mul = |a: [f32; 3], b: [f32; 3]| [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
+        let ambient = rgb(header.ambient);
+        Some(Self {
+            sun,
+            ambient: [ambient, mul(ambient, rgb(header.interior))],
+            diffuse: [rgb(header.tint), rgb(header.interiordiffuse)],
+        })
+    }
+
+    /// Fill the uniform; `road` is the road colour `S` under the car (both
+    /// slot colours are multiplied by it, 0x43a560).
+    fn apply(&self, uniform: &mut CameraUniform, road: [f32; 3]) {
+        uniform.sun = [self.sun.x, self.sun.y, self.sun.z, 1.0];
+        for slot in 0..2 {
+            let [r, g, b] = self.ambient[slot];
+            uniform.ambient[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
+            let [r, g, b] = self.diffuse[slot];
+            uniform.diffuse[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
+        }
+    }
 }
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -308,6 +357,8 @@ struct GpuVertex {
     position: [f32; 3],
     normal: [f32; 3],
     uv: [f32; 2],
+    /// sRGB-encoded vertex colour (track prelit colours, white for cars).
+    color: [f32; 4],
 }
 struct GpuMesh {
     vertex: wgpu::Buffer,
@@ -507,6 +558,19 @@ pub struct Renderer {
     pub mission_time_limit: f32,
     pub mission_elapsed_time: f32,
     pub stunt_detector: Option<nfs_game::factory_driver::StuntDetector>,
+    /// Car glares and shadows (`docs/re/lighting.md`).
+    effects: crate::effects::Effects,
+    car_glares: Vec<nfs_assets::CarGlare>,
+    player_lights: nfs_assets::lights::LightGroups,
+    ai_lights: Vec<nfs_assets::lights::LightGroups>,
+    /// Player's light switch (original `car+0xd87` bit 0, `Controller.Lights`).
+    pub light_switch: bool,
+    /// Tick clock for the light groups (headlight fade, indicator blink).
+    light_clock_s: f64,
+    /// Original car lighting of the loaded track, if it has `.map` and sky data.
+    car_lighting: Option<CarLighting>,
+    /// Road colour lookup for the car lighting (`S`).
+    shade_grid: Option<crate::shade_sample::ShadeGrid>,
 }
 
 fn scenario_start_pose(start: nfs_assets::ScenarioStart) -> (Vec3, f32) {
@@ -690,7 +754,7 @@ impl Renderer {
                 alpha_mode_code(material.alpha_mode),
                 material.alpha_cutoff,
                 if material.paintable { 1.0 } else { 0.0 },
-                0.0,
+                if material.prelit { 1.0 } else { 0.0 },
             ];
             let color = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&material.name),
@@ -738,7 +802,7 @@ impl Renderer {
         let make_pipeline = |blend: bool, double_sided: bool, depth_bias: i32| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("car"), layout: Some(&layout),
-                vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
+                vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4] })] },
                 fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState { format, blend: if blend { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: wgpu::ColorWrites::ALL })] }),
                 primitive: wgpu::PrimitiveState { cull_mode: if double_sided { None } else { Some(wgpu::Face::Back) }, ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(!blend), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: wgpu::DepthBiasState { constant: depth_bias, ..Default::default() } }),
@@ -779,6 +843,7 @@ impl Renderer {
                     position: v.position,
                     normal: v.normal,
                     uv: v.uv,
+                    color: v.color,
                 })
                 .collect();
             let center = mesh
@@ -1176,6 +1241,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                         position: v.pos,
                         normal: v.normal,
                         uv: v.uv,
+                        color: [1.0; 4],
                     })
                     .collect();
                 let center = vertices
@@ -1294,6 +1360,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             race_session = Some(session);
         }
 
+        let effects = crate::effects::Effects::new(&device, format);
         Ok(Self {
             device,
             queue,
@@ -1355,6 +1422,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             mission_time_limit: 0.0,
             mission_elapsed_time: 0.0,
             stunt_detector: None,
+            effects,
+            car_glares: Vec::new(),
+            player_lights: Default::default(),
+            ai_lights: Vec::new(),
+            light_switch: false,
+            light_clock_s: 0.0,
+            car_lighting: CarLighting::from_track(scene),
+            shade_grid: CarLighting::from_track(scene)
+                .and_then(|_| crate::shade_sample::ShadeGrid::from_scene(scene)),
         })
     }
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -1376,8 +1452,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return;
         }
 
-        let mut uniform = self.camera.uniform(self.width, self.height);
-        uniform.model = model_matrix.to_cols_array_2d();
+        let uniform = self.car_uniform(model_matrix);
         self.queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
 
@@ -1504,7 +1579,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             static_model = room.room_matrix();
         }
         // Update camera uniform with the static model matrix (identity outside rooms)
-        let mut static_uniform = self.camera.uniform(self.width, self.height);
+        let mut static_uniform = self.scene_uniform();
         static_uniform.model = static_model.to_cols_array_2d();
         self.queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&static_uniform));
@@ -1602,7 +1677,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // 3. Draw prop instances (one encoder per instance to update model matrix)
         if !self.prop_draws.is_empty() {
             for prop_draw in &self.prop_draws {
-                let mut uniform = self.camera.uniform(self.width, self.height);
+                let mut uniform = self.scene_uniform();
                 uniform.model = prop_draw.model.to_cols_array_2d();
                 self.queue
                     .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
@@ -1655,7 +1730,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.queue.write_buffer(
                 &self.camera_buffer,
                 0,
-                bytemuck::bytes_of(&self.camera.uniform(self.width, self.height)),
+                bytemuck::bytes_of(&self.scene_uniform()),
             );
         }
 
@@ -1761,9 +1836,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.queue.write_buffer(
                 &self.camera_buffer,
                 0,
-                bytemuck::bytes_of(&self.camera.uniform(self.width, self.height)),
+                bytemuck::bytes_of(&self.scene_uniform()),
             );
         }
+
+        // 3.6 Car shadows and light glares.
+        self.draw_car_effects(target);
 
         // 3b. Collision box wireframes (debug)
         self.draw_collision_boxes(target);
@@ -1804,6 +1882,68 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
             self.queue.submit([encoder.finish()]);
         }
+    }
+
+    /// Car shadows (`R3DCar_DrawShadow` 0x43b820) and light glares
+    /// (`R3DCar_DrawGlares` 0x43d800) of the player and AI cars.
+    fn draw_car_effects(&mut self, target: &wgpu::TextureView) {
+        use crate::effects::*;
+        let (Some(car), Some(car_render)) = (&self.car, &self.car_render) else {
+            return;
+        };
+        let in_car_view = self.camera.mode == CameraMode::Drive
+            && if self.sim_mode {
+                !self.free_camera && self.player_camera.is_in_car()
+            } else {
+                car.view_mode == crate::arcade::DriveViewMode::Bumper
+            };
+        let mut cars: Vec<(Mat4, &nfs_assets::lights::LightGroups)> = Vec::new();
+        if !in_car_view {
+            let model = match (&self.sim_car, self.sim_mode) {
+                (Some(sim), true) => {
+                    sim.body.transform_matrix()
+                        * Mat4::from_translation(car_chassis_adapter_body(sim, car_render))
+                }
+                _ => car.model_matrix(),
+            };
+            cars.push((model, &self.player_lights));
+        }
+        let unlit = nfs_assets::lights::LightGroups::default();
+        for (index, ai) in self.ai_opponents.iter().enumerate() {
+            let model = Mat4::from_translation(Vec3::from(ai.position))
+                * Mat4::from_mat3(ai.body_rotation());
+            cars.push((model, self.ai_lights.get(index).unwrap_or(&unlit)));
+        }
+        let camera = CameraFrame::look(self.camera.eye(), self.camera.target());
+        let (box_center, half) = self
+            .car_collision_box
+            .unwrap_or((Vec3::ZERO, FALLBACK_HALF_EXTENTS));
+        let mut shadows = EffectBatches::default();
+        let mut glares = EffectBatches::default();
+        for (model, lights) in cars {
+            let car_y = model.w_axis.y;
+            let corners = shadow_corners(model, box_center, half[0], half[2]);
+            let n = shadow_subdivisions(camera.eye.distance(model.w_axis.truncate()));
+            let height = |x: f32, z: f32| {
+                self.road_surface
+                    .as_ref()
+                    .and_then(|s| s.query(x, z, car_y, SHADOW_PROBE_HEIGHT, 4.0))
+                    .map(|hit| hit.height)
+                    .or_else(|| sample_road_elevation_from_edges(&self.road_edges, x, z))
+            };
+            push_car_shadow(&mut shadows, corners, n, height, car_y - half[1]);
+            push_car_glares(&mut glares, &self.car_glares, lights, model, &camera);
+        }
+        let view_projection = self.camera.view_projection(self.width, self.height);
+        self.effects.draw(
+            &self.device,
+            &self.queue,
+            target,
+            &self.depth,
+            view_projection,
+            &shadows,
+            &glares,
+        );
     }
 
     pub fn toggle_collision_boxes(&mut self) -> bool {
@@ -2165,10 +2305,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         let mut player_pos = [0.0; 3];
         let mut player_fwd = [0.0, 0.0, -1.0];
+        // Approximation A19: the original light inputs come from the vehicle
+        // (`car+0xd80` brake, `car+0xd82` gear, `car+0xd87` switches).
+        let mut player_light_inputs = nfs_assets::lights::LightInputs {
+            light_switch: self.light_switch,
+            ..Default::default()
+        };
 
         if let (true, Some(sim)) = (self.sim_mode, &mut self.sim_car) {
             let controls = sim.controls_from_signed_pedal(throttle, steer, handbrake);
             let tel = sim.step(self.road_surface.as_ref(), &controls, dt);
+            player_light_inputs.brake = brake_byte(controls.brake);
+            player_light_inputs.reverse_gear = sim.powertrain.current_gear < 0;
 
             // Barrier collision resolution for 6 DOF simulation
             let mut pos = sim.body.position.to_array();
@@ -2206,6 +2354,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             });
             player_pos = car.pos.to_array();
             player_fwd = car.forward().to_array();
+            // Arcade prototype: a negative pedal brakes or reverses.
+            player_light_inputs.brake = brake_byte(-throttle);
 
             if self.camera.mode == CameraMode::Drive {
                 self.camera.use_world_view();
@@ -2222,6 +2372,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 };
             }
         }
+
+        self.update_lights(dt, player_light_inputs);
 
         // Advance opponents before resolving all vehicle pairs. Collision response
         // is applied back to their controller, rather than discarded next frame.
@@ -2353,6 +2505,54 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 }
             }
         }
+    }
+
+    /// Camera uniform with the track's car lighting.
+    fn scene_uniform(&self) -> CameraUniform {
+        let mut uniform = self.camera.uniform(self.width, self.height);
+        if let Some(lighting) = &self.car_lighting {
+            lighting.apply(&mut uniform, [1.0; 3]);
+        }
+        uniform
+    }
+
+    /// Camera uniform for a car at `model`, lit with the road colour under it.
+    fn car_uniform(&self, model: Mat4) -> CameraUniform {
+        let mut uniform = self.camera.uniform(self.width, self.height);
+        if let Some(lighting) = &self.car_lighting {
+            let road = self
+                .shade_grid
+                .as_ref()
+                .and_then(|grid| grid.sample(model.w_axis.truncate()))
+                .unwrap_or([1.0; 3]);
+            lighting.apply(&mut uniform, road);
+        }
+        uniform.model = model.to_cols_array_2d();
+        uniform
+    }
+
+    /// Light groups of the player and AI cars (`R3DCar_UpdateLights` 0x439360).
+    fn update_lights(&mut self, dt: f32, player: nfs_assets::lights::LightInputs) {
+        use nfs_assets::lights::{blink_phase, LightInputs};
+        self.light_clock_s += f64::from(dt.max(0.0));
+        let now_ms = (self.light_clock_s * 1000.0) as u32;
+        let blink = blink_phase(self.light_clock_s);
+        self.player_lights.update(&player, now_ms, blink);
+        self.ai_lights.resize(self.ai_opponents.len(), Default::default());
+        for (lights, ai) in self.ai_lights.iter_mut().zip(&self.ai_opponents) {
+            // Approximation A19: AI cars drive with their lights off.
+            let inputs = LightInputs {
+                brake: brake_byte(ai.current_controls.brake),
+                ..Default::default()
+            };
+            lights.update(&inputs, now_ms, blink);
+        }
+    }
+
+    /// Toggle the player's light switch (original `Controller.Lights`).
+    pub fn toggle_lights(&mut self) -> bool {
+        self.light_switch = !self.light_switch;
+        self.light_switch
     }
 
     pub fn reset_car(&mut self) {
@@ -3211,7 +3411,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 alpha_mode_code(material.alpha_mode),
                 material.alpha_cutoff,
                 if material.paintable { 1.0 } else { 0.0 },
-                0.0,
+                // Light slot 1 for the interior (approximation A23: by render method).
+                if material.name.ends_with(":CarInt") { 2.0 } else { 0.0 },
             ];
             let color = self
                 .device
@@ -3275,6 +3476,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     ],
                     normal: [-v.normal[0], v.normal[1], -v.normal[2]],
                     uv: v.uv,
+                    color: v.color,
                 })
                 .collect();
             lowest_y = vertices
@@ -3376,6 +3578,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 .then_some([body_min, body_max]),
             lowest_y: if lowest_y.is_finite() { lowest_y } else { 0.0 },
         });
+
+        self.car_glares = scene.car_glares.clone();
+        self.effects
+            .set_textures(&self.device, &self.queue, &scene.effect_textures);
 
         self.configure_sim_for_model(car_name);
         if let Some(mut sim) = self.sim_car.take() {
@@ -3635,7 +3841,12 @@ fn alpha_mode_code(mode: AlphaMode) -> f32 {
     }
 }
 
-fn upload_texture(
+/// Brake pedal 0..1 as the original's brake byte (`car+0xd80`, 0..255).
+fn brake_byte(pedal: f32) -> u8 {
+    (pedal.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+pub(crate) fn upload_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     width: u32,

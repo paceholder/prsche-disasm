@@ -286,6 +286,14 @@ impl BrowserViewer {
             .unwrap_or_default()
     }
 
+    /// L key: light switch (original `Controller.Lights`); returns whether it is on.
+    pub fn toggle_lights(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| r.toggle_lights())
+            .unwrap_or(false)
+    }
+
     /// V key (debug): toggles the free camera; returns whether it is on.
     pub fn toggle_free_camera(&mut self) -> bool {
         self.renderer

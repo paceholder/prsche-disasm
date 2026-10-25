@@ -146,6 +146,8 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         car_collision_box: None,
         car_driver_camera: None,
         car_wheels: Vec::new(),
+        car_glares: Vec::new(),
+        effect_textures: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
@@ -163,6 +165,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         scenario_name: None,
         scenario_gates: Vec::new(),
         sky_texture: None,
+        sun_position: None,
         topology: None,
         road_surface: None,
         course: None,
@@ -238,6 +241,8 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
             alpha_cutoff: 0.5,
             double_sided,
             depth_bias,
+            // Track geometry carries prelit `df` vertex colours (approximation A22).
+            prelit: true,
         });
     }
 
@@ -271,6 +276,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                 if let Some(vt) = a.children.iter().find(|c| c.tag == "vt" && c.index == 0) {
                     if vt.data.len() % 16 == 0 {
                         let uv = a.children.iter().find(|c| c.tag == "uv" && c.index == 0);
+                        let df = a.children.iter().find(|c| c.tag == "df" && c.index == 0);
                         let n_verts = vt.data.len() / 16;
                         let mut raw_positions = Vec::with_capacity(n_verts);
                         for i in 0..n_verts {
@@ -286,6 +292,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                         {
                             if let Ok(m) = parse_mesh(
                                 pr,
+                                df,
                                 &raw_positions,
                                 uv,
                                 &matmap,
@@ -309,6 +316,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
             continue;
         };
         let uv = a.children.iter().find(|c| c.tag == "uv" && c.index == 0);
+        let df = a.children.iter().find(|c| c.tag == "df" && c.index == 0);
         let tr = a.children.iter().find(|c| c.tag == "tr" && c.index == 0);
 
         if vt.data.len() % 16 != 0 {
@@ -354,6 +362,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         {
             let m = parse_mesh(
                 pr,
+                df,
                 &raw_positions,
                 uv,
                 &matmap,
@@ -606,6 +615,20 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         }
     }
 
+    // --- Sun from the sky config Sky/<track>.bin ---
+    let sky_bin = files.iter().find(|(k, _)| {
+        let low = k.replace('\\', "/").to_ascii_lowercase();
+        (low.contains("/sky/") || low.starts_with("sky/"))
+            && !low.contains("sky new")
+            && low.rsplit('/').next() == Some(&format!("{}.bin", track.to_ascii_lowercase()))
+    });
+    if let Some((key, data)) = sky_bin {
+        match nfs_formats::parse_sky_sun(data) {
+            Ok(sun) => scene.sun_position = Some(to_scene_coordinates(sun.position())),
+            Err(e) => scene.diagnostics.push(format!("Sky {key}: {e}")),
+        }
+    }
+
     // --- Sky texture loading ---
     let sky_fsh_key = files
         .keys()
@@ -802,6 +825,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
 
 fn parse_mesh(
     pr: &Entry,
+    df: Option<&Entry>,
     positions: &[[f32; 3]],
     uv: Option<&Entry>,
     materials: &BTreeMap<u16, usize>,
@@ -840,7 +864,8 @@ fn parse_mesh(
     for i in 0..ni {
         let o = 48 + i * 16;
         let kind = u16le(d, o + 10)?;
-        if kind <= 2 {
+        // Kinds 0/1/2/3 index vt/nm/uv/df (df: 4-byte ARGB colours).
+        if kind <= 3 {
             let adjust = u32le(d, o + 4)? as usize;
             let row = u16le(d, o + 14)?;
             let offset = if row == u16::MAX {
@@ -852,7 +877,11 @@ fn parse_mesh(
                         .ok_or("index row reference out of bounds")?,
                 )
             };
-            let stride = if kind == 2 { 8 } else { 16 };
+            let stride = match kind {
+                2 => 8,
+                3 => 4,
+                _ => 16,
+            };
             if !adjust.is_multiple_of(stride) {
                 return Err("unaligned index base".into());
             }
@@ -879,11 +908,21 @@ fn parse_mesh(
             }
         }
 
+        // `df` colours are D3D ARGB words (bytes B, G, R, A).
+        let mut color = [1.0; 4];
+        if let (Some(df), Some(&(off, adj))) = (df, channels.get(&3)) {
+            let c_ix = off.map_or(i, |off| raw[off + i] as usize) + adj;
+            if let Some(px) = df.data.get(c_ix * 4..c_ix * 4 + 4) {
+                color = [px[2], px[1], px[0], px[3]].map(|b| f32::from(b) / 255.0);
+            }
+        }
+
         raw_v_indices.push(ix);
         vertices.push(Vertex {
             position,
             normal: [0.0, 0.0, 0.0],
             uv: tex,
+            color,
         });
     }
 
@@ -984,7 +1023,27 @@ mod tests {
             std::fs::read(root.join("animdefs.txt")).unwrap(),
         );
 
+        let sky = std::fs::read(root.join("Sky/Skidpad.bin")).ok();
+        if let Some(sky) = &sky {
+            files.insert("GameData/Track/Sky/Skidpad.bin".into(), sky.clone());
+        }
         let scene = load(&files, "skidpad").unwrap();
+        // Skidpad.bin: a = -122.1, theta = 0.65 turn, h = 115.5, s = 0.537.
+        assert_eq!(scene.sun_position.is_some(), sky.is_some());
+        if let Some(sun) = scene.sun_position {
+            let elevation = sun[1].atan2(sun[0].hypot(sun[2])).to_degrees();
+            assert!((40.0..45.0).contains(&elevation), "sun elevation {elevation}");
+        }
+        // Prelit `df` colours reach the vertices (pr channel kind 3). Skidpad's
+        // colours are almost all white; only 90 entries are shaded.
+        let colors: Vec<[f32; 4]> = scene
+            .meshes
+            .iter()
+            .flat_map(|m| m.vertices.iter().map(|v| v.color))
+            .collect();
+        let shaded = colors.iter().filter(|c| c[..3] != [1.0; 3]).count();
+        assert!((60..1000).contains(&shaded), "{shaded} of {} shaded", colors.len());
+        assert!(scene.materials.iter().all(|m| m.prelit));
         assert_eq!(scene.meshes.len(), 180);
         assert_eq!(scene.prop_articles.len(), 70);
         assert_eq!(scene.textures.len(), 98);

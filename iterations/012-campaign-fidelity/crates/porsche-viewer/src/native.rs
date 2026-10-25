@@ -41,6 +41,7 @@ pub fn run_cli(args: impl IntoIterator<Item = String>) -> Result<(), String> {
     let mut paint_index = 0;
     let mut width = 1280;
     let mut height = 720;
+    let mut race = RaceShot::default();
 
     let mut iter = args.into_iter();
     let mut saw_args = false;
@@ -68,6 +69,14 @@ pub fn run_cli(args: impl IntoIterator<Item = String>) -> Result<(), String> {
                     return Err("--paint-index must be 0..5".into());
                 }
             }
+            "--race-car" => race.car = Some(next_value(&mut iter, "--race-car")?),
+            "--pedal" => race.pedal = parse_f32(&mut iter, "--pedal")?,
+            "--seconds" => race.seconds = parse_f32(&mut iter, "--seconds")?,
+            "--lights" => race.lights = true,
+            "--orbit-yaw" => race.orbit_yaw = Some(parse_f32(&mut iter, "--orbit-yaw")?),
+            "--camera-cycles" => race.camera_cycles = parse_u32(&mut iter, "--camera-cycles")?,
+            "--brake-last" => race.brake_last = parse_f32(&mut iter, "--brake-last")?,
+            "--opponents" => race.opponents = parse_u32(&mut iter, "--opponents")?,
             "--width" => width = parse_u32(&mut iter, "--width")?,
             "--height" => height = parse_u32(&mut iter, "--height")?,
             "--help" | "-h" => {
@@ -123,6 +132,11 @@ pub fn run_cli(args: impl IntoIterator<Item = String>) -> Result<(), String> {
             Ok(())
         }
         "view" => {
+            if let (Some(path), Some(_)) = (&screenshot, &race.car) {
+                return pollster::block_on(render_race_screenshot(
+                    &scene, &game_dir, &race, width, height, path,
+                ));
+            }
             if let Some(path) = screenshot {
                 let center = match (center_x, center_y, center_z) {
                     (Some(x), Some(y), Some(z)) => Some([x, y, z]),
@@ -151,8 +165,80 @@ pub fn run_cli(args: impl IntoIterator<Item = String>) -> Result<(), String> {
     }
 }
 
+/// `--race-car`: a track screenshot from the drive camera with that car on the grid.
+#[derive(Default)]
+struct RaceShot {
+    car: Option<String>,
+    /// Signed pedal held during the run (negative brakes).
+    pedal: f32,
+    /// Simulated time before the shot.
+    seconds: f32,
+    /// Light switch on.
+    lights: bool,
+    /// Brake fully for the last seconds of the run.
+    brake_last: f32,
+    /// Press the camera key this many times (C) before the run.
+    camera_cycles: u32,
+    /// After the run, look at the car from an orbit camera at this yaw (radians).
+    orbit_yaw: Option<f32>,
+    opponents: u32,
+}
+
+async fn render_race_screenshot(
+    track: &Scene,
+    game_dir: &Path,
+    race: &RaceShot,
+    width: u32,
+    height: u32,
+    output: &Path,
+) -> Result<(), String> {
+    let car = race.car.as_deref().unwrap_or("356a");
+    let files = read_game_files(game_dir, car)?;
+    let car_scene = load_car(&files, car)?;
+    let instance = instance();
+    let (_, device, queue) = request_gpu(&instance, None).await?;
+    let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+    let mut renderer = Renderer::new(device, queue, format, width, height, track)?;
+    renderer.set_car_model(&car_scene, car)?;
+    if race.opponents > 0 {
+        renderer.configure_quick_race(1, race.opponents)?;
+    }
+    if !renderer.is_drive_mode() {
+        renderer.toggle_camera_mode();
+    }
+    renderer.restart_race();
+    renderer.light_switch = race.lights;
+    for _ in 0..race.camera_cycles {
+        renderer.cycle_car_view();
+    }
+    let dt = 1.0 / 60.0;
+    let steps = (race.seconds / dt).round().max(1.0) as u32;
+    let brake_steps = (race.brake_last / dt).round() as u32;
+    for step in 0..steps {
+        let pedal = if step + brake_steps >= steps { -1.0 } else { race.pedal };
+        renderer.update_car(dt, pedal, 0.0, false);
+    }
+    if let Some(yaw) = race.orbit_yaw {
+        renderer.toggle_camera_mode();
+        renderer.camera.yaw = yaw;
+        renderer.camera.pitch = 0.45;
+        renderer.camera.distance = 7.0;
+    }
+    let pixels = capture_pixels(&mut renderer, width, height)?;
+    let file = fs::File::create(output).map_err(|e| format!("{}: {e}", output.display()))?;
+    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .map_err(|e| format!("PNG header failed: {e}"))?
+        .write_image_data(&pixels)
+        .map_err(|e| format!("PNG write failed: {e}"))?;
+    Ok(())
+}
+
 fn usage() -> String {
-    "Usage:\n  porsche-viewer\n  porsche-viewer inspect --game-dir <path> (--car <name> | --track <name>)\n  porsche-viewer view --game-dir <path> (--car <name> | --track <name>) [--screenshot out.png] [--paint-index 0..5 (car screenshot only)] [--yaw radians] [--pitch radians] [--width px] [--height px]".into()
+    "Usage:\n  porsche-viewer\n  porsche-viewer inspect --game-dir <path> (--car <name> | --track <name>)\n  porsche-viewer view --game-dir <path> (--car <name> | --track <name>) [--screenshot out.png] [--paint-index 0..5 (car screenshot only)] [--yaw radians] [--pitch radians] [--width px] [--height px]\n  porsche-viewer view --game-dir <path> --track <name> --race-car <car> --screenshot out.png [--pedal -1..1] [--seconds s] [--brake-last s] [--lights] [--opponents 0|3] [--camera-cycles n] [--orbit-yaw radians]".into()
 }
 
 fn next_value(iter: &mut impl Iterator<Item = String>, name: &str) -> Result<String, String> {
@@ -311,6 +397,7 @@ mod gpu_diagnostics {
             position,
             normal: [0., 0., 1.],
             uv,
+            color: [1.; 4],
         })
         .to_vec();
         let scene = Scene {
@@ -352,6 +439,7 @@ mod gpu_diagnostics {
                 alpha_cutoff: 0.,
                 double_sided: true,
                 depth_bias: 0,
+                prelit: false,
             }],
             bounds: [[-1., -1., 0.], [1., 1., 0.]],
             diagnostics: vec![],
@@ -424,6 +512,7 @@ mod gpu_diagnostics {
             position,
             normal: [0., 0., 1.],
             uv,
+            color: [1.; 4],
         })
         .to_vec();
         let mesh = |material| Mesh {
@@ -461,6 +550,7 @@ mod gpu_diagnostics {
                     alpha_cutoff: 0.,
                     double_sided: true,
                     depth_bias: if i == 1 { -3 } else { 0 },
+                    prelit: false,
                 })
                 .collect(),
             bounds: [[-1., -1., 0.], [1., 1., 0.]],
@@ -651,8 +741,9 @@ fn read_track_dir_recursive(
             {
                 true
             } else if in_sky_dir {
-                // Inside Sky/: load .fsh files matching track name
-                extension.as_deref() == Some("fsh") && stem.eq_ignore_ascii_case(track)
+                // Inside Sky/: the track's sky textures (.fsh) and sky config (.bin, sun)
+                matches!(extension.as_deref(), Some("fsh") | Some("bin"))
+                    && stem.eq_ignore_ascii_case(track)
             } else if extension.as_deref() == Some("scn") {
                 // .scn files use <track>_st<N>.scn naming — match by prefix
                 stem.to_ascii_lowercase()
@@ -1387,6 +1478,12 @@ impl ApplicationHandler for App {
                             window.request_redraw();
                         }
                     }
+                    KeyCode::KeyL if !event.repeat => {
+                        if let Some(renderer) = &mut self.renderer {
+                            let on = renderer.toggle_lights();
+                            println!("Lights: {}", if on { "on" } else { "off" });
+                        }
+                    }
                     KeyCode::KeyV if !event.repeat => {
                         if let Some(renderer) = &mut self.renderer
                             && renderer.is_drive_mode()
@@ -1597,7 +1694,12 @@ async fn render_pixels(
         renderer.camera.center = glam::Vec3::from(center);
         renderer.camera.radius = distance.unwrap_or(50.0);
     }
+    capture_pixels(&mut renderer, width, height)
+}
 
+/// Render one frame of `renderer` into an offscreen target and read it back (RGBA8).
+fn capture_pixels(renderer: &mut Renderer, width: u32, height: u32) -> Result<Vec<u8>, String> {
+    let format = wgpu::TextureFormat::Rgba8UnormSrgb;
     let target = renderer.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("headless screenshot"),
         size: wgpu::Extent3d {

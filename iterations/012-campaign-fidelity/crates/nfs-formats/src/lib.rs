@@ -242,6 +242,9 @@ pub use loc::parse_loc;
 pub mod ffn;
 pub use ffn::{parse_ffn, Font, Glyph};
 
+pub mod sky;
+pub use sky::{parse_sky_sun, SkySun};
+
 pub mod viv;
 pub use viv::{parse_viv, viv_file, VivEntry, VIV_MAGIC};
 
