@@ -620,6 +620,8 @@ pub struct Renderer {
     /// Debug: bursts so far and the strongest barrier contact seen.
     spark_bursts: u32,
     max_barrier_impact: f32,
+    /// Builds mesh pipelines for car materials added after `new` (per-material z bias).
+    pipeline_factory: MeshPipelineFactory,
     /// Camera group layout and sampler, to rebind the specular map of a car.
     camera_layout: wgpu::BindGroupLayout,
     specular_sampler: wgpu::Sampler,
@@ -867,14 +869,7 @@ impl Renderer {
                 },
             ],
         });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("texture sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
+        let sampler = device.create_sampler(&mipmapped_sampler("texture sampler"));
         let mut texture_views = Vec::new();
         for texture in &scene.textures {
             if texture.width == 0
@@ -886,7 +881,7 @@ impl Renderer {
             {
                 return Err(format!("Invalid texture dimensions/data: {}", texture.name));
             }
-            texture_views.push(upload_texture(
+            texture_views.push(upload_texture_mipmapped(
                 &device,
                 &queue,
                 texture.width,
@@ -956,15 +951,9 @@ impl Renderer {
             immediate_size: 0,
         });
         let mut pipelines = BTreeMap::new();
+        let pipeline_factory = MeshPipelineFactory { shader, layout, format };
         let make_pipeline = |blend: bool, double_sided: bool, depth_bias: i32| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("car"), layout: Some(&layout),
-                vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4] })] },
-                fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState { format, blend: if blend { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: wgpu::ColorWrites::ALL })] }),
-                primitive: wgpu::PrimitiveState { cull_mode: if double_sided { None } else { Some(wgpu::Face::Back) }, ..Default::default() },
-                depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(!blend), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: wgpu::DepthBiasState { constant: depth_bias, ..Default::default() } }),
-                multisample: Default::default(), multiview_mask: None, cache: None,
-            })
+            pipeline_factory.create(&device, blend, double_sided, depth_bias)
         };
         for material in &scene.materials {
             let blend = material.alpha_mode == AlphaMode::Blend;
@@ -1038,18 +1027,20 @@ impl Renderer {
             .map(|inst| {
                 let r = &inst.rotation;
                 // Build 4x4 model matrix from 3x3 rotation + translation.
-                // The .scn rotation is row-major; scene coordinates negate Z.
+                // The .scn rotation is row-vector (D3D, like the CRP `tr`): its rows are
+                // the object's axes in world space. Scene coordinates negate Z, so the
+                // model matrix is S·Rᵀ·S with S = diag(1, 1, −1).
                 let model = Mat4::from_cols_array(&[
                     r[0][0],
-                    r[1][0],
-                    -r[2][0],
-                    0.0,
                     r[0][1],
-                    r[1][1],
-                    -r[2][1],
-                    0.0,
                     -r[0][2],
+                    0.0,
+                    r[1][0],
+                    r[1][1],
                     -r[1][2],
+                    0.0,
+                    -r[2][0],
+                    -r[2][1],
                     r[2][2],
                     0.0,
                     inst.position[0],
@@ -1602,6 +1593,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             spark_emitter: None,
             camera_layout,
             specular_sampler,
+            pipeline_factory,
             spark_contacts: Vec::new(),
             spark_clock: 0.0,
             spark_bursts: 0,
@@ -1676,7 +1668,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_group, &[]);
-            for &mesh_index in mesh_indices {
+            // Opaque and masked parts first, then the blended ones (glass) far to near,
+            // so the interior behind a window is not drawn over the window.
+            let eye = self.camera.eye();
+            let blended = |i: &usize| {
+                meshes.get(*i).is_some_and(|m| {
+                    materials.get(m.material).is_some_and(|mat| mat.alpha_mode == AlphaMode::Blend)
+                })
+            };
+            let mut order: Vec<usize> = mesh_indices.iter().copied().filter(|i| !blended(i)).collect();
+            let mut glass: Vec<usize> = mesh_indices.iter().copied().filter(blended).collect();
+            let distance = |i: &usize| model_matrix.transform_point3(meshes[*i].center).distance_squared(eye);
+            glass.sort_by(|a, b| distance(b).total_cmp(&distance(a)));
+            order.extend(glass);
+            for &mesh_index in &order {
                 let Some(mesh) = meshes.get(mesh_index) else {
                     continue;
                 };
@@ -4409,14 +4414,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return Err("Car scene has no geometry".into());
         }
 
-        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("car texture sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
+        let sampler = self.device.create_sampler(&mipmapped_sampler("car texture sampler"));
 
         let material_layout =
             self.device
@@ -4455,7 +4453,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let white = upload_texture(&self.device, &self.queue, 1, 1, &[255; 4]);
         let mut texture_views = Vec::new();
         for texture in &scene.textures {
-            texture_views.push(upload_texture(
+            texture_views.push(upload_texture_mipmapped(
                 &self.device,
                 &self.queue,
                 texture.width,
@@ -4637,6 +4635,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 b.half_extents,
             )
         });
+        // Pipelines for the car's (blend, cull, z bias) combinations; without them the
+        // draw fell back to bias 0 and the decals z-fought with the body.
+        for m in &car_materials {
+            let key = (m.alpha_mode == AlphaMode::Blend, m.double_sided, m.depth_bias);
+            if !self.pipelines.contains_key(&key) {
+                let pipeline = self.pipeline_factory.create(&self.device, key.0, key.1, key.2);
+                self.pipelines.insert(key, pipeline);
+            }
+        }
         self.car_render = Some(CarRenderState {
             meshes: car_meshes,
             materials: car_materials,
@@ -4944,6 +4951,44 @@ struct SparkContact {
     velocity: [f32; 3],
 }
 
+/// Shader, layout and target format of the mesh pipelines (`car.wgsl`).
+struct MeshPipelineFactory {
+    shader: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
+}
+
+impl MeshPipelineFactory {
+    fn create(
+        &self,
+        device: &wgpu::Device,
+        blend: bool,
+        double_sided: bool,
+        depth_bias: i32,
+    ) -> wgpu::RenderPipeline {
+        let (shader, layout, format) = (&self.shader, &self.layout, self.format);
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("car"), layout: Some(layout),
+            vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4] })] },
+            fragment: Some(wgpu::FragmentState { module: shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState { format, blend: if blend { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: wgpu::ColorWrites::ALL })] }),
+            primitive: wgpu::PrimitiveState { cull_mode: if double_sided { None } else { Some(wgpu::Face::Back) }, ..Default::default() },
+            depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(!blend), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: depth_bias_state(depth_bias) }),
+            multisample: Default::default(), multiview_mask: None, cache: None,
+        })
+    }
+}
+
+/// Per-material z bias `mt+0x114` as a GPU depth bias. Approximation A72: one unit of the
+/// original bias is taken as one LSB of a 16-bit z buffer (D3D7 `ZBIAS`), i.e. 256 ulp of
+/// the 24-bit float mantissa near the far end of the depth range; negative = closer.
+fn depth_bias_state(bias: i32) -> wgpu::DepthBiasState {
+    wgpu::DepthBiasState {
+        constant: bias.saturating_mul(Z_BIAS_UNIT),
+        ..Default::default()
+    }
+}
+const Z_BIAS_UNIT: i32 = 256;
+
 /// Car specular sphere map: `carcmn.fsh` SPC2, slot 1 of 0x441a10 (A71).
 const SPECULAR_MAP: &str = "SPC2";
 
@@ -4977,6 +5022,87 @@ fn camera_bind_group(
 /// Brake pedal 0..1 as the original's brake byte (`car+0xd80`, 0..255).
 fn brake_byte(pedal: f32) -> u8 {
     (pedal.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// Repeat sampler with trilinear and anisotropic filtering for mipmapped textures.
+/// Approximation A74: the original's `MIPMAPPING` option filters minified textures
+/// (driver filter modes not read); without mips distant/grazing faces shimmer and smear.
+fn mipmapped_sampler(label: &str) -> wgpu::SamplerDescriptor<'_> {
+    wgpu::SamplerDescriptor {
+        label: Some(label),
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
+        anisotropy_clamp: 8,
+        ..Default::default()
+    }
+}
+
+/// Box-filtered mip chain (RGBA8, sRGB bytes averaged).
+fn mip_chain(width: u32, height: u32, rgba: &[u8]) -> Vec<(u32, u32, Vec<u8>)> {
+    let mut levels = vec![(width, height, rgba.to_vec())];
+    while let Some(&(w, h, ref src)) = levels.last() {
+        if w == 1 && h == 1 {
+            break;
+        }
+        let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
+        let mut dst = vec![0u8; (nw * nh * 4) as usize];
+        for y in 0..nh {
+            for x in 0..nw {
+                for c in 0..4 {
+                    let mut sum = 0u32;
+                    for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                        let sx = (x * 2 + dx).min(w - 1);
+                        let sy = (y * 2 + dy).min(h - 1);
+                        sum += u32::from(src[((sy * w + sx) * 4 + c) as usize]);
+                    }
+                    dst[((y * nw + x) * 4 + c) as usize] = ((sum + 2) / 4) as u8;
+                }
+            }
+        }
+        levels.push((nw, nh, dst));
+    }
+    levels
+}
+
+pub(crate) fn upload_texture_mipmapped(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> wgpu::TextureView {
+    let levels = mip_chain(width, height, rgba);
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("mipmapped texture"),
+        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        mip_level_count: levels.len() as u32,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    for (level, (w, h, data)) in levels.iter().enumerate() {
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: level as u32,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * w),
+                rows_per_image: Some(*h),
+            },
+            wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 },
+        );
+    }
+    texture.create_view(&Default::default())
 }
 
 pub(crate) fn upload_texture(

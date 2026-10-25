@@ -251,6 +251,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     }
 
     let mut raw_meshes = Vec::new();
+    let mut single_sided = std::collections::BTreeSet::new();
     // Rendering and source collision resources are assembled separately.
     let mut prop_templates: Vec<(u32, Vec<Mesh>)> = Vec::new();
     let mut total_tris = 0;
@@ -359,6 +360,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
             raw_positions.push(to_scene_coordinates([tx, ty, tz]));
         }
 
+        let article_first_mesh = raw_meshes.len();
         for pr in a
             .children
             .iter()
@@ -383,7 +385,27 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                 raw_meshes.push(m);
             }
         }
+        // Signs carry a front and a back plate: two coplanar primitives with opposite
+        // winding. The original culls back-facing primitives per plane in its coordinate
+        // layers (0x449390, 0x448f80), so only one plate shows from each side; drawn
+        // double-sided they z-fight. Approximation A73: such materials are culled.
+        let article_meshes = &raw_meshes[article_first_mesh..];
+        for (i, a_mesh) in article_meshes.iter().enumerate() {
+            for b_mesh in &article_meshes[i + 1..] {
+                if reverse_twins(a_mesh, b_mesh) {
+                    single_sided.insert(a_mesh.material);
+                    single_sided.insert(b_mesh.material);
+                }
+            }
+        }
     }
+    for &m in &single_sided {
+        scene.materials[m].double_sided = false;
+    }
+    scene.diagnostics.push(format!(
+        "{} materials single-sided (front/back plate pairs)",
+        single_sided.len()
+    ));
 
     let anim = nfs_formats::animdefs::parse_animdefs(&String::from_utf8_lossy(find(
         files,
@@ -845,6 +867,30 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     Ok(scene)
 }
 
+/// Whether `a` and `b` are the two plates of one surface: the same vertex positions
+/// (any triangulation) with opposite facing (a back plate of a front plate).
+fn reverse_twins(a: &Mesh, b: &Mesh) -> bool {
+    let positions = |m: &Mesh| {
+        let mut p: Vec<[u32; 3]> = m
+            .indices
+            .iter()
+            .map(|&i| m.vertices[i as usize].position.map(f32::to_bits))
+            .collect();
+        p.sort_unstable();
+        p.dedup();
+        p
+    };
+    let facing = |m: &Mesh| {
+        let mut n = glam::Vec3::ZERO;
+        for t in m.indices.chunks_exact(3) {
+            let [p, q, r] = [0, 1, 2].map(|k| glam::Vec3::from(m.vertices[t[k] as usize].position));
+            n += (q - p).cross(r - p);
+        }
+        n.normalize_or_zero()
+    };
+    a.indices.len() >= 3 && positions(a) == positions(b) && facing(a).dot(facing(b)) < -0.99
+}
+
 /// A `df` colour (D3D ARGB word, bytes B, G, R, A) as RGBA 0..1.
 ///
 /// Evidence for the byte order: the original packs byte +2 into the high five
@@ -1037,6 +1083,21 @@ fn parse_mesh(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reverse_twin_quads_are_detected() {
+        let quad = |idx: Vec<u32>| Mesh {
+            name: "q".into(),
+            vertices: [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]]
+                .map(|p| Vertex { position: p, normal: [0.0; 3], uv: [0.0; 2], color: [1.0; 4] })
+                .to_vec(),
+            indices: idx,
+            material: 0,
+        };
+        // alps 30 sign: pr0 (4,7,6),(4,6,5) vs pr1 (7,4,5),(7,5,6), here 0..3.
+        assert!(reverse_twins(&quad(vec![0, 3, 2, 0, 2, 1]), &quad(vec![3, 0, 1, 3, 1, 2])));
+        assert!(!reverse_twins(&quad(vec![0, 3, 2]), &quad(vec![0, 3, 2])));
+    }
 
     #[test]
     fn df_words_are_argb() {
