@@ -294,6 +294,16 @@ impl Camera {
             sun: [0.0; 4],
             ambient: [[0.0; 4]; 2],
             diffuse: [[0.0; 4]; 2],
+            view_right: {
+                let r = (self.target() - eye).cross(Vec3::Y).normalize_or(Vec3::X);
+                [r.x, r.y, r.z, 0.0]
+            },
+            view_up: {
+                let f = (self.target() - eye).normalize_or(Vec3::NEG_Z);
+                let u = f.cross(Vec3::Y).normalize_or(Vec3::X).cross(f);
+                [u.x, u.y, u.z, 0.0]
+            },
+            specular: [0.0; 4],
         }
     }
 }
@@ -309,6 +319,12 @@ struct CameraUniform {
     /// Light slots 0 (body) and 1 (interior): ambient and diffuse colours.
     ambient: [[f32; 4]; 2],
     diffuse: [[f32; 4]; 2],
+    /// Camera right/up in world space (sphere map of the specular texture layer).
+    view_right: [f32; 4],
+    view_up: [f32; 4],
+    /// Specular highlight colour of slot 1 (`+0x388`: 0.8) and `w = 1` to enable the
+    /// specular layers (`R3DSpecularLayer`, `R3DSpecularTextureLayer`).
+    specular: [f32; 4],
 }
 
 /// Car light state of `R3DCar_UpdateLighting` 0x43a560 for one track: slot 0
@@ -343,6 +359,8 @@ impl CarLighting {
     /// slot colours are multiplied by it, 0x43a560).
     fn apply(&self, uniform: &mut CameraUniform, road: [f32; 3]) {
         uniform.sun = [self.sun.x, self.sun.y, self.sun.z, 1.0];
+        // 0x43a560: slot 1 specular colour (1, .8, .8, .8); light colour (1, 1, 1).
+        uniform.specular = [0.8, 0.8, 0.8, 1.0];
         for slot in 0..2 {
             let [r, g, b] = self.ambient[slot];
             uniform.ambient[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
@@ -415,7 +433,7 @@ struct BoxOverlay {
 
 const BOX_OVERLAY_MAX_CARS: usize = 16;
 /// Start camera: index 2 of the original cycle list = TailCam0. The original starts in
-/// `list[0]` (BumperCam2) after the intro, but the cockpit model isn't drawn yet.
+/// `list[cycle index]` after the intro; the index the front end passes is not read (A12).
 const START_CYCLE_INDEX: i16 = 2;
 /// Camera half extents of a car without a CRP collision box.
 const FALLBACK_HALF_EXTENTS: [f32; 3] = [0.9, 0.65, 2.1];
@@ -580,6 +598,17 @@ pub struct Renderer {
     light_clock_s: f64,
     /// Original car lighting of the loaded track, if it has `.map` and sky data.
     car_lighting: Option<CarLighting>,
+    /// Player's spark emitter (`R3DCarParticle` slot 4, `CSPK`), if carpart.dat loaded.
+    spark_emitter: Option<nfs_assets::sparks::SparkEmitter>,
+    /// Barrier contacts of the collide ticks since the last effects update.
+    spark_contacts: Vec<SparkContact>,
+    spark_clock: f32,
+    /// Debug: bursts so far and the strongest barrier contact seen.
+    spark_bursts: u32,
+    max_barrier_impact: f32,
+    /// Camera group layout and sampler, to rebind the specular map of a car.
+    camera_layout: wgpu::BindGroupLayout,
+    specular_sampler: wgpu::Sampler,
     /// Road colour lookup for the car lighting (`S`).
     shade_grid: Option<crate::shade_sample::ShadeGrid>,
 }
@@ -754,25 +783,45 @@ impl Renderer {
         });
         let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("camera"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                // Car specular sphere map (`R3DSpecularTextureLayer`, carcmn.fsh SPCn).
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
         });
-        let camera_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("camera"),
-            layout: &camera_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
+        let specular_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("specular map sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
         });
+        let no_specular = upload_texture(&device, &queue, 1, 1, &[0, 0, 0, 0]);
+        let camera_group =
+            camera_bind_group(&device, &camera_layout, &camera_buffer, &no_specular, &specular_sampler);
         let material_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("material"),
             entries: &[
@@ -1529,6 +1578,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             light_switch: false,
             light_clock_s: 0.0,
             car_lighting: CarLighting::from_track(scene),
+            spark_emitter: None,
+            camera_layout,
+            specular_sampler,
+            spark_contacts: Vec::new(),
+            spark_clock: 0.0,
+            spark_bursts: 0,
+            max_barrier_impact: 0.0,
             shade_grid: CarLighting::from_track(scene)
                 .and_then(|_| crate::shade_sample::ShadeGrid::from_scene(scene)),
         })
@@ -2164,6 +2220,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             push_car_shadow(&mut shadows, corners, n, height, car_y - half[1]);
             push_car_glares(&mut glares, &self.car_glares, lights, model, &camera);
         }
+        if let Some(emitter) = &self.spark_emitter {
+            push_sparks(
+                &mut glares,
+                emitter,
+                |p| nfs_assets::physics::original_adapter::from_original(p),
+                &camera,
+            );
+        }
         let view_projection = self.camera.view_projection(self.width, self.height);
         self.effects.draw(
             &self.device,
@@ -2607,6 +2671,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
 
         self.update_lights(dt, player_light_inputs);
+        self.update_sparks(dt);
 
         // Advance opponents before resolving all vehicle pairs. Collision response
         // is applied back to their controller, rather than discarded next frame.
@@ -2792,6 +2857,50 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             };
             lights.update(&inputs, now_ms, blink);
         }
+    }
+
+    /// `Car_ContactEffects` 0x40f740 sparks: each collide tick whose strongest
+    /// barrier contact exceeds 1.5 bursts the emitter; particles tick at 32 Hz.
+    fn update_sparks(&mut self, dt: f32) {
+        let contacts = std::mem::take(&mut self.spark_contacts);
+        for c in &contacts {
+            self.max_barrier_impact = self.max_barrier_impact.max(c.impact);
+        }
+        let Some(emitter) = &mut self.spark_emitter else {
+            return;
+        };
+        if let Some(hit) = contacts
+            .iter()
+            .filter(|c| c.impact > nfs_assets::sparks::SPARK_MIN_IMPACT)
+            .max_by(|a, b| a.impact.total_cmp(&b.impact))
+        {
+            emitter.burst(hit.point, hit.velocity);
+            self.spark_bursts += 1;
+        }
+        self.spark_clock += dt.max(0.0);
+        let step = 1.0 / nfs_assets::sparks::PARTICLE_HZ;
+        while self.spark_clock >= step {
+            self.spark_clock -= step;
+            emitter.tick();
+        }
+    }
+
+    /// Debug: live sparks, bursts so far, strongest barrier contact strength.
+    pub fn spark_stats(&self) -> [f32; 6] {
+        let first = self
+            .spark_emitter
+            .as_ref()
+            .and_then(|e| e.sparks.first())
+            .map(|s| nfs_assets::physics::original_adapter::from_original(s.position))
+            .unwrap_or(Vec3::ZERO);
+        [
+            self.spark_emitter.as_ref().map_or(0, |e| e.sparks.len()) as f32,
+            self.spark_bursts as f32,
+            self.max_barrier_impact,
+            first.x,
+            first.y,
+            first.z,
+        ]
     }
 
     /// Toggle the player's light switch (original `Controller.Lights`).
@@ -3277,8 +3386,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    /// C key: in 6 DOF driving the original cycle (`Camera_Cycle`: BumperCam2, BumperCam,
-    /// TailCam0, HeliCam2, with the settle period), otherwise the arcade views. Leaves the
+    /// C key: in 6 DOF driving the original cycle (`Camera_Cycle` over the Options →
+    /// Kameras defaults BumperCam, BumperCam2, TailCam0, TailCam1, with the settle period), otherwise the arcade views. Leaves the
     /// free camera. Returns the new camera name.
     pub fn cycle_car_view(&mut self) -> String {
         if let Some(car) = self.camera_car() {
@@ -3513,6 +3622,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 build_collision_pair_cars(sim, &self.ai_opponents, center, adapter, half);
             let before = cars.clone();
             let owner = &mut self.body_support_owner;
+            let contacts = &mut self.spark_contacts;
             collide_pass(&mut cars, &mut self.pair_globals, |index, car| {
                 // AI cars are kinematic and follow the course: no barrier pass
                 // (approximation A6).
@@ -3520,10 +3630,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     return;
                 };
                 let mut state = barrier_state(car);
-                if let Ok(Some(_)) =
-                    surface.original_barrier_response(&mut state, car.extents_3a8, owner)
+                if let Ok(Some(hit)) =
+                    surface.original_barrier_contact(&mut state, car.extents_3a8, owner)
                 {
                     apply_barrier_state(car, &state);
+                    contacts.push(SparkContact {
+                        impact: hit.magnitude,
+                        point: hit.point,
+                        velocity: state.velocity_33c,
+                    });
                 }
             });
             if cars[0] != before[0] {
@@ -3736,6 +3851,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ai_box: (Vec3, [f32; 3]),
             half: [f32; 3],
             camera: &'a mut nfs_assets::camera::PlayerCamera,
+            /// Barrier contacts of the player per collide tick (sparks).
+            contacts: &'a mut Vec<SparkContact>,
         }
         impl StepQueue for Queue<'_> {
             fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
@@ -3768,10 +3885,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 let before = ai.clone();
                 let barrier = self.surface.filter(|s| s.uses_original_support());
                 let (half, owner) = (self.half, &mut *self.body_owner);
+                let contacts = &mut *self.contacts;
                 collide_player(car, half, &mut ai, self.pair_globals, lcg, |state| {
-                    barrier.is_some_and(|s| {
-                        matches!(s.original_barrier_response(state, half, owner), Ok(Some(_)))
-                    })
+                    let Some(s) = barrier else { return false };
+                    match s.original_barrier_contact(state, half, owner) {
+                        Ok(Some(hit)) => {
+                            contacts.push(SparkContact {
+                                impact: hit.magnitude,
+                                point: hit.point,
+                                velocity: state.velocity_33c,
+                            });
+                            true
+                        }
+                        _ => false,
+                    }
                 });
                 for (a, (b, c)) in self.ai.iter_mut().zip(before.iter().zip(&ai)) {
                     apply_pair_car_to_ai(a, b, c);
@@ -3795,6 +3922,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ai_box: (center, half),
             half: *half_extents,
             camera: &mut self.player_camera,
+            contacts: &mut self.spark_contacts,
         };
         // Starts the camera (end of the race intro) on the first call; no steps.
         queue.camera.advance(
@@ -3986,7 +4114,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 material.alpha_cutoff,
                 if material.paintable { 1.0 } else { 0.0 },
                 // Light slot 1 for the interior (approximation A23: by render method).
-                if material.name.ends_with(":CarInt") { 2.0 } else { 0.0 },
+                // 3 = exterior with the env/specular layers (render method `CarExtEnv`).
+                if material.name.ends_with(":CarInt") {
+                    2.0
+                } else if material.name.ends_with(":CarExtEnv") {
+                    3.0
+                } else {
+                    0.0
+                },
             ];
             let color = self
                 .device
@@ -4150,6 +4285,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         });
 
         self.car_glares = scene.car_glares.clone();
+        // Specular map slot 1 (SPC2) of `Car_Load` 0x441a10; approximation A71.
+        if let Some(t) = scene
+            .effect_textures
+            .iter()
+            .find(|t| t.name == SPECULAR_MAP)
+            .filter(|t| t.rgba.len() as u64 == u64::from(t.width) * u64::from(t.height) * 4)
+        {
+            let view = upload_texture(&self.device, &self.queue, t.width, t.height, &t.rgba);
+            self.camera_group = camera_bind_group(
+                &self.device,
+                &self.camera_layout,
+                &self.camera_buffer,
+                &view,
+                &self.specular_sampler,
+            );
+        }
+        self.spark_emitter = scene
+            .particle_defs
+            .iter()
+            .find(|d| &d.tag == b"CSPK")
+            .map(|d| nfs_assets::sparks::SparkEmitter::new(*d));
         self.effects
             .set_textures(&self.device, &self.queue, &scene.effect_textures);
 
@@ -4412,6 +4568,45 @@ fn alpha_mode_code(mode: AlphaMode) -> f32 {
         AlphaMode::Mask => 1.0,
         AlphaMode::Blend => 2.0,
     }
+}
+
+/// A barrier contact of one collide pass: strength (`+0x430`), point (`+0x440`)
+/// and car velocity (`+0x33c`), original space.
+#[derive(Clone, Copy, Debug)]
+struct SparkContact {
+    impact: f32,
+    point: [f32; 3],
+    velocity: [f32; 3],
+}
+
+/// Car specular sphere map: `carcmn.fsh` SPC2, slot 1 of 0x441a10 (A71).
+const SPECULAR_MAP: &str = "SPC2";
+
+fn camera_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    buffer: &wgpu::Buffer,
+    specular: &wgpu::TextureView,
+    sampler: &wgpu::Sampler,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("camera"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(specular),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+        ],
+    })
 }
 
 /// Brake pedal 0..1 as the original's brake byte (`car+0xd80`, 0..255).
@@ -4959,7 +5154,7 @@ mod original_camera_tests {
     #[test]
     fn bumper_cam_is_rigid_in_scene_body_axes() {
         let sim = sim(0.7);
-        let mut player = PlayerCamera::new(DriverCamera::DEFAULT, 1);
+        let mut player = PlayerCamera::new(DriverCamera::DEFAULT, 0);
         let car = camera_car_from_sim(&sim, Vec3::ZERO, [0.9, 0.65, 2.1]);
         player.advance(0.1, &car, &mut FlatWorld);
         assert_eq!(player.name(), "BumperCam");

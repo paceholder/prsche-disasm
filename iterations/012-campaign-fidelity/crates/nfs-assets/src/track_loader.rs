@@ -149,6 +149,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         car_glares: Vec::new(),
         car_in_car: Vec::new(),
         effect_textures: Vec::new(),
+        particle_defs: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],

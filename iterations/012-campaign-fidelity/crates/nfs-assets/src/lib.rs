@@ -6,6 +6,7 @@ pub mod camera;
 pub mod cockpit;
 pub mod collision_box;
 pub mod lights;
+pub mod sparks;
 pub mod physics;
 pub mod race;
 pub mod surface;
@@ -238,6 +239,8 @@ pub struct Scene {
     /// Car effect textures from `GameData/Render/common.fsh`, named by their
     /// FSH entry (`CARG`, `SPIK`, `GLNT`, `SHAD`, ...); empty if the file is absent.
     pub effect_textures: Vec<Texture>,
+    /// Car particle systems of `GameData/Render/carpart.dat` (sparks, smoke, dirt).
+    pub particle_defs: Vec<sparks::ParticleDef>,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub bounds: [[f32; 3]; 2],
@@ -283,6 +286,7 @@ impl Default for Scene {
             car_glares: Vec::new(),
             car_in_car: Vec::new(),
             effect_textures: Vec::new(),
+            particle_defs: Vec::new(),
             textures: Vec::new(),
             materials: Vec::new(),
             bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],

@@ -37,6 +37,14 @@ pub struct RoadTriangle {
     pub positions: [[f32; 3]; 3],
 }
 
+/// A barrier contact: response magnitude (the `0x494000` return that
+/// `0x495020` keeps as impact strength `+0x430`) and contact point (`+0x440`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BarrierContact {
+    pub magnitude: f32,
+    pub point: [f32; 3],
+}
+
 /// A valid support contact. `identity` can be used by an audit UI or log.
 #[derive(Debug, Clone)]
 pub struct SurfaceHit {
@@ -211,6 +219,19 @@ impl RoadSurface {
         extents: [f32; 3],
         body_owner: &mut OriginalSupportOwner,
     ) -> Result<Option<f32>, String> {
+        Ok(self
+            .original_barrier_contact(state, extents, body_owner)?
+            .map(|hit| hit.magnitude))
+    }
+
+    /// As [`Self::original_barrier_response`], also returning the contact point
+    /// that `Car_CollideTrackEdges` 0x495020 stores at `+0x440` (original space).
+    pub fn original_barrier_contact(
+        &self,
+        state: &mut crate::physics::original_contact::PreparedContactState,
+        extents: [f32; 3],
+        body_owner: &mut OriginalSupportOwner,
+    ) -> Result<Option<BarrierContact>, String> {
         use crate::physics::original_body_contact::{first_body_contact, BodyContactInput};
         use crate::physics::original_scene_contact::{respond_scene_contact, SceneContactRequest};
         let source = self.original.as_ref().ok_or("no original scene backend")?;
@@ -246,7 +267,10 @@ impl RoadSurface {
                 angular_callback: true,
             },
         )?;
-        Ok(Some(result.magnitude))
+        Ok(Some(BarrierContact {
+            magnitude: result.magnitude,
+            point: contact.point,
+        }))
     }
 
     pub fn original_support_counts(&self) -> Option<(usize, usize)> {

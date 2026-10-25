@@ -11,9 +11,12 @@ use super::original::{
     DriverCamera, LookKeys, CAMERA_PARAMS, UPDATE_HZ,
 };
 
-/// `fe.txt` `car[0].camera` (player list at `0x658294`): BumperCam2, BumperCam, TailCam0,
-/// HeliCam2. `Camera_Cycle` picks `list[index & 3]`.
-pub const CYCLE_LIST: [i16; 4] = [1, 0, 2, 7];
+/// Player list at `0x658294` (`res+0x208`) as the front end writes it from Options → Kameras
+/// `Camera.1..4` (`FE_WriteCarConfig` 0x4eeda0) with the defaults 0, 1, 2, 3
+/// (`FEdaCameras_Init` 0x4e4d40): BumperCam, BumperCam2, TailCam0, TailCam1. The `fe.txt`
+/// list (BumperCam2, BumperCam, TailCam0, HeliCam2) is overwritten by it. `Camera_Cycle`
+/// picks `list[index & 3]`.
+pub const CYCLE_LIST: [i16; 4] = [0, 1, 2, 3];
 /// Camera id of the AnimCam race intro (`Camera_RaceInit 0x4640b0` starts in it).
 pub const ANIM_CAM: i16 = 14;
 /// Steps after a camera change with the fixed 0.1 lag (`+0xc1 = 0x32`).
@@ -310,7 +313,7 @@ mod tests {
             names.push(cam.name());
             settle(&mut cam);
         }
-        assert_eq!(names, ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"]);
+        assert_eq!(names, ["TailCam1", "BumperCam", "BumperCam2", "TailCam0"]);
     }
 
     #[test]
@@ -318,8 +321,8 @@ mod tests {
         let c = car([0.0; 3]);
         let mut cam = PlayerCamera::new(DriverCamera::DEFAULT, 0);
         cam.advance(0.5, &c, &mut FlatWorld);
-        assert_eq!(cam.name(), "BumperCam2");
-        // index 1 BumperCam, 2 TailCam0: leaving BumperCam resets the offset to -4 F.
+        assert_eq!(cam.name(), "BumperCam");
+        // index 1 BumperCam2, 2 TailCam0: leaving BumperCam2 resets the offset to -4 F.
         cam.cycle(&c, &mut FlatWorld);
         cam.cycle(&c, &mut FlatWorld);
         assert_eq!(cam.name(), "TailCam0");

@@ -71,12 +71,12 @@ pub fn run_cli(args: impl IntoIterator<Item = String>) -> Result<(), String> {
             }
             "--race-car" => race.car = Some(next_value(&mut iter, "--race-car")?),
             "--pedal" => race.pedal = parse_f32(&mut iter, "--pedal")?,
+            "--steer" => race.steer = parse_f32(&mut iter, "--steer")?,
             "--seconds" => race.seconds = parse_f32(&mut iter, "--seconds")?,
             "--lights" => race.lights = true,
             "--orbit-yaw" => race.orbit_yaw = Some(parse_f32(&mut iter, "--orbit-yaw")?),
             "--camera-cycles" => race.camera_cycles = parse_u32(&mut iter, "--camera-cycles")?,
             "--brake-last" => race.brake_last = parse_f32(&mut iter, "--brake-last")?,
-            "--steer" => race.steer = parse_f32(&mut iter, "--steer")?,
             "--original-model" => race.original_model = true,
             "--opponents" => race.opponents = parse_u32(&mut iter, "--opponents")?,
             "--width" => width = parse_u32(&mut iter, "--width")?,
@@ -173,6 +173,8 @@ struct RaceShot {
     car: Option<String>,
     /// Signed pedal held during the run (negative brakes).
     pedal: f32,
+    /// Steering held during the run (−1..1).
+    steer: f32,
     /// Simulated time before the shot.
     seconds: f32,
     /// Light switch on.
@@ -184,8 +186,6 @@ struct RaceShot {
     /// After the run, look at the car from an orbit camera at this yaw (radians).
     orbit_yaw: Option<f32>,
     opponents: u32,
-    /// Steering held during the run (-1..1, positive right).
-    steer: f32,
     /// Drive with the original vehicle model (key O).
     original_model: bool,
 }
@@ -701,7 +701,9 @@ fn read_dir_recursive(
                 .unwrap_or_default();
             let selected = extension.as_deref() == Some("fsh")
                 || (matches!(extension.as_deref(), Some("crp") | Some("tpg"))
-                    && stem.eq_ignore_ascii_case(car));
+                    && stem.eq_ignore_ascii_case(car))
+                // Car particle systems (sparks): Render/carpart.dat.
+                || (extension.as_deref() == Some("dat") && stem.eq_ignore_ascii_case("carpart"));
             if !selected {
                 continue;
             }

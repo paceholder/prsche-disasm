@@ -429,8 +429,8 @@ fn in_car_view_550() {
         position: [-0.239375, 0.425564, -0.121614],
         rotation_deg: [9.600019, 1.799999, 0.0],
     };
-    // Cycle index 0 = BumperCam2.
-    let mut cam = PlayerCamera::new(drivercam, 0);
+    // Cycle index 1 = BumperCam2.
+    let mut cam = PlayerCamera::new(drivercam, 1);
     let mut world = flat_world();
     let mut car = car_at([12.0, 0.6, -40.0], 0.0, 0.0);
     for i in 0..128 {
@@ -448,7 +448,7 @@ fn in_car_view_550() {
     assert!(view.matrix[2][1].abs() > 0.1, "{:?}", view.matrix);
 }
 
-/// Scenario "Cycling": four presses from TailCam0 give HeliCam2, BumperCam2, BumperCam, TailCam0.
+/// Scenario "Cycling": four presses from TailCam0 give TailCam1, BumperCam, BumperCam2, TailCam0.
 #[test]
 fn cycling() {
     use nfs_assets::camera::{DriverCamera, PlayerCamera};
@@ -463,5 +463,5 @@ fn cycling() {
         cam.advance(0.1, &car, &mut world);
         views.push(cam.name());
     }
-    assert_eq!(views, ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"]);
+    assert_eq!(views, ["TailCam1", "BumperCam", "BumperCam2", "TailCam0"]);
 }

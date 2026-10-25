@@ -143,6 +143,47 @@ pub fn push_car_glares(
     }
 }
 
+/// Spark texture in `particle.fsh` (`CSPK` matid `KRPS`).
+pub const SPARK_TEXTURE: &str = "SPRK";
+/// Approximation A70: sparks have size 0 in `carpart.dat`; they are drawn as
+/// streaks this wide, `SPARK_STREAK_TICKS` ticks of motion long, pulled
+/// `GLARE_EYE_OFFSET` towards the eye for the original's z bias −40000.
+const SPARK_WIDTH: f32 = 0.08;
+const SPARK_STREAK_TICKS: f32 = 3.0;
+
+/// Add a camera-facing streak per live spark (additive, like glares).
+pub fn push_sparks(
+    out: &mut EffectBatches,
+    emitter: &nfs_assets::sparks::SparkEmitter,
+    to_scene: impl Fn([f32; 3]) -> Vec3,
+    camera: &CameraFrame,
+) {
+    for spark in &emitter.sparks {
+        let back: [f32; 3] =
+            std::array::from_fn(|k| spark.position[k] - spark.velocity[k] * SPARK_STREAK_TICKS);
+        let pull = |p: Vec3| p + (camera.eye - p).normalize_or_zero() * GLARE_EYE_OFFSET;
+        let head = pull(to_scene(spark.position));
+        let tail = pull(to_scene(back));
+        let along = head - tail;
+        let view = (camera.eye - head).normalize_or_zero();
+        let side = along.cross(view).normalize_or(camera.right) * (SPARK_WIDTH * 0.5);
+        let [r, g, b, a] = emitter.color(spark);
+        if a <= 0.0 {
+            continue;
+        }
+        out.push_quad(
+            SPARK_TEXTURE,
+            [tail - side, head - side, head + side, tail + side],
+            [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
+            [linear_f(r), linear_f(g), linear_f(b), a],
+        );
+    }
+}
+
+fn linear_f(c: f32) -> f32 {
+    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+}
+
 /// Shadow grid size of 0x43b820: `n = 6 − min(6, round(d²/100))`, at least 1.
 pub fn shadow_subdivisions(camera_distance: f32) -> u32 {
     let steps = (camera_distance * camera_distance * 0.01).round().clamp(0.0, 6.0) as u32;

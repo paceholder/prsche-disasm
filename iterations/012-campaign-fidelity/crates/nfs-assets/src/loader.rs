@@ -162,14 +162,23 @@ fn parked_levels(article: &Entry, style: &StyleSelection) -> Result<Vec<u16>, St
 /// Glare and shadow textures of `Render/common.fsh` (`R3DCar_DrawGlare` 0x43cdd0 and
 /// `R3DCar_DrawShadow` 0x43b820 look them up by FSH name). Absent file: no effects.
 fn effect_textures(files: &AssetFiles) -> Result<Vec<Texture>, String> {
-    let Ok(data) = find(files, "common.fsh") else {
-        return Ok(Vec::new());
-    };
-    let images = nfs_formats::parse_fsh(data).map_err(|e| format!("common.fsh: {e}"))?;
+    let mut out = Vec::new();
+    // particle.fsh holds the spark texture SPRK (carpart.dat `CSPK`, matid KRPS);
+    // carcmn.fsh the specular maps SPC1..3 (`Car_Load` 0x441a10).
+    for name in ["common.fsh", "particle.fsh", "carcmn.fsh"] {
+        if let Ok(data) = find(files, name) {
+            out.extend(fsh_textures(name, data)?);
+        }
+    }
+    Ok(out)
+}
+
+fn fsh_textures(name: &str, data: &[u8]) -> Result<Vec<Texture>, String> {
+    let images = nfs_formats::parse_fsh(data).map_err(|e| format!("{name}: {e}"))?;
     // parse_fsh lowercases names, but common.fsh has both `spik` and `SPIK`;
     // the original looks textures up by exact FourCC, so keep the raw names.
     let raw = if data.starts_with(&[0x10, 0xfb]) {
-        nfs_formats::decompress(data).map_err(|e| format!("common.fsh: {e}"))?
+        nfs_formats::decompress(data).map_err(|e| format!("{name}: {e}"))?
     } else {
         data.to_vec()
     };
@@ -666,6 +675,10 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         car_glares: car_glares(&crp, &style, scene_lod)?,
         car_in_car: Vec::new(),
         effect_textures: effect_textures(files)?,
+        particle_defs: match find(files, "carpart.dat") {
+            Ok(data) => crate::sparks::parse_particle_dat(data)?,
+            Err(_) => Vec::new(),
+        },
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],

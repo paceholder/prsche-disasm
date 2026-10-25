@@ -301,6 +301,14 @@ impl BrowserViewer {
             .unwrap_or_default()
     }
 
+    /// Debug: [live sparks, bursts, strongest barrier contact].
+    pub fn get_spark_stats(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.spark_stats().to_vec())
+            .unwrap_or_default()
+    }
+
     /// L key: light switch (original `Controller.Lights`); returns whether it is on.
     pub fn toggle_lights(&mut self) -> bool {
         self.renderer
