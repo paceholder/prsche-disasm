@@ -4,7 +4,7 @@ import {
   parseHudFiles, selectConfig, SLOT, carGauges, gaugePacks, NEEDLE_SIZES, speedoUnits, tachUnits,
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
   BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale,
-  resampleOutline, mapTransform,
+  resampleOutline, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP,
 } from "./race-hud-core.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
 import { drawText, textWidth } from "./frontend.js";
@@ -56,7 +56,7 @@ export class RaceHud {
       this.fonts[key] = await this.assets.font(file, DASH);
     }
     const names = ["circletach", "speedK", "speedKN", "speedM", "speedMN", "needle", "needleN",
-      "needle2", "needle2N", "tach", "tachN", "car", "radar"];
+      "needle2", "needle2N", "tach", "tachN", "car", "radar", "321go", "321go2", "circlefull", "circleoutline"];
     await Promise.all(names.map(async n => { this.packs[n] = await this.assets.pack(`${n}.fsh`, DASH); }));
     this.ready = true;
   }
@@ -159,6 +159,52 @@ export class RaceHud {
     if (o.opponentList !== 0 && rows.length) this.positionList(listBox, S[4], rows, st);
     if (o.damageDisplay === 1) this.damage(S[5], st);
     if (o.map !== 0) this.map(S[SLOT.MAP], st, o);
+    this.countdown(viewer, phase, W, H);
+  }
+
+  // Start countdown H321Go (0x4184f0), visible from step 0x100 to 0x1c0 of the 7 s start.
+  countdown(viewer, phase, W, H) {
+    this.last.countdown = null;
+    let step = this.debugCountdownStep ?? null; // test hook: __nfs.hud.debugCountdownStep = 0x100..0x1c0
+    if (step === null && phase === 1) step = Math.floor((COUNTDOWN_LAST_STEP / 64 - viewer.get_countdown_remaining()) * 64);
+    if (step === null) return;
+    const sizes = (pack, frame) => {
+      const sh = this.packs[pack]?.[frame];
+      return [sh?.width ?? 0, sh?.height ?? 0];
+    };
+    const draws = countdownDraws(step, W, H, sizes);
+    if (!draws) return;
+    this.last.countdown = { step, items: draws.length };
+    const { ctx } = this;
+    for (const d of draws) {
+      const a = (d.color >>> 24) / 255;
+      if (d.kind === "sprite") {
+        const sh = this.packs[d.art[0]]?.[d.art[1]];
+        if (!sh?.canvas || a <= 0) continue;
+        const tinted = (d.color & 0xffffff) === 0xffffff ? sh.canvas : this.tint(sh, d.color & 0xffffff);
+        ctx.globalAlpha = a;
+        ctx.drawImage(tinted, d.x, d.y, d.w, d.h);
+        ctx.globalAlpha = 1;
+      } else if (d.kind === "line") {
+        ctx.strokeStyle = rgbaCss(d.color);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const h = d.y0 === d.y1;
+        ctx.moveTo(h ? d.x0 : d.x0 + 0.5, h ? d.y0 + 0.5 : d.y0);
+        ctx.lineTo(h ? d.x1 : d.x1 + 0.5, h ? d.y1 + 0.5 : d.y1);
+        ctx.stroke();
+      } else if (d.kind === "wedge") {
+        ctx.fillStyle = rgbaCss(d.color);
+        ctx.beginPath();
+        for (const [p0, p1, p2] of d.tris) {
+          ctx.moveTo(p0[0], p0[1]);
+          ctx.lineTo(p1[0], p1[1]);
+          ctx.lineTo(p2[0], p2[1]);
+          ctx.closePath();
+        }
+        ctx.fill();
+      }
+    }
   }
 
   panel(b) {

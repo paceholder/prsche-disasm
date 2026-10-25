@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  countdownDigit, countdownStep, parseFeAudio, parseVivToc, RaceEvents, ScreenMusic,
+  announcerStep, countdownDigit, countdownStep, parseFeAudio, parseVivToc, RaceEvents, ScreenMusic,
   screenMusicPattern, START_SECS, VolumeRamp,
 } from "./game-audio.js";
 
@@ -70,4 +70,12 @@ test("race events: start, laps, best lap, finish", () => {
   assert.deepEqual(ev.update({ phase: 2, lap: 4, best: 55 }).lap, { lapsDone: 3, best: false });
   assert.equal(ev.update({ phase: 4, lap: 4, best: 55 }).finished, true);
   assert.equal(ev.update({ phase: 5, lap: 4, best: 55 }).finished, false);
+});
+
+test("Go (step 0x1c0) is delivered on the countdown to racing transition", () => {
+  assert.equal(announcerStep(1, 0, 3), 0x100);
+  assert.equal(announcerStep(1, 1, 0.01), 0x1bf);
+  assert.equal(announcerStep(2, 1, 0), 0x1c0);
+  assert.equal(announcerStep(2, 2, 0), null);
+  assert.equal(announcerStep(0, 0, 0), null);
 });

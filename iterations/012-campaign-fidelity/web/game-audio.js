@@ -57,6 +57,15 @@ export function countdownStep(remaining, startSecs = START_SECS) {
   return Math.floor((startSecs - remaining) * SCHED_HZ);
 }
 
+// Scheduler step for the announcer this frame, or null. The browser phase switches to racing in the
+// frame where the clock reaches 0, so the last step (0x1c0, "Go") is only seen as phase 2 right
+// after phase 1: it is delivered on that transition (the original asks at step 0x1c0, 0x414ff0).
+export function announcerStep(phase, prevPhase, remaining, startSecs = START_SECS) {
+  if (phase === 1) return countdownStep(remaining, startSecs);
+  if (phase === 2 && prevPhase === 1) return Math.round(startSecs * SCHED_HZ);
+  return null;
+}
+
 // HUD digit: only the last 3 s show "3", "2", "1", in step with the phrases.
 export function countdownDigit(remaining) {
   if (remaining > 3.0) return null;

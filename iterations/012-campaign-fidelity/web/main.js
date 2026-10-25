@@ -767,10 +767,11 @@ class GameAudio {
     if (!this.helpers || !viewer) return;
     if (!this.speechLoading) this.loadSpeech();
     const a = this.announcer;
+    const prevPhase = this.events.phase;
     const ev = this.events.update({ phase, lap: viewer.get_current_lap(), best: viewer.get_best_lap_time() });
     if (ev.start) a?.reset();
-    if (a && phase === 1) {
-      const step = this.helpers.countdownStep(remaining);
+    const step = this.helpers.announcerStep(phase, prevPhase, remaining);
+    if (a && step !== null) {
       const p = a.countdown(step);
       if (p >= 0) this.record("speech-request", { phrase: p, step });
     }
@@ -3281,8 +3282,9 @@ function updateNavigation(dt) {
     }
     drawRaceHud(dt);
 
-    // Countdown Banner
-    if (countdownBanner) {
+    // Countdown Banner (fallback only: the original H321Go is drawn by race-hud.js once the HUD is ready)
+    if (countdownBanner && raceHud?.ready && raceHud.gauges) countdownBanner.hidden = true;
+    else if (countdownBanner) {
       if (phase === 1) {
         // The original start lasts 7 s; "3, 2, 1" come in its last 3 s (Sched_Step 0x414ff0).
         const remaining = viewer.get_countdown_remaining();

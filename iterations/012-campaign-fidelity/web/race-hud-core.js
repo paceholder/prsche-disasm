@@ -360,3 +360,104 @@ export function mapTransform(box, cx, cz, zoom, upYaw, mirror = false) {
     return [ox + rx * scale, oy - rz * scale];
   };
 }
+
+// --- Countdown H321Go (docs/re/hud.md "Countdown") -------------------------------------------
+// HUD object vtable 0x5b27ec, ctor 0x417a60, draw 0x4184f0, digits 0x418670, wedge 0x418910.
+// Visible from scheduler step 0x100 to 0x1c0 (64 steps/s, same steps as the phrases "3", "2", "1").
+export const COUNTDOWN_FIRST_STEP = 0x100; // g_CountdownSteps 0x5b27d8..0x5b27e4
+export const COUNTDOWN_STAGE_STEPS = [0x100, 0x140, 0x180];
+export const COUNTDOWN_LAST_STEP = 0x1c0;
+// Zoom records 0x81 + 5k (0x417a60): [scale, ARGB]; k = 0..4 have scale 0 (not drawn).
+export const COUNTDOWN_ZOOM = [
+  [0, 0x80ffffff], [0, 0x80ffffff], [0, 0x80ffffff], [0, 0x80ffffff], [0, 0x80ffffff],
+  [8, 0x3fffffff], [7, 0x3fffffff], [6, 0x3fffffff], [5, 0x3fffffff],
+  [4, 0x80ffffff], [3, 0x80ffffff], [2, 0x80ffffff],
+  [1, 0xbfffffff], [1, 0xbfffffff], [1, 0x80ffffff], [1, 0x80ffffff],
+];
+export const COUNTDOWN_CIRCLE_FILL = 0x3ffab400; // 0x4184f0
+export const COUNTDOWN_CIRCLE_RING = 0x80fab400;
+export const COUNTDOWN_LINE = 0x80000000; // 0x419c50
+export const COUNTDOWN_WEDGE = 0x33000000; // 0x418910 -> 0x466100
+// Digit art per stage [pack, frame] from `FUN_00422df0(name, frame, ...)` in 0x417a60 (sizes DAT_005cc838..).
+export const COUNTDOWN_ART = [
+  { solid: ["321go", 1], outline: ["321go", 2] }, // 3sol, 3ol
+  { solid: ["321go", 0], outline: ["321go", 3] }, // 2sol, 2ol
+  { solid: ["321go2", 0], outline: ["321go2", 1] }, // 1sol, 1ol
+];
+
+// Stage (0..2), sweep tick k (0..15, 1/15 s) and the step within the second for scheduler step
+// `step`; null outside the countdown (0x4184f0).
+export function countdownState(step) {
+  if (step < COUNTDOWN_FIRST_STEP || step > COUNTDOWN_LAST_STEP) return null;
+  const stage = step >= COUNTDOWN_STAGE_STEPS[2] ? 2 : step >= COUNTDOWN_STAGE_STEPS[1] ? 1 : 0;
+  const n = step % 64;
+  const k = Math.trunc((n * 3 + 3) * 5 / 64);
+  return { stage, n, k };
+}
+
+// The 16 border points of the wedge fan, clockwise from the top centre (0x418910), for a W x H view.
+export function wedgePoints(W, H) {
+  const xs = [W / 2, 3 * W / 4, W, W, W, W, W, 3 * W / 4, W / 2, W / 4, 0, 0, 0, 0, 0, W / 4];
+  const ys = [0, 0, 0, H / 4, H / 2, 3 * H / 4, H, H, H, H, H, 3 * H / 4, H / 2, H / 4, 0, 0];
+  return xs.map((x, i) => [x, ys[i]]);
+}
+
+// Draw list of the countdown at `step` on a W x H view (HUD units = pixels, art 1:1).
+// `sizes(pack, frame)` -> [w, h] of the art. Items in draw order:
+//  { kind: "sprite", art: [pack, frame], x, y, w, h, color } | { kind: "line", x0, y0, x1, y1, color }
+//  | { kind: "wedge", tris: [[p0, p1, p2]...], color }
+export function countdownDraws(step, W, H, sizes) {
+  const s = countdownState(step);
+  if (!s) return null;
+  const { stage, k } = s;
+  const cx = Math.trunc(W / 2);
+  const cy = Math.trunc(H / 2);
+  const out = [];
+  // Scaled quad (0x418670): corners centre -/+ trunc(size * scale) / 2.
+  const zoomed = (art, w, h, color, scale) => {
+    const hw = Math.trunc(w * scale) >> 1;
+    const hh = Math.trunc(h * scale) >> 1;
+    out.push({ kind: "sprite", art, x: cx - hw, y: cy - hh, w: hw + hw, h: hh + hh, color });
+  };
+  // Unscaled art centred on the screen centre (outlines, rings) or in the 130 px box (solid digits, 0x417a60).
+  const centred = (art, w, h, color) => {
+    out.push({ kind: "sprite", art, x: cx - (w >> 1), y: cy - (h >> 1), w, h, color });
+  };
+  const boxed = (art, w, h, color) => {
+    const bx = Math.trunc((W - 0x82) / 2) + ((0x82 - w) >> 1);
+    const by = Math.trunc((H - 0x82) / 2) + ((0x82 - h) >> 1);
+    out.push({ kind: "sprite", art, x: bx, y: by, w, h, color });
+  };
+  // Backing disc and ring, 128 px (0x417a60: circlefull / circleoutline).
+  centred(["circlefull", 0], 128, 128, COUNTDOWN_CIRCLE_FILL);
+  centred(["circleoutline", 0], 128, 128, COUNTDOWN_CIRCLE_RING);
+  out.push({ kind: "line", x0: 0, y0: cy, x1: W, y1: cy, color: COUNTDOWN_LINE });
+  out.push({ kind: "line", x0: cx, y0: 0, x1: cx, y1: H, color: COUNTDOWN_LINE });
+  const art = COUNTDOWN_ART[stage];
+  const [zoom, zcolor] = COUNTDOWN_ZOOM[k];
+  if (zoom > 0) {
+    const [w, h] = sizes(...art.solid);
+    zoomed(art.solid, w, h, zcolor, zoom);
+  }
+  if (stage > 0 && k <= 4) { // the previous digit stays until the new one zooms in
+    const prev = COUNTDOWN_ART[stage - 1];
+    const [w, h] = sizes(...prev.solid);
+    boxed(prev.solid, w, h, 0x80ffffff);
+  }
+  {
+    const alpha = (k & 7) << 5; // (k << 0x1d) | 0xffffff: top 3 bits of the alpha byte
+    const [w, h] = sizes(...art.outline);
+    centred(art.outline, w, h, ((alpha << 24) | 0xffffff) >>> 0);
+  }
+  if (stage > 0) { // previous outline fades: alpha = (0x100 / k) << 24 (k = 0, 1 give 0)
+    const a = (k === 0 ? 0x100 : Math.trunc(256 / k)) & 0xff;
+    const prev = COUNTDOWN_ART[stage - 1];
+    const [w, h] = sizes(...prev.outline);
+    centred(prev.outline, w, h, ((a << 24) | 0xffffff) >>> 0);
+  }
+  const pts = wedgePoints(W, H);
+  const tris = [];
+  for (let i = 0; i <= k; i++) tris.push([[W / 2, H / 2], pts[i], pts[(i + 1) % 16]]);
+  out.push({ kind: "wedge", tris, color: COUNTDOWN_WEDGE });
+  return out;
+}
