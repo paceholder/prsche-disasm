@@ -175,6 +175,76 @@ impl RoadSurface {
         }))
     }
 
+    /// Endpoints of the original scene's barrier edges, in original world
+    /// coordinates (empty without the original backend).
+    pub fn original_barrier_edges(&self) -> Vec<[[f32; 3]; 2]> {
+        use crate::physics::original_scene_objects::SceneObject;
+        self.original
+            .as_ref()
+            .map(|source| {
+                source
+                    .objects
+                    .iter()
+                    .filter_map(|object| match object {
+                        SceneObject::Edge(edge) => Some(edge.endpoints),
+                        SceneObject::Special(_) => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Original barrier pass for one car, in original world coordinates:
+    /// `Car_CollideTrackEdges` 0x495020 selects the first body point crossing a
+    /// scene edge, then 0x494000 responds (angular flag 1, as the original
+    /// passes at 0x495020+). `body_owner` is the car's persistent support
+    /// owner (car+8); it is refreshed at the car position first.
+    /// Hypothesis: the original refreshes car+8 during body integration.
+    /// Returns the response magnitude, or `None` without a contact.
+    pub fn original_barrier_response(
+        &self,
+        state: &mut crate::physics::original_contact::PreparedContactState,
+        extents: [f32; 3],
+        body_owner: &mut OriginalSupportOwner,
+    ) -> Result<Option<f32>, String> {
+        use crate::physics::original_body_contact::{first_body_contact, BodyContactInput};
+        use crate::physics::original_scene_contact::{respond_scene_contact, SceneContactRequest};
+        let source = self.original.as_ref().ok_or("no original scene backend")?;
+        body_owner.select(&source.tree, &source.polygons, state.position_330, true)?;
+        let input = BodyContactInput {
+            position_330: state.position_330,
+            velocity_33c: state.velocity_33c,
+            basis_364: state.basis_364,
+            basis_370: state.basis_370,
+            basis_37c: state.basis_37c,
+            extents_3a8: extents,
+        };
+        let Some(contact) = first_body_contact(
+            input,
+            body_owner,
+            &source.tree,
+            &source.polygons,
+            &source.objects,
+        )?
+        else {
+            return Ok(None);
+        };
+        let result = respond_scene_contact(
+            state,
+            body_owner,
+            &source.tree,
+            &source.polygons,
+            SceneContactRequest {
+                normal: contact.normal,
+                point: contact.point,
+                displacement: contact.displacement,
+                alternate_52c_mask_04: false,
+                angular_callback: true,
+            },
+        )?;
+        Ok(Some(result.magnitude))
+    }
+
     pub fn original_support_counts(&self) -> Option<(usize, usize)> {
         self.original
             .as_ref()

@@ -616,11 +616,11 @@ impl VehicleSimulation {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::surface::{RoadTriangle, RoadTriangleIdentity};
 
-    fn test_boxster_sim() -> SimCar {
+    pub(crate) fn test_boxster_sim() -> SimCar {
         SimCar {
             name: "Test Boxster".to_string(),
             mass_kg: 1252.0,

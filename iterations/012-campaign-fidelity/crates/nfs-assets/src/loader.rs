@@ -324,6 +324,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         .unwrap_or(0);
     let mut scene = Scene {
         meshes: Vec::new(),
+        car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
         car_wheels: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),

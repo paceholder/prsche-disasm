@@ -384,6 +384,43 @@ impl BrowserViewer {
         self.renderer.as_ref().map(|r| r.has_car()).unwrap_or(false)
     }
 
+    /// Debug: cycle the AI speed cap (none, 30 km/h, parked). Returns km/h,
+    /// negative for none.
+    pub fn cycle_ai_speed_limit(&mut self) -> f32 {
+        self.renderer
+            .as_mut()
+            .map(|r| r.cycle_ai_speed_limit())
+            .unwrap_or(-1.0)
+    }
+
+    /// Switch between the prototype and the original collision response.
+    /// Returns true when the original response is active.
+    pub fn toggle_collision_model(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| {
+                r.toggle_collision_model()
+                    == nfs_assets::race::original_collision::CollisionModel::Original
+            })
+            .unwrap_or(false)
+    }
+
+    /// Show or hide the collision-box wireframes. Returns the new state.
+    pub fn toggle_collision_boxes(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| r.toggle_collision_boxes())
+            .unwrap_or(false)
+    }
+
+    /// Player and nearest-AI collision box report (centres, extents, box gap).
+    pub fn collision_box_report(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.collision_box_report())
+            .unwrap_or_else(|| "no renderer".to_string())
+    }
+
     pub fn toggle_sim_mode(&mut self) -> bool {
         self.renderer
             .as_mut()

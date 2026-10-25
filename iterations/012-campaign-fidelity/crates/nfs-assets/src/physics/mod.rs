@@ -8,8 +8,10 @@
 //! - Road surface heightfield queries via `surface::RoadSurface`
 
 pub mod chassis;
+pub mod original_adapter;
 pub mod original_body_contact;
 pub mod original_contact;
+pub mod original_pair;
 pub mod original_scene_contact;
 pub mod original_scene_objects;
 pub mod original_spatial;

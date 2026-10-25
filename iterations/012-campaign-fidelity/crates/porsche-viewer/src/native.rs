@@ -314,6 +314,7 @@ mod gpu_diagnostics {
         })
         .to_vec();
         let scene = Scene {
+            car_collision_box: None,
             meshes: vec![Mesh {
                 name: "paint regression".into(),
                 vertices,
@@ -431,6 +432,7 @@ mod gpu_diagnostics {
             material,
         };
         let scene = Scene {
+            car_collision_box: None,
             // Deliberately put the detail first: article order must not win.
             meshes: vec![mesh(1), mesh(0)],
             textures: vec![

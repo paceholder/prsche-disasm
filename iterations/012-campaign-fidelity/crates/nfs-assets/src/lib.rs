@@ -1,6 +1,7 @@
 //! GPU-independent scene contract shared by native and browser frontends.
 use std::collections::BTreeMap;
 
+pub mod collision_box;
 pub mod physics;
 pub mod race;
 pub mod surface;
@@ -129,6 +130,8 @@ pub struct TrackTopology {
 #[derive(Debug, Clone)]
 pub struct Scene {
     pub meshes: Vec<Mesh>,
+    /// Original collision box (CRP level 5) of a car scene; `None` for tracks.
+    pub car_collision_box: Option<collision_box::CarCollisionBox>,
     pub car_wheels: Vec<CarWheel>,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
@@ -162,6 +165,7 @@ pub struct Scene {
 impl Default for Scene {
     fn default() -> Self {
         Self {
+            car_collision_box: None,
             meshes: Vec::new(),
             car_wheels: Vec::new(),
             textures: Vec::new(),

@@ -2231,6 +2231,39 @@ window.addEventListener("keydown", (event) => {
     }
     return;
   }
+  if (event.code === "KeyB" && !event.repeat) {
+    if (viewer) {
+      const on = viewer.toggle_collision_boxes();
+      setStatus(on ? "Collision boxes: shown (B)" : "Collision boxes: hidden (B)");
+      if (on) console.log(viewer.collision_box_report());
+      queueFrame();
+    }
+    return;
+  }
+  if (event.code === "KeyJ" && !event.repeat) {
+    if (viewer) {
+      const limit = viewer.cycle_ai_speed_limit();
+      const text = limit < 0 ? "J: AI full speed" : limit === 0 ? "J: AI parked" : `J: AI ${Math.round(limit)} km/h`;
+      const badge = document.getElementById("aiSpeedBadge");
+      if (badge) badge.textContent = text;
+      setStatus(text);
+    }
+    return;
+  }
+  if (event.code === "KeyK" && !event.repeat) {
+    if (viewer) {
+      const original = viewer.toggle_collision_model();
+      const badge = document.getElementById("collisionModelBadge");
+      if (badge) badge.textContent = original ? "K: original collisions" : "K: prototype collisions";
+      setStatus(
+        original
+          ? "Collisions: original NFS5 response (K)"
+          : "Collisions: prototype response (K)"
+      );
+      queueFrame();
+    }
+    return;
+  }
   if (event.code === "KeyC" && !event.repeat) {
     if (viewer) {
       if (viewer.is_drive_mode() && viewer.has_car()) {

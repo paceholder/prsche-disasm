@@ -2,6 +2,7 @@
 
 use crate::physics::VehicleControls;
 use crate::race::course::{CourseProgressTracker, TrackCourse};
+use glam::{Mat3, Vec3};
 use nfs_formats::AisCar;
 
 /// AI driver behavior and personality parameters.
@@ -84,6 +85,8 @@ pub struct AiOpponent {
     pub velocity: [f32; 3],
     pub forward: [f32; 3],
     pub yaw: f32,
+    /// Smoothed road-surface normal under the car (unit, default +Y).
+    pub up: [f32; 3],
     pub current_speed: f32,
     pub wheel_distance: f32,
     /// Velocity from a vehicle impact that the path controller must not erase.
@@ -93,6 +96,8 @@ pub struct AiOpponent {
     pub laps_completed: u32,
     pub current_controls: VehicleControls,
     pub lookahead_wp_idx: usize,
+    /// Debug speed cap in m/s (`Some(0.0)` parks the car on the course).
+    pub speed_limit: Option<f32>,
 }
 
 impl AiOpponent {
@@ -116,6 +121,7 @@ impl AiOpponent {
             velocity: [0.0; 3],
             forward,
             yaw,
+            up: [0.0, 1.0, 0.0],
             current_speed: 0.0,
             wheel_distance: 0.0,
             collision_velocity: [0.0; 3],
@@ -124,6 +130,7 @@ impl AiOpponent {
             laps_completed: 0,
             current_controls: VehicleControls::default(),
             lookahead_wp_idx: 1,
+            speed_limit: None,
         }
     }
 
@@ -244,6 +251,12 @@ impl AiOpponent {
         } else {
             self.current_speed = (self.current_speed - (2.5 + drag) * dt).max(0.0);
         }
+        // Debug cap: brake down to the limit instead of jumping to it.
+        if let Some(limit) = self.speed_limit {
+            if self.current_speed > limit {
+                self.current_speed = (self.current_speed - brake_rate * dt).max(limit);
+            }
+        }
 
         // Heading update
         let max_steer = 30.0_f32.to_radians();
@@ -269,6 +282,22 @@ impl AiOpponent {
         self.position[1] = elevation_fn(self.position[0], self.position[2]);
     }
 
+    /// Smooths the road normal under the car into `up`. `None` (no surface
+    /// hit) keeps the previous normal.
+    ///
+    /// Approximation: AI cars are kinematic; tilt follows the road surface,
+    /// not the original vehicle model.
+    pub fn update_road_up(&mut self, dt: f32, surface_normal: Option<[f32; 3]>) {
+        if let Some(n) = surface_normal {
+            self.up = smooth_up(self.up, n, dt, AI_UP_TIME_CONSTANT).to_array();
+        }
+    }
+
+    /// Body-to-world rotation: heading from `yaw`, up axis along `up`.
+    pub fn body_rotation(&self) -> Mat3 {
+        tilted_basis(self.yaw, Vec3::from(self.up))
+    }
+
     /// Applies the world-space velocity returned by vehicle contact resolution.
     pub fn apply_collision_velocity(&mut self, velocity: [f32; 3]) {
         let forward_speed = velocity[0] * self.forward[0] + velocity[2] * self.forward[2];
@@ -280,6 +309,44 @@ impl AiOpponent {
         ];
         self.velocity = [velocity[0], 0.0, velocity[2]];
     }
+}
+
+/// Time constant (s) of the exponential smoothing of the AI road normal.
+pub const AI_UP_TIME_CONSTANT: f32 = 0.1;
+
+/// Exponentially moves unit vector `current` toward `target` (renormalized).
+/// Degenerate inputs leave `current` unchanged.
+pub fn smooth_up(current: [f32; 3], target: [f32; 3], dt: f32, tau: f32) -> Vec3 {
+    let current = Vec3::from(current);
+    let target = Vec3::from(target).normalize_or_zero();
+    if target == Vec3::ZERO {
+        return current;
+    }
+    let alpha = 1.0 - (-dt.max(0.0) / tau.max(1e-4)).exp();
+    let blended = current.lerp(target, alpha).normalize_or_zero();
+    if blended == Vec3::ZERO {
+        target
+    } else {
+        blended
+    }
+}
+
+/// Body-to-world rotation (body: +X right, +Y up, -Z forward) that keeps the
+/// heading `yaw` but aligns the up axis with `up`. Flat ground (`up` = +Y)
+/// gives `Mat3::from_rotation_y(yaw)`.
+pub fn tilted_basis(yaw: f32, up: Vec3) -> Mat3 {
+    let up = up.normalize_or_zero();
+    if up == Vec3::ZERO || up.y <= 0.05 {
+        return Mat3::from_rotation_y(yaw);
+    }
+    let heading = Vec3::new(-yaw.sin(), 0.0, -yaw.cos());
+    // Lift the heading vertically until it lies in the road plane, so its
+    // horizontal direction stays exactly the heading.
+    let forward = (heading + Vec3::Y * (-heading.dot(up) / up.y)).normalize_or_zero();
+    if forward == Vec3::ZERO {
+        return Mat3::from_rotation_y(yaw);
+    }
+    Mat3::from_cols(forward.cross(up), up, -forward)
 }
 
 /// Computes the initial spawn position and forward heading for a grid slot (0..=7).
@@ -321,6 +388,92 @@ fn distance_sq(a: [f32; 3], b: [f32; 3]) -> f32 {
 mod tests {
     use super::*;
     use nfs_formats::SplinePoint;
+
+    #[test]
+    fn flat_ground_basis_is_yaw_only() {
+        for yaw in [0.0_f32, 0.7, -2.0] {
+            let m = tilted_basis(yaw, Vec3::Y);
+            assert!(m.abs_diff_eq(Mat3::from_rotation_y(yaw), 1e-6));
+        }
+    }
+
+    #[test]
+    fn slope_tilts_up_and_keeps_heading() {
+        let yaw = 0.6_f32;
+        let a = 10.0_f32.to_radians();
+        // Slope rising along -Z (the yaw = 0 heading): normal leans toward +Z.
+        let up = Vec3::new(0.0, a.cos(), a.sin());
+        let m = tilted_basis(yaw, up);
+        let tilt = m.y_axis.angle_between(Vec3::Y);
+        assert!((tilt - a).abs() < 1e-4, "{tilt}");
+        assert!(m.y_axis.abs_diff_eq(up, 1e-5));
+        let fwd = -m.z_axis;
+        let heading = Vec3::new(-yaw.sin(), 0.0, -yaw.cos());
+        let h = Vec3::new(fwd.x, 0.0, fwd.z).normalize();
+        assert!(h.abs_diff_eq(heading, 1e-5));
+        assert!(fwd.dot(up).abs() < 1e-5);
+        assert!((m.determinant() - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn up_smoothing_converges_and_holds_without_hit() {
+        let mut ai = AiOpponent::new(
+            0,
+            "a",
+            "m",
+            AiProfile::pro(),
+            0,
+            &TrackCourse::from_spline_points(
+                &(0..12)
+                    .map(|i| SplinePoint {
+                        x: 0.0,
+                        z: i as f32 * 10.0,
+                    })
+                    .collect::<Vec<_>>(),
+                false,
+                |_, _| 0.0,
+            )
+            .unwrap(),
+        );
+        let n = Vec3::new(0.0, 0.9, 0.3).normalize().to_array();
+        ai.update_road_up(0.016, Some(n));
+        let first = Vec3::from(ai.up);
+        assert!(first.angle_between(Vec3::Y) > 0.0);
+        assert!(first.angle_between(Vec3::Y) < Vec3::from(n).angle_between(Vec3::Y) * 0.3);
+        let held = ai.up;
+        ai.update_road_up(0.016, None);
+        assert_eq!(ai.up, held);
+        for _ in 0..120 {
+            ai.update_road_up(0.016, Some(n));
+        }
+        assert!(Vec3::from(ai.up).angle_between(Vec3::from(n)) < 1e-3);
+    }
+
+    #[test]
+    fn speed_limit_brakes_down_and_parks() {
+        let points: Vec<_> = (0..40)
+            .map(|i| SplinePoint {
+                x: 0.0,
+                z: i as f32 * 10.0,
+            })
+            .collect();
+        let course = TrackCourse::from_spline_points(&points, false, |_, _| 0.0).unwrap();
+        let mut ai = AiOpponent::new(0, "Rival", "boxster", AiProfile::default(), 0, &course);
+        ai.current_speed = 40.0;
+        ai.speed_limit = Some(30.0 / 3.6);
+        let dt = 1.0 / 60.0;
+        ai.step_kinematics(dt, &course, |_, _| 0.0);
+        assert!(ai.current_speed > 30.0 / 3.6, "cap must brake, not jump");
+        for _ in 0..240 {
+            ai.step_kinematics(dt, &course, |_, _| 0.0);
+        }
+        assert!(ai.current_speed <= 30.0 / 3.6 + 1e-4);
+        ai.speed_limit = Some(0.0);
+        for _ in 0..120 {
+            ai.step_kinematics(dt, &course, |_, _| 0.0);
+        }
+        assert_eq!(ai.current_speed, 0.0);
+    }
 
     #[test]
     fn collision_velocity_survives_next_kinematic_step() {

@@ -307,6 +307,53 @@ pub struct TopologyRenderer {
     pub vertex_count: u32,
 }
 
+/// Dynamic wireframe overlay for the collision boxes (debug).
+struct BoxOverlay {
+    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+}
+
+const BOX_OVERLAY_MAX_CARS: usize = 16;
+const BOX_OVERLAY_MAX_VERTICES: usize = BOX_OVERLAY_MAX_CARS * 12 * 2;
+
+/// Build the pair cars (player first, then AI) exactly as the original
+/// collision pass sees them. Shared by the collision pass and the debug overlay.
+fn build_collision_pair_cars(
+    sim: &nfs_assets::physics::VehicleSimulation,
+    ai_opponents: &[nfs_assets::AiOpponent],
+    center: Vec3,
+    adapter: Vec3,
+    half: [f32; 3],
+) -> Vec<nfs_assets::physics::original_pair::PairCar> {
+    use nfs_assets::physics::original_adapter::pair_car_from_sim;
+    use nfs_assets::race::original_collision::pair_car_from_ai;
+    let mut cars = vec![pair_car_from_sim(sim, center + adapter, half)];
+    // AI cars are drawn with the player's model, so they use its box.
+    cars.extend(
+        ai_opponents
+            .iter()
+            .map(|ai| pair_car_from_ai(ai, center, half)),
+    );
+    cars
+}
+
+/// Box centre (scene) and the 8 corners (scene) of a pair car.
+fn pair_car_box_corners(car: &nfs_assets::physics::original_pair::PairCar) -> (Vec3, [Vec3; 8]) {
+    use nfs_assets::physics::original_adapter::from_original;
+    let c = Vec3::from(car.position_330);
+    let r = Vec3::from(car.axis_r_364) * car.extents_3a8[0];
+    let u = Vec3::from(car.axis_u_370) * car.extents_3a8[1];
+    let f = Vec3::from(car.axis_f_37c) * car.extents_3a8[2];
+    let mut out = [Vec3::ZERO; 8];
+    for (i, o) in out.iter_mut().enumerate() {
+        let sr = if i & 1 == 0 { -1.0 } else { 1.0 };
+        let su = if i & 2 == 0 { -1.0 } else { 1.0 };
+        let sf = if i & 4 == 0 { -1.0 } else { 1.0 };
+        *o = from_original((c + r * sr + u * su + f * sf).to_array());
+    }
+    (from_original(car.position_330), out)
+}
+
 struct CarRenderState {
     meshes: Vec<GpuMesh>,
     materials: Vec<GpuMaterial>,
@@ -342,6 +389,8 @@ pub struct Renderer {
     sky: Option<SkyState>,
     pub topology: Option<TopologyRenderer>,
     pub show_topology: bool,
+    pub show_collision_boxes: bool,
+    box_overlay: Option<BoxOverlay>,
     pub road_edges: Vec<nfs_assets::TopologyEdge>,
     pub road_surface: Option<nfs_assets::RoadSurface>,
     pub car: Option<crate::arcade::ArcadeCar>,
@@ -350,10 +399,21 @@ pub struct Renderer {
     pub chase_camera: crate::chase_camera::ChaseCamera,
     pub vehicle_contact_count: u32,
     pub sim_mode: bool,
+    /// Collision response: upstream prototype or the recovered original.
+    pub collision_model: nfs_assets::race::original_collision::CollisionModel,
+    collision_clock: nfs_assets::race::original_collision::CollisionClock,
+    pair_globals: nfs_assets::physics::original_pair::PairGlobals,
+    /// Persistent body support owner (original car+8) for the barrier pass.
+    body_support_owner: nfs_assets::physics::original_support_owner::OriginalSupportOwner,
+    /// Original collision box of the loaded car: centre in race body space
+    /// (before the chassis adapter offset) and half extents.
+    car_collision_box: Option<(Vec3, [f32; 3])>,
     pub race_session: Option<nfs_assets::RaceSession>,
     pub track_course: Option<nfs_assets::TrackCourse>,
     pub course_tracker: Option<nfs_assets::CourseProgressTracker>,
     pub ai_opponents: Vec<nfs_assets::AiOpponent>,
+    /// Debug cap for AI speed (m/s), cycled with J: none, 30 km/h, parked.
+    ai_speed_limit: Option<f32>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
     car_render: Option<CarRenderState>,
@@ -739,6 +799,7 @@ impl Renderer {
 
         // Build topology line overlay
         let mut topology_renderer = None;
+        let mut box_overlay_init = None;
         if let Some(top) = &scene.topology {
             let mut line_vertices = Vec::new();
             for line in &top.boundary_lines {
@@ -843,6 +904,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     multisample: Default::default(),
                     multiview_mask: None,
                     cache: None,
+                });
+                box_overlay_init = Some(BoxOverlay {
+                    pipeline: pipeline.clone(),
+                    vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("collision box vertices"),
+                        size: (BOX_OVERLAY_MAX_VERTICES * std::mem::size_of::<LineVertex>()) as u64,
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    }),
                 });
                 topology_renderer = Some(TopologyRenderer {
                     pipeline,
@@ -1165,6 +1235,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             sky,
             topology: topology_renderer,
             show_topology: false,
+            show_collision_boxes: false,
+            box_overlay: box_overlay_init,
             road_surface: scene.road_surface.clone(),
             road_edges,
             car,
@@ -1173,10 +1245,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             chase_camera: crate::chase_camera::ChaseCamera::default(),
             vehicle_contact_count: 0,
             sim_mode: true,
+            collision_model: Default::default(),
+            collision_clock: Default::default(),
+            pair_globals: Default::default(),
+            body_support_owner: Default::default(),
+            car_collision_box: None,
             race_session,
             track_course,
             course_tracker,
             ai_opponents,
+            ai_speed_limit: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
             car_render,
@@ -1520,8 +1598,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
             // Draw AI opponent vehicles on track with the same visible model.
             for ai in &self.ai_opponents {
-                let model_matrix =
-                    Mat4::from_translation(Vec3::from(ai.position)) * Mat4::from_rotation_y(ai.yaw);
+                // Approximation: AI cars are kinematic; tilt follows the road
+                // surface, not the original vehicle model.
+                let model_matrix = Mat4::from_translation(Vec3::from(ai.position))
+                    * Mat4::from_mat3(ai.body_rotation());
                 self.draw_car_meshes(
                     target,
                     "ai car",
@@ -1560,6 +1640,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             );
         }
 
+        // 3b. Collision box wireframes (debug)
+        self.draw_collision_boxes(target);
+
         // 4. Draw topology lines (if enabled and present)
         if let Some(top) = self
             .topology
@@ -1596,6 +1679,153 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
             self.queue.submit([encoder.finish()]);
         }
+    }
+
+    pub fn toggle_collision_boxes(&mut self) -> bool {
+        self.show_collision_boxes = !self.show_collision_boxes;
+        self.show_collision_boxes
+    }
+
+    /// Current pair cars (player first) and the chassis box, if a sim car is loaded.
+    fn current_pair_cars(&self) -> Option<Vec<nfs_assets::physics::original_pair::PairCar>> {
+        let sim = self.sim_car.as_ref()?;
+        let (center, half) = self.car_collision_box?;
+        let adapter = self
+            .car_render
+            .as_ref()
+            .map(|r| car_chassis_adapter_body(sim, r))
+            .unwrap_or(Vec3::ZERO);
+        Some(build_collision_pair_cars(
+            sim,
+            &self.ai_opponents,
+            center,
+            adapter,
+            half,
+        ))
+    }
+
+    /// Text report of the player's and nearest AI car's collision boxes.
+    pub fn collision_box_report(&self) -> String {
+        let Some(cars) = self.current_pair_cars() else {
+            return "no sim car".to_string();
+        };
+        use nfs_assets::physics::original_adapter::from_original;
+        let fmt = |v: Vec3| format!("({:.3}, {:.3}, {:.3})", v.x, v.y, v.z);
+        let p = &cars[0];
+        let mut out = format!(
+            "player centre {} half {:?}",
+            fmt(from_original(p.position_330)),
+            p.extents_3a8
+        );
+        let pc = Vec3::from(p.position_330);
+        let nearest = cars[1..].iter().min_by(|a, b| {
+            let da = (Vec3::from(a.position_330) - pc).length_squared();
+            let db = (Vec3::from(b.position_330) - pc).length_squared();
+            da.total_cmp(&db)
+        });
+        let Some(a) = nearest else {
+            out.push_str("\nno AI cars");
+            return out;
+        };
+        let ac = Vec3::from(a.position_330);
+        let d = ac - pc;
+        let dist = d.length();
+        out.push_str(&format!(
+            "\nnearest AI centre {} half {:?}",
+            fmt(from_original(a.position_330)),
+            a.extents_3a8
+        ));
+        if dist > 1e-6 {
+            let dir = d / dist;
+            // Support extent of an oriented box along dir.
+            let support = |c: &nfs_assets::physics::original_pair::PairCar| {
+                (dir.dot(Vec3::from(c.axis_r_364)) * c.extents_3a8[0]).abs()
+                    + (dir.dot(Vec3::from(c.axis_u_370)) * c.extents_3a8[1]).abs()
+                    + (dir.dot(Vec3::from(c.axis_f_37c)) * c.extents_3a8[2]).abs()
+            };
+            let (sp, sa) = (support(p), support(a));
+            out.push_str(&format!(
+                "\ncentre distance {dist:.3} m, extents along line {sp:.3} + {sa:.3}, box gap {:.3} m",
+                dist - sp - sa
+            ));
+        }
+        out
+    }
+
+    fn draw_collision_boxes(&mut self, target: &wgpu::TextureView) {
+        if !self.show_collision_boxes || self.box_overlay.is_none() {
+            return;
+        }
+        let Some(cars) = self.current_pair_cars() else {
+            return;
+        };
+        const EDGES: [(usize, usize); 12] = [
+            (0, 1),
+            (2, 3),
+            (4, 5),
+            (6, 7),
+            (0, 2),
+            (1, 3),
+            (4, 6),
+            (5, 7),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        ];
+        let mut verts: Vec<LineVertex> = Vec::new();
+        for (i, car) in cars.iter().take(BOX_OVERLAY_MAX_CARS).enumerate() {
+            let color = if i == 0 {
+                [1.0, 0.9, 0.1, 1.0]
+            } else {
+                [0.1, 0.9, 1.0, 1.0]
+            };
+            let (_, corners) = pair_car_box_corners(car);
+            for (a, b) in EDGES {
+                verts.push(LineVertex {
+                    position: corners[a].to_array(),
+                    color,
+                });
+                verts.push(LineVertex {
+                    position: corners[b].to_array(),
+                    color,
+                });
+            }
+        }
+        let Some(overlay) = self.box_overlay.as_ref() else {
+            return;
+        };
+        self.queue
+            .write_buffer(&overlay.vertex_buffer, 0, bytemuck::cast_slice(&verts));
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("collision boxes"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            pass.set_pipeline(&overlay.pipeline);
+            pass.set_bind_group(0, &self.camera_group, &[]);
+            pass.set_vertex_buffer(0, overlay.vertex_buffer.slice(..));
+            pass.draw(0..verts.len() as u32, 0..1);
+        }
+        self.queue.submit([encoder.finish()]);
     }
 
     pub fn set_show_topology(&mut self, show: bool) {
@@ -1818,12 +2048,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             // Barrier collision resolution for 6 DOF simulation
             let mut pos = sim.body.position.to_array();
             let mut vel = sim.body.linear_velocity.to_array();
-            if nfs_assets::BarrierCollider::resolve_collision(
-                &mut pos,
-                &mut vel,
-                edges,
-                &self.barrier_config,
-            ) {
+            if self.collision_model
+                == nfs_assets::race::original_collision::CollisionModel::Prototype
+                && nfs_assets::BarrierCollider::resolve_collision(
+                    &mut pos,
+                    &mut vel,
+                    edges,
+                    &self.barrier_config,
+                )
+            {
                 sim.body.position = Vec3::from(pos);
                 sim.body.linear_velocity = Vec3::from(vel);
                 sim.sync_wheel_spin_to_body();
@@ -1883,15 +2116,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let surface = self.road_surface.as_ref();
             for ai in &mut self.ai_opponents {
                 let reference_y = ai.position[1];
+                let normal = std::cell::Cell::new(None);
                 ai.step_kinematics(dt, course, |x, z| {
-                    surface
-                        .and_then(|s| s.query(x, z, reference_y, 2.0, 4.0))
-                        .map(|h| h.height)
-                        .unwrap_or(reference_y)
+                    let hit = surface.and_then(|s| s.query(x, z, reference_y, 2.0, 4.0));
+                    normal.set(hit.as_ref().map(|h| h.normal));
+                    hit.map(|h| h.height).unwrap_or(reference_y)
                 });
+                ai.update_road_up(dt, normal.get());
             }
         }
-        self.resolve_vehicle_contacts(&previous_contacts);
+        if self.collision_model == nfs_assets::race::original_collision::CollisionModel::Original
+            && self.sim_mode
+        {
+            self.run_original_collision(dt);
+        } else {
+            self.resolve_vehicle_contacts(&previous_contacts);
+        }
         if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
             player_pos = sim.body.position.to_array();
             player_fwd = sim.body.forward().to_array();
@@ -2000,6 +2240,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     pub fn reset_car(&mut self) {
         self.chase_camera.reset();
+        self.body_support_owner = Default::default();
+        self.collision_clock = Default::default();
         self.vehicle_contact_count = 0;
         self.reset_scenario_props();
         if let Some(course) = &self.track_course {
@@ -2224,6 +2466,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let (session, ai) = quick_race_grid(course, laps, opponents);
         self.race_session = Some(session);
         self.ai_opponents = ai;
+        for ai in &mut self.ai_opponents {
+            ai.speed_limit = self.ai_speed_limit;
+        }
         self.is_mission_mode = false;
         self.mission_progress = None;
         self.mission_timed_out = false;
@@ -2527,6 +2772,83 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .unwrap_or(0)
     }
 
+    /// Original collision passes due this frame (32 Hz), on the player car
+    /// and the AI cars. See nfs_assets::race::original_collision.
+    fn run_original_collision(&mut self, dt: f32) {
+        use nfs_assets::physics::original_adapter::apply_pair_car_to_sim;
+        use nfs_assets::race::original_collision::{
+            apply_barrier_state, apply_pair_car_to_ai, barrier_state, collide_pass,
+        };
+        let passes = self.collision_clock.advance(dt);
+        let (Some(sim), Some((center, half))) = (self.sim_car.as_mut(), self.car_collision_box)
+        else {
+            return;
+        };
+        let adapter = self
+            .car_render
+            .as_ref()
+            .map(|r| car_chassis_adapter_body(sim, r))
+            .unwrap_or(Vec3::ZERO);
+        let surface = self
+            .road_surface
+            .as_ref()
+            .filter(|s| s.uses_original_support());
+        for _ in 0..passes {
+            let mut cars =
+                build_collision_pair_cars(sim, &self.ai_opponents, center, adapter, half);
+            let before = cars.clone();
+            let owner = &mut self.body_support_owner;
+            collide_pass(&mut cars, &mut self.pair_globals, |index, car| {
+                // AI cars are kinematic and follow the course: no barrier pass
+                // (approximation A6).
+                let (0, Some(surface)) = (index, surface) else {
+                    return;
+                };
+                let mut state = barrier_state(car);
+                if let Ok(Some(_)) =
+                    surface.original_barrier_response(&mut state, car.extents_3a8, owner)
+                {
+                    apply_barrier_state(car, &state);
+                }
+            });
+            if cars[0] != before[0] {
+                apply_pair_car_to_sim(sim, &before[0], &cars[0]);
+                // The original pair/barrier response doesn't touch wheels; the
+                // 6 DOF body needs them matched (approximation A2).
+                sim.sync_wheel_spin_to_body();
+            }
+            for (i, ai) in self.ai_opponents.iter_mut().enumerate() {
+                apply_pair_car_to_ai(ai, &before[i + 1], &cars[i + 1]);
+            }
+        }
+    }
+
+    /// Cycle the debug AI speed cap: none -> 30 km/h -> parked -> none.
+    /// Returns the cap in km/h, or a negative value for none.
+    pub fn cycle_ai_speed_limit(&mut self) -> f32 {
+        self.ai_speed_limit = match self.ai_speed_limit {
+            None => Some(30.0 / 3.6),
+            Some(limit) if limit > 0.0 => Some(0.0),
+            Some(_) => None,
+        };
+        for ai in &mut self.ai_opponents {
+            ai.speed_limit = self.ai_speed_limit;
+        }
+        self.ai_speed_limit.map_or(-1.0, |limit| limit * 3.6)
+    }
+
+    pub fn toggle_collision_model(
+        &mut self,
+    ) -> nfs_assets::race::original_collision::CollisionModel {
+        use nfs_assets::race::original_collision::CollisionModel;
+        self.collision_model = match self.collision_model {
+            CollisionModel::Prototype => CollisionModel::Original,
+            CollisionModel::Original => CollisionModel::Prototype,
+        };
+        self.collision_clock = Default::default();
+        self.collision_model
+    }
+
     pub fn toggle_sim_mode(&mut self) -> bool {
         self.sim_mode = !self.sim_mode;
         self.sim_mode
@@ -2798,6 +3120,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .filter(|mesh_index| !wheel_mesh_indices.contains(mesh_index))
             .collect();
 
+        // Race meshes map raw CRP (x, y, z) to body (-x, y, z), see CAR_SCALE above.
+        self.car_collision_box = scene.car_collision_box.map(|b| {
+            (
+                Vec3::new(-b.center[0], b.center[1], b.center[2]),
+                b.half_extents,
+            )
+        });
         self.car_render = Some(CarRenderState {
             meshes: car_meshes,
             materials: car_materials,
