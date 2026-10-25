@@ -1137,3 +1137,20 @@ body:not(.menu-hidden) #menuButton {
 
 .music-level { display: inline-flex; align-items: center; gap: 6px; }
 .music-level input { width: 90px; accent-color: #d3bd83; }
+
+/* Debug: active vehicle model, top centre of the drive view (not part of the original HUD). */
+.vehicle-model-tag {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font: 600 11px/1.4 system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: rgba(120, 120, 120, 0.7);
+  pointer-events: none;
+  z-index: 30;
+}
+.vehicle-model-tag.original { background: rgba(200, 40, 30, 0.8); }

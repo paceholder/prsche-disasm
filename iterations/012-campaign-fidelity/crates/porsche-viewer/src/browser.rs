@@ -354,6 +354,14 @@ impl BrowserViewer {
             .unwrap_or(false)
     }
 
+    /// Shift+V (debug): side chase view off / swung 25 degrees one way / the other way.
+    pub fn cycle_side_view(&mut self) -> f32 {
+        self.renderer
+            .as_mut()
+            .map(|r| r.cycle_side_view())
+            .unwrap_or(0.0)
+    }
+
     /// V key (debug): toggles the free camera; returns whether it is on.
     pub fn toggle_free_camera(&mut self) -> bool {
         self.renderer

@@ -2762,6 +2762,9 @@ function syncTourButton() {
     hud.hidden = !(isDriveAndCar && hintsVisible);
   }
   if (hudCanvas) hudCanvas.hidden = !(isDriveAndCar && hudVisible);
+  // Debug tag with the active vehicle model, shown in every drive view (not original HUD).
+  const modelTag = document.getElementById("vehicleModelTag");
+  if (modelTag) modelTag.hidden = !isDriveAndCar;
   if (!isDriveAndCar && raceHud) raceHud.clear();
   if (!isDriveAndCar) {
     if (countdownBanner) countdownBanner.hidden = true;
@@ -3050,6 +3053,15 @@ window.addEventListener("keydown", (event) => {
       const on = viewer.toggle_lights();
       lightsOn = Boolean(on);
       setStatus(on ? "Фары включены (L)" : "Фары выключены (L)");
+      queueFrame();
+    }
+    return;
+  }
+  if (event.code === "KeyV" && event.shiftKey && !event.repeat) {
+    // Debug side chase view (not original): the drive camera swung 25° about the car.
+    if (viewer && viewer.is_drive_mode() && viewer.has_car() && viewer.cycle_side_view) {
+      const deg = viewer.cycle_side_view();
+      setStatus(deg === 0 ? "Боковой вид выкл. (Shift+V)" : `Боковой вид ${deg > 0 ? "справа" : "слева"} ${Math.abs(deg)}° (Shift+V)`);
       queueFrame();
     }
     return;
@@ -3443,6 +3455,7 @@ function animate(now = 0) {
     updateNavigation(dt);
   }
   lastTime = now;
+  updateVehicleModelTag();
 
   if (viewer && needsFrame) {
     try {
@@ -3484,6 +3497,8 @@ async function boot() {
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
     loadButton.disabled = true;
+  } finally {
+    document.getElementById("bootCover")?.remove();
   }
 }
 
@@ -3589,9 +3604,26 @@ async function autostartRace(params) {
   }
 }
 
+// Debug tag: visible whenever a car is driven, whatever path started the race.
+let vehicleModelTagShown = null;
+function updateVehicleModelTag() {
+  const tag = document.getElementById("vehicleModelTag");
+  if (!tag || !viewer) return;
+  const show = Boolean(viewer.is_drive_mode?.() && viewer.has_car?.() && !frontEnd?.visible);
+  if (show !== vehicleModelTagShown) {
+    tag.hidden = !show;
+    vehicleModelTagShown = show;
+  }
+}
+
 function setVehicleModelBadge(original) {
   const badge = document.getElementById("vehicleModelBadge");
   if (badge) badge.textContent = original ? "O: original car" : "O: prototype car";
+  const tag = document.getElementById("vehicleModelTag");
+  if (tag) {
+    tag.textContent = original ? "ORIGINAL (O)" : "PROTOTYPE (O)";
+    tag.classList.toggle("original", original);
+  }
 }
 
 // ---- original front end (web/frontend.js; docs/re/frontend.md) ----

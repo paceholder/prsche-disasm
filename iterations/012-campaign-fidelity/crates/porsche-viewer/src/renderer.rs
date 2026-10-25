@@ -86,6 +86,29 @@ pub struct Camera {
 /// Drive camera from an original view (original world = scene with z mirrored): eye, eye +
 /// forward, the matrix up row as up reference (world up for the chase cams; the car's for
 /// the bumper cams), horizontal FOV and near plane.
+/// Debug side chase view angle (Shift+V), degrees.
+const SIDE_VIEW_DEG: f32 = 25.0;
+
+/// A camera view (original world space) rotated about the world up axis through `pivot`
+/// by `deg` degrees (debug side chase view).
+fn swing_view(
+    view: &nfs_assets::camera::CameraView,
+    pivot: [f32; 3],
+    deg: f32,
+) -> nfs_assets::camera::CameraView {
+    let rot = glam::Mat3::from_rotation_y(deg.to_radians());
+    let p = Vec3::from(pivot);
+    let r = |v: [f32; 3]| (rot * Vec3::from(v)).to_array();
+    let eye = (p + rot * (Vec3::from(view.eye) - p)).to_array();
+    let matrix = [r(view.matrix[0]), r(view.matrix[1]), r(view.matrix[2])];
+    nfs_assets::camera::CameraView {
+        eye,
+        matrix,
+        target: (Vec3::from(eye) + Vec3::from(matrix[2])).to_array(),
+        ..*view
+    }
+}
+
 pub fn apply_original_view(camera: &mut Camera, view: &nfs_assets::camera::CameraView) {
     use nfs_assets::physics::original_adapter::from_original;
     camera.drive_pos = from_original(view.eye);
@@ -536,6 +559,9 @@ pub struct Renderer {
     pub player_camera: nfs_assets::camera::PlayerCamera,
     /// Debug free camera (V): the eye stays, the view follows the car.
     pub free_camera: bool,
+    /// Shift+V (debug, not original): the drive view swung about the car by this many degrees
+    /// (0 off, +/-`SIDE_VIEW_DEG`) to see the wheels.
+    pub side_view_deg: f32,
     pub vehicle_contact_count: u32,
     pub sim_mode: bool,
     /// Collision response: upstream prototype or the recovered original.
@@ -1571,6 +1597,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 START_CYCLE_INDEX,
             ),
             free_camera: false,
+            side_view_deg: 0.0,
             vehicle_contact_count: 0,
             sim_mode: true,
             collision_model: Default::default(),
@@ -3693,7 +3720,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         } else if let Some(d) = &self.proto_view {
             view = d.camera_view();
         }
+        if self.side_view_deg != 0.0 {
+            let pivot = match (self.original_active(), &self.drawn_states) {
+                (true, Some(d)) => d.car_pose().position,
+                _ => car.pos_330,
+            };
+            view = swing_view(&view, pivot, self.side_view_deg);
+        }
         apply_original_view(&mut self.camera, &view);
+    }
+
+    /// Shift+V (debug): drive view off, swung `SIDE_VIEW_DEG` one way, then the other. Returns the angle.
+    pub fn cycle_side_view(&mut self) -> f32 {
+        self.side_view_deg = match self.side_view_deg {
+            a if a == 0.0 => SIDE_VIEW_DEG,
+            a if a > 0.0 => -SIDE_VIEW_DEG,
+            _ => 0.0,
+        };
+        self.side_view_deg
     }
 
     /// Name of the drive camera shown in the HUD.

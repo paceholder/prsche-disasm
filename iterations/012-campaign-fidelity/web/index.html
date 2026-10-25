@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <!-- Covers the web shell until boot decides between the original front end and it. -->
+    <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999"></div>
     <main class="viewer">
       <section id="menu" class="porsche-shell" aria-label="Игровая оболочка Porsche Unleashed">
         <!-- Authentic Top Brand & Profile Bar -->
@@ -426,6 +428,7 @@
         </div>
         <!-- Debug overlay (?hints=1 or Backquote); the race HUD itself is #hudCanvas. -->
         <div id="hud" class="hud porsche-hud" hidden>
+        <div id="vehicleModelTag" class="vehicle-model-tag" hidden>PROTOTYPE (O)</div>
           <div class="hud-hint">
             <span><b>W/▲</b> Газ</span> &bull;
             <span><b>S/▼</b> Тормоз</span> &bull;
