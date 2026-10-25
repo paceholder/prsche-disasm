@@ -172,6 +172,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         topology: None,
         road_surface: None,
         course: None,
+        ai_track: None,
     };
 
     let mut tex_map = BTreeMap::new();
@@ -813,6 +814,12 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         }
 
         scene.topology = Some(topology);
+        // The original AI: node graph from the CRP and the forward racing line.
+        if let Ok(lsp0) = find(files, &lsp0_key) {
+            scene.ai_track = crate::race::original_ai::field::OriginalAiTrack::from_files(
+                track, false, crp_data, jnc_data, lsp0,
+            );
+        }
     }
 
     scene.diagnostics.push(format!(

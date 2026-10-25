@@ -2265,6 +2265,33 @@ async function loadCarSim(simName) {
     data = (await fetchGameFiles([path])).bytes[0];
   }
   viewer.set_car_sim(data, simName);
+  await loadCarAis();
+}
+
+// The original AI needs the car's `.ais` (GameData/Simulation/AICarData/<model>.ais,
+// default.ais as the game's fallback). Missing data keeps the kinematic AI.
+async function loadCarAis() {
+  if (typeof viewer.set_car_ais !== "function") return;
+  try {
+    const model = String(viewer.car_ais_model() || "default").toLowerCase();
+    for (const want of [`${model}.ais`, "default.ais"]) {
+      let data = null;
+      if (useCustomFiles && selectedFiles.length > 0) {
+        const file = selectedFiles.find(f => selectedName(f).split(/[\\/]/).pop().toLowerCase() === want);
+        if (file) data = new Uint8Array(await file.arrayBuffer());
+      } else {
+        const path = localGameFiles.find(p => p.split(/[\\/]/).pop().toLowerCase() === want
+          && /aicardata/i.test(p));
+        if (path) data = (await fetchGameFiles([path])).bytes[0];
+      }
+      if (data) {
+        viewer.set_car_ais(data);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn("AI car data:", e);
+  }
 }
 
 // `bank` is the catalogue record's engine bank; without it the first record with this SIM is used.
@@ -3445,6 +3472,7 @@ window.__nfs = {
       pose: Array.from(pose),
       status: statusLine.textContent,
       sparks: Array.from(viewer.get_spark_stats?.() ?? []),
+      ai: JSON.parse(viewer.original_ai_state?.() ?? "null"),
     };
   },
 };

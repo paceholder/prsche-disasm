@@ -4,6 +4,9 @@ use nfs_assets::{AlphaMode, Scene};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
 
+#[path = "original_ai_view.rs"]
+mod original_ai_view;
+
 pub fn summarize(scene: &Scene) -> String {
     let vertices: usize = scene.meshes.iter().map(|m| m.vertices.len()).sum();
     let triangles: usize = scene.meshes.iter().map(|m| m.indices.len() / 3).sum();
@@ -546,6 +549,11 @@ pub struct Renderer {
     /// The loaded `.sim` bytes and model name (`res+0x2a8`), to rebuild the
     /// original car when the car model changes.
     original_sim: Option<(Vec<u8>, String)>,
+    /// The original AI's track graph and racing line (from the scene), the player
+    /// car's `.ais`, and the AI cars on the original model (`original_ai_view`).
+    original_ai_track: Option<nfs_assets::race::original_ai::field::OriginalAiTrack>,
+    original_ais: Option<Vec<u8>>,
+    pub original_ai: Option<nfs_assets::race::original_ai::field::OriginalAiField>,
     collision_clock: nfs_assets::race::original_collision::CollisionClock,
     pair_globals: nfs_assets::physics::original_pair::PairGlobals,
     /// Persistent body support owner (original car+8) for the barrier pass.
@@ -1548,6 +1556,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             vehicle_model: Default::default(),
             original_vehicle: None,
             original_sim: None,
+            original_ai_track: scene.ai_track.clone(),
+            original_ais: None,
+            original_ai: None,
             collision_clock: Default::default(),
             pair_globals: Default::default(),
             body_support_owner: Default::default(),
@@ -2687,6 +2698,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // is applied back to their controller, rather than discarded next frame.
         if let (Some(course), Some(session)) = (&self.track_course, &self.race_session)
             && session.phase.is_racing()
+            && !(original && self.original_ai.is_some())
         {
             let surface = self.road_surface.as_ref();
             for ai in &mut self.ai_opponents {
@@ -4137,6 +4149,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             v.restart();
             self.sync_original_from_sim(false);
         }
+        self.rebuild_original_ai();
     }
 
     /// O key: switch the player car between the prototype and the original vehicle model.
@@ -4148,12 +4161,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             VehicleModel::Prototype if self.original_vehicle.is_some() => {
                 self.sync_original_from_sim(true);
                 self.vehicle_model = VehicleModel::Original;
+                self.rebuild_original_ai();
             }
             VehicleModel::Prototype => {}
             VehicleModel::Original => {
                 self.sync_sim_from_original(true);
                 self.sim_telemetry = None;
                 self.vehicle_model = VehicleModel::Prototype;
+                self.rebuild_original_ai();
             }
         }
         self.vehicle_model
@@ -4173,6 +4188,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         use nfs_assets::race::original_collision::{apply_pair_car_to_ai, pair_car_from_ai};
         let (center, half) = self.collision_box_or_fallback();
         let word = input_word(throttle.max(0.0), (-throttle).max(0.0), steer, handbrake);
+        if self.original_ai.is_some() {
+            // Player and original AI cars in the original order (original_ai_view).
+            self.run_original_field(dt, word);
+            self.sync_sim_from_original(false);
+            return;
+        }
         let Some(v) = self.original_vehicle.as_mut() else {
             return;
         };

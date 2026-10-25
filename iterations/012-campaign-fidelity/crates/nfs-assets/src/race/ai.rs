@@ -191,6 +191,9 @@ pub struct AiOpponent {
     pub impact_yaw_rate: f32,
     /// Car performance; `None` keeps the generic constants.
     pub performance: Option<AiPerformance>,
+    /// Body rotation set by an original-model AI car (`original_ai`), used
+    /// instead of `yaw`/`up` while it drives.
+    pub rotation_override: Option<Mat3>,
 }
 
 impl AiOpponent {
@@ -227,6 +230,7 @@ impl AiOpponent {
             impact_timer: 0.0,
             impact_yaw_rate: 0.0,
             performance: None,
+            rotation_override: None,
         }
     }
 
@@ -421,6 +425,9 @@ impl AiOpponent {
 
     /// Body-to-world rotation: heading from `yaw`, up axis along `up`.
     pub fn body_rotation(&self) -> Mat3 {
+        if let Some(r) = self.rotation_override {
+            return r;
+        }
         tilted_basis(self.yaw, Vec3::from(self.up))
     }
 

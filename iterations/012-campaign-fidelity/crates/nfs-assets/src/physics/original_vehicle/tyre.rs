@@ -149,7 +149,7 @@ const INV_TWO_PI: u64 = 0x3fc4_5f30_8000_0000;
 
 /// `g_GripTable [0x5d0d50]`, f32[16 surface][3 tyre type].
 #[rustfmt::skip]
-const GRIP_TABLE: [u32; 48] = [
+pub(crate) const GRIP_TABLE: [u32; 48] = [
     0x3f00_0000, 0x3f00_0000, 0x3f00_0000, 0x3f80_0000, 0x3f66_6666, 0x3f8c_cccd,
     0x3f59_999a, 0x3f66_6666, 0x3f59_999a, 0x3f33_3333, 0x3f46_6666, 0x3f20_0000,
     0x3f73_3333, 0x3f66_6666, 0x3f86_6666, 0x3f59_999a, 0x3f60_0000, 0x3f4c_cccd,
@@ -161,7 +161,7 @@ const GRIP_TABLE: [u32; 48] = [
 ];
 /// `g_GripTableAutobahn [0x5d0e4c]`, same layout.
 #[rustfmt::skip]
-const GRIP_TABLE_AUTOBAHN: [u32; 48] = [
+pub(crate) const GRIP_TABLE_AUTOBAHN: [u32; 48] = [
     0x3f00_0000, 0x3f00_0000, 0x3f00_0000, 0x3f66_6666, 0x3f80_0000, 0x3f8c_cccd,
     0x3f66_6666, 0x3f59_999a, 0x3f59_999a, 0x3f46_6666, 0x3f33_3333, 0x3f20_0000,
     0x3f66_6666, 0x3f73_3333, 0x3f86_6666, 0x3f60_0000, 0x3f59_999a, 0x3f4c_cccd,

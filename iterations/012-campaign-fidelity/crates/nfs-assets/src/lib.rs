@@ -274,6 +274,9 @@ pub struct Scene {
     pub road_surface: Option<RoadSurface>,
     /// Track course (checkpoints, waypoints, racing line), if available.
     pub course: Option<TrackCourse>,
+    /// The original AI's track node graph and racing line (`SimD`/`SimT`,
+    /// `.jnc`, `<track>0.lsp`), if available.
+    pub ai_track: Option<race::original_ai::field::OriginalAiTrack>,
 }
 
 impl Default for Scene {
@@ -303,6 +306,7 @@ impl Default for Scene {
             topology: None,
             road_surface: None,
             course: None,
+            ai_track: None,
         }
     }
 }

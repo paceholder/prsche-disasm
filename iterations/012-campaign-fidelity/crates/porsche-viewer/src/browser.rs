@@ -183,6 +183,30 @@ impl BrowserViewer {
             .map_err(|e| JsValue::from_str(&e))
     }
 
+    /// `.ais` data for the original AI (`GameData/Simulation/AICarData/<model>.ais`,
+    /// model from `car_ais_model`); the AI opponents drive the player's car.
+    pub fn set_car_ais(&mut self, bytes: Uint8Array) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_car_ais(&bytes.to_vec());
+        }
+    }
+
+    /// The original AI cars as JSON (`null` without them).
+    pub fn original_ai_state(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.original_ai_json())
+            .unwrap_or_else(|| "null".into())
+    }
+
+    /// Model name (`res+0x2a8`) whose `.ais` the original AI needs.
+    pub fn car_ais_model(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.car_ais_model())
+            .unwrap_or_else(|| "default".into())
+    }
+
     pub fn get_car_sim_mass(&self) -> f32 {
         self.renderer
             .as_ref()

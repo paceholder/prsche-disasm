@@ -729,6 +729,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         topology: None,
         road_surface: None,
         course: None,
+        ai_track: None,
     };
     let mut skipped = Vec::new();
     let mut selected = Vec::new();
