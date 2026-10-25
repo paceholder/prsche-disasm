@@ -124,6 +124,37 @@ pub fn car_collision_box(crp: &Crp) -> Result<CarCollisionBox, String> {
     Ok(CarCollisionBox::from_bounds(*bounds))
 }
 
+/// The car's body points: the `BndP` entries of the car CRP as
+/// `Car_ReadTpgCameraKeys` `0x441a10` collects them into the render object
+/// (`R3DCar+0xf8` count, `+0xfc` points), in raw CRP model coordinates.
+/// Each entry is `(part, value, count × (x, y, z, w))`; the original keeps an
+/// entry when the car's part selection `car+0x56c[part]` equals `value`.
+/// The selection array is not ported: entries of part 0 and entries with
+/// value 0 are kept (approximation A32). The original subtracts the half
+/// height `+0x3ac` from y and, in light mode (`res+0x518`), scales by 0.4;
+/// callers convert to the car frame.
+pub fn body_points(crp: &Crp) -> Vec<[f32; 3]> {
+    let mut out = Vec::new();
+    for e in crp.misc.iter().filter(|e| e.tag == "BndP") {
+        let d = &e.data;
+        let (Ok(part), Ok(value)) = (u32le(d, 0), u32le(d, 4)) else {
+            continue;
+        };
+        if part != 0 && value != 0 {
+            continue;
+        }
+        for k in 0..e.count {
+            let p: Result<Vec<f32>, String> =
+                (0..3).map(|c| f32le(d, 8 + 16 * k + 4 * c)).collect();
+            match p {
+                Ok(p) => out.push([p[0], p[1], p[2]]),
+                Err(_) => break,
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,6 +173,19 @@ mod tests {
         let b = CarCollisionBox::from_bounds([[-1.0, 0.0, -2.0], [1.0, 1.2, 2.5]]);
         assert_eq!(b.center, [0.0, 0.6, 0.25]);
         assert_eq!(b.half_extents, [1.0, 0.6, 2.25]);
+    }
+
+    #[test]
+    fn body_points_of_the_installed_356a() {
+        let Some(crp) = installed("356a") else {
+            eprintln!("356a.crp not installed; skipped");
+            return;
+        };
+        let p = body_points(&crp);
+        // Rear hull 8, front hull 8, roof 4, wheel contacts 4.
+        assert_eq!(p.len(), 24);
+        let low = p.iter().filter(|q| q[1].abs() < 0.01).count();
+        assert_eq!(low, 4, "four wheel contact points on the ground");
     }
 
     #[test]

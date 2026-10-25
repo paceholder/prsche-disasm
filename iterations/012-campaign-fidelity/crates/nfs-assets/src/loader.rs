@@ -724,6 +724,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
     let mut scene = Scene {
         meshes: Vec::new(),
         car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
+        car_body_points: crate::collision_box::body_points(&crp),
         car_driver_camera: Some(driver_camera(&ini, style_index)),
         car_wheels: Vec::new(),
         car_glares: car_glares(&crp, &style, scene_lod)?,

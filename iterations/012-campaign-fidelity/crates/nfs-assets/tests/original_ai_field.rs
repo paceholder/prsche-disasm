@@ -83,8 +83,8 @@ impl FieldQueue for Queue<'_> {
         _state: &mut PreparedContactState,
         _half: [f32; 3],
         _owner: Option<&mut OriginalSupportOwner>,
-    ) -> bool {
-        false
+    ) -> Option<nfs_assets::physics::original_vehicle::driver::BarrierHit> {
+        None
     }
 }
 

@@ -43,6 +43,8 @@ pub struct RoadTriangle {
 pub struct BarrierContact {
     pub magnitude: f32,
     pub point: [f32; 3],
+    /// Wall normal of the response (horizontal, from the edge direction).
+    pub normal: [f32; 3],
 }
 
 /// A valid support contact. `identity` can be used by an audit UI or log.
@@ -209,9 +211,12 @@ impl RoadSurface {
     /// Original barrier pass for one car, in original world coordinates:
     /// `Car_CollideTrackEdges` 0x495020 selects the first body point crossing a
     /// scene edge, then 0x494000 responds (angular flag 1, as the original
-    /// passes at 0x495020+). `body_owner` is the car's persistent support
-    /// owner (car+8); it is refreshed at the car position first.
-    /// Hypothesis: the original refreshes car+8 during body integration.
+    /// passes at 0x495020+). `body_owner` is the car's support owner (car+8).
+    /// 0x495020 copies the 0x30-byte owner to its stack and queries the copy
+    /// (`0x4950a3`), and 0x494000 takes a second copy, so car+8 is not
+    /// changed: the queries run on a copy refreshed at the car position, and
+    /// `body_owner` is left as it was (verified on the Auvergne barrier runs,
+    /// `tests/original_road_support.rs`).
     /// Returns the response magnitude, or `None` without a contact.
     pub fn original_barrier_response(
         &self,
@@ -235,6 +240,8 @@ impl RoadSurface {
         use crate::physics::original_body_contact::{first_body_contact, BodyContactInput};
         use crate::physics::original_scene_contact::{respond_scene_contact, SceneContactRequest};
         let source = self.original.as_ref().ok_or("no original scene backend")?;
+        let mut copy = body_owner.clone();
+        let body_owner = &mut copy;
         body_owner.select(&source.tree, &source.polygons, state.position_330, true)?;
         let input = BodyContactInput {
             position_330: state.position_330,
@@ -270,6 +277,7 @@ impl RoadSurface {
         Ok(Some(BarrierContact {
             magnitude: result.magnitude,
             point: contact.point,
+            normal: contact.normal,
         }))
     }
 

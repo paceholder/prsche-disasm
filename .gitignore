@@ -43,6 +43,8 @@ iterations/**/tests/fixtures/camera-*.tsv
 iterations/**/tests/fixtures/engine-audio-*.tsv
 iterations/**/tests/fixtures/vehicle-*.tsv
 iterations/**/tests/fixtures/support-*.tsv
+iterations/**/tests/fixtures/car-launch-*.tsv
+iterations/**/tests/fixtures/car-barrier-*.tsv
 
 # Screenshots and browser-shot output (debugging captures must not be committed).
 # Upstream's own run evidence stays tracked via the existing runs/ exceptions.

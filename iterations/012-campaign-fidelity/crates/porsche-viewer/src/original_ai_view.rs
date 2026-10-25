@@ -54,15 +54,17 @@ impl FieldQueue for Queue<'_> {
         state: &mut PreparedContactState,
         half: [f32; 3],
         owner: Option<&mut OriginalSupportOwner>,
-    ) -> bool {
-        let Some(surface) = self.surface.filter(|s| s.uses_original_support()) else {
-            return false;
-        };
+    ) -> Option<nfs_assets::physics::original_vehicle::driver::BarrierHit> {
+        let surface = self.surface.filter(|s| s.uses_original_support())?;
         let owner = match owner {
             Some(o) => o,
             None => &mut *self.body_owner,
         };
-        matches!(surface.original_barrier_response(state, half, owner), Ok(Some(_)))
+        surface
+            .original_barrier_contact(state, half, owner)
+            .ok()
+            .flatten()
+            .map(Into::into)
     }
 
     fn objects(

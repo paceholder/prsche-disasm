@@ -112,19 +112,25 @@ pub fn pair_car(car: &OriginalCar, half_extents: [f32; 3]) -> PairCar {
         local_angular_d64: car.angular_ground_d64,
         field_dac: car.remote_dac,
         field_db0: car.start_db0,
+        contacts_418: car.wheels_off_418 as i16,
         damage_4e4: damage,
         ..PairCar::default()
     }
 }
 
 /// Writes a collision result back into the car (the fields the pair and
-/// barrier responses change).
+/// barrier responses change). `+0x418` (the pair contact counter, set to 1 by
+/// a hard hit of `Car_ApplyImpact`, read by the ground tick) and `+0xdb0`
+/// (cleared by a hard hit above 120) are the same fields as the car's
+/// `wheels_off_418` and `start_db0`.
 pub fn store_pair_car(car: &mut OriginalCar, pair: &PairCar) {
     car.position_330 = pair.position_330;
     car.velocity_33c = pair.velocity_33c;
     car.speed_35c = pair.speed_35c;
     car.angular_388 = pair.angular_388;
     car.angular_ground_d64 = pair.local_angular_d64;
+    car.wheels_off_418 = pair.contacts_418 as u16;
+    car.start_db0 = pair.field_db0;
 }
 
 /// Barrier-response state (`Car_CollideTrackEdges` `0x495020`) of the car
@@ -202,17 +208,47 @@ pub fn store_object_car(car: &mut OriginalCar, pair: &mut PairCar, o: &ObjectCar
     car.damage_4e4[..9].copy_from_slice(&o.pair.damage_4e4);
 }
 
+/// A barrier response of `Car_CollideTrackEdges` 0x495020: the magnitude
+/// `0x494000` returned and the wall normal it used.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BarrierHit {
+    pub magnitude: f32,
+    pub normal: [f32; 3],
+}
+
+impl From<crate::surface::BarrierContact> for BarrierHit {
+    fn from(c: crate::surface::BarrierContact) -> Self {
+        Self {
+            magnitude: c.magnitude,
+            normal: c.normal,
+        }
+    }
+}
+
+/// The impact of a barrier response (`0x495020` after `0x494000`): above a
+/// magnitude of 20 it becomes the impact strength `+0x430` and goes to
+/// `Car_ImpactByDirection(car, wall normal, 1)`, i.e. `Car_ApplyImpact` mode 1
+/// (zone damage when `[0x657a2c]`, the zone spin, and from 80 the hard-hit
+/// kick `vel.y += s/24` with the 0.1 lift; ends with the `0x49bba0` clamp)
+/// [VA 0x49548f..0x4954d8].
+pub fn barrier_impact(pair: &mut PairCar, hit: BarrierHit, globals: &mut PairGlobals) {
+    if 20.0 < hit.magnitude {
+        pair.impact_430 = hit.magnitude;
+        crate::physics::original_pair::impact_by_direction(pair, hit.normal, 1, globals);
+    }
+}
+
 /// One `Car_CollideTick` pass with the player first (`collide_pass_with`): the
-/// player's barrier response through `barrier` (return `false` for no
-/// contact), the other cars (`others`, kinematic AI, A6) without one. The
-/// pair response draws from the shared random generator.
+/// player's barrier response through `barrier` (`None` for no contact), the
+/// other cars (`others`, kinematic AI, A6) without one. The pair response
+/// draws from the shared random generator.
 pub fn collide_player(
     car: &mut OriginalCar,
     half_extents: [f32; 3],
     others: &mut [PairCar],
     globals: &mut PairGlobals,
     lcg: &mut OriginalLcg,
-    barrier: impl FnMut(&mut PreparedContactState) -> bool,
+    barrier: impl FnMut(&mut PreparedContactState) -> Option<BarrierHit>,
 ) -> usize {
     collide_player_objects(car, half_extents, others, globals, lcg, None, barrier)
 }
@@ -226,7 +262,7 @@ pub fn collide_player_objects(
     globals: &mut PairGlobals,
     lcg: &mut OriginalLcg,
     mut objects: Option<(&mut TrackObjectWorld, &mut Vec<SmashEvent>)>,
-    mut barrier: impl FnMut(&mut PreparedContactState) -> bool,
+    mut barrier: impl FnMut(&mut PreparedContactState) -> Option<BarrierHit>,
 ) -> usize {
     let mut cars = Vec::with_capacity(others.len() + 1);
     cars.push(pair_car(car, half_extents));
@@ -238,8 +274,9 @@ pub fn collide_player_objects(
             return;
         }
         let mut state = barrier_state(car, pair);
-        if barrier(&mut state) {
+        if let Some(hit) = barrier(&mut state) {
             store_barrier_state(car, pair, &state);
+            barrier_impact(pair, hit, globals);
         }
         // `Car_CollideTrackObjects` follows the edge pass at every call site
         // [VA 0x498ff0, 0x4980d0]. The player only (approximation A173).
@@ -303,6 +340,44 @@ impl Default for CarSetup {
     fn default() -> Self {
         Self { manual_box: false, damage: false }
     }
+}
+
+/// `Car_SetupBodyPoints` `0x49abc0` (from `Car_ResetBody` `0x49b510`): the
+/// body point list `+0x8c` (count `+0x32c`) is the render object's point list
+/// (`R3DCar+0xfc`, the CRP `BndP` points), bubble-sorted by y (ascending,
+/// swaps only on strictly lower); then the four lowest are put in quadrant
+/// order (−x,+z), (+x,+z), (−x,−z), (+x,−z) (a quadrant with no point gets
+/// the zero vector). Points 0..3 are the wheel ground points; the rest are
+/// used by the height of a tilted car (`0x49a900`) and its body contact
+/// (`0x496610`). Fewer than four points are returned unchanged.
+pub fn setup_body_points(points: &[[f32; 3]]) -> Vec<[f32; 3]> {
+    let mut p = points.to_vec();
+    let n = p.len();
+    if n < 4 {
+        return p;
+    }
+    for _ in 0..n {
+        for i in 0..n - 1 {
+            if p[i + 1][1] < p[i][1] {
+                p.swap(i, i + 1);
+            }
+        }
+    }
+    let mut q = [[0.0f32; 3]; 4];
+    for v in p.iter().take(4) {
+        let (x, z) = (v[0], v[2]);
+        if !(0.0 <= x) && !(z <= 0.0) {
+            q[0] = *v;
+        } else if !(x <= 0.0) && !(z <= 0.0) {
+            q[1] = *v;
+        } else if !(0.0 <= x) && !(0.0 <= z) {
+            q[2] = *v;
+        } else if 0.0 < x && z < 0.0 {
+            q[3] = *v;
+        }
+    }
+    p[..4].copy_from_slice(&q);
+    p
 }
 
 /// Model name (`res+0x2a8`, the AICarData `.ais` stem) for a `.sim` file
@@ -549,6 +624,18 @@ impl OriginalVehicle {
         car.vel_ground_d58 = [d(velocity, r), d(velocity, n), d(velocity, f)];
     }
 
+    /// Replaces the body points with the car model's point list in the car
+    /// frame (relative to the box centre), ordered by [`setup_body_points`]
+    /// as `Car_ResetBody` does. Without at least four points the current
+    /// (wheel) points stay.
+    pub fn set_body_points(&mut self, points: &[[f32; 3]]) {
+        if points.len() < 4 {
+            return;
+        }
+        self.car.body_points_8c = setup_body_points(points);
+        update_world_points(&mut self.car);
+    }
+
     /// Selects a gear (`+0xd82`, 0 = R, 1 = N, 2 = 1st..) with no shift in
     /// progress, and the engine rpm (model switch).
     pub fn set_gear(&mut self, gear: i8, rpm: f32) {
@@ -653,6 +740,21 @@ mod tests {
         assert_eq!(input_word(0.0, 1.0, 0.0, true), 126 << 24 | 1);
         assert_eq!(input_word(0.0, 0.0, 1.0, false), 63 << 8);
         assert_eq!(input_word(0.0, 0.0, -1.0, false), 0xc1 << 8);
+    }
+
+    #[test]
+    fn body_points_put_the_four_lowest_in_quadrant_order() {
+        let pts = [
+            [0.8, 1.0, 1.0],
+            [0.7, 0.0, -1.1],
+            [-0.7, 0.01, 0.9],
+            [-0.8, 0.5, -1.0],
+            [0.7, 0.0, 0.9],
+            [-0.7, 0.0, -1.1],
+        ];
+        let p = setup_body_points(&pts);
+        assert_eq!(&p[..4], &[[-0.7, 0.01, 0.9], [0.7, 0.0, 0.9], [-0.7, 0.0, -1.1], [0.7, 0.0, -1.1]]);
+        assert_eq!(&p[4..], &[[-0.8, 0.5, -1.0], [0.8, 1.0, 1.0]]);
     }
 
     #[test]

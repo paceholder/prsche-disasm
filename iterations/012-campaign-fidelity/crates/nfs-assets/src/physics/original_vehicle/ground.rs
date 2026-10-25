@@ -28,14 +28,18 @@
 //!   tree); the legacy triangle grid of CPU fixtures is the only stand-in.
 //!   The alternate plane `+0x3e8/+0x400` and the body surface `car+0x2c`
 //!   are written by `Car_TrackLocate` ([`super::locate`]).
-//! - The rollover contact `0x496610` (tilted car on the ground) is replaced
-//!   by the soft contact (A27). The overhead query `0x473330` (roof over the
-//!   car, flips an upward vertical speed) is taken as "none" (A28).
-//! - The `+0x52c` bit 7 path `0x4998c0` and the flag-1 call `0x493dd0` on a
-//!   hard landing are not ported (never set for the player).
+//! - The tilted-car contact `0x496610` ([`super::tilt`]) takes the body
+//!   polygon normal from `+0x3e8` instead of the owner car+8 (A235). The
+//!   overhead query `0x473330` (roof over the car, flips an upward vertical
+//!   speed) is taken as "none" (A28).
+//! - The `+0x52c` bit 7 path `0x4998c0` is not ported here (object cars,
+//!   `original_smackable.rs`). The flag-1 call `0x493dd0` on a hard landing
+//!   runs for race participants (the player and the AI racers).
 //!
 //! Verified against `scripts/research/replay-vehicle-ground.py` (tests
-//! `tests/original_vehicle_ground.rs`).
+//! `tests/original_vehicle_ground.rs`) and, on real support with the tilted
+//! contact and hard landings, `scripts/research/replay-car-launch.py`
+//! (`tests/original_road_support.rs`).
 
 // Negated comparisons keep the x87 branches on unordered (NaN) operands.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
@@ -232,6 +236,21 @@ pub fn clamp_angular_b(car: &mut OriginalCar, field_354: f32) {
     }
 }
 
+/// `0x493dd0`, called on a hard landing for a race participant (`+0x52c`
+/// bit 0): the ground-frame speeds `d58 = v·R_g`, `d60 = v·F_g` from the
+/// current velocity, the wheel skid `w+0xb8` (`+0x870`), the slip ratio
+/// `+0xdc0` and the rear spin `+0xdb8` cleared.
+fn landing_reset_493dd0(car: &mut OriginalCar) {
+    let v = car.velocity_33c;
+    car.vel_ground_d58[0] = dot(v, car.ground_490[0]);
+    car.vel_ground_d58[2] = dot(v, car.ground_490[2]);
+    car.slip_ratio_dc0 = 0.0;
+    for w in &mut car.wheels {
+        w.tyre.skid_b8 = 0.0;
+    }
+    car.spin_rear_db8 = 0;
+}
+
 /// The soft contact of `0x49bd40` (`0x49c28e..`): the body onto the
 /// ground, the vertical speed at least the ground's.
 fn soft_contact(car: &mut OriginalCar, h: f32, rise: f32, vy: f32) {
@@ -288,6 +307,9 @@ pub fn ground_contact_tick(
     if upright || h >= f32::from_bits(K_TOUCH) {
         if closing > 6.0 {
             if h < f32::from_bits(K_LANDING) {
+                if car.flags_52c & 1 != 0 {
+                    landing_reset_493dd0(car);
+                }
                 push_event(car, [1, u32::MAX, 0, 5, closing.to_bits(), 0]);
                 let dh_ext = c(K_LANDING) - x(h);
                 let dh = dh_ext as f32;
@@ -306,11 +328,18 @@ pub fn ground_contact_tick(
             soft_contact(car, h, rise, vy);
         }
     } else {
-        // Rollover contact 0x496610 (not ported): the soft contact stands
-        // in (approximation A27). The rest of the branch is original.
-        if h < f32::from_bits(K_SNAP) {
-            soft_contact(car, h, rise, vy);
-        }
+        // The tilted-car contact 0x496610 with the body polygon plane
+        // through the alternate-plane point +0x400 (`tilt.rs`). The normal
+        // is the body owner's (car+8, 0x474420); `+0x3e8` holds it since the
+        // last `Car_TrackLocate` polygon change (approximation A235).
+        let s = (car.body_surface_2c & 0xf) as usize;
+        let k = if car.ground_up_3a0 > f32::from_bits(K_ATTITUDE) && car.flags_52c & 0x80 == 0 {
+            f32::from_bits(0x3dcc_cccd)
+        } else {
+            f32::from_bits(super::tilt::FRICTION[s])
+        };
+        let (n, p) = (car.alt_normal_3e8, car.alt_base_400);
+        super::tilt::body_point_contact(car, n, p, k);
         if car.ground_up_3a0 < 0.0 {
             car.start_db0 = 0;
         }
@@ -416,6 +445,67 @@ mod tests {
         car.globals.sched_step_606ac4 = 0x200;
         update_world_points(&mut car);
         car
+    }
+
+    /// A car rolled 25 degrees, touching flat ground, with a large ground
+    /// rate (the mean contact jumped 0.5 m since the last tick, as on a steep
+    /// verge): the tilted-car contact `0x496610` only pushes it out of the
+    /// plane and damps it; it does not set the vertical speed to the ground
+    /// rate (the soft snap that stood in for it gave 16 m/s here).
+    #[test]
+    fn tilted_car_is_not_launched_by_the_ground_rate() {
+        let mut c = car();
+        let a = 25f32.to_radians();
+        c.axes_364 = [[a.cos(), a.sin(), 0.0], [-a.sin(), a.cos(), 0.0], [0.0, 0.0, 1.0]];
+        c.alt_normal_3e8 = [0.0, 1.0, 0.0];
+        c.alt_base_400 = [0.0, 0.0, 0.0];
+        let mut ground = FlatGround { height: 0.0, surface: 1 };
+        // Lower the car until its height above the contact plane is below 0
+        // (a trial tick on a copy measures it).
+        for _ in 0..4 {
+            update_world_points(&mut c);
+            let mut probe = c.clone();
+            ground_contact_tick(&mut probe, &mut ground, &mut OriginalLcg::default()).unwrap();
+            c.position_330[1] -= probe.height_424 + 0.01;
+        }
+        update_world_points(&mut c);
+        c.ground_41c = -0.5;
+        let y0 = c.position_330[1];
+        ground_contact_tick(&mut c, &mut ground, &mut OriginalLcg::default()).unwrap();
+        assert!(c.ground_up_3a0 < 0.939, "tilted: {}", c.ground_up_3a0);
+        assert!(c.height_424 < 0.001, "touching: {}", c.height_424);
+        assert!(c.ground_vy_420 > 10.0, "ground rate {}", c.ground_vy_420);
+        assert!(c.velocity_33c[1] < 1.0, "vy {}", c.velocity_33c[1]);
+        assert!(c.position_330[1] > y0, "pushed out of the plane");
+    }
+
+    /// A hard landing of a race participant (`+0x52c` bit 0) runs `0x493dd0`:
+    /// skid, slip ratio and rear spin are cleared.
+    #[test]
+    fn hard_landing_resets_the_tyre_state_of_a_racer() {
+        for racer in [false, true] {
+            let mut c = car();
+            c.flags_52c = racer as u8;
+            c.position_330[1] = 0.5;
+            update_world_points(&mut c);
+            c.velocity_33c = [0.0, -10.0, 20.0];
+            c.ground_41c = 0.0;
+            for w in &mut c.wheels {
+                w.tyre.skid_b8 = 0.5;
+            }
+            c.slip_ratio_dc0 = 0.25;
+            c.spin_rear_db8 = 3;
+            let mut ground = FlatGround { height: 0.0, surface: 1 };
+            ground_contact_tick(&mut c, &mut ground, &mut OriginalLcg::default()).unwrap();
+            assert_eq!(c.height_424, f32::from_bits(K_LANDING), "hard landing");
+            let cleared = c.wheels.iter().all(|w| w.tyre.skid_b8 == 0.0)
+                && c.slip_ratio_dc0 == 0.0
+                && c.spin_rear_db8 == 0;
+            assert_eq!(cleared, racer);
+            if racer {
+                assert_eq!(c.vel_ground_d58[2], 20.0);
+            }
+        }
     }
 
     #[test]

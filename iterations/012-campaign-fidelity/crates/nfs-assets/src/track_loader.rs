@@ -216,6 +216,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
     let mut scene = Scene {
         meshes: Vec::new(),
         car_collision_box: None,
+        car_body_points: Vec::new(),
         car_driver_camera: None,
         car_wheels: Vec::new(),
         car_glares: Vec::new(),

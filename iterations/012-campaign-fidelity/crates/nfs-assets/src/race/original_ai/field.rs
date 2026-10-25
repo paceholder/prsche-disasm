@@ -94,14 +94,14 @@ pub trait FieldQueue {
     );
     /// Barrier response (`Car_CollideTrackEdges` 0x495020) of car `index`
     /// with its body support owner (`None` for the player: the queue's own);
-    /// false without contact.
+    /// `None` without contact.
     fn barrier(
         &mut self,
         index: usize,
         state: &mut PreparedContactState,
         half: [f32; 3],
         owner: Option<&mut OriginalSupportOwner>,
-    ) -> bool;
+    ) -> Option<crate::physics::original_vehicle::driver::BarrierHit>;
     /// `Car_CollideTrackObjects` 0x498de0 after the barrier response of car
     /// `index` (the queue runs it for the player only, approximation A173).
     fn objects(
@@ -443,8 +443,9 @@ impl OriginalAiField {
                 (&mut v.car, v.half_extents, Some(&mut v.locator.owner))
             };
             let mut state = barrier_state(car, pair);
-            if queue.barrier(index, &mut state, half, owner) {
+            if let Some(hit) = queue.barrier(index, &mut state, half, owner) {
                 store_barrier_state(car, pair, &state);
+                crate::physics::original_vehicle::driver::barrier_impact(pair, hit, globals);
             }
             queue.objects(index, car, pair, globals);
         });

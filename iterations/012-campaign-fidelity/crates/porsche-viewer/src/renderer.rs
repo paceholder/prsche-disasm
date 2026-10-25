@@ -699,6 +699,8 @@ pub struct Renderer {
     /// Original collision box of the loaded car: centre in race body space
     /// (before the chassis adapter offset) and half extents.
     car_collision_box: Option<(Vec3, [f32; 3])>,
+    /// Body points of the loaded car (CRP `BndP`) in race body space (`(-x, y, z)`).
+    car_body_points: Vec<Vec3>,
     pub race_session: Option<nfs_assets::RaceSession>,
     pub track_course: Option<nfs_assets::TrackCourse>,
     pub course_tracker: Option<nfs_assets::CourseProgressTracker>,
@@ -1836,6 +1838,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             pending_shift: (0, 0),
             body_support_owner: Default::default(),
             car_collision_box: None,
+            car_body_points: Vec::new(),
             race_session,
             track_course,
             course_tracker,
@@ -4999,6 +5002,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         points
     }
 
+    /// The car model's body points (CRP `BndP`, `Car_ReadTpgCameraKeys` 0x441a10) relative
+    /// to the collision box centre in the original car axes (R, U, F), with the same
+    /// mapping as [`Self::original_wheel_points`]. Empty without a model.
+    fn original_body_points(&self) -> Vec<[f32; 3]> {
+        let (center, _) = self.collision_box_or_fallback();
+        self.car_body_points
+            .iter()
+            .map(|&q| {
+                let p = q - center;
+                [p.x, p.y, -p.z]
+            })
+            .collect()
+    }
+
     /// Rebuilds the original car from the loaded `.sim` and the drawn car (box, wheels).
     fn rebuild_original_vehicle(&mut self) {
         use nfs_assets::physics::original_vehicle::OriginalVehicle;
@@ -5015,6 +5032,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.car_setup,
         )
         .ok();
+        let body = self.original_body_points();
+        if let Some(v) = &mut self.original_vehicle {
+            v.set_body_points(&body);
+        }
         self.sync_original_from_sim(false);
     }
 
@@ -5328,7 +5349,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 let contacts = &mut *self.contacts;
                 let objects = self.world.as_deref_mut().map(|w| (w, &mut *self.events));
                 nfs_assets::physics::original_vehicle::driver::collide_player_objects(car, half, &mut ai, self.pair_globals, lcg, objects, |state| {
-                    let Some(s) = barrier else { return false };
+                    let s = barrier?;
                     match s.original_barrier_contact(state, half, owner) {
                         Ok(Some(hit)) => {
                             contacts.push(SparkContact {
@@ -5336,9 +5357,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                                 point: hit.point,
                                 velocity: state.velocity_33c,
                             });
-                            true
+                            Some(hit.into())
                         }
-                        _ => false,
+                        _ => None,
                     }
                 });
                 for (a, (b, c)) in self.ai.iter_mut().zip(before.iter().zip(&ai)) {
@@ -5838,6 +5859,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             scene.car_driver_camera.unwrap_or_default(),
             self.player_camera.cycle_index,
         );
+        self.car_body_points = scene
+            .car_body_points
+            .iter()
+            .map(|p| Vec3::new(-p[0], p[1], p[2]))
+            .collect();
         self.car_collision_box = scene.car_collision_box.map(|b| {
             (
                 Vec3::new(-b.center[0], b.center[1], b.center[2]),

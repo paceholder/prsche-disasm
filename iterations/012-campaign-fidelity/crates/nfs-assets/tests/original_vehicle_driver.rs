@@ -78,9 +78,7 @@ impl StepQueue for Queue {
     }
     fn collide(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
         let before = car.velocity_33c;
-        collide_player(car, HALF, &mut self.parked, &mut self.globals, lcg, |_| {
-            false
-        });
+        collide_player(car, HALF, &mut self.parked, &mut self.globals, lcg, |_| None);
         if car.velocity_33c != before {
             self.contacts += 1;
         }

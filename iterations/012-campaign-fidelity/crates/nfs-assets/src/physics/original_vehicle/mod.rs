@@ -33,6 +33,8 @@
 //!   owner, alternate plane `0x499520`, surface, heading).
 //! - [`ground`]: V6, `Car_GroundContactTick` `0x49bd40` (vertical contact,
 //!   landing) and the engine's per-wheel ground queries.
+//! - [`tilt`]: the tilted-car contact `0x496610` / `0x495f30` of the
+//!   ground tick.
 
 pub mod attitude;
 pub mod car;
@@ -43,6 +45,7 @@ pub mod ground;
 pub mod locate;
 pub mod sim;
 pub mod step;
+pub mod tilt;
 pub mod tyre;
 
 pub use attitude::{wheel_ground_and_attitude, WheelGround};

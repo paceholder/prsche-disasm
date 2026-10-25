@@ -3,6 +3,11 @@
 //! support tree. A Boxster 2.5 starts on grid slot 0, drives at full throttle
 //! with a simple steer toward the course waypoints, and must stay on the
 //! road: finite state, wheels on the ground, the body at the road height.
+//! The 32 Hz queue runs `Car_TrackLocate` 0x49af70 on the track node graph,
+//! as the renderer does: without it the alternate plane `+0x3e8/+0x400` keeps
+//! the spawn placement's plane, and a tilted contact (`0x496610`, which pushes
+//! the car out of that plane) after a hard wall hit lifted the car 4.9 m on
+//! monaco1.
 //!
 //! Needs `local/game` (skipped otherwise).
 
@@ -13,8 +18,10 @@ use nfs_assets::physics::original_adapter::{from_original, to_original};
 use nfs_assets::physics::original_support_owner::OriginalSupportOwner;
 use nfs_assets::physics::original_vehicle::driver::collide_player;
 use nfs_assets::physics::original_vehicle::{
-    input_word, scheduler_step, OriginalCar, OriginalVehicle, RoadGround, StepQueue,
+    input_word, scheduler_step, track_locate, BodyLocator, OriginalCar, OriginalVehicle,
+    RoadGround, StepQueue,
 };
+use nfs_assets::race::original_ai::track::{sim_chunks, TrackNodes};
 use nfs_assets::{calculate_grid_slot, load_track, AssetFiles, RoadSurface};
 
 fn game() -> PathBuf {
@@ -43,6 +50,14 @@ fn track(name: &str) -> Option<nfs_assets::Scene> {
     load_track(&files, name).ok()
 }
 
+/// The track node graph (`TrackNodes_Build` on the CRP's SimD/SimT).
+fn nodes(name: &str) -> Option<TrackNodes> {
+    let raw = std::fs::read(game().join("Track").join(format!("{name}.crp"))).ok()?;
+    let unpacked = nfs_formats::decompress(&raw).ok()?;
+    let (nodes, sections) = sim_chunks(&unpacked)?;
+    Some(TrackNodes::build(nodes, &sections, None))
+}
+
 const HALF: [f32; 3] = [0.9, 0.6, 2.1];
 /// FL, FR, RL, RR (the quadrant order of `0x49abc0`).
 const WHEELS: [[f32; 3]; 4] = [
@@ -54,14 +69,20 @@ const WHEELS: [[f32; 3]; 4] = [
 
 struct Queue<'a> {
     surface: &'a RoadSurface,
+    nodes: &'a TrackNodes,
+    /// `car+8`: track locator and body support owner (also the barrier pass).
+    locator: BodyLocator,
     ground: nfs_assets::physics::original_vehicle::GroundAdapter,
     owners: [OriginalSupportOwner; 4],
-    body_owner: OriginalSupportOwner,
     globals: nfs_assets::physics::original_pair::PairGlobals,
     walls: usize,
 }
 
 impl StepQueue for Queue<'_> {
+    fn track_locate(&mut self, car: &mut OriginalCar) {
+        let me = car.position_330;
+        track_locate(car, &mut self.locator, self.nodes, self.surface.original_arena(), &[me]);
+    }
     fn ground(
         &mut self,
         car: &mut OriginalCar,
@@ -81,14 +102,15 @@ impl StepQueue for Queue<'_> {
         car: &mut OriginalCar,
         lcg: &mut nfs_assets::physics::original_lcg::OriginalLcg,
     ) {
-        let (surface, owner) = (self.surface, &mut self.body_owner);
+        let (surface, owner) = (self.surface, &mut self.locator.owner);
         let mut hit = false;
         collide_player(car, HALF, &mut [], &mut self.globals, lcg, |state| {
-            let h = matches!(
-                surface.original_barrier_response(state, HALF, owner),
-                Ok(Some(_))
-            );
-            hit |= h;
+            let h = surface
+                .original_barrier_contact(state, HALF, owner)
+                .ok()
+                .flatten()
+                .map(Into::into);
+            hit |= h.is_some();
             h
         });
         self.walls += hit as usize;
@@ -107,6 +129,10 @@ fn boxster_drives_on_real_tracks() {
             continue;
         };
         let surface = scene.road_surface.as_ref().unwrap();
+        let Some(track_nodes) = nodes(name) else {
+            eprintln!("skipped {name}: no node graph");
+            continue;
+        };
         let course = scene.course.as_ref().unwrap();
         // As `Renderer::reset_car`: the grid slot, else 5 m past gate 0, else gate 0.
         let (mut pos, fwd, _) = calculate_grid_slot(0, course);
@@ -146,7 +172,8 @@ fn boxster_drives_on_real_tracks() {
             surface,
             ground: v.ground.clone(),
             owners,
-            body_owner: Default::default(),
+            nodes: &track_nodes,
+            locator: Default::default(),
             globals: Default::default(),
             walls: 0,
         };

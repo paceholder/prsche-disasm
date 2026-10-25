@@ -299,6 +299,9 @@ pub struct Scene {
     pub meshes: Vec<Mesh>,
     /// Original collision box (CRP level 5) of a car scene; `None` for tracks.
     pub car_collision_box: Option<collision_box::CarCollisionBox>,
+    /// Body points of a car scene (`BndP`, raw CRP coordinates,
+    /// [`collision_box::body_points`]); empty for tracks.
+    pub car_body_points: Vec<[f32; 3]>,
     /// Cockpit camera from the car `.tpg` (`drivercampos[styleN]`/`drivercamrot[styleN]`,
     /// defaults applied); `None` for tracks and synthetic scenes.
     pub car_driver_camera: Option<camera::DriverCamera>,
@@ -375,6 +378,7 @@ impl Default for Scene {
     fn default() -> Self {
         Self {
             car_collision_box: None,
+            car_body_points: Vec::new(),
             car_driver_camera: None,
             meshes: Vec::new(),
             car_wheels: Vec::new(),
