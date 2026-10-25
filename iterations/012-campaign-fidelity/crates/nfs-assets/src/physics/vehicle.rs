@@ -15,6 +15,11 @@ use crate::surface::RoadSurface;
 const AIR_DENSITY: f32 = 1.225; // kg / m^3
 const MAX_SUB_STEP_DT: f32 = 1.0 / 240.0; // 240 Hz max sub-step
 const GRAVITY: f32 = 9.80665;
+/// Centre-of-mass height above the road at rest (A107). Not a `.sim` value:
+/// `SimCar::cg_offset_m` holds `.sim` words 0x120/0x124/0x128, which the original
+/// loader (`original_vehicle/sim.rs`, `load_scaling`) treats as ride height,
+/// suspension travel and steering toe.
+pub const PROTOTYPE_COM_HEIGHT_M: f32 = 0.45;
 /// Time after an automatic upshift before the next one (approximation A80).
 pub const UPSHIFT_HOLD_S: f32 = 0.5;
 
@@ -168,9 +173,7 @@ impl VehicleSimulation {
         let length = (sim.wheelbase_m + 1.2).clamp(3.0, 5.5);
         let height = 1.30;
 
-        let cg_offset = Vec3::from_array(sim.cg_offset_m);
-
-        let mut body = RigidBody::new(mass, width, height, length, cg_offset);
+        let mut body = RigidBody::new(mass, width, height, length, Vec3::ZERO);
         // Start resting upright slightly above ground
         body.position = Vec3::new(0.0, 0.40, 0.0);
 
@@ -189,7 +192,7 @@ impl VehicleSimulation {
             0.62
         };
 
-        Self {
+        let mut vehicle = Self {
             body,
             chassis_bounds: ChassisBounds::reconstructed(width, length),
             powertrain,
@@ -208,7 +211,11 @@ impl VehicleSimulation {
             longitudinal_accel: 0.0,
             spec_name: sim.name.clone(),
             shift_hold: 0.0,
-        }
+        };
+        // Approximation A107: the centre of mass sits `PROTOTYPE_COM_HEIGHT_M`
+        // above the road at static ride height, on the body origin in plan.
+        vehicle.body.center_of_mass.y = PROTOTYPE_COM_HEIGHT_M - vehicle.resting_height();
+        vehicle
     }
 
     /// Reset vehicle position, orientation, and zero out all velocities.
@@ -686,6 +693,59 @@ pub(crate) mod tests {
             cg_offset_m: [0.0, 0.35, -0.1],
             raw: [0u8; 328],
         }
+    }
+
+    /// 935-class car: grip 1.5 and a ".sim cg" word of 0.06 (really suspension
+    /// travel), wheel pivots 0.8 m off the centreline.
+    fn grippy_car() -> VehicleSimulation {
+        let mut sim = test_boxster_sim();
+        sim.mass_kg = 1030.0;
+        sim.wheelbase_m = 2.272;
+        sim.tire_grip = 1.5;
+        sim.cg_offset_m = [0.0, 0.06, 0.001];
+        let mut v = VehicleSimulation::from_sim(&sim);
+        for (i, w) in v.suspension.wheels.iter_mut().enumerate() {
+            w.hardpoint_body.x = if i % 2 == 0 { -0.8 } else { 0.8 };
+        }
+        v
+    }
+
+    #[test]
+    fn centre_of_mass_height_ignores_the_misread_sim_words() {
+        // A107: `.sim` 0x120/0x124/0x128 are ride height, suspension travel and
+        // toe, not a CG offset; the CoM is a fixed height above the road.
+        for cg in [[0.0, 0.05, 0.001], [0.0, 0.14, 0.005], [0.0, 0.35, -0.1]] {
+            let mut sim = test_boxster_sim();
+            sim.cg_offset_m = cg;
+            let v = VehicleSimulation::from_sim(&sim);
+            let height = v.resting_height() + v.body.center_of_mass.y;
+            assert!((height - PROTOTYPE_COM_HEIGHT_M).abs() < 1e-5, "{cg:?}: {height}");
+            assert_eq!(v.body.center_of_mass.x, 0.0);
+            assert_eq!(v.body.center_of_mass.z, 0.0);
+        }
+    }
+
+    #[test]
+    fn full_lock_at_speed_slides_instead_of_rolling_over() {
+        // Playtest: cars rolled over when steered. Before A107 this 935-like car
+        // (grip 1.5) put its centre of mass 0.56 m up and tipped at 100 km/h.
+        let mut v = grippy_car();
+        let h = v.resting_height();
+        v.reset(Vec3::new(0.0, h, 0.0), 0.0);
+        let speed = 100.0 / 3.6;
+        v.body.linear_velocity = v.body.forward() * speed;
+        v.sync_wheel_spin_to_body();
+        let mut min_up = 1.0f32;
+        for step in 0..360 {
+            let controls = VehicleControls {
+                throttle: if v.body.forward_speed() < speed { 1.0 } else { 0.0 },
+                steer: if step >= 30 { 1.0 } else { 0.0 },
+                ..Default::default()
+            };
+            v.step(None, &controls, 1.0 / 60.0);
+            min_up = min_up.min(v.body.up().y);
+        }
+        assert!(min_up > 0.9, "body tipped over: min up.y = {min_up}");
     }
 
     #[test]
