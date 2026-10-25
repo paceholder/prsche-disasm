@@ -4,7 +4,10 @@ import {
   FE_WIDTH, FE_HEIGHT, backdropLayoutName, attrInt, attrPair, parseColor, cssColor,
   fitViewport, toLayoutPoint, inRect, transitionState, nextLevels, backLevels,
 } from "./fe-core.js";
-import { FeAssets } from "./fe-assets.js";
+import { FeAssets, makeCanvas } from "./fe-assets.js";
+import {
+  wallMap, smallMap, WALL_CENTER, WALL_SIZE, WALL_BEZEL, SCAN_PERIOD, WALL_TICKS_PER_SECOND, wallCycle, tileCount, splineCycle, SPLINE_YELLOW, SPLINE_WHITE,
+} from "./fe-trackmap.js";
 
 const TRANSITION_DELAY_MS = 3 * 1000 / 60;
 
@@ -197,6 +200,89 @@ export class FrontEnd {
     return out;
   }
 
+  // TrackArt packs (`<track>Sp.fsh`, `<track>SpSm.fsh`) as shape lists; null while loading.
+  trackPack(file) {
+    if (!file) return null;
+    const key = file.toLowerCase();
+    if (!this.trackPacks) this.trackPacks = new Map();
+    if (!this.trackPacks.has(key)) {
+      this.trackPacks.set(key, null);
+      this.assets.pack(`${file}.fsh`, "FEData/TrackArt").then(pack => {
+        this.trackPacks.set(key, pack ?? []);
+        this.host.requestFrame?.();
+      });
+    }
+    return this.trackPacks.get(key);
+  }
+
+  // The ID_TRACK room's photo wall shows the track pictures [VA 0x4ea390, 0x4ea660, 0x4ea9b0]:
+  // tiles of `<track>Sp.fsh` in turn (map first, flags on the map only), turning after 512
+  // ticks. The 3D wall is not drawn (A101); the picture is drawn flat in a bezel centred in the
+  // porthole, the turn as a card flip, the scanlines scrolling (A220).
+  drawTrackWall(ctx, now) {
+    if (this.screen?.name !== "location") return;
+    const info = this.host.trackPicture?.(this.screen.name);
+    const pack = info && this.trackPack(info.sp);
+    const wall = pack && wallMap(pack, info.direction);
+    if (!wall) return;
+    const key = `${info.sp}|${info.direction}`;
+    if (this.wallKey !== key) { this.wallKey = key; this.wallStart = now; }
+    const ticks = (now - this.wallStart) * WALL_TICKS_PER_SECOND / 1000;
+    const { from, to, turn } = wallCycle(ticks, tileCount(pack));
+    const [cx, cy] = WALL_CENTER, [w, h] = WALL_SIZE;
+    const x = cx - w / 2, y = cy - h / 2, pad = WALL_BEZEL;
+    // Bezel: three nested bands, dark / grey / dark, as in the reference frame.
+    ctx.fillStyle = "#33414a"; ctx.fillRect(x - pad, y - pad, w + 2 * pad, h + 2 * pad);
+    ctx.fillStyle = "#7d8a91"; ctx.fillRect(x - pad + 2, y - pad + 2, w + 2 * pad - 4, h + 2 * pad - 4);
+    ctx.fillStyle = "#26323a"; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.fillStyle = "#000"; ctx.fillRect(x, y, w, h);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    const drawTile = (index, scaleX) => {
+      const tile = pack[index];
+      if (!tile?.canvas || scaleX === 0) return;
+      ctx.save();
+      ctx.translate(cx, y);
+      ctx.scale(scaleX * (wall.flipX ? -1 : 1), 1);
+      ctx.translate(-w / 2, 0);
+      ctx.scale(w / tile.width, h / tile.height);
+      ctx.drawImage(tile.canvas, 0, 0);
+      if (index === 0 && wall.flag) ctx.drawImage(wall.flag.shape.canvas, wall.flag.x, wall.flag.y);
+      ctx.restore();
+    };
+    if (turn <= 0) drawTile(from, 1);
+    else if (turn < 0.5) drawTile(from, Math.cos(turn * Math.PI));
+    else drawTile(to, -Math.cos(turn * Math.PI));
+    // Scanlines: black lines scrolling down one period per 128 ticks (material parameters 13/14
+    // advance with the clock / 128 [VA 0x4ea7a4]; the period and direction are guessed).
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    const offset = ((ticks / 128) % 1) * SCAN_PERIOD;
+    for (let ly = y - SCAN_PERIOD + offset; ly < y + h; ly += SCAN_PERIOD) ctx.fillRect(x, Math.round(ly), w, 1);
+    ctx.restore();
+    this.host.requestFrame?.();
+  }
+
+  // Shape pixels multiplied by an [r, g, b] colour, alpha kept: the vertex colour of the
+  // original's draw call [VA 0x4d87c0]; black stays black (cached).
+  modulateShape(shape, rgb) {
+    const key = rgb.join(",");
+    shape.tints ??= new Map();
+    let out = shape.tints.get(key);
+    if (!out) {
+      out = makeCanvas(shape.width, shape.height);
+      const src = shape.canvas.getContext("2d").getImageData(0, 0, shape.width, shape.height);
+      const px = src.data;
+      for (let i = 0; i < px.length; i += 4) {
+        px[i] = (px[i] * rgb[0]) / 255;
+        px[i + 1] = (px[i + 1] * rgb[1]) / 255;
+        px[i + 2] = (px[i + 2] * rgb[2]) / 255;
+      }
+      out.getContext("2d").putImageData(src, 0, 0);
+      shape.tints.set(key, out);
+    }
+    return out;
+  }
+
   render(now = performance.now()) {
     if (!this.visible) return;
     if (this.loading) return this.renderLoading();
@@ -207,7 +293,12 @@ export class FrontEnd {
     ctx.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
     ctx.imageSmoothingEnabled = view.scale % 1 !== 0;
     const elapsed = now - (this.screen?.started ?? now) - TRANSITION_DELAY_MS;
+    let wallDrawn = false;
     for (const { layout, control } of this.layers()) {
+      if (!wallDrawn && layout === this.screen) {
+        wallDrawn = true;
+        this.drawTrackWall(ctx, now);
+      }
       const draw = CONTROL_DRAW[control.type];
       if (!draw) continue;
       const fromScreen = layout === this.screen || this.popups?.includes(layout);
@@ -591,6 +682,67 @@ function drawAccessorWatch(ctx, c, fe) {
   drawText(ctx, fe, font, text, x - Math.floor((w / 2) * align), y, parseColor(c.attrs.forecolor, 0xffffffff));
 }
 
+// Word-wrapped accessor text, centred on the control's width when align is 1 (Evolution event
+// description). Wrapping at spaces within `size`; line pitch = font line height.
+export function wrapText(font, text, maxWidth) {
+  const lines = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && textWidth(font, next) > maxWidth) { lines.push(line); line = word; } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawWordWrapWatch(ctx, c, fe) {
+  const [x, y] = attrPair(c.attrs, "pos");
+  const [w] = attrPair(c.attrs, "size", [200, 40]);
+  const font = c.fonts.own;
+  const text = fe.host.accessor?.(c.attrs.accessor)?.text?.() ?? "";
+  const align = attrInt(c.attrs, "align", 0);
+  const color = parseColor(c.attrs.forecolor, 0xffffffff);
+  wrapText(font, text, w).forEach((line, i) => {
+    const lw = textWidth(font, line);
+    const left = align === 1 ? x + Math.floor((w - lw) / 2) : align === 2 ? x + w - lw : x;
+    drawText(ctx, fe, font, line, left, y + i * (font?.lineHeight ?? 12), color);
+  });
+}
+
+// TrackSmall2dSpline (FETrackSmall2DSpline, class vtable 0x5b8128; update 0x4fcb40, draw
+// 0x4fcd80): per race of the event the `<track>SpSm.fsh` shapes 0 (map), 1 and 2 (flags) are
+// loaded; the map of the race at index t>>8 is drawn in yellow 0xffbb00 with a fading alpha, its
+// flag (shape 2 when the race is reversed, else 1) in white, and below the list of "-" and the
+// capital names at x 352/356, y 280 + 15 i, the current one yellow, the others white. The map
+// is the shape's pixels modulated by the colour (the black shadow stays black). The shape
+// positions are the header values (matches the reference); the bit that shifts the flag when
+// race +0x3a5 is set (mirror?) is not ported (A221).
+const LIST = { x: 352, nameX: 356, y: 280, pitch: 15 };
+function drawTrackSpline(ctx, c, fe, now) {
+  const info = fe.host.trackPicture?.(fe.screen?.name);
+  if (!info?.races?.length) return;
+  if (fe.splineKey !== info.key) { fe.splineKey = info.key; fe.splineStart = now; }
+  const ticks = (now - fe.splineStart) * WALL_TICKS_PER_SECOND / 1000;
+  const { index, alpha } = splineCycle(ticks, info.races.length);
+  const race = info.races[index];
+  const map = smallMap(fe.trackPack(race.sm), race.direction);
+  if (map) {
+    ctx.save();
+    ctx.globalAlpha *= alpha / 255;
+    ctx.drawImage(fe.modulateShape(map.map, SPLINE_YELLOW), map.x, map.y);
+    if (map.flag) ctx.drawImage(fe.modulateShape(map.flag.shape, SPLINE_WHITE), map.flag.x, map.flag.y);
+    ctx.restore();
+  }
+  const font = c.fonts["Univers8b.ffn"];
+  info.races.forEach((r, i) => {
+    const color = parseColor(i === index ? "0xffffbb00" : "0xffffffff");
+    const y = LIST.y + i * LIST.pitch;
+    drawText(ctx, fe, font, "-", LIST.x, y, color);
+    drawText(ctx, fe, font, r.name, LIST.nameX, y, color);
+  });
+  fe.host.requestFrame?.();
+}
+
 // CarLogo: shapes 2*index and 2*index+1 of the car's logo pack side by side, centred
 // vertically in the control [VA 0x4c1660, 0x4c1b70]; the glint sweep is not drawn (A17).
 function drawCarLogo(ctx, c, fe) {
@@ -744,6 +896,8 @@ const CONTROL_DRAW = {
   RECTANGLE: drawRectangle,
   BOTTOMBARBUTTON: drawBottomBarButton,
   MOVIECIRCLE: drawMovieCircle,
+  TRACKSMALL2DSPLINE: drawTrackSpline,
+  WORDWRAPACCESSORWATCH: drawWordWrapWatch,
 };
 
 const CONTROL_FONTS = {
@@ -751,6 +905,7 @@ const CONTROL_FONTS = {
   COMBOBOXSLIDER: ["UniversC11b.ffn", "UniversC11m.ffn", "Univers8b.ffn"],
   COLORBOX: ["UniversC11b.ffn", "UniversC11m.ffn", "Univers8b.ffn"],
   ACCESSORWATCH: ["Univers8b.ffn"],
+  TRACKSMALL2DSPLINE: ["Univers8b.ffn"],
   HEADER: ["Univers17b.ffn"],
   BOTTOMBARBUTTON: ["Univers11b.ffn"],
 };

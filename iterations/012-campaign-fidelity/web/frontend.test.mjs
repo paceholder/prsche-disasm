@@ -172,3 +172,84 @@ test("location and quick race choices reach the race start (VA 0x4fc0b0, 0x4eb47
   assert.deepEqual(opponentPaints(cars[0], 3, () => picks[i++]), [[1, 0, 0, 1], [0, 0, 0, 1], [1, 0, 0, 1]]);
   assert.deepEqual(opponentPaints({ colours: [] }, 3, () => 0), []);
 });
+
+// ---- track pictures and the Evolution event info (A220, A221) ----
+import { wallMap, smallMap, isBackward, isMirrored } from "./fe-trackmap.js";
+import { EventInfoSetup, money } from "./fe-tournament.js";
+import { wrapText } from "./frontend.js";
+
+const shape = (name, cx = 0, cy = 0) => ({ name, width: 16, height: 16, cx, cy, canvas: {} });
+
+test("wall tile: the F flag going backward, the S flag going forward, mirrored flips", () => {
+  const shapes = [shape("map"), shape("p1"), shape("p2"), shape("p3"), shape("p4"), shape("s", 213, 102), shape("f", 103, 3)];
+  const fwd = wallMap(shapes, 0);
+  assert.deepEqual([fwd.flag.shape.name, fwd.flag.x, fwd.flag.y, fwd.flipX], ["s", 213, 102, false]);
+  const back = wallMap(shapes, 1);
+  assert.deepEqual([back.flag.shape.name, back.flag.x, back.flag.y], ["f", 103, 3]);
+  assert.equal(wallMap(shapes, 2).flipX, true);
+  assert.equal(isBackward(3) && isMirrored(3) && !isBackward(2), true);
+  assert.equal(wallMap(null, 0), null);
+  assert.equal(wallMap([shape("a"), shape("b")], 0), null);
+});
+
+test("small map sits at its header centre, with the flag at its own", () => {
+  const shapes = [shape("coas", 184, 288), shape("s", 306, 355), shape("f", 226, 281)];
+  const m = smallMap(shapes, 0);
+  assert.deepEqual([m.x, m.y, m.flag.x, m.flag.y], [184, 288, 306, 355]);
+  // 911 Cup, first race reversed: the flag at F, the top end of the route (reference frame).
+  assert.deepEqual([smallMap(shapes, 1).flag.x, smallMap(shapes, 1).flag.y], [226, 281]);
+});
+
+test("event info accessors read the record like Tourn_DataAccessor", () => {
+  const strings = { 1: "911 Cup", 2: "911", 3: "A challenge", 4: "Any 911", 450: "beginner", 301: "Cote d'Azur", 302: "Pyrenees", 321: "COTE D'AZUR", 322: "PYRENEES" };
+  const events = [
+    { id: 23, era: 0x209, record_type: 0, short_string: 2, title_string: 1, desc_string: 3, restriction_string: 4,
+      entry_fee: 1000, prize_money: 12000, times_completed: 0, races: [{ track_id: 8, laps: 3, reverse: false }, { track_id: 4, laps: 3, reverse: true }] },
+    { id: 31, era: 0x209, record_type: 2, short_string: 9, races: [] },
+    { id: 2, era: 0x20a, record_type: 0, short_string: 9, races: [] },
+  ];
+  const tracks = [{ id: 8, name_string: 301, difficulty: 0, small_pack: "coastalSpSm" }, { id: 4, name_string: 302, difficulty: 1 }];
+  const setup = new EventInfoSetup({ events, tracks, strings });
+  assert.equal(setup.events.length, 1); // era list without the bonus race
+  const text = sel => setup.accessor(`Tournament.Tournament${sel ? `(${sel})` : ""}`).text();
+  assert.deepEqual(["ENTRYFEE", "PRIZEMONEY", "TIMESCOMPLETED", "CARRESTRICTION", "DIFFICULTY", "DESCRIPTION", "SHORT", ""].map(text),
+    ["1,000", "12,000", "0", "Any 911", "beginner", "A challenge", "911", "911 Cup"]);
+  assert.deepEqual(setup.locationNames(), ["COTE D'AZUR", "PYRENEES"]);
+  assert.equal(setup.direction(), 0);
+  assert.equal(setup.accessor("Track1.Track"), null);
+  assert.equal(money(1234567), "1,234,567");
+  assert.equal(money(0), "0");
+});
+
+test("description text wraps at spaces within the control width", () => {
+  const font = { glyphs: new Map([[32, { advance: 2 }], ...[..."abcdef"].map(ch => [ch.charCodeAt(0), { advance: 5 }])]) };
+  assert.deepEqual(wrapText(font, "abc def abc", 32), ["abc def", "abc"]);
+  assert.deepEqual(wrapText(font, "", 22), []);
+  assert.deepEqual(wrapText(font, "abcdef", 3), ["abcdef"]);
+});
+
+import { wallCycle, tileCount, formatRecordTime, WALL_IDLE_TICKS } from "./fe-trackmap.js";
+test("wall cycle: idle 512 ticks, turn 64 ticks, next tile, wraps over the 5 tiles", () => {
+  assert.deepEqual(wallCycle(0, 5), { from: 0, to: 1, turn: 0 });
+  assert.deepEqual(wallCycle(WALL_IDLE_TICKS - 1, 5), { from: 0, to: 1, turn: 0 });
+  assert.deepEqual(wallCycle(WALL_IDLE_TICKS + 32, 5), { from: 0, to: 1, turn: 0.5 });
+  assert.deepEqual(wallCycle(576, 5), { from: 1, to: 2, turn: 0 });
+  assert.equal(wallCycle(576 * 5, 5).from, 0);
+  assert.equal(tileCount(new Array(7)), 5);
+});
+test("record time is 1/64 s as mm:ss.cc", () => {
+  assert.equal(formatRecordTime(164 * 64), "02:44.00");
+  assert.equal(formatRecordTime(14848), "03:52.00");
+  assert.equal(formatRecordTime(4130), "01:04.53");
+  assert.equal(formatRecordTime(0), "");
+});
+
+import { splineCycle } from "./fe-trackmap.js";
+test("spline control: map index t>>8, fade in 32 ticks, fade out 32 ticks", () => {
+  assert.deepEqual(splineCycle(0, 3), { index: 0, alpha: 0 });
+  assert.deepEqual(splineCycle(16, 3), { index: 0, alpha: 128 });
+  assert.deepEqual(splineCycle(100, 3), { index: 0, alpha: 255 });
+  assert.deepEqual(splineCycle(255, 3), { index: 0, alpha: 7 });
+  assert.equal(splineCycle(256, 3).index, 1);
+  assert.equal(splineCycle(256 * 3, 3).index, 0);
+});

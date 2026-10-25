@@ -229,6 +229,9 @@ pub struct TrackCatalogEntry {
     pub circuit: bool,
     /// i32 at +0x78: 0..2.
     pub difficulty: i32,
+    /// i32 at +0x1f8: the track's record time in 1/64 s (`RECORDTIME` reads sub-record
+    /// +0x1b0 + 0x48 [VA 0x506600, 0x4fb120]; coastal 10496 = 02:44.00).
+    pub record_time: i32,
 }
 
 /// JSON array of the track table for the web front end.
@@ -251,7 +254,7 @@ pub fn track_catalog_json(entries: &[TrackCatalogEntry]) -> String {
         .enumerate()
         .map(|(i, e)| {
             format!(
-                "{{\"index\":{i},\"internal_name\":{},\"location\":{},\"id\":{},\"name_string\":{},\"photo_pack\":{},\"small_pack\":{},\"unlock\":{},\"circuit\":{},\"difficulty\":{}}}",
+                "{{\"index\":{i},\"internal_name\":{},\"location\":{},\"id\":{},\"name_string\":{},\"photo_pack\":{},\"small_pack\":{},\"unlock\":{},\"circuit\":{},\"difficulty\":{},\"record_time\":{}}}",
                 q(&e.internal_name),
                 q(&e.location),
                 e.id,
@@ -260,7 +263,8 @@ pub fn track_catalog_json(entries: &[TrackCatalogEntry]) -> String {
                 q(&e.small_pack),
                 e.unlock,
                 e.circuit,
-                e.difficulty
+                e.difficulty,
+                e.record_time
             )
         })
         .collect();
@@ -309,6 +313,7 @@ pub fn parse_track_catalog(data: &[u8]) -> Result<Vec<TrackCatalogEntry>> {
             unlock: i16::from_le_bytes([rec[0x6c], rec[0x6d]]) as i32,
             circuit: i16::from_le_bytes([rec[0x6e], rec[0x6f]]) == 1,
             difficulty: u32le(rec, 0x78)? as i32,
+            record_time: u32le(rec, 0x1f8)? as i32,
         });
     }
 
@@ -445,6 +450,94 @@ pub fn parse_tournaments(data: &[u8]) -> Result<Vec<TournamentRecord>> {
     }
 
     Ok(tournaments)
+}
+
+/// What the Evolution event info screen (`tournament.lay`) reads from a `nfs5.trn` record
+/// [VA 0x506600 `Tourn_DataAccessor`, docs/re/career.md "Tournament record"].
+#[derive(Debug, Clone, PartialEq)]
+pub struct EventInfo {
+    /// i16 +0x00 (the id `Tourn_FindById` looks up, not the index).
+    pub id: i32,
+    /// i32 +0x04: era/list id `0x209..0x20e`.
+    pub era: u32,
+    /// String ids: short name +0x20, title +0x24, description +0x28, car restriction +0x2c.
+    pub short_string: u32,
+    pub title_string: u32,
+    pub desc_string: u32,
+    pub restriction_string: u32,
+    /// i32 +0xdc `ENTRYFEE`, i32 +0xec `PRIZEMONEY` (rank 1), i16 +0xd3c `TIMESCOMPLETED`.
+    pub entry_fee: i32,
+    pub prize_money: i32,
+    pub times_completed: i32,
+    /// i16 +0xe4: 2 = end-of-era bonus race.
+    pub record_type: i32,
+    /// Races: i16 +0x39c, each 0xa4 bytes from +0x3a0 (track id i16 +0, laps i16 +2, reverse u8 +4).
+    pub races: Vec<EventRace>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EventRace {
+    pub track_id: i32,
+    pub laps: i32,
+    pub reverse: bool,
+}
+
+fn i16at(d: &[u8], o: usize) -> Result<i32> {
+    Ok(crate::u16le(d, o)? as i16 as i32)
+}
+
+/// Parse every `nfs5.trn` record for the event info screen.
+pub fn parse_event_infos(data: &[u8]) -> Result<Vec<EventInfo>> {
+    if data.is_empty() || !data.len().is_multiple_of(TOURNAMENT_REC_SIZE) {
+        return Err(format!("invalid nfs5.trn size: {}", data.len()));
+    }
+    let mut out = Vec::new();
+    for rec in data.chunks_exact(TOURNAMENT_REC_SIZE) {
+        let n = i16at(rec, 0x39c)?.clamp(0, 10) as usize;
+        let mut races = Vec::new();
+        for r in 0..n {
+            let o = 0x3a0 + r * 0xa4;
+            races.push(EventRace {
+                track_id: i16at(rec, o)?,
+                laps: i16at(rec, o + 2)?,
+                reverse: rec[o + 4] != 0,
+            });
+        }
+        out.push(EventInfo {
+            id: i16at(rec, 0)?,
+            era: u32le(rec, 4)?,
+            short_string: u32le(rec, 0x20)?,
+            title_string: u32le(rec, 0x24)?,
+            desc_string: u32le(rec, 0x28)?,
+            restriction_string: u32le(rec, 0x2c)?,
+            entry_fee: u32le(rec, 0xdc)? as i32,
+            prize_money: u32le(rec, 0xec)? as i32,
+            times_completed: i16at(rec, 0xd3c)?,
+            record_type: i16at(rec, 0xe4)?,
+            races,
+        });
+    }
+    Ok(out)
+}
+
+/// JSON array of [`EventInfo`] for the web front end.
+pub fn event_infos_json(infos: &[EventInfo]) -> String {
+    let items: Vec<String> = infos
+        .iter()
+        .map(|e| {
+            let races: Vec<String> = e
+                .races
+                .iter()
+                .map(|r| format!("{{\"track_id\":{},\"laps\":{},\"reverse\":{}}}", r.track_id, r.laps, r.reverse))
+                .collect();
+            format!(
+                "{{\"id\":{},\"era\":{},\"short_string\":{},\"title_string\":{},\"desc_string\":{},\"restriction_string\":{},\"entry_fee\":{},\"prize_money\":{},\"times_completed\":{},\"record_type\":{},\"races\":[{}]}}",
+                e.id, e.era, e.short_string, e.title_string, e.desc_string, e.restriction_string,
+                e.entry_fee, e.prize_money, e.times_completed, e.record_type, races.join(",")
+            )
+        })
+        .collect();
+    format!("[{}]", items.join(","))
 }
 
 /// A tuning or replacement part record from `nfs5.prt`.
@@ -594,6 +687,8 @@ mod tests {
             let c = t.internal_name.starts_with("monaco") || t.internal_name == "skidpad";
             assert_eq!(t.circuit, c, "{}", t.internal_name);
         }
+        let coastal = catalog.iter().find(|t| t.internal_name == "coastal").unwrap();
+        assert_eq!(coastal.record_time, 164 * 64); // 02:44.00 on the reference frame
         let j = track_catalog_json(&catalog);
         assert!(j.starts_with("[{\"index\":0,\"internal_name\":\"coastal\""));
         assert_eq!(j.matches("\"index\"").count(), 15);
@@ -615,6 +710,43 @@ mod tests {
         assert_eq!(missions[0].time_limit_sec, 32);
         assert_eq!(missions[0].track_id, 13); // skidpad
         assert_eq!(missions[1].code, "1m01");
+    }
+
+    #[test]
+    fn event_info_reads_the_accessor_fields() {
+        let mut rec = vec![0u8; TOURNAMENT_REC_SIZE];
+        rec[0..2].copy_from_slice(&23i16.to_le_bytes());
+        rec[0x20..0x24].copy_from_slice(&7u32.to_le_bytes());
+        rec[0xdc..0xe0].copy_from_slice(&1000u32.to_le_bytes());
+        rec[0xec..0xf0].copy_from_slice(&12000u32.to_le_bytes());
+        rec[0x39c..0x39e].copy_from_slice(&2i16.to_le_bytes());
+        rec[0x3a0..0x3a2].copy_from_slice(&8i16.to_le_bytes());
+        rec[0x3a2..0x3a4].copy_from_slice(&3i16.to_le_bytes());
+        rec[0x3a0 + 0xa4..0x3a0 + 0xa4 + 2].copy_from_slice(&11i16.to_le_bytes());
+        rec[0x3a0 + 0xa4 + 4] = 1;
+        let infos = parse_event_infos(&rec).unwrap();
+        let e = &infos[0];
+        assert_eq!((e.id, e.short_string, e.entry_fee, e.prize_money), (23, 7, 1000, 12000));
+        assert_eq!(e.races.len(), 2);
+        assert_eq!((e.races[0].track_id, e.races[0].laps, e.races[0].reverse), (8, 3, false));
+        assert!(e.races[1].reverse);
+        assert!(event_infos_json(&infos).contains("\"races\":[{\"track_id\":8"));
+        assert!(parse_event_infos(&rec[1..]).is_err());
+    }
+
+    #[test]
+    fn parse_local_event_infos() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/FEData/Data/nfs5.trn");
+        if !path.exists() {
+            return;
+        }
+        let infos = parse_event_infos(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(infos.len(), TOURNAMENT_COUNT);
+        // 911 Cup (Classic, id 23): fee 1000, prize 12000, three locations [reference frame].
+        let cup = infos.iter().find(|e| e.id == 23).unwrap();
+        assert_eq!((cup.entry_fee, cup.prize_money, cup.races.len()), (1000, 12000, 3));
     }
 
     #[test]

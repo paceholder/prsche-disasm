@@ -116,6 +116,13 @@ pub fn fe_track_catalog_json(bytes: Uint8Array) -> Result<String, JsValue> {
     Ok(nfs_formats::track_catalog_json(&t))
 }
 
+/// The Evolution event records of `nfs5.trn` as the event info screen reads them, as JSON.
+#[wasm_bindgen]
+pub fn fe_event_infos_json(bytes: Uint8Array) -> Result<String, JsValue> {
+    let e = nfs_formats::parse_event_infos(&bytes.to_vec()).map_err(|e| JsValue::from_str(&e))?;
+    Ok(nfs_formats::event_infos_json(&e))
+}
+
 /// Record indices of the original Quick Race car list from `nfs5.car`, as a JSON array.
 #[wasm_bindgen]
 pub fn fe_quick_race_cars_json(bytes: Uint8Array, cheat_all: Option<bool>) -> Result<String, JsValue> {

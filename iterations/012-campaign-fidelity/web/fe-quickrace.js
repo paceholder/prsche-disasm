@@ -1,3 +1,4 @@
+import { formatRecordTime } from "./fe-trackmap.js";
 // Quick Race settings behind QuickRace.lay and location.lay, with the original value lists
 // (docs/re/frontend.md "Quick Race accessors"). Pure module: no DOM, tested in frontend.test.mjs.
 
@@ -119,7 +120,7 @@ export class QuickRaceSetup {
         const label = t => {
           if (sel === "SHORT") return this.str(t.name_string + 0x28);
           if (sel === "DIFFICULTY") return this.str(DIFFICULTY_BASE + t.difficulty);
-          if (sel === "RECORDTIME") return "";   // no track records yet (A100)
+          if (sel === "RECORDTIME") return formatRecordTime(t.record_time); // default record, no profile records yet (A100)
           return this.str(t.name_string);
         };
         return list(() => this.tracks.map(label), () => this.track, i => { this.track = i; });

@@ -1,4 +1,4 @@
-import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json, fe_pick_opponents_json } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_event_infos_json, fe_quick_race_cars_json, fe_pick_opponents_json } from "./package/viewer_impl.js";
 import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE } from "./pause-menu.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
@@ -3783,6 +3783,7 @@ function cheatAllCars() {
   }
 }
 let raceStart = null;
+let eventInfoSetup = null;
 async function buildFrontEndSetup(strings) {
   const all = cheatAllCars();
   const { QuickRaceSetup, quickRaceTracks, raceStart: rs } = await import("./fe-quickrace.js");
@@ -3802,8 +3803,15 @@ async function buildFrontEndSetup(strings) {
     })
     .filter(Boolean);
   const trackBytes = await readGamePath("FEData/Data/nfs5.trk");
-  const tracks = trackBytes ? quickRaceTracks(JSON.parse(fe_track_catalog_json(trackBytes)), availableTracks, all) : [];
+  const allTracks = trackBytes ? JSON.parse(fe_track_catalog_json(trackBytes)) : [];
+  const tracks = quickRaceTracks(allTracks, availableTracks, all);
   frontEndSetup = new QuickRaceSetup({ strings, cars, tracks });
+  // Evolution event info (tournament.lay): nfs5.trn records over the whole track table.
+  const trnBytes = await readGamePath("FEData/Data/nfs5.trn");
+  const { EventInfoSetup } = await import("./fe-tournament.js");
+  eventInfoSetup = trnBytes
+    ? new EventInfoSetup({ events: JSON.parse(fe_event_infos_json(trnBytes)), tracks: allTracks, strings })
+    : null;
 }
 
 async function frontEndPlayGame() {
@@ -3890,7 +3898,18 @@ async function startFrontEnd() {
       readFile: readGamePath,
       onRoom: loadFrontEndRoom,
       onAction: frontEndAction,
-      accessor: name => frontEndSetup?.accessor(name) ?? null,
+      accessor: name => frontEndSetup?.accessor(name) ?? eventInfoSetup?.accessor(name) ?? null,
+      // Track pictures of TrackArt: the location screen's wall tile and the event panel's map.
+      trackPicture: screen => {
+        if (screen === "location") {
+          const t = frontEndSetup?.currentTrack();
+          return t ? { sp: t.photo_pack, sm: t.small_pack, direction: frontEndSetup.direction } : null;
+        }
+        if (screen === "tournament" && eventInfoSetup?.current()) {
+          return { key: eventInfoSetup.index, races: eventInfoSetup.raceViews() };
+        }
+        return null;
+      },
       // FECallBackList update [VA 0x50cc30]: ID_MERGEDLISTCOLOR when 0x4f4df0 is true,
       // ID_MERGEDLISTCARSETUP otherwise. Hypothesis: 0x4f4df0 = "the car is not owned";
       // Quick Race offers only unowned (catalogue) cars here, so colour shows, car setup not.
@@ -3924,6 +3943,10 @@ async function startFrontEnd() {
       return;
     }
     await frontEnd.start("gamesetup");
+    // Visual check: ?fescreen=location|tournament opens that layout over the main menu
+    // (the Evolution flow does not lead to tournament.lay yet).
+    const direct = new URLSearchParams(location.search).get("fescreen");
+    if (direct) await frontEnd.goto(direct);
     menuVisible = true;
     syncFrontEndClasses();
     setStatus("Original front end (?shell=web: web shell)");
