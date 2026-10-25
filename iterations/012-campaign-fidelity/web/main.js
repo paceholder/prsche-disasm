@@ -1,4 +1,5 @@
 import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_event_infos_json, fe_quick_race_cars_json, fe_pick_opponents_json } from "./package/viewer_impl.js";
+import { carClickZone, carPartMs, ZONE_CHANNEL } from "./fe-car-click.js";
 import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE } from "./pause-menu.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
@@ -2560,6 +2561,9 @@ function buildQuickRaceCars(records, installedModels, resources) {
       bank: record.bank,
       gauges: record.gauges,
       colours: record.colours,
+      ratings: record.ratings,
+      group: record.group,
+      year: record.year,
       style: record.style ?? 0,
     });
   }
@@ -3798,7 +3802,7 @@ async function buildFrontEndSetup(strings) {
     .map(i => {
       const installed = quickRaceCars.find(c => c.index === i);
       const r = byIndex.get(i);
-      return installed && r ? { ...installed, short_name: r.short_name, colours: r.colours,
+      return installed && r ? { ...installed, short_name: r.short_name, colours: r.colours, ratings: r.ratings, group: r.group, year: r.year,
         logo_pack: r.logo_pack, logo_shape: r.logo_shape } : null;
     })
     .filter(Boolean);
@@ -3826,6 +3830,61 @@ async function frontEndPlayGame() {
   await launchQuickRace(start);
 }
 
+// Click on the garage car [VA 0x4c0eb0]: the zone (roof, doors, hood, trunk) follows the yaw of
+// the room; the top, doors, hood and trunk lid move (A232). A second click on an open door sits
+// the player in the car in the original (zoom, `0x4c7d70`), which is not ported: it closes the door.
+// Our yaw is half a turn off the original's value (the car shows its rear at 0.5 here, the zone
+// function expects the front at 0.5), so the zone follows what is on screen (A232).
+function frontEndCarClick(x, y, screen) {
+  const control = screen?.controls.find(c => c.type === "3DCAR" && Number(c.attrs.positiontype || 0) === 0);
+  if (!control || !viewer?.has_room?.() || !viewer.room_car_has_part) return;
+  const [px, py] = (control.attrs.pos || "0,0").split(",").map(Number);
+  const [w, h] = (control.attrs.size || "0,0").split(",").map(Number);
+  if (x < px || y < py || x >= px + w || y >= py + h) return;
+  const hasTop = viewer.room_car_has_part(1);
+  const zone = carClickZone(x, y, { left: px, top: py, right: px + w, bottom: py + h },
+    (viewer.room_yaw_turns() + 0.5) % 1, hasTop);
+  const channel = ZONE_CHANNEL[zone];
+  if (!channel || !viewer.room_car_has_part(channel)) return;
+  const open = viewer.room_car_anim_target(channel) > 0.5 ? 0 : 1;
+  viewer.set_room_car_anim(channel, open, carPartMs(channel, open === 1));
+  if (channel === 1 && frontEndSetup) frontEndSetup.roof = open;
+  queueFrame();
+}
+
+// Top of the garage car from the Car.Roof setting (0 up, 1 down).
+function applyRoofSetting(ms) {
+  if (frontEndSetup && viewer?.room_car_has_part?.(1)) {
+    viewer.set_room_car_anim(1, frontEndSetup.roof ? 1 : 0, ms);
+  }
+}
+
+// Car compare (`carcompare.lay`): two 3DCAR controls, position types 1 and 2: the Quick Race
+// car on the left, GenericCar2's car on the right, each in the first colour of its list for
+// the right one and the chosen colour for the left one (A230).
+async function loadFrontEndCompare() {
+  if (!frontEndSetup || !viewer.has_room?.()) return;
+  const cars3d = frontEnd?.screen?.controls.filter(c => c.type === "3DCAR") ?? [];
+  if (cars3d.length < 2) return;
+  const { playerPaint } = await import("./fe-quickrace.js");
+  const load = async car => {
+    const files = await fetchGameFiles(findCarFilesFromCatalog(car.model_name.toLowerCase()));
+    viewer.set_car_model(files.names, files.bytes, car.model_name.toLowerCase(), car.style || 0);
+  };
+  const left = frontEndSetup.currentCar();
+  const right = frontEndSetup.compareCar();
+  if (!left || !right) return;
+  await load(right);
+  viewer.stash_compare_car(new Float32Array(playerPaint(right, 0) || []));
+  await load(left);
+  frontEndCar = `${left.model_name}:${left.style || 0}`;
+  viewer.set_room_paint(new Float32Array(playerPaint(left, frontEndSetup.colour) || []));
+  viewer.show_compare_cars(true);
+  // Cars above the 2D backdrop (transparent canvas on top of the front-end canvas, A230).
+  document.body.classList.add("fe-compare");
+  queueFrame();
+}
+
 // room= of the shown layout; a 3DCAR control adds the selected car [VA 0x4bfdc0].
 async function loadFrontEndRoom(room, carAccessor) {
   const id = (room || "").toUpperCase();
@@ -3833,7 +3892,12 @@ async function loadFrontEndRoom(room, carAccessor) {
   try {
     // Rooms without a drawn model (ID_NONE, ID_TESTROOM, ID_TRACK, ...) show an empty scene.
     viewer.hide_room?.(!model);
-    if (!model) return;
+    viewer.show_compare_cars?.(false);
+    document.body.classList.remove("fe-compare");
+    if (!model) {
+      await loadFrontEndCompare();
+      return;
+    }
     if (frontEndRoom !== id || !viewer.has_room()) {
       const names = [`FEData/Models/${model}.crp`, `FEData/Models/${model}.tpg`];
       const bytes = await Promise.all(names.map(readGamePath));
@@ -3851,7 +3915,11 @@ async function loadFrontEndRoom(room, carAccessor) {
         const files = await fetchGameFiles(findCarFilesFromCatalog(car.model_name.toLowerCase()));
         viewer.set_room_car(files.names, files.bytes, car.model_name.toLowerCase(), car.style || 0);
         frontEndCar = carKey;
+        applyRoofSetting(0);
       }
+      // The colour button's list entry paints the body, as in the race (A127).
+      const { playerPaint } = await import("./fe-quickrace.js");
+      viewer.set_room_paint?.(new Float32Array((car && playerPaint(car, frontEndSetup?.colour ?? 0)) || []));
       viewer.show_room_car(Boolean(car));
     } else {
       viewer.show_room_car(false);
@@ -3894,6 +3962,7 @@ async function startFrontEnd() {
   try {
     const { FrontEnd } = await import("./frontend.js");
     frontEnd = new FrontEnd(feCanvas, {
+      topCanvas: document.querySelector("#feTopCanvas"),
       api: { fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings },
       readFile: readGamePath,
       onRoom: loadFrontEndRoom,
@@ -3914,18 +3983,22 @@ async function startFrontEnd() {
       // ID_MERGEDLISTCARSETUP otherwise. Hypothesis: 0x4f4df0 = "the car is not owned";
       // Quick Race offers only unowned (catalogue) cars here, so colour shows, car setup not.
       controlVisible: name => name !== "ID_MERGEDLISTCARSETUP",
-      carLogo: () => {
-        const car = frontEndSetup?.currentCar();
+      carLogo: (accessor, other) => {
+        // Car compare: the right logo follows GenericCar2, the left one is `CarCompare1`.
+        const car = /^GenericCar2\./i.test(accessor || "") ? frontEndSetup?.compareCar() : frontEndSetup?.currentCar();
         return car?.logo_pack ? { pack: car.logo_pack, shape: car.logo_shape } : null;
       },
       onChange: name => {
         // A new car (or colour) is shown in the garage at once.
-        if (/^(zMergedList|GenericCar)\./.test(name || "") && frontEnd.screen?.controls.some(c => c.type === "3DCAR")) {
+        if (/^(zMergedList|GenericCar2?)\./.test(name || "") && frontEnd.screen?.controls.some(c => c.type === "3DCAR")) {
           loadFrontEndRoom(frontEnd.screen.screenAttrs.room, "zMergedList.Car");
         }
+        // Car.Roof (settings pop-up) moves the top of a cabrio in the garage [VA 0x4c0990].
+        if (name === "Car.Roof") applyRoofSetting(carPartMs(1, true));
         queueFrame();
       },
       career: () => false,
+      onCarClick: frontEndCarClick,
       requestFrame: queueFrame,
     });
     await frontEnd.init();

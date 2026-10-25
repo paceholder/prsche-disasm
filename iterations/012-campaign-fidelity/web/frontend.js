@@ -18,6 +18,7 @@ export class FrontEnd {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.host = host;
+    this.topCtx = host.topCanvas?.getContext("2d") ?? null;
     this.assets = new FeAssets(host.api, host.readFile);
     this.levels = [];
     this.popups = [];
@@ -179,6 +180,11 @@ export class FrontEnd {
       this.canvas.width = width;
       this.canvas.height = height;
     }
+    const top = this.host.topCanvas;
+    if (top && (top.width !== width || top.height !== height)) {
+      top.width = width;
+      top.height = height;
+    }
     this.view = fitViewport(width, height);
   }
 
@@ -309,9 +315,16 @@ export class FrontEnd {
       draw(ctx, control, this, now);
       ctx.restore();
     }
-    // Open (or closing) drop-down lists on top.
+    // Open (or closing) drop-down lists on top, on their own canvas above the 3D cars.
+    const top = this.topCtx ?? ctx;
+    if (this.topCtx) {
+      top.setTransform(1, 0, 0, 1, 0, 0);
+      top.clearRect(0, 0, this.host.topCanvas.width, this.host.topCanvas.height);
+      top.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
+      top.imageSmoothingEnabled = view.scale % 1 !== 0;
+    }
     for (const { control } of this.layers()) {
-      if (control.list) drawComboList(ctx, control, this, now);
+      if (control.list) drawComboList(top, control, this, now);
     }
     if (elapsed < 600) this.host.requestFrame?.();
   }
@@ -349,10 +362,12 @@ export class FrontEnd {
       const L = comboList(c, this, performance.now());
       const inList = L && x >= L.x && x < L.x + L.w && y >= L.y && y < L.y + L.full;
       const row = inList ? L.scroll + Math.floor((y - L.y) / LIST_ROW_H) : -1;
-      if (type === "move") c.list.hoverRow = row < L.items.length ? row : -1;
+      const entry = L?.items[row];
+      const selectable = inList && row < L.items.length && !entry?.sep;
+      if (type === "move") c.list.hoverRow = selectable ? row : -1;
       if (type === "up") {
-        if (inList && row < L.items.length) {
-          L.acc?.select?.(row);
+        if (selectable) {
+          L.acc?.select?.(entry?.index ?? row);
           this.host.onChange?.(c.attrs.accessor, c);
           this.closeList();
         } else {
@@ -371,6 +386,7 @@ export class FrontEnd {
       this.pressed = hit;
     } else if (type === "up") {
       if (hit && hit === this.pressed) this.activate(hit, x);
+      else if (!hit && !this.pressed) this.host.onCarClick?.(x, y, this.screen);
       this.pressed = null;
     }
     this.canvas.style.cursor = hit ? "pointer" : "default";
@@ -544,7 +560,8 @@ function comboList(c, fe, now) {
   if (!st) return null;
   const g = comboGeometry(c, fe);
   const acc = fe.host.accessor?.(c.attrs.accessor);
-  const items = acc?.items?.() ?? [];
+  // Car lists give rows {year, text, index} with separator rows {sep, text} between classes.
+  const items = acc?.rows?.() ?? acc?.items?.() ?? [];
   const t = Math.min(1, Math.max(0, (now - st.opened) / LIST_OPEN_MS));
   const k = st.closing ? 1 - t : t;
   const full = Math.min(items.length * LIST_ROW_H, attrInt(c.attrs, "selectionboxmaxheight", 160));
@@ -636,16 +653,41 @@ function drawComboList(ctx, c, fe, now) {
   ctx.clip();
   const font = c.fonts["Univers8b.ffn"];
   const current = L.acc?.index?.() ?? -1;
+  const carRows = L.items.some(r => typeof r === "object");
+  const yearW = 26;
+  const textRight = L.x + L.w - (carRows && L.items.length * LIST_ROW_H > L.full ? 14 : 0);
+  if (carRows) {
+    // Year column: a darker strip left of the names (original car lists, A234).
+    ctx.fillStyle = "rgba(120,70,0,0.28)";
+    ctx.fillRect(L.x + 1, L.y, yearW, L.h);
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillRect(L.x + 1 + yearW, L.y, 1, L.h);
+  }
   for (let i = L.scroll, row = 0; i < L.items.length; i++, row++) {
     const ry = L.y + row * LIST_ROW_H;
     if (ry > L.y + L.h) break;
+    const entry = L.items[i];
+    if (entry?.sep) {
+      // Class separator: a raised beige band with the class name centred.
+      const band = ctx.createLinearGradient(0, ry, 0, ry + LIST_ROW_H);
+      band.addColorStop(0, "#efe6c8");
+      band.addColorStop(1, "#a89c76");
+      ctx.fillStyle = band;
+      ctx.fillRect(L.x + 1, ry + 1, textRight - L.x - 1, LIST_ROW_H - 2);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(L.x + 1, ry, textRight - L.x - 1, 1);
+      ctx.fillRect(L.x + 1, ry + LIST_ROW_H - 1, textRight - L.x - 1, 1);
+      const tw = textWidth(font, entry.text);
+      drawText(ctx, fe, font, entry.text, Math.floor((L.x + textRight) / 2 - tw / 2), ry + 1, parseColor("0xff000000"));
+      continue;
+    }
     const hovered = c.list && !c.list.closing && c.list.hoverRow === i;
     if (hovered) {
-      ctx.fillStyle = "rgba(188,0,0,1)";
-      ctx.fillRect(L.x + 1, ry, L.w - 2, LIST_ROW_H);
-    } else if (c.type === "COLORBOX" && i === current) {
-      ctx.fillStyle = "rgba(255,187,0,1)";
-      ctx.fillRect(L.x + 1, ry, L.w - 2, LIST_ROW_H);
+      ctx.fillStyle = "rgba(200,40,20,1)";
+      ctx.fillRect(L.x + 1, ry, textRight - L.x - 1, LIST_ROW_H);
+    } else if ((c.type === "COLORBOX" || carRows) && (entry?.index ?? i) === current) {
+      ctx.fillStyle = carRows ? "rgba(200,40,20,0.55)" : "rgba(255,187,0,1)";
+      ctx.fillRect(L.x + 1, ry, textRight - L.x - 1, LIST_ROW_H);
     }
     if (L.acc?.colorAt) {
       // ColorBox rows: colour swatches (row drawing vtbl +0x3c not read, A17).
@@ -653,18 +695,36 @@ function drawComboList(ctx, c, fe, now) {
       ctx.fillRect(L.x + 4, ry + 2, L.w - 8, LIST_ROW_H - 4);
       ctx.strokeStyle = "#000";
       ctx.strokeRect(L.x + 4.5, ry + 2.5, L.w - 9, LIST_ROW_H - 5);
+    } else if (typeof entry === "object") {
+      drawText(ctx, fe, font, entry.year, L.x + 4, ry + 1, parseColor(hovered ? "0xffffffff" : "0xffffe9a0"));
+      drawText(ctx, fe, font, entry.text, L.x + yearW + 5, ry + 1, parseColor(hovered ? "0xffffffff" : "0xff000000"));
     } else {
-      drawText(ctx, fe, font, L.items[i], L.x + 1 + 3, ry + 1, parseColor(hovered ? "0xffffffff" : "0xff000000"));
+      drawText(ctx, fe, font, entry, L.x + 1 + 3, ry + 1, parseColor(hovered ? "0xffffffff" : "0xff000000"));
     }
   }
   ctx.restore();
   if (L.items.length * LIST_ROW_H > L.full) {
-    // Scrollbar when clamped to 160 px [VA 0x4db530] (drawn simplified, A17).
+    // Scrollbar when clamped to 160 px [VA 0x4db530]: light track with arrow buttons and a thumb,
+    // drawn simplified (A17).
     const total = L.items.length * LIST_ROW_H;
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(L.x + L.w - 6, L.y, 5, L.h);
-    ctx.fillStyle = "rgba(188,0,0,1)";
-    ctx.fillRect(L.x + L.w - 6, L.y + (L.scroll * LIST_ROW_H / total) * L.h, 5, Math.max(8, L.h * L.full / total));
+    const bx = L.x + L.w - 13, bw = 12, btn = 11;
+    ctx.fillStyle = "#c9dcf0";
+    ctx.fillRect(bx, L.y, bw, L.h);
+    ctx.fillStyle = "#e8b030";
+    ctx.fillRect(bx, L.y, bw, btn);
+    ctx.fillRect(bx, L.y + L.h - btn, bw, btn);
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.moveTo(bx + 6, L.y + 3); ctx.lineTo(bx + 9, L.y + 8); ctx.lineTo(bx + 3, L.y + 8); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(bx + 6, L.y + L.h - 3); ctx.lineTo(bx + 9, L.y + L.h - 8); ctx.lineTo(bx + 3, L.y + L.h - 8); ctx.fill();
+    const track = L.h - 2 * btn;
+    const thumbH = Math.max(8, track * L.full / total);
+    const thumbY = L.y + btn + (track - thumbH) * (L.scroll * LIST_ROW_H / Math.max(1, total - L.full));
+    ctx.fillStyle = "#f4c24a";
+    ctx.fillRect(bx + 1, thumbY, bw - 2, thumbH);
+    ctx.strokeStyle = "#000";
+    ctx.strokeRect(bx + 1.5, thumbY + 0.5, bw - 3, thumbH - 1);
   }
   ctx.strokeStyle = "#000";
   ctx.strokeRect(L.x + 0.5, L.y + 0.5, L.w - 1, L.h - 1);
@@ -743,24 +803,50 @@ function drawTrackSpline(ctx, c, fe, now) {
   fe.host.requestFrame?.();
 }
 
+// GouraudIndicatorBar (`carcompare.lay`): the value of `CarCompare.Data(<othersource>)` as a bar
+// of `size` with the colours c0/c50/c100 as a gradient along the bar; `goingleft` grows it from
+// the right end. The scale (100 = full) and the gradient are guesses (A231); the control's
+// drawing function [FEGouraudIndicatorBar] is not decompiled.
+function drawGouraudIndicatorBar(ctx, c, fe) {
+  const a = c.attrs;
+  const acc = fe.host.accessor?.(`CarCompare.Data(${a.othersource})`);
+  if (!acc?.value) return;
+  const [x, y] = attrPair(a, "pos");
+  const [w, h] = attrPair(a, "size", [110, 6]);
+  const len = Math.round(Math.max(0, Math.min(100, acc.value())) / 100 * w);
+  if (len <= 0) return;
+  const left = attrInt(a, "goingleft", 0) === 1;
+  const x0 = left ? x + w - len : x;
+  // The gradient belongs to the whole bar (c0 at `pos.x`, c100 at the far end), the value clips it:
+  // original screenshot: the base end is light blue, the tip of a long bar orange (A231).
+  const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+  grad.addColorStop(0, cssColor(parseColor(a.c0, 0xff0000ff)));
+  grad.addColorStop(0.5, cssColor(parseColor(a.c50, 0xff0000ff)));
+  grad.addColorStop(1, cssColor(parseColor(a.c100, 0xff0000ff)));
+  ctx.fillStyle = grad;
+  ctx.fillRect(x0, y, len, h);
+}
+
 // CarLogo: shapes 2*index and 2*index+1 of the car's logo pack side by side, centred
 // vertically in the control [VA 0x4c1660, 0x4c1b70]; the glint sweep is not drawn (A17).
 function drawCarLogo(ctx, c, fe) {
-  const logo = fe.host.carLogo?.(c.attrs.accessor);
+  const logo = fe.host.carLogo?.(c.attrs.accessor, c.attrs.othersource);
   const pack = logo && fe.logoPacks?.get(logo.pack.toLowerCase());
   if (!pack) {
     if (logo && !fe.logoPacks?.has(logo.pack.toLowerCase())) fe.loadLogoPack(logo.pack);
     return;
   }
   const [x, y] = attrPair(c.attrs, "pos");
-  const [, h] = attrPair(c.attrs, "size", [100, 60]);
   const a = pack[logo.shape];
   const b = pack[logo.shape + 1];
   if (!a) return;
   const total = a.width + (b && b.height > 1 ? b.width : 0);
   const align = attrInt(c.attrs, "align", 0);
   const left = x - (align === 1 ? total / 2 : align === 2 ? total : 0);
-  const top = y + Math.floor((h - a.height) / 2);
+  // Centre 4 px below `pos`: measured on the original Quick Race screenshot ("turbo" centre at
+  // y 429 for pos y 426; centring in the 100x60 box put it 26 px too low, under the bottom
+  // bar). The draw function 0x4c1b70 is not in the decompile (A233).
+  const top = y + 4 - Math.floor(a.height / 2);
   drawShape(ctx, a, left, top);
   if (b && b.height > 1) drawShape(ctx, b, left + a.width, top);
 }
@@ -817,6 +903,9 @@ function drawLabel(ctx, c, fe) {
 }
 
 function drawRectangle(ctx, c) {
+  // `size=` given but empty (carcompare.lay section 14): nothing is drawn in the original
+  // (reference screenshot), not the 50x50 template default (A234).
+  if (c.attrs.size === "") return;
   const [x, y] = attrPair(c.attrs, "pos");
   const [w, h] = attrPair(c.attrs, "size", [50, 50]);
   ctx.fillStyle = cssColor(parseColor(c.attrs.color, 0x8000ff00));
@@ -888,6 +977,7 @@ const CONTROL_DRAW = {
   COLORBOX: drawComboBox,
   ACCESSORWATCH: drawAccessorWatch,
   CARLOGO: drawCarLogo,
+  GOURAUDINDICATORBAR: drawGouraudIndicatorBar,
   EXTRACIRCLE: drawExtraCircle,
   GOURAUDBOX: drawGouraudBox,
   GLINTYLINE: drawGlintyLine,

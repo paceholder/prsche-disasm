@@ -28,6 +28,9 @@ const YEAR_AT: usize = 0x1f8;
 const COLOUR_COUNT_AT: usize = 0x3e6;
 const COLOUR_AT: usize = 0x3ec;
 const COLOUR_END: usize = 0x528;
+/// Five i16 ratings at +0x324..+0x32c: acceleration, top speed, braking, handling, overall
+/// (the car compare screen's bars, read by `FUN_004ca790` for `CarCompare.Data(<n>CarCompareCar1|2)`).
+const RATINGS_AT: usize = 0x324;
 const FIELD_LEN: usize = 32;
 /// Gauge calibration `+0x2f0..+0x2fc` (4 f32): written by the front end as the race config
 /// keys `.TACH0RPM`, `.TACH1000RPM`, `.SPEEDO0KM`, `.SPEEDO100KM` (`FE_WriteCarConfig`
@@ -69,6 +72,8 @@ pub struct CarEntry {
     pub year: i32,
     /// Paint colours: u16 count at +0x3e6, entries of 4 packed u32 from +0x3ec (raw values).
     pub colours: Vec<[u32; 4]>,
+    /// i16 +0x324..+0x32c (`RATINGS_AT`): acceleration, top speed, braking, handling, overall.
+    pub ratings: [i32; 5],
 }
 
 fn le_i32(r: &[u8], at: usize) -> i32 {
@@ -132,6 +137,7 @@ pub fn parse_car_catalogue(d: &[u8]) -> Result<Vec<CarEntry>> {
             group: le_i32(r, GROUP_AT),
             year: le_i16(r, YEAR_AT),
             colours: parse_colours(r),
+            ratings: std::array::from_fn(|i| le_i16(r, RATINGS_AT + 2 * i)),
         })
         .collect())
 }
@@ -222,8 +228,9 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
             .map(|c| format!("[{},{},{},{}]", c[0], c[1], c[2], c[3]))
             .collect();
         out.push_str(&format!(
-            "\"logo_shape\":{},\"gauges\":[{}],\"style\":{},\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}]}}",
+            "\"logo_shape\":{},\"ratings\":[{}],\"gauges\":[{}],\"style\":{},\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}]}}",
             e.logo_shape,
+            e.ratings.map(|r| r.to_string()).join(","),
             g.join(","),
             e.style,
             e.kind,
@@ -380,10 +387,11 @@ mod tests {
             group: 503,
             year: 2000,
             colours: vec![[1, 2, 3, 4], [5, 6, 7, 8]],
+            ratings: [30, 40, 56, 30, 41],
         };
         assert_eq!(
             catalogue_json(&[e]),
-            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"gauges\":[-0.07,0.14,-0.01,0.17],\"style\":8,\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]]}]"
+            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"ratings\":[30,40,56,30,41],\"gauges\":[-0.07,0.14,-0.01,0.17],\"style\":8,\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]]}]"
         );
         assert_eq!(catalogue_json(&[]), "[]");
     }

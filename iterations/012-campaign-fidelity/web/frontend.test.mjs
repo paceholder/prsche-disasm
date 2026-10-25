@@ -253,3 +253,45 @@ test("spline control: map index t>>8, fade in 32 ticks, fade out 32 ticks", () =
   assert.equal(splineCycle(256, 3).index, 1);
   assert.equal(splineCycle(256 * 3, 3).index, 0);
 });
+
+test("car compare reads the five ratings of both cars (VA 0x4ca790, rec +0x324)", async () => {
+  const { QuickRaceSetup } = await import("./fe-quickrace.js");
+  const cars = [{ display_name: "'59 A", short_name: "A", year: 1959, group: 501, ratings: [30, 40, 56, 30, 41], colours: [] },
+    { display_name: "'72 B", short_name: "B", year: 1972, group: 503, ratings: [79, 65, 67, 51, 69], colours: [] }];
+  const q = new QuickRaceSetup({ strings: {}, cars, tracks: [] });
+  const v = name => q.accessor(`CarCompare.Data(${name})`).value();
+  assert.equal(v("0CarCompareCar1"), 30);
+  assert.equal(v("4CarCompareCar1"), 41);
+  q.accessor("GenericCar2.Car(SHORT)").select(1);
+  assert.equal(q.accessor("GenericCar2.Car(SHORT)").text(), "B", "header: the short name");
+  assert.deepEqual(q.accessor("GenericCar2.Car").rows(), [{ year: "'59", text: "A", index: 0 },
+    { sep: true, text: "" }, { year: "'72", text: "B", index: 1 }], "year | name, separator at a class change");
+  assert.equal(q.accessor("CarCompare.Data(2CarCompareCar2)").text(), "67");
+  assert.equal(v("2CarCompareCar1"), 56, "car 1 follows the car list, car 2 GenericCar2");
+});
+
+test("click zones of the garage car follow the room yaw (VA 0x4c0d10)", async () => {
+  const { carClickZone } = await import("./fe-car-click.js");
+  const rect = { left: 110, top: 230, right: 530, bottom: 410 };   // QuickRace.lay 3DCAR 420x180
+  // Top 5/16 of the control is the cabrio top, whatever the yaw.
+  assert.equal(carClickZone(300, 250, rect, 0.5, true), 0);
+  assert.equal(carClickZone(300, 250, rect, 0.5, false), 3, "no top channel: hood seen from the front");
+  assert.equal(carClickZone(300, 350, rect, 0.0, true), 4, "seen from behind: trunk");
+  assert.equal(carClickZone(300, 350, rect, 0.5, true), 3, "seen from the front: hood");
+  // Side views: sixths of the width are hood and trunk, the middle is a door.
+  assert.equal(carClickZone(120, 350, rect, 0.75, true), 3);
+  assert.equal(carClickZone(300, 350, rect, 0.75, true), 1);
+  assert.equal(carClickZone(520, 350, rect, 0.75, true), 4);
+  assert.equal(carClickZone(120, 350, rect, 0.25, true), 4);
+  assert.equal(carClickZone(300, 350, rect, 0.25, true), 2);
+  assert.equal(carClickZone(520, 350, rect, 0.25, true), 3);
+});
+
+test("part tweens follow the 128 Hz level formulas of 0x4c0520", async () => {
+  const { carPartMs, ZONE_CHANNEL } = await import("./fe-car-click.js");
+  assert.ok(Math.abs(carPartMs(1, true) - 2988) < 1, "top: level 2*ticks/3 reaches 255 at 382 ticks");
+  assert.ok(Math.abs(carPartMs(6, true) - 601.6) < 1, "door opens in 255*0.302 ticks");
+  assert.ok(Math.abs(carPartMs(7, false) - 775) < 1, "door closes in 255*0.389 ticks");
+  assert.equal(carPartMs(8, true), 1000);
+  assert.deepEqual(ZONE_CHANNEL, { 0: 1, 1: 6, 2: 7, 3: 8, 4: 9 });
+});

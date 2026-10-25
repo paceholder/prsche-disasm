@@ -63,6 +63,7 @@ export class QuickRaceSetup {
     this.opponentMode = 0;
     this.opponents = 4;
     this.colour = 0;
+    this.car2 = 0; // GenericCar2.Car: the compare screen's second car (default index 0: A230)
     this.difficulty = 1; // "advanced" [VA 0x4e5520]
     // Car setup screen (settings.lay). The accessors live as long as the front end, so
     // SETTYPEQUICKRACE does not reset them. Selections at creation: transmission 1 (automatic)
@@ -87,11 +88,26 @@ export class QuickRaceSetup {
   }
 
   currentCar() { return this.cars[this.car] ?? null; }
+  // Car list rows of the original compare list: year column, name, and a separator row with the
+  // class name (strings 501..504) where the group changes [A234].
+  carRows() {
+    const rows = [];
+    let group = null;
+    this.cars.forEach((c, index) => {
+      if (group !== null && c.group !== group && c.group) rows.push({ sep: true, text: this.str(c.group) });
+      group = c.group;
+      const name = c.display_name || c.short_name || "";
+      const yy = c.year ? `'${String(c.year % 100).padStart(2, "0")}` : (/^('\d\d) /.exec(name)?.[1] ?? "");
+      rows.push({ year: yy, text: name.replace(/^'\d\d /, ""), index });
+    });
+    return rows;
+  }
+  compareCar() { return this.cars[this.car2] ?? null; }
   currentTrack() { return this.tracks[this.track] ?? null; }
 
   // Accessor by layout name, e.g. "Track1.Track(SHORT)"; null when unknown.
   accessor(name) {
-    const m = /^([A-Za-z0-9]+)\.([A-Za-z0-9]+)(?:\(([A-Z0-9]+)\))?$/.exec(name || "");
+    const m = /^([A-Za-z0-9]+)\.([A-Za-z0-9]+)(?:\(([A-Za-z0-9]+)\))?$/.exec(name || "");
     if (!m) return null;
     const [, base, field, sel] = m;
     const key = `${base}.${field}`;
@@ -109,6 +125,22 @@ export class QuickRaceSetup {
         // (0x4bc4d0 -> 0x4f4a90 -> 0x4f2fe0), not the short name at +0x34 (0x4f3020).
         return list(() => this.cars.map(c => c.display_name || c.short_name),
           () => this.car, i => { this.car = i; this.colour = 0; });
+      case "GenericCar2.Car": {
+        const acc = list(() => this.cars.map(c => c.display_name || c.short_name),
+          () => this.car2, i => { this.car2 = i; });
+        // (SHORT) of this list is the family short name (the original compare header shows
+        // "356"); the rows are year | name with a class separator where the group changes.
+        if (sel === "SHORT") acc.text = () => this.compareCar()?.short_name ?? "";
+        acc.rows = () => this.carRows();
+        return acc;
+      }
+      case "CarCompare.Data": {
+        // `<n>CarCompareCar1|2` [VA 0x4ca790]: rating n (i16 at record +0x324 + 2n) of the
+        // current car (Car1) or of GenericCar2's car (Car2); the bar draws it.
+        const m2 = /^(\d)CarCompareCar([12])$/.exec(sel || "");
+        const value = () => (m2 ? ((m2[2] === "1" ? this.currentCar() : this.compareCar())?.ratings?.[Number(m2[1])] ?? 0) : 0);
+        return { value, text: () => String(value()) };
+      }
       case "GenericCar.Colour": {
         const colours = () => this.currentCar()?.colours ?? [];
         return { ...list(() => colours().map(() => ""), () => this.colour, i => { this.colour = i; }),

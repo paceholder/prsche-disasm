@@ -34,6 +34,91 @@ pub const FACTORY: SpinningRoom = SpinningRoom {
     horizontal_fov_deg: 75.0,
 };
 
+/// Compare spots of `FECar3DControl` position types 1 and 2 [VA 0x4bff80]: (-2.4, 0.2, 8.1) and
+/// (2.4, 0.2, 8.1) in the original frame; type 3 (2.4, -1.2, 6.2) is not used by a layout here.
+pub const COMPARE_SPOT_1: [f32; 3] = [-2.4, 0.2, 8.1];
+pub const COMPARE_SPOT_2: [f32; 3] = [2.4, 0.2, 8.1];
+
+/// Linear tween of a front-end car part (hood, trunk lid, cabrio top): the original moves them
+/// from the current value to the target over 1000 ms from the click [VA 0x439a00, 0x439aa0].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Tween {
+    from: f32,
+    to: f32,
+    start_ms: f64,
+    duration_ms: f64,
+}
+
+impl Tween {
+    pub const fn at(value: f32) -> Self {
+        Self { from: value, to: value, start_ms: 0.0, duration_ms: 0.0 }
+    }
+
+    pub fn value(&self, now_ms: f64) -> f32 {
+        if self.duration_ms <= 0.0 {
+            return self.to;
+        }
+        let t = ((now_ms - self.start_ms) / self.duration_ms).clamp(0.0, 1.0) as f32;
+        self.from + (self.to - self.from) * t
+    }
+
+    pub fn target(&self) -> f32 {
+        self.to
+    }
+
+    /// New target, starting from the current value.
+    pub fn retarget(&mut self, now_ms: f64, to: f32, duration_ms: f64) {
+        *self = Self { from: self.value(now_ms), to, start_ms: now_ms, duration_ms };
+    }
+}
+
+/// Opening of the room car's moving parts, 0 closed .. 1 fully open.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CarAnim {
+    pub roof: Tween,
+    pub hood: Tween,
+    pub trunk: Tween,
+    /// Doors: channel 6, channel 7.
+    pub doors: [Tween; 2],
+}
+
+impl CarAnim {
+    pub const CLOSED: Self = Self { roof: Tween::at(0.0), hood: Tween::at(0.0), trunk: Tween::at(0.0), doors: [Tween::at(0.0); 2] };
+
+    /// Tween of a part channel: 1 cabrio top, 8 hood, 9 trunk lid.
+    pub fn tween_mut(&mut self, channel: u8) -> Option<&mut Tween> {
+        match channel {
+            1 => Some(&mut self.roof),
+            8 => Some(&mut self.hood),
+            6 => Some(&mut self.doors[0]),
+            7 => Some(&mut self.doors[1]),
+            9 => Some(&mut self.trunk),
+            _ => None,
+        }
+    }
+
+    pub fn tween(&self, channel: u8) -> Option<&Tween> {
+        match channel {
+            1 => Some(&self.roof),
+            8 => Some(&self.hood),
+            6 => Some(&self.doors[0]),
+            7 => Some(&self.doors[1]),
+            9 => Some(&self.trunk),
+            _ => None,
+        }
+    }
+}
+
+/// Compare cars show their rear three-quarter view (the nose away to the right); measured.
+pub const COMPARE_YAW_TURNS: f32 = 0.6;
+/// The measured car bottoms sit about 0.3 m below `y + lift` of the spots (A16 lift uncertain);
+/// another 0.4 m down (user request 2026-10-26: view a bit more from above) raises the camera
+/// relative to the cars. No original pitch data was found (A230).
+pub const COMPARE_Y_OFFSET: f32 = -0.7;
+/// Horizontal field of view of the empty room `ID_NONE` (base room default V.A. 45 degrees);
+/// fits the car size and spacing of the original screenshot (x scale 0.77 of the garage's 75).
+pub const COMPARE_HFOV_DEG: f32 = 90.0;
+
 /// Room by layout id (`room=`); `None` for rooms that are not spinning rooms (yet).
 pub fn spinning_room(id: &str) -> Option<SpinningRoom> {
     match id.to_ascii_uppercase().as_str() {
@@ -111,6 +196,16 @@ impl RoomView {
             * Mat4::from_rotation_y(std::f32::consts::PI)
     }
 
+    /// Car at a compare spot: the spot as position, a fixed yaw (a compare car is not turned by
+    /// the room: `FECar3DControl_Update` 0x4c0520 sets a yaw only for the sit-in zoom). The yaw
+    /// and the height offset are measured on the original screenshot
+    /// (`docs/ui-reference/car-compare-original-youtube.png`, A230).
+    pub fn compare_car_matrix(&self, spot: [f32; 3], lift: f32) -> Mat4 {
+        Mat4::from_translation(Vec3::new(spot[0], spot[1] + COMPARE_Y_OFFSET + lift, -spot[2]))
+            * Mat4::from_rotation_y(-COMPARE_YAW_TURNS * std::f32::consts::TAU)
+            * Mat4::from_rotation_y(std::f32::consts::PI)
+    }
+
     /// Camera at the origin looking along original +z (engine -z) [VA 0x4d3420 view setup].
     pub fn eye(&self) -> Vec3 {
         Vec3::ZERO
@@ -154,6 +249,20 @@ mod tests {
         let a = view.room_matrix().transform_point3(room_space);
         let b = view.car_matrix(0.0).transform_point3(body);
         assert!((a - b).length() < 1e-5, "{a} vs {b}");
+    }
+
+    #[test]
+    fn tween_runs_linearly_and_retargets_from_the_current_value() {
+        let mut t = Tween::at(0.0);
+        t.retarget(1000.0, 1.0, 1000.0);
+        assert_eq!(t.value(1000.0), 0.0);
+        assert!((t.value(1500.0) - 0.5).abs() < 1e-6);
+        assert_eq!(t.value(3000.0), 1.0);
+        // Clicking again half way closes it from where it is.
+        t.retarget(1500.0, 0.0, 1000.0);
+        assert!((t.value(1500.0) - 0.5).abs() < 1e-6);
+        assert!((t.value(2000.0) - 0.25).abs() < 1e-6);
+        assert_eq!(t.value(5000.0), 0.0);
     }
 
     #[test]

@@ -258,6 +258,30 @@ pub struct TrackTopology {
     pub spline: Option<nfs_formats::LineSplinePath>,
 }
 
+/// A part of the exterior that the front end moves: the cabrio top (frame channel 1, morph
+/// frames `vt` index `lod | frame << 4`), the hood (transform channel 8) or the trunk lid (9)
+/// [VA 0x438440, 0x43c830; `docs/re/frontend.md` "Clicking the car"].
+#[derive(Debug, Clone)]
+pub struct CarAnimPart {
+    /// 1 = cabrio top frame channel, 6/7 = left/right door, 8 = hood, 9 = trunk lid (the `Base+0x44` bytes 9 / 7).
+    pub channel: u8,
+    /// Hinge: the article's `tr` translation in driving body coordinates ([-x, y, z] raw).
+    pub pivot: [f32; 3],
+    /// Rotation axis of the opening: 0 = body x (hood, trunk lid), 1 = body y (doors).
+    pub axis: u8,
+    /// +1 / -1: the sign of the rotation that lifts the lid / swings the door outward
+    /// (approximation A232: the original hinge direction is not read).
+    pub open_sign: f32,
+    /// Opening angle in turns: TPG `hoodextent` (default 0.15) / `trunkextent` (default -0.15),
+    /// magnitude; 0.15 for the doors (`0x4c0520`: level 255 * 0.000588); 1.0 for the cabrio top
+    /// (whole frame range).
+    pub extent: f32,
+    /// Indices into `Scene::meshes` of frame 0 / the closed part.
+    pub base_meshes: Vec<usize>,
+    /// Frames 1.. of a morphing part (cabrio top), one mesh per base mesh, scene coordinates.
+    pub frames: Vec<Vec<Mesh>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Scene {
     pub meshes: Vec<Mesh>,
@@ -271,6 +295,12 @@ pub struct Scene {
     pub car_glares: Vec<CarGlare>,
     /// Parts of the in-car view (BumperCam2) of a car scene; empty for tracks.
     pub car_in_car: Vec<InCarPart>,
+    /// Hood, trunk lid and cabrio top of a car scene (front-end clicks).
+    pub car_anim_parts: Vec<CarAnimPart>,
+    /// Cabrio top at rest, closed: indices of the `CabrioUp*` meshes (geometry 41, odd types) in
+    /// `meshes`; the matching `CabrioDown*` meshes (even types) are kept out of `meshes`.
+    pub car_roof_up: Vec<usize>,
+    pub car_roof_down: Vec<Mesh>,
     /// Car effect textures from `GameData/Render/common.fsh`, named by their
     /// FSH entry (`CARG`, `SPIK`, `GLNT`, `SHAD`, ...); empty if the file is absent.
     pub effect_textures: Vec<Texture>,
@@ -331,6 +361,9 @@ impl Default for Scene {
             car_wheels: Vec::new(),
             car_glares: Vec::new(),
             car_in_car: Vec::new(),
+            car_anim_parts: Vec::new(),
+            car_roof_up: Vec::new(),
+            car_roof_down: Vec::new(),
             effect_textures: Vec::new(),
             particle_defs: Vec::new(),
             textures: Vec::new(),

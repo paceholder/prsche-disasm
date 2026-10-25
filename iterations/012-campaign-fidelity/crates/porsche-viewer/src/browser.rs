@@ -21,6 +21,9 @@ pub struct BrowserViewer {
     renderer: Option<Renderer>,
     /// `Date.now()` when the front-end room appeared; the room yaw follows wall time.
     room_started_ms: f64,
+    /// The canvas can be composited with premultiplied alpha (the compare screen's cars).
+    premultiplied_ok: bool,
+    default_alpha: wgpu::CompositeAlphaMode,
 }
 
 #[wasm_bindgen]
@@ -64,6 +67,10 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
+    // WebGPU canvases always accept `premultiplied`, although the wgpu capability list only
+    // names the default mode.
+    let premultiplied_ok = true;
+    let default_alpha = config.alpha_mode;
 
     Ok(BrowserViewer {
         surface,
@@ -72,6 +79,8 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         queue,
         renderer: None,
         room_started_ms: 0.0,
+        premultiplied_ok,
+        default_alpha,
     })
 }
 
@@ -168,8 +177,81 @@ impl BrowserViewer {
         self.set_car_model(names, bytes, car, style)?;
         if let Some(renderer) = &mut self.renderer {
             renderer.fe_room_car = true;
+            renderer.fe_car_anim = crate::fe_room::CarAnim::CLOSED;
         }
         Ok(())
+    }
+
+    /// Moves a part of the room car to `target` (0 closed .. 1 open) over `duration_ms`:
+    /// channel 1 cabrio top, 8 hood, 9 trunk lid.
+    pub fn set_room_car_anim(&mut self, channel: u32, target: f32, duration_ms: f64) {
+        if let Some(renderer) = &mut self.renderer {
+            let now = js_sys::Date::now();
+            if let Some(t) = renderer.fe_car_anim.tween_mut(channel as u8) {
+                t.retarget(now, target.clamp(0.0, 1.0), duration_ms);
+            }
+        }
+    }
+
+    /// Target of a part's tween (see `set_room_car_anim`).
+    pub fn room_car_anim_target(&self, channel: u32) -> f32 {
+        self.renderer
+            .as_ref()
+            .and_then(|r| r.fe_car_anim.tween(channel as u8).map(|t| t.target()))
+            .unwrap_or(0.0)
+    }
+
+    /// The room car has this moving part (1 cabrio top, 8 hood, 9 trunk lid).
+    pub fn room_car_has_part(&self, channel: u32) -> bool {
+        self.renderer
+            .as_ref()
+            .and_then(|r| r.car_render_has_part(channel as u8))
+            .unwrap_or(false)
+    }
+
+    /// Room yaw in turns (0..1), for the click zones of the car.
+    pub fn room_yaw_turns(&self) -> f32 {
+        self.renderer
+            .as_ref()
+            .and_then(|r| r.fe_room.as_ref().map(|room| room.yaw_turns()))
+            .unwrap_or(0.0)
+    }
+
+    /// Body paint of the room car, RGBA (4 floats); an empty array keeps the model's paint.
+    pub fn set_room_paint(&mut self, rgba: &[f32]) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_paint = <[f32; 4]>::try_from(rgba).ok();
+        }
+    }
+
+    /// Compare screen: keep the car loaded last as the second car (spot 2).
+    pub fn stash_compare_car(&mut self, paint: &[f32]) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.stash_compare_car();
+            renderer.fe_compare_paint2 = <[f32; 4]>::try_from(paint).ok();
+        }
+    }
+
+    /// Draws the room car (spot 1) and the stashed car (spot 2) on the compare screen.
+    pub fn show_compare_cars(&mut self, show: bool) {
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
+        renderer.fe_compare = show && renderer.fe_room.is_some() && self.premultiplied_ok;
+        // The cars are composited over the page's 2D backdrop: transparent canvas while shown.
+        let alpha = if renderer.fe_compare {
+            wgpu::CompositeAlphaMode::PreMultiplied
+        } else {
+            self.default_alpha
+        };
+        if self.config.alpha_mode != alpha {
+            self.config.alpha_mode = alpha;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
+
+    pub fn premultiplied_alpha(&self) -> bool {
+        self.premultiplied_ok
     }
 
     pub fn show_room_car(&mut self, show: bool) {
@@ -968,6 +1050,7 @@ impl BrowserViewer {
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
+        renderer.fe_anim_ms = js_sys::Date::now();
         if let Some(room) = &mut renderer.fe_room {
             room.seconds = (js_sys::Date::now() - self.room_started_ms).max(0.0) / 1000.0;
         }

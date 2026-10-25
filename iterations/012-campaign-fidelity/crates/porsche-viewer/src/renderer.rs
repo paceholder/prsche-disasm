@@ -515,7 +515,87 @@ fn fe_room_car_lift(box_center: Vec3, half: [f32; 3]) -> f32 {
     half[1] - box_center.y
 }
 
+/// Second car of the compare screen: its meshes and collision box (for the lift).
+struct CompareCar {
+    render: CarRenderState,
+    collision_box: Option<(Vec3, [f32; 3])>,
+}
+
+impl CarRenderState {
+    /// Meshes a plain draw shows.
+    fn visible(&self) -> Vec<usize> {
+        (0..self.meshes.len()).filter(|i| !self.hidden.contains(i)).collect()
+    }
+}
+
+/// Moving part of the room car (`nfs_assets::CarAnimPart` on the GPU).
+struct CarAnimRender {
+    channel: u8,
+    axis: u8,
+    pivot: Vec3,
+    open_sign: f32,
+    extent: f32,
+    /// Indices into `CarRenderState::meshes` of the closed part (frame 0).
+    base: Vec<usize>,
+    /// Cabrio top: vertex frames 0.. per base mesh and the meshes the blend is written to.
+    morph: Option<CarMorph>,
+}
+
+/// Morph frames of the cabrio top (`[frame][mesh]` body-space vertices) and one dynamic mesh per
+/// base mesh; the drawn shape blends two neighbouring frames by the fractional channel value
+/// (`R3DCar_SetFrame` 0x4380d0 keeps floor and fraction).
+struct CarMorph {
+    frames: Vec<Vec<Vec<GpuVertex>>>,
+    dynamic: Vec<GpuMesh>,
+}
+
+/// Body-space vertices of a scene mesh (like the `set_car_model` loop).
+fn body_vertices(mesh: &nfs_assets::Mesh) -> Vec<GpuVertex> {
+    const CAR_SCALE: f32 = 5.0;
+    mesh.vertices
+        .iter()
+        .map(|v| GpuVertex {
+            position: [
+                -v.position[0] * CAR_SCALE,
+                v.position[1] * CAR_SCALE,
+                -v.position[2] * CAR_SCALE,
+            ],
+            normal: [-v.normal[0], v.normal[1], -v.normal[2]],
+            uv: v.uv,
+            color: v.color,
+        })
+        .collect()
+}
+
+/// GPU mesh whose vertex buffer can be rewritten each frame.
+fn dynamic_car_mesh(device: &wgpu::Device, mesh: &nfs_assets::Mesh) -> GpuMesh {
+    let vertices = body_vertices(mesh);
+    let center = vertices.iter().map(|v| Vec3::from(v.position)).sum::<Vec3>()
+        / vertices.len().max(1) as f32;
+    GpuMesh {
+        vertex: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&mesh.name),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        }),
+        index: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&mesh.name),
+            contents: bytemuck::cast_slice(&mesh.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        }),
+        count: mesh.indices.len() as u32,
+        material: mesh.material,
+        center,
+    }
+}
+
 struct CarRenderState {
+    anim_parts: Vec<CarAnimRender>,
+    /// Closed top at rest (`CabrioUp*`, in `meshes`) and the open one (`CabrioDown*`).
+    roof_up: Vec<usize>,
+    roof_down: Vec<GpuMesh>,
+    /// Meshes no plain draw shows: the top's morph frame 0 when a rest mesh replaces it.
+    hidden: BTreeSet<usize>,
     meshes: Vec<GpuMesh>,
     materials: Vec<GpuMaterial>,
     chassis_mesh_indices: Vec<usize>,
@@ -641,6 +721,17 @@ pub struct Renderer {
     pub fe_room: Option<crate::fe_room::RoomView>,
     /// Draw the loaded car in the front-end room (layouts with a 3D car control).
     pub fe_room_car: bool,
+    /// Body paint of the room car (the colour button's list entry); `None` keeps the model's.
+    pub fe_room_paint: Option<[f32; 4]>,
+    /// Car compare screen (`carcompare.lay`): the room car stands at spot 1 and the stashed
+    /// second car at spot 2 (`FECar3DControl` position types 1 and 2, A230).
+    pub fe_compare: bool,
+    /// Opening of the room car's top, hood and trunk lid (front-end clicks, A232).
+    pub fe_car_anim: crate::fe_room::CarAnim,
+    /// Wall clock of the tweens, set by the browser each frame.
+    pub fe_anim_ms: f64,
+    fe_compare2: Option<CompareCar>,
+    pub fe_compare_paint2: Option<[f32; 4]>,
     /// Front-end screen with an empty room (`ID_NONE`): draw nothing but the clear colour.
     pub fe_room_hidden: bool,
     /// Rendered source-model bounds adapter; original selected bounds getter
@@ -1559,6 +1650,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 wheels: Vec::new(),
                 body_bounds: None,
                 in_car: Vec::new(),
+                anim_parts: Vec::new(),
+                roof_up: Vec::new(),
+                roof_down: Vec::new(),
+                hidden: BTreeSet::new(),
             });
         }
 
@@ -1741,6 +1836,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             car_render,
             fe_room: None,
             fe_room_car: false,
+            fe_room_paint: None,
+            fe_compare: false,
+            fe_car_anim: crate::fe_room::CarAnim::CLOSED,
+            fe_anim_ms: 0.0,
+            fe_compare2: None,
+            fe_compare_paint2: None,
             fe_room_hidden: false,
             trigger_half_extents: None,
             scenario_props,
@@ -2032,7 +2133,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.camera.drive_pos = room.eye();
             self.camera.drive_target = room.target();
             self.camera.drive_up = Vec3::Y;
-            self.camera.drive_hfov = Some(room.room.horizontal_fov_deg);
+            self.camera.drive_hfov = Some(if self.fe_compare {
+                crate::fe_room::COMPARE_HFOV_DEG
+            } else {
+                room.room.horizontal_fov_deg
+            });
             self.camera.drive_near = 0.1;
             static_model = room.room_matrix();
         }
@@ -2060,11 +2165,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.022,
-                            g: 0.030,
-                            b: 0.044,
-                            a: 1.0,
+                        load: wgpu::LoadOp::Clear(if self.fe_compare {
+                            wgpu::Color::TRANSPARENT
+                        } else {
+                            wgpu::Color {
+                                r: 0.022,
+                                g: 0.030,
+                                b: 0.044,
+                                a: 1.0,
+                            }
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -2207,17 +2316,131 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             &self.car_render,
             self.fe_room_car && !self.fe_room_hidden,
         ) {
-            let all_meshes: Vec<usize> = (0..car_render.meshes.len()).collect();
-            self.draw_car_meshes(
-                target,
-                "front-end room car",
-                car_render,
-                room.car_matrix({
-                    let (center, half) = self.collision_box_or_fallback();
-                    fe_room_car_lift(center, half)
-                }),
-                &all_meshes,
-            );
+            if let Some(paint) = self.fe_room_paint {
+                self.paint_car(car_render, paint);
+            }
+            let moving: BTreeSet<usize> = car_render
+                .anim_parts
+                .iter()
+                .flat_map(|p| p.base.iter().copied())
+                .collect();
+            let roof_open = self.fe_car_anim.roof.value(self.fe_anim_ms);
+            let fixed: Vec<usize> = (0..car_render.meshes.len())
+                .filter(|i| {
+                    !moving.contains(i)
+                        && !car_render.hidden.contains(i)
+                        && !(car_render.roof_up.contains(i) && roof_open > 0.0)
+                })
+                .collect();
+            let car_matrix = room.car_matrix({
+                let (center, half) = self.collision_box_or_fallback();
+                fe_room_car_lift(center, half)
+            });
+            self.draw_car_meshes(target, "front-end room car", car_render, car_matrix, &fixed);
+            for part in &car_render.anim_parts {
+                let open = self
+                    .fe_car_anim
+                    .tween(part.channel)
+                    .map_or(0.0, |t| t.value(self.fe_anim_ms));
+                if let (1, Some(morph)) = (part.channel, &part.morph) {
+                    // Cabrio top: the frame channel runs 0..max over the opening; the shape blends
+                    // frames floor and floor + 1 by the fraction.
+                    let max = (morph.frames.len() - 1) as f32;
+                    let pos = open.clamp(0.0, 1.0) * max;
+                    if pos <= 0.0 {
+                        // Closed: the rest mesh is in `fixed`; without one frame 0 is drawn.
+                        if car_render.roof_up.is_empty() {
+                            self.draw_car_meshes(target, "room car top", car_render, car_matrix, &part.base);
+                        }
+                    } else if pos >= max && !car_render.roof_down.is_empty() {
+                        let all: Vec<usize> = (0..car_render.roof_down.len()).collect();
+                        self.draw_gpu_meshes(
+                            target,
+                            "room car top down",
+                            &car_render.roof_down,
+                            &car_render.materials,
+                            car_matrix,
+                            &all,
+                        );
+                    } else {
+                        let f0 = (pos.floor() as usize).min(morph.frames.len() - 1);
+                        let f1 = (f0 + 1).min(morph.frames.len() - 1);
+                        let t = pos - f0 as f32;
+                        for (mi, dynamic) in morph.dynamic.iter().enumerate() {
+                            let (a, b) = (&morph.frames[f0][mi], &morph.frames[f1][mi]);
+                            let blended: Vec<GpuVertex> = a
+                                .iter()
+                                .zip(b)
+                                .map(|(p, q)| GpuVertex {
+                                    position: Vec3::from(p.position)
+                                        .lerp(Vec3::from(q.position), t)
+                                        .to_array(),
+                                    normal: Vec3::from(p.normal)
+                                        .lerp(Vec3::from(q.normal), t)
+                                        .to_array(),
+                                    uv: p.uv,
+                                    color: p.color,
+                                })
+                                .collect();
+                            self.queue.write_buffer(&dynamic.vertex, 0, bytemuck::cast_slice(&blended));
+                        }
+                        let all: Vec<usize> = (0..morph.dynamic.len()).collect();
+                        self.draw_gpu_meshes(
+                            target,
+                            "room car top blend",
+                            &morph.dynamic,
+                            &car_render.materials,
+                            car_matrix,
+                            &all,
+                        );
+                    }
+                } else {
+                    // Hood / trunk lid (about the body x axis) and doors (about y) through the hinge.
+                    let angle = part.open_sign * part.extent * open * std::f32::consts::TAU;
+                    let turn = if part.axis == 1 {
+                        Mat4::from_rotation_y(angle)
+                    } else {
+                        Mat4::from_rotation_x(angle)
+                    };
+                    let hinge = Mat4::from_translation(part.pivot) * turn * Mat4::from_translation(-part.pivot);
+                    self.draw_car_meshes(target, "room car lid", car_render, car_matrix * hinge, &part.base);
+                }
+            }
+        }
+
+        // 3.4b. Car compare screen: two cars at the fixed compare spots, no room.
+        if let (Some(room), Some(car1), Some(car2), true) = (
+            &self.fe_room,
+            &self.car_render,
+            &self.fe_compare2,
+            self.fe_compare,
+        ) {
+            let lift = |b: Option<(Vec3, [f32; 3])>| {
+                let (center, half) = b.unwrap_or((Vec3::ZERO, FALLBACK_HALF_EXTENTS));
+                fe_room_car_lift(center, half)
+            };
+            let spots = [
+                (crate::fe_room::COMPARE_SPOT_1, car1, self.car_collision_box, self.fe_room_paint),
+                (
+                    crate::fe_room::COMPARE_SPOT_2,
+                    &car2.render,
+                    car2.collision_box,
+                    self.fe_compare_paint2,
+                ),
+            ];
+            for (spot, render, collision_box, paint) in spots {
+                if let Some(paint) = paint {
+                    self.paint_car(render, paint);
+                }
+                let all_meshes: Vec<usize> = render.visible();
+                self.draw_car_meshes(
+                    target,
+                    "compare car",
+                    render,
+                    room.compare_car_matrix(spot, lift(collision_box)),
+                    &all_meshes,
+                );
+            }
         }
 
         // 3.5. Draw car on track (if present)
@@ -2291,7 +2514,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     );
                 }
             } else {
-                let all_meshes: Vec<usize> = (0..car_render.meshes.len()).collect();
+                let all_meshes: Vec<usize> = car_render.visible();
                 self.draw_car_meshes(
                     target,
                     "arcade car",
@@ -5233,6 +5456,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// Load genuine Porsche car model geometry, textures, and simulation profile onto the track.
+    /// The loaded car has a moving part of this channel (1 top, 8 hood, 9 trunk lid).
+    pub fn car_render_has_part(&self, channel: u8) -> Option<bool> {
+        self.car_render
+            .as_ref()
+            .map(|c| c.anim_parts.iter().any(|p| p.channel == channel))
+    }
+
+    /// Moves the car loaded last (`set_car_model`) to the compare screen's second spot.
+    pub fn stash_compare_car(&mut self) {
+        self.fe_compare2 = self.car_render.take().map(|render| CompareCar {
+            render,
+            collision_box: self.car_collision_box,
+        });
+    }
+
     pub fn set_car_model(&mut self, scene: &Scene, car_name: &str) -> Result<(), String> {
         // The car loader divides raw geometry by five; driving rendering below
         // restores it. This adapter uses that same visible body's dimensions.
@@ -5450,10 +5688,71 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .iter()
             .flat_map(|wheel| wheel.mesh_indices.iter().copied())
             .collect();
-        let chassis_mesh_indices = (0..car_meshes.len())
+        let chassis_mesh_indices: Vec<usize> = (0..car_meshes.len())
             .filter(|mesh_index| !wheel_mesh_indices.contains(mesh_index))
             .collect();
 
+        let anim_parts: Vec<CarAnimRender> = scene
+            .car_anim_parts
+            .iter()
+            .map(|part| CarAnimRender {
+                channel: part.channel,
+                axis: part.axis,
+                pivot: Vec3::from(part.pivot),
+                open_sign: part.open_sign,
+                extent: part.extent,
+                base: part
+                    .base_meshes
+                    .iter()
+                    .filter_map(|&i| mesh_index_map.get(i).and_then(|v| *v))
+                    .collect(),
+                morph: (!part.frames.is_empty()).then(|| {
+                    let base: Vec<Vec<GpuVertex>> = part
+                        .base_meshes
+                        .iter()
+                        .map(|&i| body_vertices(&scene.meshes[i]))
+                        .collect();
+                    let mut frames = vec![base];
+                    frames.extend(
+                        part.frames
+                            .iter()
+                            .map(|set| set.iter().map(body_vertices).collect::<Vec<_>>()),
+                    );
+                    CarMorph {
+                        dynamic: part
+                            .base_meshes
+                            .iter()
+                            .map(|&i| dynamic_car_mesh(&self.device, &scene.meshes[i]))
+                            .collect(),
+                        frames,
+                    }
+                }),
+            })
+            .collect();
+        let roof_up: Vec<usize> = scene
+            .car_roof_up
+            .iter()
+            .filter_map(|&i| mesh_index_map.get(i).and_then(|v| *v))
+            .collect();
+        let roof_down: Vec<GpuMesh> = scene
+            .car_roof_down
+            .iter()
+            .map(|m| dynamic_car_mesh(&self.device, m))
+            .collect();
+        // With a closed top at rest the morph's frame 0 would be a second copy of it.
+        let hidden: BTreeSet<usize> = if roof_up.is_empty() {
+            BTreeSet::new()
+        } else {
+            anim_parts
+                .iter()
+                .filter(|p| p.channel == 1)
+                .flat_map(|p| p.base.iter().copied())
+                .collect()
+        };
+        let chassis_mesh_indices: Vec<usize> = chassis_mesh_indices
+            .into_iter()
+            .filter(|i| !hidden.contains(i))
+            .collect();
         // Race meshes map raw CRP (x, y, z) to body (-x, y, z), see CAR_SCALE above.
         self.player_camera = nfs_assets::camera::PlayerCamera::new(
             scene.car_driver_camera.unwrap_or_default(),
@@ -5484,6 +5783,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 && (body_max - body_min).min_element() > 0.0)
                 .then_some([body_min, body_max]),
             in_car: crate::in_car::build(&self.device, &scene.car_in_car),
+            anim_parts,
+            roof_up,
+            roof_down,
+            hidden,
         });
 
         self.car_glares = scene.car_glares.clone();

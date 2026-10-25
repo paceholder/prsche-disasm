@@ -123,6 +123,9 @@ fn tile_selected(ini: &Ini, style: &StyleSelection, filter: &str) -> Result<bool
 /// A level names both the geometry arrays and the high nibble of `pr`.
 /// Select one level for the entire scene: mixing FE1 with racing-only tyre
 /// tread (levels 4/5) creates overlapping surfaces with unrelated UVs.
+/// `Base+0x44` geometry index of the cabrio top at rest (`CabrioUp*`, `CabrioDown*`).
+const ROOF_REST_GEOMETRY: u8 = 41;
+
 fn parked_levels(article: &Entry, style: &StyleSelection) -> Result<Vec<u16>, String> {
     if article.children.iter().any(|entry| entry.tag == "ef") {
         return Ok(vec![]);
@@ -131,14 +134,20 @@ fn parked_levels(article: &Entry, style: &StyleSelection) -> Result<Vec<u16>, St
     let info = bytes(&base.data, 68, 16)?;
     // TypeIndex is selected independently for each GeomIndex by the TPG style.
     // The high nibble of LevelIndex is a BIL_* bitset; BIL_DRIVER is 0x8.
-    if u32::from(info[1])
-        != style
-            .geometry
-            .get(&u32::from(info[0]))
-            .copied()
-            .unwrap_or(0)
-        || info[10] & 0x80 != 0
-    {
+    let wanted = style
+        .geometry
+        .get(&u32::from(info[0]))
+        .copied()
+        .unwrap_or(0);
+    // Geometry 41 holds the top at rest in pairs: type 2k-1 up, 2k down; the style lists one of
+    // them and both are loaded (`CabrioUp*` / `CabrioDown*`), the front end shows one by the
+    // state of the top.
+    let type_ok = if info[0] == ROOF_REST_GEOMETRY {
+        u32::from(info[1]).div_ceil(2) == wanted.div_ceil(2) && wanted != 0
+    } else {
+        u32::from(info[1]) == wanted
+    };
+    if !type_ok || info[10] & 0x80 != 0 {
         return Ok(vec![]);
     }
     let level_count = u32le(&base.data, 12)? as usize;
@@ -671,6 +680,13 @@ fn tpg_vec3(ini: &Ini, key: &str, default: [f32; 3]) -> [f32; 3] {
     out
 }
 
+/// Float key of the TPG `[header]` (`FUN_00523b20` with a default) [VA 0x441a10].
+fn tpg_f32(ini: &Ini, key: &str, default: f32) -> f32 {
+    val(ini, "header", key)
+        .and_then(|v| v.trim().parse::<f32>().ok())
+        .unwrap_or(default)
+}
+
 /// `Car_ReadTpgCameraKeys 0x441a10`: `drivercampos`/`drivercamrot` (defaults
 /// (-0.36, 0.4, -0.25) / 0), then `drivercamposstyleN`/`drivercamrotstyleN` override them.
 fn driver_camera(ini: &Ini, style: u32) -> DriverCamera {
@@ -712,6 +728,9 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         car_wheels: Vec::new(),
         car_glares: car_glares(&crp, &style, scene_lod)?,
         car_in_car: Vec::new(),
+        car_anim_parts: Vec::new(),
+        car_roof_up: Vec::new(),
+        car_roof_down: Vec::new(),
         effect_textures: effect_textures(files)?,
         particle_defs: match find(files, "carpart.dat") {
             Ok(data) => crate::sparks::parse_particle_dat(data)?,
@@ -969,6 +988,81 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 scene.meshes.push(m);
             }
         }
+        // Top at rest: the closed (odd type) mesh stays in `meshes`, the open one is kept apart.
+        if info[0] == ROOF_REST_GEOMETRY && first_mesh < scene.meshes.len() {
+            if info[1] % 2 == 1 {
+                scene.car_roof_up.extend(first_mesh..scene.meshes.len());
+            } else {
+                scene.car_roof_down.extend(scene.meshes.drain(first_mesh..));
+            }
+        }
+        // Cabrio top (frame channel 1) and hood / trunk lid (transform channels 8, 9).
+        let is_top = info[9] == 1 && info[8] > 1;
+        if (is_top || matches!(info[7], 6..=9)) && first_mesh < scene.meshes.len() {
+            let mut frames: Vec<Vec<Mesh>> = Vec::new();
+            if is_top {
+                for f in 1..u16::from(info[8]) {
+                    let index = lod | (f << 4);
+                    let Some(vt_f) = a.find("vt", index) else {
+                        break;
+                    };
+                    let nm_f = a.find("nm", index).or(nm);
+                    let mut set = Vec::new();
+                    for pr in a
+                        .children
+                        .iter()
+                        .filter(|e| e.tag == "pr" && e.index >> 12 == lod)
+                    {
+                        let mut m = mesh(
+                            pr,
+                            vt_f,
+                            nm_f,
+                            uv,
+                            translation,
+                            &matmap,
+                            format!("{name}#{ai}/{} frame {f}", pr.index & 4095),
+                        )
+                        .map_err(|e| format!("{name} frame {f}: {e}"))?;
+                        if !m.indices.is_empty() {
+                            finish_scene_mesh(&mut m);
+                            set.push(m);
+                        }
+                    }
+                    frames.push(set);
+                }
+            }
+            let pivot = [
+                -translation[0] * 5.0,
+                translation[1] * 5.0,
+                translation[2] * 5.0,
+            ];
+            // Centroid of the closed part relative to the hinge, in body space [-x, y, z].
+            let (mut sum, mut n) = ([0.0f32; 3], 0.0f32);
+            for m in &scene.meshes[first_mesh..] {
+                for v in &m.vertices {
+                    sum[0] += -v.position[0] * 5.0;
+                    sum[1] += v.position[1] * 5.0;
+                    sum[2] += -v.position[2] * 5.0;
+                    n += 1.0;
+                }
+            }
+            let cz = if n > 0.0 { sum[2] / n - pivot[2] } else { 0.0 };
+            // Rotation by +t about x lifts a point at z < 0 of the hinge (y' = y cos t - z sin t).
+            scene.car_anim_parts.push(CarAnimPart {
+                channel: if is_top { 1 } else { info[7] },
+                pivot,
+                axis: u8::from(matches!(info[7], 6 | 7) && !is_top),
+                open_sign: if cz > 0.0 { -1.0 } else { 1.0 },
+                extent: match info[7] {
+                    _ if is_top => 1.0,
+                    6 | 7 => 0.15,
+                    8 => tpg_f32(&ini, "hoodextent", 0.15).abs(),
+                    _ => tpg_f32(&ini, "trunkextent", -0.15).abs(),
+                },
+                base_meshes: (first_mesh..scene.meshes.len()).collect(),
+                frames,
+            });
+        }
         // Base geometry domains 13/14 are the selected front/rear wheel articles.
         // Keep their source pivots and mesh membership instead of guessing axle
         // widths from unrelated SIM scalars or mesh-name substrings.
@@ -1001,6 +1095,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             });
         }
     }
+    fix_door_signs(&mut scene);
     if scene.meshes.is_empty() {
         return Err("no drawable meshes".into());
     }
@@ -1029,6 +1124,53 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
     ));
     scene.diagnostics.push("Exterior alpha0 is cutout, intermediate alpha selects test paint, alpha255 preserves artwork; full CLR decoding remains unverified. Signed mt+0x114 supplies material depth bias. No geometry placeholders.".into());
     Ok(scene)
+}
+
+/// Raw-scaled mesh (`mesh()`) to scene coordinates; missing normals from the triangles.
+fn finish_scene_mesh(m: &mut Mesh) {
+    for v in &mut m.vertices {
+        v.position = to_scene_coordinates(v.position);
+        v.normal = to_scene_coordinates(v.normal);
+    }
+    for tri in m.vertices.as_chunks_mut::<3>().0 {
+        if tri.iter().all(|vertex| vertex.normal == [0.; 3]) {
+            let normal = triangle_normal([tri[0].position, tri[1].position, tri[2].position]);
+            for vertex in tri {
+                vertex.normal = normal;
+            }
+        }
+    }
+}
+
+/// Doors swing outward: the sign of the rotation about the body y axis (`Ry(a)`: x' = x cos a +
+/// z sin a) follows the side of the door and the position of its mass relative to the hinge,
+/// taken from the largest part of the channel and used for all its parts (approximation A232).
+fn fix_door_signs(scene: &mut Scene) {
+    for channel in [6u8, 7] {
+        let main = scene
+            .car_anim_parts
+            .iter()
+            .filter(|p| p.channel == channel)
+            .max_by_key(|p| p.base_meshes.iter().map(|&i| scene.meshes[i].vertices.len()).sum::<usize>());
+        let Some(main) = main else { continue };
+        let (mut sx, mut sz, mut n) = (0.0f32, 0.0f32, 0.0f32);
+        for &i in &main.base_meshes {
+            for v in &scene.meshes[i].vertices {
+                sx += -v.position[0] * 5.0;
+                sz += -v.position[2] * 5.0;
+                n += 1.0;
+            }
+        }
+        if n == 0.0 {
+            continue;
+        }
+        let side = if sx / n >= 0.0 { 1.0 } else { -1.0 };
+        let toward_rear = sz / n - main.pivot[2];
+        let sign = if toward_rear >= 0.0 { side } else { -side };
+        for p in scene.car_anim_parts.iter_mut().filter(|p| p.channel == channel) {
+            p.open_sign = sign;
+        }
+    }
 }
 
 fn mesh(
@@ -1694,6 +1836,47 @@ mod tests {
         assert_eq!(find("GlareMirror1").unwrap().pivot, 6, "follows the left door");
         // Each glare appears once per detail level; only the scene level is used.
         assert_eq!(scene.car_glares.iter().filter(|g| g.name == "GlareHeadLight").count(), 1);
+    }
+
+    #[test]
+    fn local_356a_hood_trunk_and_top_animation_parts() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in [
+            "356a.crp",
+            "356a.tpg",
+            "INTGLASS.FSH",
+            "Shadow.fsh",
+            "Cabrio.fsh",
+            "Suit.fsh",
+            "Head.fsh",
+        ] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        // Style 4 ('59 convertible) has a cabrio top: six morph frames, five beyond the base.
+        let scene = load(&files, "356a", 4).unwrap();
+        let top = scene.car_anim_parts.iter().find(|p| p.channel == 1).expect("cabrio top");
+        assert_eq!(top.frames.len(), 5);
+        assert!(top.frames.iter().all(|f| f.len() == top.base_meshes.len()));
+        let hood = scene.car_anim_parts.iter().find(|p| p.channel == 8).expect("hood");
+        assert!(scene.car_anim_parts.iter().any(|p| p.channel == 9), "trunk lid");
+        assert!(hood.open_sign.abs() == 1.0 && hood.frames.is_empty());
+        // Doors: channel 6 (left) and 7 (right) swing about y, to opposite sides of the car.
+        let door = |c: u8| scene.car_anim_parts.iter().find(|p| p.channel == c && p.axis == 1).expect("door");
+        let (l, r) = (door(6), door(7));
+        assert!(l.pivot[0] * r.pivot[0] < 0.0, "hinges on opposite sides: {:?} {:?}", l.pivot, r.pivot);
+        assert!(l.open_sign * r.open_sign < 0.0, "mirrored swing");
+        assert_eq!(l.extent, 0.15);
+        // The top moves: the last frame differs from the closed shape.
+        let m0 = &scene.meshes[top.base_meshes[0]];
+        let m5 = &top.frames[4][0];
+        assert_eq!(m0.vertices.len(), m5.vertices.len());
+        assert!(m0.vertices.iter().zip(&m5.vertices).any(|(a, b)| a.position != b.position));
     }
 
     #[test]

@@ -39,6 +39,9 @@ html, body, .viewer { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 /* Original front end (frontend.js): 640x480 canvas over the 3D room, under the dialogs. */
 .fe-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; z-index: 30; touch-action: none; }
 .fe-active .fe-canvas { display: block; }
+/* Drop-down lists are drawn here: above the car compare's 3D canvas (z 31). */
+.fe-top { z-index: 32; pointer-events: none; }
+.fe-compare #viewport { position: relative; z-index: 31; pointer-events: none; background: transparent; }
 .fe-active #menu, .fe-active #summary, .fe-active #menuButton { display: none !important; }
 
 /* Top Brand & Driver Header */
