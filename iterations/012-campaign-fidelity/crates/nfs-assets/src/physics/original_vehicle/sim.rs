@@ -101,6 +101,20 @@ impl Tuning {
             ..Self::default()
         }
     }
+
+    /// The player's tuning in a Quick Race: the FE car record defaults (constructor 0x4eeba0,
+    /// written by `FE_WriteCarConfig` 0x4eeda0 after fe.txt): tyre pressures 30.0 (fe.txt has
+    /// 35.0), the rest as fe.txt, and the automatic box (`.TRANSMISSION` = 1 at `res+0xc`, so
+    /// no manual-box x1.05 drive factor). No parts in game type 0.
+    pub fn quick_race(model: &str) -> Self {
+        const PRESSURE_30: i32 = 30 << 16;
+        Self {
+            flag_c: 1,
+            front_tyre_pressure_13c: PRESSURE_30,
+            rear_tyre_pressure_140: PRESSURE_30,
+            ..Self::for_model(model)
+        }
+    }
 }
 
 /// The carSpecs struct (`car+0x760`, 0x1c4 bytes) after derivation. Names

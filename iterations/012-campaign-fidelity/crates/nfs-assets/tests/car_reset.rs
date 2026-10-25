@@ -189,7 +189,9 @@ fn drive_reset_and_continue(name: &str, course: &TrackCourse, world: &World) {
         let ahead = course.waypoints[(node + 3) % course.waypoints.len()].position;
         let to = (Vec3::from(ahead) - p).normalize_or_zero();
         let steer = (to.dot(from_original(v.car.axes_364[0])) * 3.0).clamp(-1.0, 1.0);
-        let (gas, brake) = if gas > 0.0 && v.car.vel_fwd_d60() < 35.0 {
+        // A crude waypoint driver: cruise at 22 m/s so it stays on the road with the Quick
+        // Race tuning (30 psi, automatic box), which grips about 3 % less than fe.txt's.
+        let (gas, brake) = if gas > 0.0 && v.car.vel_fwd_d60() < 22.0 {
             (gas, 0.0)
         } else if gas > 0.0 || v.car.vel_fwd_d60() < 15.0 {
             (0.0, 0.0)

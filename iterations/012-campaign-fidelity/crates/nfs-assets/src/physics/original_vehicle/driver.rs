@@ -279,7 +279,7 @@ impl OriginalVehicle {
                 raw_sim.len()
             ));
         }
-        let specs = derive(&raw_sim[..SIM_FILE_SIZE], &Tuning::for_model(model));
+        let specs = derive(&raw_sim[..SIM_FILE_SIZE], &Tuning::quick_race(model));
         if !specs_usable(&specs) {
             return Err("SIM is not usable for the original model".into());
         }
