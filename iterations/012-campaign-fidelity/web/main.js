@@ -82,6 +82,20 @@ const topologyField = document.querySelector("#topologyField");
 const topologyCheckbox = document.querySelector("#topologyCheckbox");
 const tourButton = document.querySelector("#tourButton");
 const cameraButton = document.querySelector("#cameraButton");
+const cameraBadge = document.querySelector("#cameraBadge");
+
+// HUD camera name (original camera names in 6 DOF driving: TailCam0, HeliCam2, ...).
+function syncCameraBadge() {
+  if (!viewer || !cameraBadge || typeof viewer.get_camera_name !== "function") return;
+  const text = `C: ${viewer.get_camera_name()}`;
+  if (cameraBadge.textContent !== text) cameraBadge.textContent = text;
+}
+
+function cycleCarCamera() {
+  const name = viewer.cycle_car_view();
+  setStatus(`Камера: ${name}`);
+  syncCameraBadge();
+}
 const paintButton = document.querySelector("#paintButton");
 const hud = document.querySelector("#hud");
 const speedValue = document.querySelector("#speedValue");
@@ -212,11 +226,9 @@ class EngineVoices {
 
   // Fresh mixer state: replays the start sample, like the original after EngineAudio_Load.
   activate() {
-    if (!this.files) return;
+    if (!this.audio) return;
     this.deactivate();
-    this.audio.free();
-    const f = this.files;
-    this.audio = EngineAudio.load(f.names, f.bytes, f.simName, f.bank);
+    this.audio.set_running(false);
     this.active = true;
   }
 
@@ -234,11 +246,18 @@ class EngineVoices {
   update(dt, rpm, redline, throttle, view, gear) {
     const ctx = soundManager.ctx;
     if (!this.audio || !ctx || !soundManager.enabled) return;
-    if (!this.active) this.activate();
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
-    const out = this.audio.update(dt, rpm, redline, throttle, view, gear);
-    for (let i = 0; i + ENGINE_CMD_STRIDE <= out.length; i += ENGINE_CMD_STRIDE) {
-      this.execute(ctx, out[i], out[i + 1], out[i + 2], out[i + 3], out[i + 4], out[i + 5], out[i + 6]);
+    try {
+      if (!this.active) this.activate();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const out = this.audio.update(dt, rpm, redline, throttle, view, gear);
+      for (let i = 0; i + ENGINE_CMD_STRIDE <= out.length; i += ENGINE_CMD_STRIDE) {
+        this.execute(ctx, out[i], out[i + 1], out[i + 2], out[i + 3], out[i + 4], out[i + 5], out[i + 6]);
+      }
+    } catch (error) {
+      // An audio error must not stop the frame loop: drop engine sound and report it.
+      console.error("Engine sound stopped:", error);
+      this.unload();
+      if (typeof setStatus === "function") setStatus(`Звук двигателя отключён: ${error && error.message ? error.message : error}`);
     }
   }
 
@@ -307,7 +326,7 @@ const engineSound = new EngineVoices();
 class SoundManager {
   constructor() {
     this.ctx = null;
-    this.enabled = false;
+    this.enabled = true; // on by default; the AudioContext starts on the first user gesture
     this.skidNoise = null;
     this.skidFilter = null;
     this.skidGain = null;
@@ -1156,8 +1175,19 @@ function showBriefing(eventData) {
 }
 
 // Wire up Toolbar & Career Buttons
+// Browsers only allow audio after a user gesture: start it on the first click or key.
+const startAudioOnGesture = () => {
+  if (soundManager.enabled) soundManager.init();
+  window.removeEventListener("pointerdown", startAudioOnGesture, true);
+  window.removeEventListener("keydown", startAudioOnGesture, true);
+};
+window.addEventListener("pointerdown", startAudioOnGesture, true);
+window.addEventListener("keydown", startAudioOnGesture, true);
+
 const soundBtn = document.querySelector("#soundBtn");
 if (soundBtn) {
+  soundBtn.classList.toggle("active", soundManager.enabled);
+  soundBtn.textContent = soundManager.enabled ? "🔊 Звук: ВКЛ" : "🔇 Звук: ВЫКЛ";
   soundBtn.addEventListener("click", () => {
     const enabled = soundManager.toggle();
     soundBtn.classList.toggle("active", enabled);
@@ -2248,7 +2278,7 @@ tourButton.addEventListener("click", () => {
   setStatus(
     isDrive
       ? (viewer.has_car()
-          ? "Режим заезда на авто включён (F). W: газ, S: тормоз/назад, A/D: руль, Space: ручник, C: вид, R: сброс."
+          ? "Режим заезда на авто включён (F). W: газ, S: тормоз/назад, A/D: руль, Space: ручник, C: камера, V: свободная камера, R: сброс."
           : "Режим прогона включён (F). WASD: полёт вдоль границ, Мышь: обзор, Shift: ускорение.")
       : "Орбитальная камера."
   );
@@ -2259,9 +2289,7 @@ if (cameraButton) {
   cameraButton.addEventListener("click", () => {
     if (!viewer) return;
     if (viewer.is_drive_mode() && viewer.has_car()) {
-      const mode = viewer.cycle_car_view();
-      const names = ["Сзади (Chase)", "С капота (Bumper)", "Свободный (Free)"];
-      setStatus(`Камера: ${names[mode] || mode}`);
+      cycleCarCamera();
       queueFrame();
     }
   });
@@ -2420,7 +2448,7 @@ window.addEventListener("keydown", (event) => {
       setStatus(
         isDrive
           ? (viewer.has_car()
-              ? "Режим заезда на авто включён (F). W: газ, S: тормоз/назад, A/D: руль, Space: ручник, C: вид, R: сброс."
+              ? "Режим заезда на авто включён (F). W: газ, S: тормоз/назад, A/D: руль, Space: ручник, C: камера, V: свободная камера, R: сброс."
               : "Режим прогона включён (F). WASD: полёт вдоль границ, Мышь: обзор, Shift: ускорение.")
           : "Орбитальная камера."
       );
@@ -2480,12 +2508,20 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "KeyC" && !event.repeat) {
     if (viewer) {
       if (viewer.is_drive_mode() && viewer.has_car()) {
-        const mode = viewer.cycle_car_view();
-        const names = ["Сзади (Chase)", "С капота (Bumper)", "Свободный (Free)"];
-        setStatus(`Вид камеры: ${names[mode] || mode}`);
+        cycleCarCamera();
       } else {
         viewer.cycle_paint_color();
       }
+      queueFrame();
+    }
+    return;
+  }
+  if (event.code === "KeyV" && !event.repeat) {
+    // Debug free camera, outside the original C-key cycle.
+    if (viewer && viewer.is_drive_mode() && viewer.has_car()) {
+      const free = viewer.toggle_free_camera();
+      setStatus(free ? "Свободная камера (V)" : `Камера: ${viewer.get_camera_name()}`);
+      syncCameraBadge();
       queueFrame();
     }
     return;
@@ -2545,6 +2581,7 @@ function updateNavigation(dt) {
     const handbrake = activeKeys.has("Space");
 
     viewer.update_car(dt, throttle, steer, handbrake);
+    syncCameraBadge();
 
     // Update HUD display
     const speed = Math.round(viewer.get_car_speed());

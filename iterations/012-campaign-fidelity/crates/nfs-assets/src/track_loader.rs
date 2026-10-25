@@ -144,6 +144,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     let mut scene = Scene {
         meshes: Vec::new(),
         car_collision_box: None,
+        car_driver_camera: None,
         car_wheels: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),

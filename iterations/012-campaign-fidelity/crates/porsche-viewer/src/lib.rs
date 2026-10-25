@@ -1,6 +1,5 @@
 pub mod arcade;
 pub mod car_mesh;
-pub mod chase_camera;
 pub mod engine_audio;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native_catalog;

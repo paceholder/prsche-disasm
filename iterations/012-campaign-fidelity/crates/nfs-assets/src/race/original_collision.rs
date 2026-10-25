@@ -206,8 +206,8 @@ pub fn pair_car_from_ai(ai: &AiOpponent, box_center_body: Vec3, half_extents: [f
     }
 }
 
-/// Apply a pair-collision result to a kinematic AI car: position change and
-/// new velocity. Its spin is dropped (the AI controller sets its own yaw).
+/// Apply a pair-collision result to a kinematic AI car: position change, new
+/// velocity, and the yaw part of the spin change (roll/pitch are dropped).
 pub fn apply_pair_car_to_ai(ai: &mut AiOpponent, before: &PairCar, after: &PairCar) {
     let delta = from_original(after.position_330) - from_original(before.position_330);
     ai.position = (Vec3::from(ai.position) + delta).to_array();
@@ -215,6 +215,11 @@ pub fn apply_pair_car_to_ai(ai: &mut AiOpponent, before: &PairCar, after: &PairC
         let velocity = Vec3::from(ai.velocity) + from_original(after.velocity_33c)
             - from_original(before.velocity_33c);
         ai.apply_collision_velocity(velocity.to_array());
+    }
+    if after.angular_388 != before.angular_388 {
+        let change = crate::physics::original_adapter::angular_from_original(after.angular_388)
+            - crate::physics::original_adapter::angular_from_original(before.angular_388);
+        ai.apply_collision_spin(change.y);
     }
 }
 

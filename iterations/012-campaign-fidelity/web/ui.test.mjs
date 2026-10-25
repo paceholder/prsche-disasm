@@ -56,7 +56,14 @@ vm.runInContext(source + `\n globalThis.testApi = {
 };`, context);
 let driving = false;
 let lastControls;
+// Original C-key cycle from TailCam0 (Camera_Cycle, list & 3); V is the debug free camera.
+const cameraCycle = ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"];
+let cameraIndex = 3;
+let freeCamera = false;
 context.testApi.setViewer({
+  cycle_car_view: () => { freeCamera = false; cameraIndex = (cameraIndex + 1) % 4; return cameraCycle[cameraIndex]; },
+  get_camera_name: () => freeCamera ? "Free" : cameraCycle[cameraIndex],
+  toggle_free_camera: () => freeCamera = !freeCamera,
   is_drive_mode: () => driving,
   has_car: () => true,
   toggle_camera_mode: () => driving = !driving,
@@ -102,6 +109,19 @@ for (const reverse of ["KeyS", "ArrowDown"]) {
   context.testApi.updateNavigation(1 / 60);
   assert.deepEqual(Array.from(lastControls), [1 / 60, 0, 0, false]);
 }
+context.testApi.updateNavigation(1 / 60);
+assert.equal(element("#cameraBadge").textContent, "C: TailCam0", "HUD shows the camera name");
+const shownCameras = [];
+for (let i = 0; i < 4; i++) {
+  key("keydown", "KeyC");
+  key("keyup", "KeyC");
+  shownCameras.push(element("#cameraBadge").textContent);
+}
+assert.deepEqual(shownCameras, ["C: HeliCam2", "C: BumperCam2", "C: BumperCam", "C: TailCam0"]);
+key("keydown", "KeyV");
+assert.equal(element("#cameraBadge").textContent, "C: Free", "V toggles the free camera");
+key("keydown", "KeyV");
+assert.equal(element("#cameraBadge").textContent, "C: TailCam0");
 window.dispatch("keydown", { code: "KeyH", target: new Element(), repeat: false });
 assert.equal(element("#hud").hidden, true);
 window.dispatch("keydown", { code: "Escape", target: new Element(), repeat: false, preventDefault() {} });
@@ -125,10 +145,12 @@ assert.equal(document.body.classes.has("menu-hidden"), false);
 assert.equal(element("#hud").hidden, true);
 
 // 009 Shell UI & Modals regression checks
-element("#soundBtn").dispatch("click");
-assert.equal(element("#soundBtn").classes.has("active"), true, "Sound button toggles active");
+// Sound is on by default; the button toggles it off and on again.
+assert.equal(element("#soundBtn").classes.has("active"), true, "Sound starts on");
 element("#soundBtn").dispatch("click");
 assert.equal(element("#soundBtn").classes.has("active"), false, "Sound button toggles off");
+element("#soundBtn").dispatch("click");
+assert.equal(element("#soundBtn").classes.has("active"), true, "Sound button toggles on");
 
 element("#careerEvolutionBtn").dispatch("click");
 assert.equal(element("#evolutionTournamentsModal").hidden, false, "Evolution opens its tournament selection");

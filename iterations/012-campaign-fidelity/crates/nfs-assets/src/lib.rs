@@ -2,13 +2,14 @@
 use std::collections::BTreeMap;
 
 pub mod audio;
+pub mod camera;
 pub mod collision_box;
 pub mod physics;
 pub mod race;
 pub mod surface;
 pub use physics::{VehicleControls, VehicleSimulation, VehicleTelemetry};
 pub use race::{
-    calculate_grid_slot, AiOpponent, AiProfile, BarrierCollider, BarrierCollisionConfig,
+    calculate_grid_slot, AiOpponent, AiPerformance, AiProfile, BarrierCollider, BarrierCollisionConfig,
     BarrierHit, CheckpointGate, CountdownCue, CourseProgressTracker, CourseWaypoint, LapTracker,
     RaceParticipant, RacePhase, RaceSession, TrackCourse,
 };
@@ -133,6 +134,9 @@ pub struct Scene {
     pub meshes: Vec<Mesh>,
     /// Original collision box (CRP level 5) of a car scene; `None` for tracks.
     pub car_collision_box: Option<collision_box::CarCollisionBox>,
+    /// Cockpit camera from the car `.tpg` (`drivercampos[styleN]`/`drivercamrot[styleN]`,
+    /// defaults applied); `None` for tracks and synthetic scenes.
+    pub car_driver_camera: Option<camera::DriverCamera>,
     pub car_wheels: Vec<CarWheel>,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
@@ -167,6 +171,7 @@ impl Default for Scene {
     fn default() -> Self {
         Self {
             car_collision_box: None,
+            car_driver_camera: None,
             meshes: Vec::new(),
             car_wheels: Vec::new(),
             textures: Vec::new(),

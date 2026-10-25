@@ -1,4 +1,5 @@
 use super::*;
+use crate::camera::DriverCamera;
 use nfs_formats::{bytes, f32le, u16le, u32le, Entry, Ini};
 
 fn find<'a>(files: &'a AssetFiles, name: &str) -> Result<&'a [u8], String> {
@@ -302,6 +303,37 @@ fn place_tile(
     Ok(())
 }
 
+/// Style index `N` of `drivercamposstyleN` (car `+0x568`). The engine always shows the
+/// default style, so this is style 0.
+const DRIVER_CAMERA_STYLE: u32 = 0;
+
+/// `sscanf("%f,%f,%f")` into `default` (`0x523b50`): components are replaced until the
+/// first one that does not parse.
+fn tpg_vec3(ini: &Ini, key: &str, default: [f32; 3]) -> [f32; 3] {
+    let mut out = default;
+    if let Some(v) = val(ini, "header", key) {
+        for (slot, part) in out.iter_mut().zip(v.split(',')) {
+            match part.trim().parse::<f32>() {
+                Ok(x) => *slot = x,
+                Err(_) => break,
+            }
+        }
+    }
+    out
+}
+
+/// `Car_ReadTpgCameraKeys 0x441a10`: `drivercampos`/`drivercamrot` (defaults
+/// (-0.36, 0.4, -0.25) / 0), then `drivercamposstyleN`/`drivercamrotstyleN` override them.
+fn driver_camera(ini: &Ini, style: u32) -> DriverCamera {
+    let base = DriverCamera::DEFAULT;
+    let pos = tpg_vec3(ini, "drivercampos", base.position);
+    let rot = tpg_vec3(ini, "drivercamrot", base.rotation_deg);
+    DriverCamera {
+        position: tpg_vec3(ini, &format!("drivercamposstyle{style}"), pos),
+        rotation_deg: tpg_vec3(ini, &format!("drivercamrotstyle{style}"), rot),
+    }
+}
+
 pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
     if car.is_empty() || !car.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
         return Err("car identifier must be alphanumeric".into());
@@ -325,6 +357,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
     let mut scene = Scene {
         meshes: Vec::new(),
         car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
+        car_driver_camera: Some(driver_camera(&ini, DRIVER_CAMERA_STYLE)),
         car_wheels: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),
@@ -751,6 +784,56 @@ mod tests {
         nfs_formats::parse_ini(text.as_bytes()).unwrap()
     }
 
+    #[test]
+    fn driver_camera_prefers_style_keys() {
+        // 550.tpg [header].
+        let tpg = ini(
+            "[header]\nnumstyles=1\ndrivercampos=-0.234375,0.375564,-0.196614\n\
+            drivercamposstyle0=-0.239375,0.425564,-0.121614\n\
+            drivercamrotstyle0=9.600019,1.799999,0.000000\n",
+        );
+        let cam = driver_camera(&tpg, 0);
+        assert_eq!(cam.position, [-0.239375, 0.425564, -0.121614]);
+        assert_eq!(cam.rotation_deg, [9.600019, 1.799999, 0.0]);
+        // Another style falls back to the plain keys.
+        assert_eq!(
+            driver_camera(&tpg, 1).position,
+            [-0.234375, 0.375564, -0.196614]
+        );
+        assert_eq!(driver_camera(&tpg, 1).rotation_deg, [0.0; 3]);
+    }
+    #[test]
+    fn driver_camera_without_style_keys() {
+        // 993.tpg [header].
+        let tpg = ini("[header]\ndrivercampos=-0.382813,0.397512,-0.155002\n\
+            drivercamrot=3.649998,-0.050000,0.000000\n");
+        let cam = driver_camera(&tpg, 0);
+        assert_eq!(cam.position, [-0.382813, 0.397512, -0.155002]);
+        assert_eq!(cam.rotation_deg, [3.649998, -0.05, 0.0]);
+        // No keys: the 0x441a10 defaults; a bad component stops the scan.
+        assert_eq!(driver_camera(&ini("[header]\n"), 0), DriverCamera::DEFAULT);
+        let partial = ini("[header]\ndrivercampos=1.5,x,2\n");
+        assert_eq!(driver_camera(&partial, 0).position, [1.5, 0.4, -0.25]);
+    }
+    #[test]
+    fn local_tpg_driver_cameras() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/CarModel");
+        if !root.join("550.tpg").exists() {
+            return;
+        }
+        let read = |car: &str| {
+            let tpg = parse_ini_file(&root.join(format!("{car}.tpg")));
+            driver_camera(&tpg, DRIVER_CAMERA_STYLE)
+        };
+        let c550 = read("550");
+        assert_eq!(c550.position, [-0.239375, 0.425564, -0.121614]);
+        assert_eq!(c550.rotation_deg, [9.600019, 1.799999, 0.0]);
+        assert_eq!(read("993").position, [-0.382813, 0.397512, -0.155002]);
+    }
+    fn parse_ini_file(path: &std::path::Path) -> Ini {
+        nfs_formats::parse_ini(&std::fs::read(path).unwrap()).unwrap()
+    }
     #[test]
     fn tile_selection_defaults_each_domain_to_type_zero() {
         let ini = ini("[file1.tile]\ncount=2\ngeometry1=4\ntype1=1\ntexture2=9\ntype2=0\n");

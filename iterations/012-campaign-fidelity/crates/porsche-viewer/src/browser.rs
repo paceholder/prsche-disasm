@@ -231,16 +231,28 @@ impl BrowserViewer {
         }
     }
 
-    pub fn cycle_car_view(&mut self) -> u32 {
-        if let Some(renderer) = &mut self.renderer {
-            match renderer.cycle_car_view() {
-                crate::arcade::DriveViewMode::Chase => 0,
-                crate::arcade::DriveViewMode::Bumper => 1,
-                crate::arcade::DriveViewMode::Free => 2,
-            }
-        } else {
-            0
-        }
+    /// C key: next drive camera; returns its name (original camera names in 6 DOF driving).
+    pub fn cycle_car_view(&mut self) -> String {
+        self.renderer
+            .as_mut()
+            .map(|r| r.cycle_car_view())
+            .unwrap_or_default()
+    }
+
+    /// V key (debug): toggles the free camera; returns whether it is on.
+    pub fn toggle_free_camera(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| r.toggle_free_camera())
+            .unwrap_or(false)
+    }
+
+    /// Name of the current drive camera (HUD).
+    pub fn get_camera_name(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.camera_name())
+            .unwrap_or_default()
     }
 
     pub fn cycle_car_paint(&mut self) -> usize {
@@ -396,7 +408,7 @@ impl BrowserViewer {
             .unwrap_or(7000.0)
     }
 
-    /// Current drive camera: 0 Chase, 1 Bumper, 2 Free (same numbering as `cycle_car_view`).
+    /// Current drive camera for the engine sound: 0 Chase, 1 Bumper (in-car), 2 Free.
     pub fn get_car_view(&self) -> u32 {
         self.renderer
             .as_ref()
@@ -715,16 +727,18 @@ impl EngineAudio {
         self.core.slots()[index].detune_cents
     }
     /// Loop start in sample frames, or -1 when the slot doesn't loop.
-    pub fn slot_loop_start(&self, index: usize) -> i64 {
+    /// `f64`, not `i64`: wasm-bindgen turns `i64` into a JS BigInt, which can't
+    /// be mixed with Numbers (it broke `loopStart / rate` in web/main.js).
+    pub fn slot_loop_start(&self, index: usize) -> f64 {
         self.core.slots()[index]
             .loop_range
-            .map_or(-1, |r| r.0 as i64)
+            .map_or(-1.0, |r| r.0 as f64)
     }
     /// Loop end in sample frames, or -1.
-    pub fn slot_loop_end(&self, index: usize) -> i64 {
+    pub fn slot_loop_end(&self, index: usize) -> f64 {
         self.core.slots()[index]
             .loop_range
-            .map_or(-1, |r| r.1 as i64)
+            .map_or(-1.0, |r| r.1 as f64)
     }
     /// One channel of the slot's PCM, -1..1.
     pub fn slot_pcm(&self, index: usize, channel: usize) -> Vec<f32> {

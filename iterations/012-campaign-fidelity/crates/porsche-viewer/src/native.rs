@@ -315,6 +315,7 @@ mod gpu_diagnostics {
         .to_vec();
         let scene = Scene {
             car_collision_box: None,
+            car_driver_camera: None,
             meshes: vec![Mesh {
                 name: "paint regression".into(),
                 vertices,
@@ -433,6 +434,7 @@ mod gpu_diagnostics {
         };
         let scene = Scene {
             car_collision_box: None,
+            car_driver_camera: None,
             // Deliberately put the detail first: article order must not win.
             meshes: vec![mesh(1), mesh(0)],
             textures: vec![
@@ -1376,11 +1378,22 @@ impl ApplicationHandler for App {
                     KeyCode::KeyC if !event.repeat => {
                         if let Some(renderer) = &mut self.renderer {
                             if renderer.is_drive_mode() && renderer.has_car() {
-                                let view = renderer.cycle_car_view();
-                                println!("Car view mode: {:?}", view);
+                                println!("Camera: {}", renderer.cycle_car_view());
                             } else {
                                 renderer.cycle_paint_color();
                             }
+                        }
+                        if let Some(window) = &self.window {
+                            window.request_redraw();
+                        }
+                    }
+                    KeyCode::KeyV if !event.repeat => {
+                        if let Some(renderer) = &mut self.renderer
+                            && renderer.is_drive_mode()
+                            && renderer.has_car()
+                        {
+                            let free = renderer.toggle_free_camera();
+                            println!("Free camera: {free} ({})", renderer.camera_name());
                         }
                         if let Some(window) = &self.window {
                             window.request_redraw();

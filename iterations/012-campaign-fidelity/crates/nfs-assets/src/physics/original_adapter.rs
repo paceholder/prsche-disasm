@@ -169,6 +169,26 @@ pub fn pair_car_from_sim(
     }
 }
 
+/// Camera view of the engine body (`nfs_assets::camera`): the pair-collision car (box centre,
+/// mirrored axes, half extents), ground-frame speeds `+0xd58`/`+0xd60` = centre velocity
+/// along R/F. No track nodes: node 0, travel direction +1 (the slope lookup must be flat).
+pub fn camera_car_from_sim(
+    sim: &VehicleSimulation,
+    box_center_body: Vec3,
+    half_extents: [f32; 3],
+) -> crate::camera::CarView {
+    let car = pair_car_from_sim(sim, box_center_body, half_extents);
+    crate::camera::CarView {
+        node_08: 0,
+        pos_330: car.position_330,
+        axes_364: [car.axis_r_364, car.axis_u_370, car.axis_f_37c],
+        half_extents_3a8: car.extents_3a8,
+        direction_d30: 1,
+        lateral_speed_d58: dot(car.velocity_33c, car.axis_r_364),
+        forward_speed_d60: dot(car.velocity_33c, car.axis_f_37c),
+    }
+}
+
 /// Write a pair-collision result back as changes of position, velocity and
 /// world angular velocity, so engine state the original doesn't model is kept.
 pub fn apply_pair_car_to_sim(sim: &mut VehicleSimulation, before: &PairCar, after: &PairCar) {
@@ -305,6 +325,19 @@ mod tests {
         let s = prepared_state(&car());
         assert_eq!(s.basis_490, s.basis_364);
         assert_eq!(s.basis_4a8, s.basis_37c);
+    }
+
+    #[test]
+    fn camera_car_uses_box_centre_axes_and_ground_speeds() {
+        let sim = car();
+        let center = Vec3::new(0.0, 0.5, 0.1);
+        let c = camera_car_from_sim(&sim, center, [0.9, 0.6, 2.0]);
+        assert_eq!(c.pos_330, to_original(sim.body.to_world_pos(center)));
+        assert_eq!(c.axes_364[2], to_original(sim.body.forward()));
+        assert_eq!(c.half_extents_3a8[2], 2.0);
+        let v = sim.body.point_velocity(sim.body.to_world_pos(center));
+        assert!((c.forward_speed_d60 - v.dot(sim.body.forward())).abs() < 1e-4);
+        assert!((c.lateral_speed_d58 - v.dot(sim.body.right())).abs() < 1e-4);
     }
 
     #[test]

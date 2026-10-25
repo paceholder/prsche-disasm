@@ -71,7 +71,40 @@ pub struct Camera {
     pub drive_pos: Vec3,
     pub drive_target: Vec3,
     pub drive_height: f32,
+    /// Vertical FOV in degrees (perspective_rh convention), unless `drive_hfov` is set.
     pub drive_fov: f32,
+    /// Horizontal FOV in degrees; the vertical FOV then follows the viewport aspect.
+    pub drive_hfov: Option<f32>,
+    pub drive_near: f32,
+    /// View up reference (world up, or the camera matrix up row of the original cameras).
+    pub drive_up: Vec3,
+}
+
+/// Drive camera from an original view (original world = scene with z mirrored): eye, eye +
+/// forward, the matrix up row as up reference (world up for the chase cams; the car's for
+/// the bumper cams), horizontal FOV and near plane.
+pub fn apply_original_view(camera: &mut Camera, view: &nfs_assets::camera::CameraView) {
+    use nfs_assets::physics::original_adapter::from_original;
+    camera.drive_pos = from_original(view.eye);
+    camera.drive_target = from_original(view.target);
+    camera.drive_up = from_original(view.matrix[1]);
+    camera.drive_hfov = Some(view.fov_deg);
+    camera.drive_near = view.near;
+}
+
+/// Vertical FOV (radians) of a horizontal FOV (degrees) at `aspect` (width / height):
+/// the original projection scales x by `tan(fov / 2)` and y by `tan(fov / 2) / aspect`.
+pub fn vertical_fov(horizontal_deg: f32, aspect: f32) -> f32 {
+    2.0 * ((horizontal_deg.to_radians() * 0.5).tan() / aspect.max(1e-3)).atan()
+}
+
+/// The original ran at 4:3 only. Wider screens keep the 4:3 vertical FOV and see more at
+/// the sides ("Hor+", as widescreen patches do); narrower ones keep the horizontal FOV.
+pub const ORIGINAL_ASPECT: f32 = 4.0 / 3.0;
+
+/// Vertical FOV (radians) for the original horizontal FOV on a screen of `aspect`.
+pub fn hor_plus_vertical_fov(horizontal_deg: f32, aspect: f32) -> f32 {
+    vertical_fov(horizontal_deg, aspect.min(ORIGINAL_ASPECT))
 }
 
 impl Camera {
@@ -94,6 +127,9 @@ impl Camera {
             drive_target: center + Vec3::new(0.0, 0.0, -10.0),
             drive_height: 1.6,
             drive_fov: 58.0,
+            drive_hfov: None,
+            drive_near: 0.1,
+            drive_up: Vec3::Y,
         };
         camera.reset();
         camera
@@ -108,6 +144,26 @@ impl Camera {
         self.drive_target = self.initial_center + Vec3::new(0.0, 0.0, -10.0);
         self.drive_height = 1.6;
         self.drive_fov = 58.0;
+        self.use_world_view();
+    }
+    /// Arcade/free framing: vertical `drive_fov`, near 0.1, world up.
+    pub fn use_world_view(&mut self) {
+        self.drive_hfov = None;
+        self.drive_near = 0.1;
+        self.drive_up = Vec3::Y;
+    }
+    fn drive_fov_near(&self, aspect: f32) -> (f32, f32) {
+        let fov = match self.drive_hfov {
+            Some(h) => hor_plus_vertical_fov(h, aspect),
+            None => self.drive_fov.to_radians(),
+        };
+        (fov, self.drive_near)
+    }
+    fn up(&self) -> Vec3 {
+        match self.mode {
+            CameraMode::Orbit => Vec3::Y,
+            CameraMode::Drive => self.drive_up,
+        }
     }
     pub fn orbit(&mut self, x: f32, y: f32) {
         match self.mode {
@@ -194,29 +250,27 @@ impl Camera {
             CameraMode::Drive => self.drive_target,
         }
     }
-    fn view_projection(&self, width: u32, height: u32) -> Mat4 {
-        let (fov, near, far) = match self.mode {
+    fn fov_near(&self, aspect: f32) -> (f32, f32) {
+        match self.mode {
             CameraMode::Orbit => (
                 45.0_f32.to_radians(),
                 (self.distance * 0.05).clamp(0.05, 1.0),
-                (self.radius * 20.0).max(10_000.0),
             ),
-            CameraMode::Drive => (
-                self.drive_fov.to_radians(),
-                0.1_f32,
-                (self.radius * 20.0).max(10_000.0),
-            ),
-        };
-        let projection = Mat4::perspective_rh(fov, width as f32 / height.max(1) as f32, near, far);
-        let eye = self.eye();
-        let target = self.target();
-        projection * Mat4::look_at_rh(eye, target, Vec3::Y)
+            CameraMode::Drive => self.drive_fov_near(aspect),
+        }
+    }
+    fn view_projection(&self, width: u32, height: u32) -> Mat4 {
+        let aspect = width as f32 / height.max(1) as f32;
+        let (fov, near) = self.fov_near(aspect);
+        let far = (self.radius * 20.0).max(10_000.0);
+        let projection = Mat4::perspective_rh(fov, aspect, near, far);
+        projection * Mat4::look_at_rh(self.eye(), self.target(), self.up())
     }
     /// View matrix with the translation removed, so the sky dome follows the
     /// camera's orientation only. Uses `eye()`/`target()` so it is correct in
     /// both Orbit and Drive modes (`center` is stale in Drive mode).
     fn sky_view(&self) -> Mat4 {
-        let view = Mat4::look_at_rh(self.eye(), self.target(), Vec3::Y);
+        let view = Mat4::look_at_rh(self.eye(), self.target(), self.up());
         Mat4::from_cols(
             view.col(0),
             view.col(1),
@@ -225,15 +279,10 @@ impl Camera {
         )
     }
     fn sky_view_projection(&self, width: u32, height: u32) -> Mat4 {
-        let (fov, near) = match self.mode {
-            CameraMode::Orbit => (
-                45.0_f32.to_radians(),
-                (self.distance * 0.05).clamp(0.05, 1.0),
-            ),
-            CameraMode::Drive => (self.drive_fov.to_radians(), 0.1_f32),
-        };
+        let aspect = width as f32 / height.max(1) as f32;
+        let (fov, near) = self.fov_near(aspect);
         let far = (self.radius * 20.0).max(10_000.0);
-        let projection = Mat4::perspective_rh(fov, width as f32 / height.max(1) as f32, near, far);
+        let projection = Mat4::perspective_rh(fov, aspect, near, far);
         projection * self.sky_view()
     }
     fn uniform(&self, width: u32, height: u32) -> CameraUniform {
@@ -314,6 +363,11 @@ struct BoxOverlay {
 }
 
 const BOX_OVERLAY_MAX_CARS: usize = 16;
+/// Start camera: index 2 of the original cycle list = TailCam0. The original starts in
+/// `list[0]` (BumperCam2) after the intro, but the cockpit model isn't drawn yet.
+const START_CYCLE_INDEX: i16 = 2;
+/// Camera half extents of a car without a CRP collision box.
+const FALLBACK_HALF_EXTENTS: [f32; 3] = [0.9, 0.65, 2.1];
 const BOX_OVERLAY_MAX_VERTICES: usize = BOX_OVERLAY_MAX_CARS * 12 * 2;
 
 /// Build the pair cars (player first, then AI) exactly as the original
@@ -396,7 +450,10 @@ pub struct Renderer {
     pub car: Option<crate::arcade::ArcadeCar>,
     pub sim_car: Option<nfs_assets::physics::VehicleSimulation>,
     pub sim_telemetry: Option<nfs_assets::physics::VehicleTelemetry>,
-    pub chase_camera: crate::chase_camera::ChaseCamera,
+    /// Original player camera (6 DOF driving), `nfs_assets::camera`.
+    pub player_camera: nfs_assets::camera::PlayerCamera,
+    /// Debug free camera (V): the eye stays, the view follows the car.
+    pub free_camera: bool,
     pub vehicle_contact_count: u32,
     pub sim_mode: bool,
     /// Collision response: upstream prototype or the recovered original.
@@ -412,6 +469,9 @@ pub struct Renderer {
     pub track_course: Option<nfs_assets::TrackCourse>,
     pub course_tracker: Option<nfs_assets::CourseProgressTracker>,
     pub ai_opponents: Vec<nfs_assets::AiOpponent>,
+    /// Performance of the player's SIM car, shared with the AI cars.
+    /// Approximation: opponents run the player's car kinematically.
+    ai_performance: Option<nfs_assets::AiPerformance>,
     /// Debug cap for AI speed (m/s), cycled with J: none, 30 km/h, parked.
     ai_speed_limit: Option<f32>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
@@ -1242,7 +1302,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             car,
             sim_car,
             sim_telemetry: None,
-            chase_camera: crate::chase_camera::ChaseCamera::default(),
+            player_camera: nfs_assets::camera::PlayerCamera::new(
+                nfs_assets::camera::DriverCamera::DEFAULT,
+                START_CYCLE_INDEX,
+            ),
+            free_camera: false,
             vehicle_contact_count: 0,
             sim_mode: true,
             collision_model: Default::default(),
@@ -1254,6 +1318,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             track_course,
             course_tracker,
             ai_opponents,
+            ai_performance: None,
             ai_speed_limit: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
@@ -1562,7 +1627,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         // 3.5. Draw car on track (if present)
         if let (Some(car), Some(car_render)) = (&self.car, &self.car_render) {
-            if let (Some(sim), true) = (&self.sim_car, self.sim_mode) {
+            // The bumper view looks out from inside the body: like the
+            // original BumperCam, the player's own car isn't drawn.
+            let bumper_view = self.camera.mode == CameraMode::Drive
+                && if self.sim_mode {
+                    !self.free_camera && self.player_camera.is_in_car()
+                } else {
+                    car.view_mode == crate::arcade::DriveViewMode::Bumper
+                };
+            if bumper_view && self.sim_mode {
+                // nothing to draw for the player car
+            } else if let (Some(sim), true) = (&self.sim_car, self.sim_mode) {
                 let body_matrix = sim.body.transform_matrix()
                     * Mat4::from_translation(car_chassis_adapter_body(sim, car_render));
                 self.draw_car_meshes(
@@ -2065,17 +2140,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             player_pos = sim.body.position.to_array();
             player_fwd = sim.body.forward().to_array();
 
-            if self.camera.mode == CameraMode::Drive {
-                let view = self.chase_camera.update(
-                    dt,
-                    sim.body.position,
-                    sim.body.forward(),
-                    sim.body.linear_velocity,
-                );
-                self.camera.drive_pos = view.eye;
-                self.camera.drive_target = view.target;
-                self.camera.drive_fov = 58.0 + (tel.speed_mps / 50.0).clamp(0.0, 1.0) * 10.0;
-            }
             self.sim_telemetry = Some(tel);
         } else if let Some(car) = &mut self.car {
             let reference_y = car.pos.y;
@@ -2094,6 +2158,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             player_fwd = car.forward().to_array();
 
             if self.camera.mode == CameraMode::Drive {
+                self.camera.use_world_view();
                 self.camera.drive_pos = car.camera_eye;
                 self.camera.drive_target = car.camera_target;
                 self.camera.drive_fov = match car.view_mode {
@@ -2138,6 +2203,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         } else if let Some(car) = &self.car {
             player_pos = car.pos.to_array();
         }
+        // The camera runs after the car callbacks (scheduler priority 100).
+        self.update_original_camera(dt);
 
         // Progress tracking along course
         if let (Some(course), Some(tracker), Some(session)) = (
@@ -2239,7 +2306,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn reset_car(&mut self) {
-        self.chase_camera.reset();
+        self.player_camera.restart();
         self.body_support_owner = Default::default();
         self.collision_clock = Default::default();
         self.vehicle_contact_count = 0;
@@ -2468,6 +2535,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.ai_opponents = ai;
         for ai in &mut self.ai_opponents {
             ai.speed_limit = self.ai_speed_limit;
+            ai.performance = self.ai_performance;
         }
         self.is_mission_mode = false;
         self.mission_progress = None;
@@ -2648,17 +2716,88 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.is_mission_mode
     }
 
-    pub fn cycle_car_view(&mut self) -> crate::arcade::DriveViewMode {
-        if let Some(car) = &mut self.car {
-            let mode = car.cycle_view_mode();
+    /// Camera input of the 6 DOF player car: the collision-box car of the original
+    /// collisions (`camera_car_from_sim`).
+    fn camera_car(&self) -> Option<nfs_assets::camera::CarView> {
+        use nfs_assets::physics::original_adapter::camera_car_from_sim;
+        let (true, Some(sim)) = (self.sim_mode, self.sim_car.as_ref()) else {
+            return None;
+        };
+        let (center, half) = self
+            .car_collision_box
+            .unwrap_or((Vec3::ZERO, FALLBACK_HALF_EXTENTS));
+        let adapter = self
+            .car_render
+            .as_ref()
+            .map(|r| car_chassis_adapter_body(sim, r))
+            .unwrap_or(Vec3::ZERO);
+        Some(camera_car_from_sim(sim, center + adapter, half))
+    }
+
+    /// Steps the original camera at 64 Hz and builds this frame's view from it.
+    fn update_original_camera(&mut self, dt: f32) {
+        use nfs_assets::physics::original_adapter::from_original;
+        let Some(car) = self.camera_car() else {
+            return;
+        };
+        // No track nodes or ceilings yet: flat slope, no clamp (approximation).
+        self.player_camera
+            .advance(dt, &car, &mut nfs_assets::camera::FlatWorld);
+        if self.camera.mode != CameraMode::Drive {
+            return;
+        }
+        if self.free_camera {
+            self.camera.use_world_view();
+            self.camera.drive_fov = 55.0;
+            self.camera.drive_target = from_original(car.pos_330);
+            return;
+        }
+        let view = self.player_camera.view(car.pos_330);
+        apply_original_view(&mut self.camera, &view);
+    }
+
+    /// Name of the drive camera shown in the HUD.
+    pub fn camera_name(&self) -> String {
+        if self.sim_mode && self.sim_car.is_some() {
+            if self.free_camera {
+                return "Free".into();
+            }
+            return self.player_camera.name().into();
+        }
+        match self.car.as_ref().map(|c| c.view_mode) {
+            Some(crate::arcade::DriveViewMode::Bumper) => "Bumper".into(),
+            Some(crate::arcade::DriveViewMode::Free) => "Free".into(),
+            _ => "Chase".into(),
+        }
+    }
+
+    /// C key: in 6 DOF driving the original cycle (`Camera_Cycle`: BumperCam2, BumperCam,
+    /// TailCam0, HeliCam2, with the settle period), otherwise the arcade views. Leaves the
+    /// free camera. Returns the new camera name.
+    pub fn cycle_car_view(&mut self) -> String {
+        if let Some(car) = self.camera_car() {
+            self.free_camera = false;
+            self.player_camera
+                .cycle(&car, &mut nfs_assets::camera::FlatWorld);
+            if self.camera.mode == CameraMode::Drive {
+                let view = self.player_camera.view(car.pos_330);
+                apply_original_view(&mut self.camera, &view);
+            }
+        } else if let Some(car) = &mut self.car {
+            car.cycle_view_mode();
             if self.camera.mode == CameraMode::Drive {
                 self.camera.drive_pos = car.camera_eye;
                 self.camera.drive_target = car.camera_target;
             }
-            mode
-        } else {
-            crate::arcade::DriveViewMode::Chase
         }
+        self.camera_name()
+    }
+
+    /// V key (debug): free camera on/off. The eye stays where it is and keeps looking at the
+    /// car; the original camera keeps stepping underneath.
+    pub fn toggle_free_camera(&mut self) -> bool {
+        self.free_camera = !self.free_camera;
+        self.free_camera
     }
 
     pub fn cycle_car_paint(&mut self) -> usize {
@@ -2723,8 +2862,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         7000.0
     }
 
-    /// Current drive camera: 0 Chase, 1 Bumper, 2 Free.
+    /// Current drive camera for the engine sound: 0 Chase, 1 Bumper (in-car), 2 Free (other
+    /// exterior views). The original cameras map TailCam to Chase, BumperCam/BumperCam2 to
+    /// Bumper and HeliCam to Free.
     pub fn get_car_view(&self) -> u32 {
+        if self.sim_mode && self.sim_car.is_some() {
+            return match self.player_camera.id() {
+                _ if self.free_camera => 2,
+                0 | 1 => 1,
+                2..=4 => 0,
+                _ => 2,
+            };
+        }
         match self.car.as_ref().map(|c| c.view_mode) {
             Some(crate::arcade::DriveViewMode::Bumper) => 1,
             Some(crate::arcade::DriveViewMode::Free) => 2,
@@ -2895,6 +3044,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.apply_car_render_wheels_to_sim(&mut sim)?;
         self.sim_car = Some(sim);
         self.sim_telemetry = None;
+        self.ai_performance = nfs_formats::parse_sim(bytes)
+            .ok()
+            .and_then(|spec| nfs_assets::AiPerformance::from_sim(&spec));
+        for ai in &mut self.ai_opponents {
+            ai.performance = self.ai_performance;
+        }
         Ok(())
     }
 
@@ -3146,6 +3301,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .collect();
 
         // Race meshes map raw CRP (x, y, z) to body (-x, y, z), see CAR_SCALE above.
+        self.player_camera = nfs_assets::camera::PlayerCamera::new(
+            scene.car_driver_camera.unwrap_or_default(),
+            self.player_camera.cycle_index,
+        );
         self.car_collision_box = scene.car_collision_box.map(|b| {
             (
                 Vec3::new(-b.center[0], b.center[1], b.center[2]),
@@ -3775,5 +3934,101 @@ mod sky_tests {
         let turned = drive_camera(Vec3::new(510.0, 3.0, -200.0)).sky_view();
         let east = turned.transform_vector3(Vec3::X);
         assert!(east.z < -0.99, "{east:?}");
+    }
+}
+
+#[cfg(test)]
+mod original_camera_tests {
+    use super::*;
+    use nfs_assets::camera::{DriverCamera, FlatWorld, PlayerCamera};
+    use nfs_assets::physics::original_adapter::camera_car_from_sim;
+
+    fn sim(yaw: f32) -> nfs_assets::physics::VehicleSimulation {
+        let mut data = [0u8; nfs_formats::SIM_FILE_SIZE];
+        data[..4].copy_from_slice(b"Test");
+        for (offset, value) in [
+            (0x40, 1100.0_f32),
+            (0x44, 2400.0),
+            (0x68, 3.2),
+            (0x80, 3.9),
+            (0x94, 6000.0),
+            (0x10c, 1450.0),
+            (0x110, 1450.0),
+        ] {
+            data[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        data[0x50..0x54].copy_from_slice(&1i32.to_le_bytes());
+        simulation_from_bytes_at_pose(&data, Vec3::new(20.0, 0.0, -50.0), yaw).unwrap()
+    }
+
+    #[test]
+    fn widescreen_keeps_the_4_3_vertical_fov() {
+        let at_4_3 = hor_plus_vertical_fov(75.0, 4.0 / 3.0).to_degrees();
+        assert!((at_4_3 - 59.84).abs() < 0.01, "{at_4_3}");
+        for wide in [16.0 / 9.0, 21.0 / 9.0] {
+            let v = hor_plus_vertical_fov(75.0, wide).to_degrees();
+            assert!((v - at_4_3).abs() < 1e-4, "{wide}: {v}");
+        }
+        // Narrower than 4:3 keeps the horizontal 75 degrees instead.
+        let narrow = hor_plus_vertical_fov(75.0, 1.0).to_degrees();
+        assert!(narrow > at_4_3, "{narrow}");
+    }
+
+    #[test]
+    fn horizontal_fov_75_is_59_8_vertical_at_4_3() {
+        let v = vertical_fov(75.0, 640.0 / 480.0).to_degrees();
+        assert!((v - 59.84).abs() < 0.01, "{v}");
+        // perspective_rh x scale = 1 / tan(37.5 deg) at any aspect.
+        for aspect in [4.0 / 3.0, 16.0 / 9.0, 0.5] {
+            let p = Mat4::perspective_rh(vertical_fov(75.0, aspect), aspect, 0.5, 100.0);
+            let expected = 1.0 / 37.5_f32.to_radians().tan();
+            assert!((p.col(0).x - expected).abs() < 1e-5);
+        }
+    }
+
+    #[test]
+    fn tail_cam_sits_behind_and_above_the_6dof_body() {
+        let half = [0.9, 0.65, 2.1];
+        for yaw in [0.0_f32, 1.1, -2.5] {
+            let sim = sim(yaw);
+            let mut player = PlayerCamera::new(DriverCamera::DEFAULT, START_CYCLE_INDEX);
+            let car = camera_car_from_sim(&sim, Vec3::ZERO, half);
+            for _ in 0..200 {
+                player.advance(1.0 / 60.0, &car, &mut FlatWorld);
+            }
+            assert_eq!(player.name(), "TailCam0");
+            let mut cam = Camera::new([[-1.0; 3], [1.0; 3]]);
+            cam.mode = CameraMode::Drive;
+            apply_original_view(&mut cam, &player.view(car.pos_330));
+            let rel = cam.drive_pos - sim.body.position;
+            // 3.30 m behind the rear bumper, 1.15 m up, along the scene body axes.
+            let back = -rel.dot(sim.body.forward());
+            assert!((back - (3.3 + half[2])).abs() < 0.01, "yaw {yaw}: {back}");
+            assert!((rel.y - 1.15).abs() < 0.01, "yaw {yaw}: {rel:?}");
+            assert!(rel.dot(sim.body.right()).abs() < 0.01);
+            // Looks toward the car, horizon level, 75 deg horizontal, near 0.5.
+            let fwd = (cam.drive_target - cam.drive_pos).normalize();
+            assert!(fwd.dot(sim.body.forward()) > 0.9);
+            assert!(cam.drive_up.y > 0.95);
+            let right = fwd.cross(cam.drive_up);
+            assert!(right.y.abs() < 1e-5);
+            assert_eq!((cam.drive_hfov, cam.drive_near), (Some(75.0), 0.5));
+        }
+    }
+
+    #[test]
+    fn bumper_cam_is_rigid_in_scene_body_axes() {
+        let sim = sim(0.7);
+        let mut player = PlayerCamera::new(DriverCamera::DEFAULT, 1);
+        let car = camera_car_from_sim(&sim, Vec3::ZERO, [0.9, 0.65, 2.1]);
+        player.advance(0.1, &car, &mut FlatWorld);
+        assert_eq!(player.name(), "BumperCam");
+        let mut cam = Camera::new([[-1.0; 3], [1.0; 3]]);
+        apply_original_view(&mut cam, &player.view(car.pos_330));
+        let rel = cam.drive_pos - sim.body.position;
+        assert!((rel - (sim.body.up() * 0.4 + sim.body.forward() * 0.9)).length() < 1e-4);
+        let fwd = (cam.drive_target - cam.drive_pos).normalize();
+        assert!((fwd - sim.body.forward()).length() < 1e-4);
+        assert!((cam.drive_up - sim.body.up()).length() < 1e-4);
     }
 }
