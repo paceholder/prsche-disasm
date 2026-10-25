@@ -1,6 +1,6 @@
 # Current project status
 
-Updated 2026-10-25. Active work: [v2 / 001-original-recovery](iterations/v2/001-original-recovery/PLAN.md).
+Updated 2026-10-26. Active work: [v2 / 001-original-recovery](iterations/v2/001-original-recovery/PLAN.md).
 
 ## Recovered C/C++ game
 
@@ -20,8 +20,8 @@ Full startup, display, menus, careers and gameplay still need integration/accept
 
 ## Other workstreams
 
-The [Rust iteration 012 prototype](iterations/012-campaign-fidelity/README.md) is unfinished and
-its integration is paused. Compile candidates and x86 lowering tools are research;
+The [Rust iteration 012 prototype](iterations/012-campaign-fidelity/README.md) is unfinished.
+Compile candidates and x86 lowering tools are research;
 they are separate from accepted game code.
 
 The independent Open-Unleashed v0.1.4 Windows release was tested with our assets in an
@@ -32,9 +32,11 @@ Native Computer Use returned `spawn EPERM`, so no interactive visual acceptance 
 claimed. Original asset sizes/mtimes were unchanged. This is external-port evidence,
 not a successful build or fidelity proof of our C++ reconstruction.
 
-[PR #25](https://github.com/xfynx/prsche-disasm/pull/25) is under review while its author
-polishes the branch. Its original-function recorders and fixtures are useful for v2;
-merging the Rust implementation and accepting original C++ behavior are separate checks.
+[PR #25](https://github.com/xfynx/prsche-disasm/pull/25) is integrated into the Rust
+prototype, with collision-unit and FFN metric corrections and author attribution.
+Its [intake review](docs/research/pr25-integration-review-2026-10-26.md) records the
+build/test/browser evidence and unsupported speech-archive boundary. Its recorders
+are available for C++ recovery; the C++ checkpoint above is unchanged.
 
 ## Evidence and remaining checks
 

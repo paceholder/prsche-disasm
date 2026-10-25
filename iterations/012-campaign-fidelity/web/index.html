@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <!-- Covers the web shell until boot decides between the original front end and it. -->
+    <div id="debugPanel" class="debug-panel" hidden></div>
+    <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999"></div>
     <main class="viewer">
       <section id="menu" class="porsche-shell" aria-label="Игровая оболочка Porsche Unleashed">
         <!-- Authentic Top Brand & Profile Bar -->
@@ -150,6 +153,7 @@
               ◀ СВЕРНУТЬ МЕНЮ (ESC)
             </button>
             <button id="soundBtn" type="button" class="bottom-sound-pill" title="Вкл/Выкл звук">🔊 ЗВУК</button>
+            <label class="bottom-sound-pill music-level" title="Громкость музыки (0–127)">♫ <input id="musicLevel" type="range" min="0" max="127" step="1" value="127" aria-label="Громкость музыки"></label>
           </div>
           <div class="bottom-center">
             <div class="bottom-brand-watermark">NEED FOR SPEED · PORSCHE UNLEASHED · 2000 EA CANADA</div>
@@ -166,26 +170,13 @@
       </section>
       <div class="viewport-wrapper">
         <canvas id="viewport" tabindex="0" aria-label="Трёхмерная сцена"></canvas>
+        <canvas id="feCanvas" class="fe-canvas" aria-label="Original front end"></canvas>
         <button id="menuButton" type="button" aria-expanded="true" aria-controls="menu">Меню · Esc</button>
-        <div id="raceHudTop" class="race-hud-top" hidden>
-          <div id="racePosBadge" class="race-badge pos-badge">
-            <span class="badge-label">ПОЗИЦИЯ</span>
-            <span class="badge-val"><b id="racePos">1</b><small id="raceTotalPos">/4</small></span>
-          </div>
-          <div id="raceLapBadge" class="race-badge lap-badge">
-            <span class="badge-label">КРУГ</span>
-            <span class="badge-val"><b id="raceLap">1</b><small id="raceTotalLaps">/3</small></span>
-          </div>
-          <div class="race-badge time-badge">
-            <span id="raceTimeLabel" class="badge-label">ВРЕМЯ КРУГА</span>
-            <span id="raceLapTime" class="badge-val timer-val">00:00.0</span>
-            <span id="raceBestLap" class="badge-sub">ЛУЧШИЙ --:--.-</span>
-          </div>
-          <div id="facStatusBadge" class="race-badge fac-badge" style="display: none;">
-            <span class="badge-label">ИСПЫТАНИЕ</span>
-            <span id="facStatusVal" class="badge-val" style="font-size: 15px; color: #d3bd83;">КОНУСЫ: 0</span>
-            <span id="facStatusSub" class="badge-sub" style="color: #999;">В ПРОЦЕССЕ</span>
-          </div>
+        <canvas id="hudCanvas" class="hud-canvas" aria-hidden="true" hidden></canvas>
+        <div id="facStatusBadge" class="race-badge fac-badge" hidden>
+          <span id="facStatusLabel" class="badge-label">ИСПЫТАНИЕ</span>
+          <span id="facStatusVal" class="badge-val">КОНУСЫ: 0</span>
+          <span id="facStatusSub" class="badge-sub">В ПРОЦЕССЕ</span>
         </div>
         <div id="countdownBanner" class="countdown-banner" hidden>
           <span id="countdownText" class="countdown-text">3</span>
@@ -434,59 +425,6 @@
               <button id="raceContinueBtn" type="button" class="btn-primary">Продолжить</button>
               <button id="raceRestartBtn" type="button" class="btn-subtle">Заехать снова (R)</button>
             </div>
-          </div>
-        </div>
-        <!-- Authentic Porsche In-Race Gauge Pod (hud.fsh / instrument cluster) -->
-        <div id="hud" class="hud porsche-hud" hidden>
-          <div class="porsche-cluster-pod">
-            <!-- Analog Tachometer Dial Ring with Numbers 0-8 and Redline -->
-            <svg class="cluster-dial-svg" viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="92" class="dial-outer-ring" />
-              <circle cx="100" cy="100" r="86" class="dial-inner-ring" />
-              <!-- Redline sector (6.5k to 8k RPM) -->
-              <path d="M 143 47 A 86 86 0 0 1 174 135" class="dial-redline-arc" />
-              <!-- Ticks and Numbers -->
-              <g class="dial-ticks">
-                <text x="44" y="148" class="dial-num">0</text>
-                <text x="32" y="112" class="dial-num">1</text>
-                <text x="38" y="76" class="dial-num">2</text>
-                <text x="62" y="48" class="dial-num">3</text>
-                <text x="96" y="38" class="dial-num">4</text>
-                <text x="132" y="48" class="dial-num">5</text>
-                <text x="156" y="76" class="dial-num">6</text>
-                <text x="162" y="112" class="dial-num redline-num">7</text>
-                <text x="150" y="148" class="dial-num redline-num">8</text>
-              </g>
-              <text x="100" y="66" class="dial-sub">x1000 r/min</text>
-            </svg>
-            <!-- Dynamic Sweeping Red Needle -->
-            <div id="gaugeNeedle" class="cluster-needle"></div>
-            <div class="cluster-center-cap"></div>
-            <!-- Center Digital Speedometer & Gear display -->
-            <div class="cluster-digital-box">
-              <div class="hud-speed-gauge">
-                <span id="speedValue" class="speed-val">0</span>
-                <span class="speed-unit">КМ/Ч</span>
-              </div>
-              <div class="hud-gear-container">
-                <span class="gear-title">GEAR</span>
-                <span id="gearValue" class="gear-val">N</span>
-              </div>
-            </div>
-            <!-- Tachometer bar (compatibility & additional visual feedback) -->
-            <div class="hud-rpm-wrapper" title="Тахометр">
-              <div id="rpmBar" class="hud-rpm-fill"></div>
-            </div>
-          </div>
-          <div class="hud-hint">
-            <span><b>W/▲</b> Газ</span> &bull;
-            <span><b>S/▼</b> Тормоз</span> &bull;
-            <span><b>A/D</b> Руль</span> &bull;
-            <span><b>Space</b> Ручник</span> &bull;
-            <span><b id="physicsModeBadge">M: 6 DOF</b></span> &bull;
-            <span><b>C</b> Камера</span> &bull;
-            <span><b>R</b> Сброс</span> &bull;
-            <span><b>Esc</b> Меню</span>
           </div>
         </div>
       </div>

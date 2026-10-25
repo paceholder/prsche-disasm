@@ -1,4 +1,5 @@
 use super::*;
+use crate::camera::DriverCamera;
 use nfs_formats::{bytes, f32le, u16le, u32le, Entry, Ini};
 
 fn find<'a>(files: &'a AssetFiles, name: &str) -> Result<&'a [u8], String> {
@@ -41,33 +42,37 @@ struct StyleSelection {
     name: String,
 }
 
-fn default_style(ini: &Ini) -> Result<StyleSelection, String> {
+/// `R3DCar_ApplyStyle` 0x437b00: style index `N` (car `+0x568`, the catalogue record's i16 at
+/// `+0x1c0`) reads the TPG section `[style{N+1}]`; a missing section leaves every type 0.
+fn default_style(ini: &Ini, index: u32) -> Result<StyleSelection, String> {
+    let section = format!("style{}", index + 1);
+    let section = section.as_str();
     // A declared style is a coherent set of overrides on type zero. Special
     // cars such as f901 do not contain a complete all-zero geometry variant.
     let mut style = StyleSelection {
         name: "implicit type 0".into(),
         ..Default::default()
     };
-    if !ini.contains_key("style1") {
+    if !ini.contains_key(section) {
         return Ok(style);
     }
     style.name = format!(
-        "style1 ({})",
-        val(ini, "style1", "name").unwrap_or("unnamed")
+        "{section} ({})",
+        val(ini, section, "name").unwrap_or("unnamed")
     );
-    let count = num(ini, "style1", "count", 0)?;
+    let count = num(ini, section, "count", 0)?;
     if count > 512 {
         return Err("too many style overrides".into());
     }
     for index in 1..=count {
-        let variant = num(ini, "style1", &format!("type{index}"), 0)?;
+        let variant = num(ini, section, &format!("type{index}"), 0)?;
         for (domain, map) in [
             ("geometry", &mut style.geometry),
             ("texture", &mut style.texture),
         ] {
             let key = format!("{domain}{index}");
-            if val(ini, "style1", &key).is_some() {
-                map.insert(num(ini, "style1", &key, 0)?, variant);
+            if val(ini, section, &key).is_some() {
+                map.insert(num(ini, section, &key, 0)?, variant);
             }
         }
     }
@@ -158,6 +163,345 @@ fn parked_levels(article: &Entry, style: &StyleSelection) -> Result<Vec<u16>, St
     Ok(levels)
 }
 
+/// Glare and shadow textures of `Render/common.fsh` (`R3DCar_DrawGlare` 0x43cdd0 and
+/// `R3DCar_DrawShadow` 0x43b820 look them up by FSH name). Absent file: no effects.
+fn effect_textures(files: &AssetFiles) -> Result<Vec<Texture>, String> {
+    let mut out = Vec::new();
+    // particle.fsh holds the spark texture SPRK (carpart.dat `CSPK`, matid KRPS);
+    // carcmn.fsh the specular maps SPC1..3 (`Car_Load` 0x441a10).
+    for name in ["common.fsh", "particle.fsh", "carcmn.fsh"] {
+        if let Ok(data) = find(files, name) {
+            out.extend(fsh_textures(name, data)?);
+        }
+    }
+    Ok(out)
+}
+
+fn fsh_textures(name: &str, data: &[u8]) -> Result<Vec<Texture>, String> {
+    let images = nfs_formats::parse_fsh(data).map_err(|e| format!("{name}: {e}"))?;
+    // parse_fsh lowercases names, but common.fsh has both `spik` and `SPIK`;
+    // the original looks textures up by exact FourCC, so keep the raw names.
+    let raw = if data.starts_with(&[0x10, 0xfb]) {
+        nfs_formats::decompress(data).map_err(|e| format!("{name}: {e}"))?
+    } else {
+        data.to_vec()
+    };
+    Ok(images
+        .into_iter()
+        .enumerate()
+        .map(|(i, image)| Texture {
+            name: raw
+                .get(16 + i * 8..20 + i * 8)
+                .map(|n| String::from_utf8_lossy(n).trim_end().to_string())
+                .unwrap_or(image.name),
+            width: image.width,
+            height: image.height,
+            rgba: image.rgba,
+        })
+        .collect())
+}
+
+/// `ef` record type of a glare (`*piVar8 == 5` in `R3DCar_DrawGlares` 0x43d800).
+const EF_GLARE: u32 = 5;
+/// `ef+0x50` bit: also draw a copy mirrored in x (0x43d800, `& 8`).
+const EF_MIRRORED: u32 = 8;
+
+/// Glare articles selected by the TPG style, with mirrored copies expanded.
+///
+/// Glare `Base` records (112 bytes) carry the same part info at 0x44 as geometry
+/// articles: GeomIndex, TypeIndex, pivot at +7, light group at +0xc (0x43d8c4).
+/// Each glare appears once per detail level (Base level masks, as geometry);
+/// the scene level is used, like the parked-car geometry.
+fn car_glares(
+    crp: &nfs_formats::Crp,
+    style: &StyleSelection,
+    scene_lod: u16,
+) -> Result<Vec<CarGlare>, String> {
+    let vec3 = |d: &[u8], o: usize| -> Result<[f32; 3], String> {
+        Ok([f32le(d, o)?, f32le(d, o + 4)?, f32le(d, o + 8)?])
+    };
+    // Raw CRP model space -> driving body space ([-x, y, z], as CarWheel).
+    let body = |v: [f32; 3]| [-v[0], v[1], v[2]];
+    let cross = |a: [f32; 3], b: [f32; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let unit = |v: [f32; 3]| {
+        let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        if l > 0.0 { v.map(|x| x / l) } else { v }
+    };
+    let mut out: Vec<CarGlare> = Vec::new();
+    for a in &crp.articles {
+        let Some(ef) = a.children.iter().find(|e| e.tag == "ef") else {
+            continue;
+        };
+        if ef.data.len() < 0x58 || u32le(&ef.data, 0)? != EF_GLARE {
+            continue;
+        }
+        let Some(base) = a.find("Base", 0) else {
+            continue;
+        };
+        let info = bytes(&base.data, 0x44, 16)?;
+        if u32::from(info[1]) != style.geometry.get(&u32::from(info[0])).copied().unwrap_or(0) {
+            continue;
+        }
+        let level_count = (u32le(&base.data, 12)? as usize).min(15);
+        let levels = (0..level_count)
+            .map(|i| u16le(&base.data, 108 + i * 12))
+            .collect::<Result<Vec<_>, _>>()?;
+        if !levels.contains(&scene_lod) && !levels.contains(&0) {
+            continue;
+        }
+        let name = a.find("Name", 0).map(text).unwrap_or_default();
+        let mut position = vec3(&ef.data, 0x08)?;
+        if let Some(tr) = a.children.iter().find(|e| e.tag == "tr" && e.data.len() >= 64) {
+            let t = vec3(&tr.data, 48)?;
+            for k in 0..3 {
+                position[k] += t[k];
+            }
+        }
+        let (axis_a, axis_b, axis_c) = (vec3(&ef.data, 0x18)?, vec3(&ef.data, 0x28)?, vec3(&ef.data, 0x38)?);
+        let colors = [u32le(&ef.data, 0x48)?, u32le(&ef.data, 0x4c)?];
+        let flags = u32le(&ef.data, 0x50)?;
+        let (kind, mirror_group, beam) = (ef.data[0x54], ef.data[0x56], ef.data[0x57] != 0);
+        let glare = |name: String, p: [f32; 3], a: [f32; 3], b: [f32; 3], group: u8| CarGlare {
+            name,
+            position: body(p),
+            axis_a: body(a),
+            axis_b: body(b),
+            normal: body(unit(cross(b, a))),
+            colors,
+            kind,
+            group,
+            beam,
+            pivot: info[7],
+        };
+        let _ = axis_c; // ef+0x38 (mirrored with x negated) has no use in the sprite.
+        let mut found = vec![glare(name.clone(), position, axis_a, axis_b, info[0xc])];
+        if flags & EF_MIRRORED != 0 {
+            // 0x43dae8..: pos.x, A (all), B.x, C.x negated.
+            found.push(glare(
+                format!("{name} (mirrored)"),
+                [-position[0], position[1], position[2]],
+                axis_a.map(|x| -x),
+                [-axis_b[0], axis_b[1], axis_b[2]],
+                mirror_group,
+            ));
+        }
+        out.extend(found);
+    }
+    Ok(out)
+}
+
+/// Column-major 4×4 `tr` matrix of an article at `level` (raw CRP units), identity if absent.
+fn part_frame(article: &Entry, level: u16) -> Result<[f32; 16], String> {
+    match article.find("tr", level).filter(|t| t.data.len() >= 64) {
+        Some(t) => {
+            let mut m = [0.0; 16];
+            for (i, v) in m.iter_mut().enumerate() {
+                *v = f32le(&t.data, i * 4)?;
+            }
+            Ok(m)
+        }
+        None => Ok([
+            1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
+        ]),
+    }
+}
+
+fn frame_point(m: &[f32; 16], p: [f32; 3], w: f32) -> [f32; 3] {
+    std::array::from_fn(|r| m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r] * w)
+}
+
+/// Parts of the in-car view (`docs/re/cockpit.md`). `R3DObject_DrawPasses` 0x444e00 draws, for
+/// the viewed car in BumperCam2, mask 0x10 at level 2, mask 0x40 at level 1 and mask 0x80 at
+/// the car-detail LOD; `R3DCarLOD_DrawParts` 0x43c830 keeps parts with `Base+0x44` byte 0xd
+/// set and draws them in their full `tr` frame (rotation and scale). Part style as the parked
+/// car; glare (`ef`) articles are drawn by the glare pass instead.
+/// Driver index (`res+0x150`, config key `.DRIVER` 0x23d). The front end picks `rand() & 7`
+/// for a quick race (career: `[0x5db748]`) [VA 0x4eeda0]; the engine uses driver 0
+/// (approximation A63).
+const DRIVER_INDEX: u32 = 0;
+/// Driver body type by driver index (`0x5cd5c4`).
+const DRIVER_BODY_TYPE: [u32; 8] = [2, 3, 4, 5, 10, 8, 9, 7];
+
+/// Driver geometry types set after the TPG style (`R3DCar_SelectStyle` 0x43ae50, outside the
+/// showroom and not for cop cars): body (GeomIndex 9) from `0x5cd5c4`, arms (43)
+/// `(d/4)·2 + 2`, hands (56) `d/4 + 1`; drivers ≥ 8 use type 1. The Factory Driver mode
+/// (`[0x6573e8] == 9`) and the `.GEOMCONFIG` overrides (`res+0x32c`) are not applied.
+fn with_driver(style: &StyleSelection, driver: u32) -> StyleSelection {
+    let mut out = StyleSelection {
+        geometry: style.geometry.clone(),
+        texture: style.texture.clone(),
+        name: style.name.clone(),
+    };
+    let (body, arms, hands) = match DRIVER_BODY_TYPE.get(driver as usize) {
+        Some(&body) => (body, driver / 4 * 2 + 2, driver / 4 + 1),
+        None => (1, 1, 1),
+    };
+    out.geometry.insert(9, body);
+    out.geometry.insert(43, arms);
+    out.geometry.insert(56, hands);
+    out
+}
+
+fn in_car_parts(
+    crp: &nfs_formats::Crp,
+    style: &StyleSelection,
+    matmap: &BTreeMap<u16, usize>,
+) -> Result<Vec<InCarPart>, String> {
+    let style = &with_driver(style, DRIVER_INDEX);
+    let mut parts = Vec::new();
+    for (ai, a) in crp.articles.iter().enumerate() {
+        if a.children.iter().any(|e| e.tag == "ef") {
+            continue;
+        }
+        let Some(base) = a.find("Base", 0) else {
+            continue;
+        };
+        let info = bytes(&base.data, 0x44, 16)?;
+        let selected = u32::from(info[1])
+            == style
+                .geometry
+                .get(&u32::from(info[0]))
+                .copied()
+                .unwrap_or(0);
+        if !selected || info[0xd] == 0 {
+            continue;
+        }
+        let level_count = (u32le(&base.data, 12)? as usize).min(15);
+        let levels = (0..level_count)
+            .map(|i| u16le(&base.data, 108 + i * 12))
+            .collect::<Result<Vec<_>, _>>()?;
+        let name = a
+            .find("Name", 0)
+            .map(text)
+            .unwrap_or_else(|| format!("article{ai}"));
+        for pass in InCarPass::ALL {
+            if info[10] & pass.mask() == 0 {
+                continue;
+            }
+            let level = pass.level();
+            let lod = if levels.contains(&level) {
+                level
+            } else if levels.contains(&0) {
+                0
+            } else {
+                continue;
+            };
+            let Some(vt) = a.find("vt", lod) else {
+                continue;
+            };
+            let m = part_frame(a, lod)?;
+            let to_scene_point = |p: [f32; 3]| to_scene_coordinates(frame_point(&m, p, 1.0));
+            let to_scene_normal =
+                |n: [f32; 3]| to_scene_coordinates(normalize(frame_point(&m, n, 0.0)));
+            let frame_count = if info[8] > 1 { info[8] } else { 0 };
+            let mut meshes = Vec::new();
+            for pr in a
+                .children
+                .iter()
+                .filter(|e| e.tag == "pr" && e.index >> 12 == lod)
+            {
+                let label = format!("{name}#{ai}/{} (in-car)", pr.index & 4095);
+                let local = |frame: u16| -> Result<Mesh, String> {
+                    let index = lod | (frame << 4);
+                    let vt = a.find("vt", index).unwrap_or(vt);
+                    let nm = a.find("nm", index).or_else(|| a.find("nm", lod));
+                    mesh(
+                        pr,
+                        vt,
+                        nm,
+                        a.find("uv", lod),
+                        [0.0; 3],
+                        matmap,
+                        label.clone(),
+                    )
+                    .map_err(|e| format!("{name}, CRP offset 0x{:x}: {e}", pr.offset))
+                };
+                // mesh() returns raw/5: the frame's translation is divided by five too.
+                let place = |mesh: &Mesh| -> Vec<([f32; 3], [f32; 3])> {
+                    mesh.vertices
+                        .iter()
+                        .map(|v| {
+                            let mut m5 = m;
+                            for t in &mut m5[12..15] {
+                                *t /= 5.0;
+                            }
+                            (
+                                to_scene_coordinates(frame_point(&m5, v.position, 1.0)),
+                                to_scene_normal(v.normal),
+                            )
+                        })
+                        .collect()
+                };
+                let mut base_mesh = local(0)?;
+                if base_mesh.indices.is_empty() {
+                    continue;
+                }
+                let placed = place(&base_mesh);
+                for (v, (p, n)) in base_mesh.vertices.iter_mut().zip(&placed) {
+                    v.position = *p;
+                    v.normal = *n;
+                }
+                for tri in base_mesh.vertices.as_chunks_mut::<3>().0 {
+                    if tri.iter().all(|vertex| vertex.normal == [0.; 3]) {
+                        let normal =
+                            triangle_normal([tri[0].position, tri[1].position, tri[2].position]);
+                        for vertex in tri {
+                            vertex.normal = normal;
+                        }
+                    }
+                }
+                let mut frames = Vec::new();
+                if frame_count > 0 {
+                    for f in 0..u16::from(frame_count) {
+                        let index = lod | (f << 4);
+                        if a.find("vt", index).is_none() {
+                            break;
+                        }
+                        let mut fm = place(&local(f)?);
+                        for tri in fm.chunks_mut(3) {
+                            if tri.len() == 3 && tri.iter().all(|(_, n)| *n == [0.; 3]) {
+                                let n = triangle_normal([tri[0].0, tri[1].0, tri[2].0]);
+                                tri.iter_mut().for_each(|v| v.1 = n);
+                            }
+                        }
+                        frames.push(fm);
+                    }
+                }
+                meshes.push(InCarMesh {
+                    mesh: base_mesh,
+                    frames,
+                });
+            }
+            if meshes.is_empty() {
+                continue;
+            }
+            parts.push(InCarPart {
+                name: name.clone(),
+                pass,
+                channel: info[7],
+                pivot_origin: to_scene_point([0.0, 0.0, 0.0]).map(|x| x / 5.0),
+                pivot_axis: to_scene_normal([0.0, 0.0, 1.0]),
+                frame_channel: info[9],
+                frame_count: frames_or_zero(frame_count, &meshes),
+                meshes,
+            });
+        }
+    }
+    Ok(parts)
+}
+
+/// Frame count of the part: the frames actually present in every mesh.
+fn frames_or_zero(declared: u8, meshes: &[InCarMesh]) -> u8 {
+    let present = meshes.iter().map(|m| m.frames.len()).min().unwrap_or(0);
+    declared.min(present as u8)
+}
+
 fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
     [v[0], v[1], -v[2]]
 }
@@ -167,7 +511,9 @@ fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8]) -> (AlphaMode, f32) {
     if matches!(render, "CarExt" | "CarExtEnv") {
         return (AlphaMode::Mask, 0.0);
     }
-    if render == "CarInt" {
+    // Interior glass (`intglass.fsh`, a 32-bit page) is translucent: seen from the in-car
+    // view it must not hide the road. Other interior pages stay opaque.
+    if render == "CarInt" && tpg_bpp != 32 {
         return (AlphaMode::Opaque, 0.0);
     }
     let mut alpha = rgba.iter().skip(3).step_by(4);
@@ -302,14 +648,43 @@ fn place_tile(
     Ok(())
 }
 
-pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
+/// `sscanf("%f,%f,%f")` into `default` (`0x523b50`): components are replaced until the
+/// first one that does not parse.
+fn tpg_vec3(ini: &Ini, key: &str, default: [f32; 3]) -> [f32; 3] {
+    let mut out = default;
+    if let Some(v) = val(ini, "header", key) {
+        for (slot, part) in out.iter_mut().zip(v.split(',')) {
+            match part.trim().parse::<f32>() {
+                Ok(x) => *slot = x,
+                Err(_) => break,
+            }
+        }
+    }
+    out
+}
+
+/// `Car_ReadTpgCameraKeys 0x441a10`: `drivercampos`/`drivercamrot` (defaults
+/// (-0.36, 0.4, -0.25) / 0), then `drivercamposstyleN`/`drivercamrotstyleN` override them.
+fn driver_camera(ini: &Ini, style: u32) -> DriverCamera {
+    let base = DriverCamera::DEFAULT;
+    let pos = tpg_vec3(ini, "drivercampos", base.position);
+    let rot = tpg_vec3(ini, "drivercamrot", base.rotation_deg);
+    DriverCamera {
+        position: tpg_vec3(ini, &format!("drivercamposstyle{style}"), pos),
+        rotation_deg: tpg_vec3(ini, &format!("drivercamrotstyle{style}"), rot),
+    }
+}
+
+/// `style` is the TPG style index N (car `+0x568`); it selects `[style{N+1}]` and the
+/// `drivercamposstyleN` keys.
+pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, String> {
     if car.is_empty() || !car.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
         return Err("car identifier must be alphanumeric".into());
     }
     let crp = nfs_formats::parse_crp(find(files, &format!("{car}.crp"))?)
         .map_err(|e| format!("{car}.crp: {e}"))?;
     let ini = nfs_formats::parse_ini(find(files, &format!("{car}.tpg"))?)?;
-    let style = default_style(&ini)?;
+    let style = default_style(&ini, style_index)?;
     let article_levels = crp
         .articles
         .iter()
@@ -324,7 +699,16 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         .unwrap_or(0);
     let mut scene = Scene {
         meshes: Vec::new(),
+        car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
+        car_driver_camera: Some(driver_camera(&ini, style_index)),
         car_wheels: Vec::new(),
+        car_glares: car_glares(&crp, &style, scene_lod)?,
+        car_in_car: Vec::new(),
+        effect_textures: effect_textures(files)?,
+        particle_defs: match find(files, "carpart.dat") {
+            Ok(data) => crate::sparks::parse_particle_dat(data)?,
+            Err(_) => Vec::new(),
+        },
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
@@ -342,9 +726,13 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         scenario_name: None,
         scenario_gates: Vec::new(),
         sky_texture: None,
+        sky_layers: [None, None, None],
+        sky_horizon: None,
+        sun_position: None,
         topology: None,
         road_surface: None,
         course: None,
+        ai_track: None,
     };
     let mut skipped = Vec::new();
     let mut selected = Vec::new();
@@ -401,11 +789,16 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         if page == 0 || page > pages {
             return Err(format!("[{section}]: invalid page {page}"));
         }
-        // Driver isn't part of a parked-car view. Avoid requiring head/suit resources.
-        if matches!(num(&ini, &section, "global", 0)?, 3 | 4) {
-            continue;
-        }
-        let source = texture_source(files, &crp, &ini, f)?;
+        // Driver packs (suit, head) aren't part of the parked-car view and aren't required;
+        // the in-car hands use the suit pack, so it is placed when present.
+        let source = if matches!(num(&ini, &section, "global", 0)?, 3 | 4) {
+            match texture_source(files, &crp, &ini, f) {
+                Ok(source) => source,
+                Err(_) => continue,
+            }
+        } else {
+            texture_source(files, &crp, &ini, f)?
+        };
         let images = nfs_formats::parse_fsh(source).map_err(|e| format!("TPG file{f}: {e}"))?;
         let mut selected = 0;
         for image in images {
@@ -472,8 +865,10 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
             alpha_cutoff,
             double_sided,
             depth_bias: u32le(&e.data, 0x114)? as i32,
+            prelit: false,
         });
     }
+    scene.car_in_car = in_car_parts(&crp, &style, &matmap)?;
     for (ai, a) in crp.articles.iter().enumerate() {
         let article_name = a
             .find("Name", 0)
@@ -712,6 +1107,7 @@ fn mesh(
             position,
             normal,
             uv: tex,
+            color: [1.0; 4],
         });
     }
     Ok(Mesh {
@@ -751,6 +1147,56 @@ mod tests {
     }
 
     #[test]
+    fn driver_camera_prefers_style_keys() {
+        // 550.tpg [header].
+        let tpg = ini(
+            "[header]\nnumstyles=1\ndrivercampos=-0.234375,0.375564,-0.196614\n\
+            drivercamposstyle0=-0.239375,0.425564,-0.121614\n\
+            drivercamrotstyle0=9.600019,1.799999,0.000000\n",
+        );
+        let cam = driver_camera(&tpg, 0);
+        assert_eq!(cam.position, [-0.239375, 0.425564, -0.121614]);
+        assert_eq!(cam.rotation_deg, [9.600019, 1.799999, 0.0]);
+        // Another style falls back to the plain keys.
+        assert_eq!(
+            driver_camera(&tpg, 1).position,
+            [-0.234375, 0.375564, -0.196614]
+        );
+        assert_eq!(driver_camera(&tpg, 1).rotation_deg, [0.0; 3]);
+    }
+    #[test]
+    fn driver_camera_without_style_keys() {
+        // 993.tpg [header].
+        let tpg = ini("[header]\ndrivercampos=-0.382813,0.397512,-0.155002\n\
+            drivercamrot=3.649998,-0.050000,0.000000\n");
+        let cam = driver_camera(&tpg, 0);
+        assert_eq!(cam.position, [-0.382813, 0.397512, -0.155002]);
+        assert_eq!(cam.rotation_deg, [3.649998, -0.05, 0.0]);
+        // No keys: the 0x441a10 defaults; a bad component stops the scan.
+        assert_eq!(driver_camera(&ini("[header]\n"), 0), DriverCamera::DEFAULT);
+        let partial = ini("[header]\ndrivercampos=1.5,x,2\n");
+        assert_eq!(driver_camera(&partial, 0).position, [1.5, 0.4, -0.25]);
+    }
+    #[test]
+    fn local_tpg_driver_cameras() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/CarModel");
+        if !root.join("550.tpg").exists() {
+            return;
+        }
+        let read = |car: &str| {
+            let tpg = parse_ini_file(&root.join(format!("{car}.tpg")));
+            driver_camera(&tpg, 0)
+        };
+        let c550 = read("550");
+        assert_eq!(c550.position, [-0.239375, 0.425564, -0.121614]);
+        assert_eq!(c550.rotation_deg, [9.600019, 1.799999, 0.0]);
+        assert_eq!(read("993").position, [-0.382813, 0.397512, -0.155002]);
+    }
+    fn parse_ini_file(path: &std::path::Path) -> Ini {
+        nfs_formats::parse_ini(&std::fs::read(path).unwrap()).unwrap()
+    }
+    #[test]
     fn tile_selection_defaults_each_domain_to_type_zero() {
         let ini = ini("[file1.tile]\ncount=2\ngeometry1=4\ntype1=1\ntexture2=9\ntype2=0\n");
         assert!(tile_selected(&ini, &StyleSelection::default(), "file1.tile").unwrap());
@@ -761,7 +1207,7 @@ mod tests {
         let ini = ini(
             "[style1]\ncount=1\ntexture1=13\ntype1=1\n[file3.whf1]\ncount=1\ntexture1=13\ntype1=1\n",
         );
-        let style = default_style(&ini).unwrap();
+        let style = default_style(&ini, 0).unwrap();
         assert!(tile_selected(&ini, &style, "file3.whf1").unwrap());
         assert!(!tile_selected(&ini, &StyleSelection::default(), "file3.whf1").unwrap());
     }
@@ -771,7 +1217,7 @@ mod tests {
         let ini = ini(
             "[style1]\ncount=1\ntexture1=7\ntype1=1\n[file1.geometry]\ncount=1\ngeometry1=7\ntype1=1\n[file1.texture]\ncount=1\ntexture1=7\ntype1=1\n",
         );
-        let style = default_style(&ini).unwrap();
+        let style = default_style(&ini, 0).unwrap();
         assert!(!tile_selected(&ini, &style, "file1.geometry").unwrap());
         assert!(tile_selected(&ini, &style, "file1.texture").unwrap());
     }
@@ -781,7 +1227,7 @@ mod tests {
         let ini = ini(
             "[style1]\ncount=1\ntexture1=9\ntype1=2\n[file1.tile]\ncount=2\ngeometry1=4\ntype1=1\ntexture2=9\ntype2=2\n",
         );
-        assert!(tile_selected(&ini, &default_style(&ini).unwrap(), "file1.tile").unwrap());
+        assert!(tile_selected(&ini, &default_style(&ini, 0).unwrap(), "file1.tile").unwrap());
     }
 
     #[test]
@@ -937,17 +1383,17 @@ mod tests {
 
     #[test]
     fn reject_missing_and_ambiguous() {
-        assert!(load(&AssetFiles::new(), "356a")
+        assert!(load(&AssetFiles::new(), "356a", 0)
             .unwrap_err()
             .contains("missing resource"));
         let mut f = AssetFiles::new();
         f.insert("a/356a.crp".into(), vec![]);
         f.insert("b/356a.crp".into(), vec![]);
-        assert!(load(&f, "356a").unwrap_err().contains("ambiguous"));
+        assert!(load(&f, "356a", 0).unwrap_err().contains("ambiguous"));
     }
     #[test]
     fn path_identifiers_rejected() {
-        assert!(load(&AssetFiles::new(), "../356a").is_err());
+        assert!(load(&AssetFiles::new(), "../356a", 0).is_err());
     }
     #[test]
     fn mesh_placement_scales_then_adds_translation_before_scene_flip() {
@@ -1079,7 +1525,7 @@ mod tests {
                 std::fs::read(root.join("CarModel").join(name)).unwrap(),
             );
         }
-        let scene = load(&files, "boxster").unwrap();
+        let scene = load(&files, "boxster", 0).unwrap();
         assert_eq!(scene.car_wheels.len(), 4, "{:?}", scene.diagnostics);
         let w = &scene.car_wheels;
         assert!((w[1].center[0] - w[0].center[0] - 1.3825873).abs() < 1e-5);
@@ -1136,6 +1582,168 @@ mod tests {
     }
 
     #[test]
+    fn local_356a_glares_follow_the_tpg_style() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in ["356a.crp", "356a.tpg", "INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh"] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        let scene = load(&files, "356a", 0).unwrap();
+        let find = |name: &str| scene.car_glares.iter().find(|g| g.name == name);
+        // 356a.tpg [style1] "13Cabrio": geometry7 type3 selects the cabrio variants.
+        let brake = find("GlareBrakeCabrio").expect("cabrio brake light");
+        assert!(find("GlareBrakeCoupe").is_none() && find("GlareBrake").is_none());
+        assert_eq!((brake.group, brake.kind), (2, 1));
+        assert_eq!(brake.colors, [0xffff0000; 2], "red, ARGB");
+        assert!(brake.normal[2] > 0.5, "faces backwards (+z): {:?}", brake.normal);
+        let mirrored = find("GlareBrakeCabrio (mirrored)").unwrap();
+        assert_eq!(mirrored.group, 3);
+        assert_eq!(mirrored.position[0], -brake.position[0]);
+        let head = find("GlareHeadLight").unwrap();
+        assert_eq!((head.group, head.kind, head.beam), (0, 0, true));
+        assert!(head.normal[2] < -0.9, "faces forwards (-z)");
+        assert_eq!(find("GlareMirror1").unwrap().pivot, 6, "follows the left door");
+        // Each glare appears once per detail level; only the scene level is used.
+        assert_eq!(scene.car_glares.iter().filter(|g| g.name == "GlareHeadLight").count(), 1);
+    }
+
+    #[test]
+    fn local_356a_in_car_parts() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in [
+            "356a.crp",
+            "356a.tpg",
+            "INTGLASS.FSH",
+            "Shadow.fsh",
+            "Cabrio.fsh",
+            "Suit.fsh",
+            "Head.fsh",
+        ] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        let scene = load(&files, "356a", 0).unwrap();
+        let parts = &scene.car_in_car;
+        let find = |name: &str| parts.iter().find(|p| p.name == name);
+        // [style1] selects the type-1 variants; level 2 for the body pass.
+        let dash = find("Dash1").expect("dashboard");
+        assert_eq!(dash.pass, InCarPass::Body);
+        assert!(find("Dash").is_none());
+        let steer = find("Steer1").expect("steering wheel");
+        assert_eq!((steer.pass, steer.channel), (InCarPass::SteeringWheel, 5));
+        // The column tilts: local z is (0, 0.284, 0.959) raw, z flipped in the scene.
+        assert!((steer.pivot_axis[1] - 0.284).abs() < 0.01 && steer.pivot_axis[2] < -0.9);
+        assert_eq!(find("Needle1a").unwrap().channel, 0xc);
+        assert_eq!(find("Needle2a").unwrap().channel, 0xb);
+        // Hands with their frames; no driver body, arms, legs, wheels, bottom or engine.
+        // Driver 0: type-1 hands (0x43ae50 overrides the [style1] type 2).
+        assert!(find("LeftHand2").is_none());
+        let left = find("LeftHand1").unwrap();
+        assert_eq!(
+            (left.pass, left.frame_channel, left.frame_count),
+            (InCarPass::Driver, 5, 10)
+        );
+        let right = find("RightHand1").unwrap();
+        assert_eq!((right.frame_channel, right.frame_count), (4, 20));
+        assert!(right
+            .meshes
+            .iter()
+            .all(|m| m.frames.len() == 20
+                && m.frames.iter().all(|f| f.len() == m.mesh.vertices.len())));
+        for hidden in [
+            "DriverBody1",
+            "LeftArm1",
+            "Legs1",
+            "WheelFront",
+            "Bottom",
+            "Engine",
+            "HoodIn",
+        ] {
+            assert!(find(hidden).is_none(), "{hidden}");
+        }
+        assert!(find("Body").is_some() && find("SideMirrorLeft").is_some());
+    }
+
+    #[test]
+    fn local_cars_have_a_cockpit() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        let Ok(dir) = std::fs::read_dir(&root) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        let mut cars = Vec::new();
+        for entry in dir {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let lower = name.to_ascii_lowercase();
+            if lower.ends_with(".crp") {
+                cars.push(lower.trim_end_matches(".crp").to_string());
+            }
+            if lower.ends_with(".crp") || lower.ends_with(".tpg") || lower.ends_with(".fsh") {
+                files.insert(name, std::fs::read(&path).unwrap());
+            }
+        }
+        let mut without = Vec::new();
+        for car in &cars {
+            let scene = load(&files, car, 0).unwrap_or_else(|e| panic!("{car}: {e}"));
+            let has = |channel: u8| scene.car_in_car.iter().any(|p| p.channel == channel);
+            if !(has(5) && has(0xb)) {
+                without.push(car.clone());
+            } else {
+                // Every car with a cockpit has the driver's hands (the 993 style lists none).
+                let hands = scene.car_in_car.iter().filter(|p| p.pass == InCarPass::Driver);
+                assert_eq!(hands.count(), 2, "{car}: hands");
+            }
+            // 935 has no speedometer needle; gt1's exists at level 3 only.
+            if has(5) && has(0xb) && !has(0xc) {
+                assert!(
+                    ["935", "gt1"].contains(&car.as_str()),
+                    "{car}: no speed needle"
+                );
+            }
+        }
+        // Traffic models and the post ship have no modelled interior.
+        assert!(
+            without
+                .iter()
+                .all(|c| c.starts_with("eas") || c.starts_with("eden") || c == "postship"),
+            "cars without steering wheel or rev needle: {without:?}"
+        );
+    }
+
+    #[test]
+    fn local_render_common_has_the_effect_textures() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Render/common.fsh");
+        if !path.exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        files.insert("gamedata/render/common.fsh".into(), std::fs::read(path).unwrap());
+        let textures = effect_textures(&files).unwrap();
+        for name in ["CARG", "SPIK", "GLNT", "SHAD", "FEGL"] {
+            let t = textures.iter().find(|t| t.name == name).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!((t.width, t.height), (64, 64), "{name}");
+        }
+        let shad = textures.iter().find(|t| t.name == "SHAD").unwrap();
+        let max_alpha = shad.rgba.chunks_exact(4).map(|p| p[3]).max().unwrap();
+        assert_eq!(max_alpha, 136, "shadow is about half dark");
+        assert!(effect_textures(&AssetFiles::new()).unwrap().is_empty());
+    }
+
+    #[test]
     fn local_356_variants_load_to_complete_scenes() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../..")
@@ -1157,7 +1765,7 @@ mod tests {
                     std::fs::read(root.join(&name)).unwrap(),
                 );
             }
-            let scene = load(&files, car).unwrap_or_else(|error| panic!("{car}: {error}"));
+            let scene = load(&files, car, 0).unwrap_or_else(|error| panic!("{car}: {error}"));
             assert_eq!(scene.car_wheels.len(), 4, "{car}: selected wheel metadata");
             assert_eq!(scene.textures.len(), 11);
             for (name, expected) in [("mt4:", 0), ("mt12:", -3)] {

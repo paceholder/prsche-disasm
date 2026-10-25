@@ -11,11 +11,11 @@ Its PLAN owns detailed scope, owners, evidence, commands and handoffs. Current m
 results are in [STATUS.md](STATUS.md); historical checkpoints remain in iteration runs
 and Git history.
 
-The presentation cleanup, external-port trial and pending recovery batches are
-closed out. Next is the ready [PR #25](https://github.com/xfynx/prsche-disasm/pull/25):
-refresh its head, review its changes and author attribution, and reuse useful
-original-code evidence for C++. Then evaluate [xerj](https://github.com/xerj-org/xerj).
-These follow-ups do not silently change recovery acceptance or licensing.
+The presentation cleanup and pending recovery batches are closed out.
+[PR #25 intake](docs/research/pr25-integration-review-2026-10-26.md) integrates its
+Rust prototype changes and original-code evidence, with scoped author attribution
+and explicit unsupported domains. Next is the requested Xerj evaluation, then the
+existing C++ dependency work; recovery acceptance remains unchanged.
 
 ## Recovery milestones
 

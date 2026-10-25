@@ -215,6 +215,56 @@ pub struct TrackCatalogEntry {
     pub internal_name: String,
     /// Track location description (e.g. `Alberta`).
     pub location: String,
+    /// i16 at +0x00 (track id).
+    pub id: i32,
+    /// i32 at +0x04: string id 300..315.
+    pub name_string: i32,
+    /// Photo FSH pack name (C string at +0x44), e.g. `AlpsSp`.
+    pub photo_pack: String,
+    /// Small photo pack (C string at +0x58), e.g. `AlpsSpSm`.
+    pub small_pack: String,
+    /// i16 at +0x6c: 3 = needs career progress.
+    pub unlock: i32,
+    /// i16 at +0x6e == 1: circuit track.
+    pub circuit: bool,
+    /// i32 at +0x78: 0..2.
+    pub difficulty: i32,
+}
+
+/// JSON array of the track table for the web front end.
+pub fn track_catalog_json(entries: &[TrackCatalogEntry]) -> String {
+    fn q(s: &str) -> String {
+        let mut o = String::from("\"");
+        for c in s.chars() {
+            match c {
+                '"' => o.push_str("\\\""),
+                '\\' => o.push_str("\\\\"),
+                c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+                c => o.push(c),
+            }
+        }
+        o.push('"');
+        o
+    }
+    let v: Vec<String> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            format!(
+                "{{\"index\":{i},\"internal_name\":{},\"location\":{},\"id\":{},\"name_string\":{},\"photo_pack\":{},\"small_pack\":{},\"unlock\":{},\"circuit\":{},\"difficulty\":{}}}",
+                q(&e.internal_name),
+                q(&e.location),
+                e.id,
+                e.name_string,
+                q(&e.photo_pack),
+                q(&e.small_pack),
+                e.unlock,
+                e.circuit,
+                e.difficulty
+            )
+        })
+        .collect();
+    format!("[{}]", v.join(","))
 }
 
 /// Parse the track catalog (`nfs5.trk`).
@@ -252,6 +302,13 @@ pub fn parse_track_catalog(data: &[u8]) -> Result<Vec<TrackCatalogEntry>> {
         entries.push(TrackCatalogEntry {
             internal_name,
             location,
+            id: i16::from_le_bytes([rec[0], rec[1]]) as i32,
+            name_string: u32le(rec, 4)? as i32,
+            photo_pack: extract_str(&rec[0x44..0x58]),
+            small_pack: extract_str(&rec[0x58..0x6c]),
+            unlock: i16::from_le_bytes([rec[0x6c], rec[0x6d]]) as i32,
+            circuit: i16::from_le_bytes([rec[0x6e], rec[0x6f]]) == 1,
+            difficulty: u32le(rec, 0x78)? as i32,
         });
     }
 
@@ -530,6 +587,16 @@ mod tests {
         let catalog = parse_track_catalog(&data).unwrap();
         assert_eq!(catalog.len(), TRACK_CATALOG_COUNT);
         assert!(catalog.iter().any(|t| t.internal_name == "coastal"));
+        assert!(catalog.iter().all(|t| (300..=315).contains(&t.name_string)));
+        let alps = catalog.iter().find(|t| t.internal_name == "alps").unwrap();
+        assert_eq!((alps.photo_pack.as_str(), alps.unlock), ("AlpsSp", 3));
+        for t in &catalog {
+            let c = t.internal_name.starts_with("monaco") || t.internal_name == "skidpad";
+            assert_eq!(t.circuit, c, "{}", t.internal_name);
+        }
+        let j = track_catalog_json(&catalog);
+        assert!(j.starts_with("[{\"index\":0,\"internal_name\":\"coastal\""));
+        assert_eq!(j.matches("\"index\"").count(), 15);
     }
 
     #[test]

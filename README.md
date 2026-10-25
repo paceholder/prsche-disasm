@@ -32,8 +32,9 @@ is not accepted as original behavior.
   proof artifacts and the next dependency work. [STATUS.md](STATUS.md) records the latest
   measured build and its limitations.
 - **Experimental Rust/WebGPU prototype:** [012-campaign-fidelity](iterations/012-campaign-fidelity/README.md).
-  This earlier native/browser implementation is unfinished and its integration is paused.
-  Its viewer is not the recovered C++ game. Snapshots 001?011 are preserved.
+  [PR #25 intake](docs/research/pr25-integration-review-2026-10-26.md) adds original-code
+  recorders and vehicle, AI, audio and interface work. It remains unfinished, with
+  explicit fidelity limits. Snapshots 001?011 are preserved.
 
 The plan after a functional recovered baseline is an architecture map of the game,
 followed by the Rust native/web port. There is no completion-date estimate.

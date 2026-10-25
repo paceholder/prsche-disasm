@@ -85,10 +85,11 @@ impl ArcadeCar {
     }
 
     pub fn cycle_view_mode(&mut self) -> DriveViewMode {
+        // The original cycle has no free camera; Free stays reachable in code
+        // for debugging but is not part of the C-key cycle.
         self.view_mode = match self.view_mode {
             DriveViewMode::Chase => DriveViewMode::Bumper,
-            DriveViewMode::Bumper => DriveViewMode::Free,
-            DriveViewMode::Free => DriveViewMode::Chase,
+            DriveViewMode::Bumper | DriveViewMode::Free => DriveViewMode::Chase,
         };
         self.view_mode
     }
@@ -611,7 +612,6 @@ mod tests {
         assert_eq!(car.view_mode, DriveViewMode::Chase);
 
         assert_eq!(car.cycle_view_mode(), DriveViewMode::Bumper);
-        assert_eq!(car.cycle_view_mode(), DriveViewMode::Free);
         assert_eq!(car.cycle_view_mode(), DriveViewMode::Chase);
 
         assert_eq!(car.paint_color_idx, 0);

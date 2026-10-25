@@ -1,5 +1,16 @@
 # v2 / 001 - original source recovery plan
 
+PR25 intake,2026-10-26: authorhead d317929 integrated into experimentalRust012.
+Fallbackcollision units and originalFFN signedlinestep corrected; authorpaceholder
+credited inLICENSING. Recorders generated33localfixtures;32 matchafterLFnormalization,
+SIM928assetrevision isknown. Road18520queries/2368steps andbrowserQuickRace passed.
+Exactspeecharchive hasunsupportedlayouts; strictrejections remain explicit in
+backlog. Detailedintake/checks: docs/research/pr25-integration-review-2026-10-26.md.
+C++Run413225TUs190names198refs/noEXE remainsunchanged. No newrecoverybatch started.
+Nextuserfollowup: Xerj evaluation, then0055e340 and realplatform/game composition.
+
+Historical413 closeout follows.
+
 Current413,2026-10-25: pending411/412 closeout complete. Tenoriginalbodies1396B,
 19936nativecases/sequences,19mutations and560-pin audit PASS.225TUs/8projects
 compile;190names198refs,noEXE. Fiveoldnamesclose, no newdependency. Corrected

@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "status": "external PR review only; not C++ or Rust game acceptance",
+  "status": "integrated Rust prototype and evidence navigation; not C++ game acceptance",
   "pull_request": "https://github.com/xfynx/prsche-disasm/pull/25",
   "reviewed_head": "36be231b3bbc65dd027658057f44099e815b5e01",
-  "merge_state": "author polishing; await readiness as agreed in PR comments",
+  "merge_state": "ready author head integrated with maintainer collision/FFN fixes; unsupported domains retained",
   "modules": {
     "nfs5.exe": "c318af393d4c2b7071a820ca3d69e956bbd94769b6e5c2e3e49f498ecbc94906",
     "Porsche.exe": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39"
@@ -40,8 +40,20 @@
       "boundary": "Review each recorder; ground fixtures fake support-owner methods, returnzero for roof queries and exclude rollover paths. Missing external RE notes/symbol exports remain a traceability limit."
     }
   ],
-  "known_integration_issue": "At36be231 broad O-mode kg/128 vs tonnes mismatch. At2bc9c865 normal original-AI path uses consistent pair_car scaling; mismatch remains only when missing graph/AIS leaves original_ai=None and the kinematic fallback pairs enter collide_player. No current merge acceptance.",
+  "known_integration_issue": "Fallback collision mass mismatch corrected during intake of d317929. Prototype units and normal original-AI path preserved. Exact local speech layouts remain unsupported; strict negative cases and next trace are in the validation backlog.",
   "review_artifact": "local/reports/pr25-review-20261025/physics/review-evidence.json",
-  "latest_reviewed_head": "2bc9c865b3e4a5d97b4ddd7a22069106d8ee81e2",
-  "review_comment": "https://github.com/xfynx/prsche-disasm/pull/25#issuecomment-6396767808"
+  "latest_reviewed_head": "d31792977c65880f3df0be820d6b2729e53ee8bb",
+  "review_comment": "https://github.com/xfynx/prsche-disasm/pull/25#issuecomment-6396767808",
+  "integration_review": "docs/research/pr25-integration-review-2026-10-26.md",
+  "current_validation": {
+    "fixtures": "33 regenerated;32 match after LF normalization; known928coupeGTS54.sim revision differs",
+    "real_road": "18520 owner queries and2368 loop steps pass",
+    "builds": "native viewer and WASM workspace checks pass",
+    "web": "21 checks pass, zero skips; Alps QuickRace browser smoke with3original-AI opponents",
+    "boundary": "Controlled comparisons and prototype integration; full native/fidelity/rollover/career/speech acceptance open"
+  },
+  "additional_original_navigation": [
+    {"area":"FFN signed line-step correction", "addresses":["0053c6c0","0053c70a","0053db6b"], "source":"iterations/012-campaign-fidelity/crates/nfs-formats/src/ffn.rs"},
+    {"area":"speech unsupported-layout trace", "addresses":["0059bd90","005911a7","0059952f","0059962b","00565b60"], "source":"docs/recovery-validation-backlog.md", "status":"preparation unresolved; no decoder normalization accepted"}
+  ]
 }

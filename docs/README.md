@@ -18,5 +18,6 @@
 ## Historical prototype
 
 The [Rust iteration 012 README](../iterations/012-campaign-fidelity/README.md) owns prototype launch
-instructions. Its integration is paused; older iteration documentation is a snapshot,
-not proof of the current C++ game or complete original fidelity.
+instructions; the [PR #25 intake](research/pr25-integration-review-2026-10-26.md) records
+its newer additions. Older iteration documentation is a snapshot, not proof of
+the current C++ game or complete original fidelity.

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use js_sys::{Array, Uint8Array};
-use nfs_assets::{AssetFiles, Scene, load_car, load_track};
+use nfs_assets::{AssetFiles, Scene, load_car, load_car_style, load_track};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -19,6 +19,8 @@ pub struct BrowserViewer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     renderer: Option<Renderer>,
+    /// `Date.now()` when the front-end room appeared; the room yaw follows wall time.
+    room_started_ms: f64,
 }
 
 #[wasm_bindgen]
@@ -56,7 +58,9 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         height,
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: caps.alpha_modes[0],
-        view_formats: vec![],
+        // WebGPU canvases offer only non-sRGB formats (bgra8unorm); render through an
+        // sRGB view so the shaders' linear output is encoded as on native targets.
+        view_formats: if format.is_srgb() { vec![] } else { vec![format.add_srgb_suffix()] },
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
@@ -67,6 +71,7 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         device,
         queue,
         renderer: None,
+        room_started_ms: 0.0,
     })
 }
 
@@ -96,9 +101,10 @@ impl BrowserViewer {
         names: Array,
         bytes: Array,
         car_name: String,
+        style: Option<u32>,
     ) -> Result<String, JsValue> {
         let scene = files_from_js(names, bytes)
-            .and_then(|files| load_car(&files, &car_name))
+            .and_then(|files| load_car_style(&files, &car_name, style.unwrap_or(0)))
             .map_err(|e| JsValue::from_str(&e))?;
         if let Some(renderer) = &mut self.renderer {
             renderer
@@ -110,15 +116,102 @@ impl BrowserViewer {
         }
     }
 
-    /// Install the selected car's original 328-byte physics profile.
-    pub fn set_car_sim(&mut self, bytes: Uint8Array) -> Result<(), JsValue> {
+    /// Needle calibration of the race car: `nfs5.car` record `+0x2f0..+0x2fc` (rev needle at
+    /// 0 rpm, per 1000 rpm, speed needle at 0, per unit), `docs/re/cockpit.md`.
+    pub fn set_car_gauges(&mut self, tach_0: f32, tach_per_1000: f32, speedo_0: f32, speedo_per_unit: f32) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_car_gauges([tach_0, tach_per_1000, speedo_0, speedo_per_unit]);
+        }
+    }
+
+    /// Front-end 3D room (`room=` of a layout, e.g. `ID_GARAGE`) from its `FEData/Models`
+    /// files; replaces the scene. Returns false for rooms that are not drawn yet.
+    pub fn load_room(&mut self, names: Array, bytes: Array, room: String) -> Result<bool, JsValue> {
+        let Some(spec) = crate::fe_room::spinning_room(&room) else {
+            return Ok(false);
+        };
+        let mut scene = files_from_js(names, bytes)
+            .and_then(|files| load_car(&files, spec.model))
+            .map_err(|e| JsValue::from_str(&e))?;
+        crate::fe_room::prepare_room_scene(&mut scene);
+        self.set_scene(scene)?;
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room = Some(crate::fe_room::RoomView::new(spec));
+        }
+        self.room_started_ms = js_sys::Date::now();
+        Ok(true)
+    }
+
+    /// Car shown in the room (layouts with a `3DCAR` control); `set_car_model` files.
+    pub fn set_room_car(
+        &mut self,
+        names: Array,
+        bytes: Array,
+        car: String,
+        style: Option<u32>,
+    ) -> Result<(), JsValue> {
+        self.set_car_model(names, bytes, car, style)?;
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_car = true;
+        }
+        Ok(())
+    }
+
+    pub fn show_room_car(&mut self, show: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_car = show && renderer.fe_room.is_some();
+        }
+    }
+
+    /// Screens whose layout names an empty room (`ID_NONE`) show no 3D scene.
+    pub fn hide_room(&mut self, hidden: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fe_room_hidden = hidden && renderer.fe_room.is_some();
+        }
+    }
+
+    pub fn has_room(&self) -> bool {
+        self.renderer.as_ref().is_some_and(|r| r.fe_room.is_some())
+    }
+
+    /// Install the selected car's original 328-byte physics profile. `sim_name` (the `.sim`
+    /// file name) selects the original model's model name; optional.
+    pub fn set_car_sim(
+        &mut self,
+        bytes: Uint8Array,
+        sim_name: Option<String>,
+    ) -> Result<(), JsValue> {
         let renderer = self
             .renderer
             .as_mut()
             .ok_or_else(|| JsValue::from_str("Renderer not initialized"))?;
         renderer
-            .set_car_sim(&bytes.to_vec())
+            .set_car_sim(&bytes.to_vec(), sim_name.as_deref())
             .map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// `.ais` data for the original AI (`GameData/Simulation/AICarData/<model>.ais`,
+    /// model from `car_ais_model`); the AI opponents drive the player's car.
+    pub fn set_car_ais(&mut self, bytes: Uint8Array) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_car_ais(&bytes.to_vec());
+        }
+    }
+
+    /// The original AI cars as JSON (`null` without them).
+    pub fn original_ai_state(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.original_ai_json())
+            .unwrap_or_else(|| "null".into())
+    }
+
+    /// Model name (`res+0x2a8`) whose `.ais` the original AI needs.
+    pub fn car_ais_model(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.car_ais_model())
+            .unwrap_or_else(|| "default".into())
     }
 
     pub fn get_car_sim_mass(&self) -> f32 {
@@ -231,16 +324,65 @@ impl BrowserViewer {
         }
     }
 
-    pub fn cycle_car_view(&mut self) -> u32 {
+    /// R key: the original track reset (the car back on the road at its track node, the race
+    /// goes on). Taken by the next 32 Hz reset tick, which may refuse it as the original does.
+    pub fn request_car_reset(&mut self) {
         if let Some(renderer) = &mut self.renderer {
-            match renderer.cycle_car_view() {
-                crate::arcade::DriveViewMode::Chase => 0,
-                crate::arcade::DriveViewMode::Bumper => 1,
-                crate::arcade::DriveViewMode::Free => 2,
-            }
-        } else {
-            0
+            renderer.request_car_reset();
         }
+    }
+
+    /// Number of track resets done since the page loaded (debug).
+    pub fn get_car_resets(&self) -> u32 {
+        self.renderer.as_ref().map_or(0, |r| r.car_resets)
+    }
+
+    /// C key: next drive camera; returns its name (original camera names in 6 DOF driving).
+    pub fn cycle_car_view(&mut self) -> String {
+        self.renderer
+            .as_mut()
+            .map(|r| r.cycle_car_view())
+            .unwrap_or_default()
+    }
+
+    /// Debug: [live sparks, bursts, strongest barrier contact].
+    pub fn get_spark_stats(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.spark_stats().to_vec())
+            .unwrap_or_default()
+    }
+
+    /// L key: light switch (original `Controller.Lights`); returns whether it is on.
+    pub fn toggle_lights(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| r.toggle_lights())
+            .unwrap_or(false)
+    }
+
+    /// Shift+V (debug): side chase view off / swung 25 degrees one way / the other way.
+    pub fn cycle_side_view(&mut self) -> f32 {
+        self.renderer
+            .as_mut()
+            .map(|r| r.cycle_side_view())
+            .unwrap_or(0.0)
+    }
+
+    /// V key (debug): toggles the free camera; returns whether it is on.
+    pub fn toggle_free_camera(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| r.toggle_free_camera())
+            .unwrap_or(false)
+    }
+
+    /// Name of the current drive camera (HUD).
+    pub fn get_camera_name(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.camera_name())
+            .unwrap_or_default()
     }
 
     pub fn cycle_car_paint(&mut self) -> usize {
@@ -272,6 +414,24 @@ impl BrowserViewer {
             renderer.car.as_ref().map(|car| (car.pos, car.forward()))
         };
         pose.map(|(position, forward)| [position.to_array(), forward.to_array()].concat())
+            .unwrap_or_default()
+    }
+
+    /// Drawn pose of the original car (the 64 Hz states blended for display): box centre in
+    /// scene axes, then forward. Empty when the original model isn't driving.
+    pub fn get_drawn_pose(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .and_then(|r| r.drawn_original_pose())
+            .map(|(p, f)| [p.to_array(), f.to_array()].concat())
+            .unwrap_or_default()
+    }
+
+    /// Eye of the drawn camera (scene axes), for smoothness checks.
+    pub fn get_camera_eye(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.camera.eye().to_array().to_vec())
             .unwrap_or_default()
     }
 
@@ -380,8 +540,167 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Car state for the tyre sounds, 16 floats (`tyre_audio::inputs_from_slice`).
+    pub fn get_tyre_sound_inputs(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_tyre_sound_inputs())
+            .unwrap_or_default()
+    }
+
+    /// Real engine RPM (`get_car_rpm` is rpm / 7000, clamped).
+    pub fn get_car_engine_rpm(&self) -> f32 {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_engine_rpm())
+            .unwrap_or(0.0)
+    }
+
+    /// Original race HUD telemetry `[speed_ec4 m/s, rpm, gear_raw, redline, damage x8]`
+    /// (car+0xec4 VA 0x40eec0, car+0xd82, car+0xee0, car+0x4e4 VA 0x422470).
+    pub fn get_hud_telemetry(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_hud_telemetry())
+            .unwrap_or_default()
+    }
+
+    /// Race standings JSON array (`name, player, rank, laps, progress, finished`).
+    pub fn get_race_standings_json(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_race_standings_json())
+            .unwrap_or_else(|| "[]".to_string())
+    }
+
+    /// Course racing line as x,z pairs (not the original SimD node centre line,
+    /// `HTrackMap_BuildOutline` 0x432230).
+    pub fn get_course_outline(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_course_outline())
+            .unwrap_or_default()
+    }
+
+    /// Car markers, 8 floats per car (player first): x, z, fwd_x, fwd_z, half_width,
+    /// half_length, is_player, paint index or -1.
+    pub fn get_car_markers(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_markers())
+            .unwrap_or_default()
+    }
+
+    /// SIM redline RPM of the loaded car.
+    pub fn get_car_redline_rpm(&self) -> f32 {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_redline_rpm())
+            .unwrap_or(7000.0)
+    }
+
+    /// Current drive camera for the engine sound: 0 Chase, 1 Bumper (in-car), 2 Free.
+    pub fn get_car_view(&self) -> u32 {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_view())
+            .unwrap_or(0)
+    }
+
     pub fn has_car(&self) -> bool {
         self.renderer.as_ref().map(|r| r.has_car()).unwrap_or(false)
+    }
+
+    /// Debug: cycle the AI speed cap (none, 30 km/h, parked). Returns km/h,
+    /// negative for none.
+    pub fn cycle_ai_speed_limit(&mut self) -> f32 {
+        self.renderer
+            .as_mut()
+            .map(|r| r.cycle_ai_speed_limit())
+            .unwrap_or(-1.0)
+    }
+
+    /// Switch between the prototype and the original collision response.
+    /// Returns true when the original response is active.
+    pub fn toggle_collision_model(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| {
+                r.toggle_collision_model()
+                    == nfs_assets::race::original_collision::CollisionModel::Original
+            })
+            .unwrap_or(false)
+    }
+
+    /// Switch the player car between the prototype and the original vehicle model (O).
+    /// Returns true when the original model is selected (it drives while 6 DOF physics is on).
+    pub fn toggle_vehicle_model(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| {
+                r.toggle_vehicle_model()
+                    == nfs_assets::physics::original_vehicle::VehicleModel::Original
+            })
+            .unwrap_or(false)
+    }
+
+    /// Whether the original vehicle model can be selected (an original car was built from
+    /// the loaded `.sim`).
+    pub fn has_original_vehicle(&self) -> bool {
+        self.renderer
+            .as_ref()
+            .is_some_and(|r| r.original_vehicle.is_some())
+    }
+
+    /// Show or hide the collision-box wireframes. Returns the new state.
+    pub fn toggle_collision_boxes(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| r.toggle_collision_boxes())
+            .unwrap_or(false)
+    }
+
+    /// Player and nearest-AI collision box report (centres, extents, box gap).
+    pub fn collision_box_report(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.collision_box_report())
+            .unwrap_or_else(|| "no renderer".to_string())
+    }
+
+    /// Debug panel: original vehicle model selected (O).
+    pub fn is_original_vehicle(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.vehicle_model_is_original()).unwrap_or(false)
+    }
+
+    /// Debug panel: original collision response selected (K).
+    pub fn is_original_collision(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.collision_model_is_original()).unwrap_or(false)
+    }
+
+    /// Debug panel: AI speed cap in km/h, negative for none (J).
+    pub fn get_ai_speed_limit(&self) -> f32 {
+        self.renderer.as_ref().map(|r| r.ai_speed_limit_kmh()).unwrap_or(-1.0)
+    }
+
+    /// Debug panel: light switch (L).
+    pub fn is_lights_on(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.lights_on()).unwrap_or(false)
+    }
+
+    /// Debug panel: free camera on (V).
+    pub fn is_free_camera(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.is_free_camera()).unwrap_or(false)
+    }
+
+    /// Debug panel: side view angle in degrees (Shift+V).
+    pub fn get_side_view(&self) -> f32 {
+        self.renderer.as_ref().map(|r| r.side_view_degrees()).unwrap_or(0.0)
+    }
+
+    /// Debug panel: collision boxes shown (B).
+    pub fn is_collision_boxes(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.show_collision_boxes).unwrap_or(false)
     }
 
     pub fn toggle_sim_mode(&mut self) -> bool {
@@ -564,9 +883,13 @@ impl BrowserViewer {
     }
 
     pub fn render(&mut self) -> Result<(), JsValue> {
+        let view_format = self.view_format();
         let Some(renderer) = &mut self.renderer else {
             return Ok(());
         };
+        if let Some(room) = &mut renderer.fe_room {
+            room.seconds = (js_sys::Date::now() - self.room_started_ms).max(0.0) / 1000.0;
+        }
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -581,7 +904,10 @@ impl BrowserViewer {
                 return Err(JsValue::from_str("Ошибка проверки поверхности WebGPU"));
             }
         };
-        let view = frame.texture.create_view(&Default::default());
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(view_format),
+            ..Default::default()
+        });
         renderer.render(&view);
         self.queue.present(frame);
         Ok(())
@@ -589,12 +915,17 @@ impl BrowserViewer {
 }
 
 impl BrowserViewer {
+    /// Format the renderer draws in: the sRGB view of the canvas.
+    fn view_format(&self) -> wgpu::TextureFormat {
+        self.config.view_formats.first().copied().unwrap_or(self.config.format)
+    }
+
     fn set_scene(&mut self, scene: Scene) -> Result<String, JsValue> {
         let summary = summarize(&scene);
         let renderer = Renderer::new(
             self.device.clone(),
             self.queue.clone(),
-            self.config.format,
+            self.view_format(),
             self.config.width,
             self.config.height,
             &scene,
@@ -602,6 +933,314 @@ impl BrowserViewer {
         .map_err(|e| JsValue::from_str(&e))?;
         self.renderer = Some(renderer);
         Ok(summary)
+    }
+}
+
+/// Engine bank name for a SIM name from the bytes of `FEData/Data/nfs5.car` (first record wins).
+#[wasm_bindgen]
+pub fn engine_bank_for_sim(car_file: Uint8Array, sim_name: String) -> Result<String, JsValue> {
+    crate::engine_audio::bank_for_sim(&car_file.to_vec(), &sim_name)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
+/// Original engine sound: decoded bank slots plus the mixer, stepped at a fixed 100 Hz.
+/// One-shot (start/stop sample) finish state is tracked inside, in mixer-step time, so JS
+/// only executes the returned commands.
+#[wasm_bindgen]
+pub struct EngineAudio {
+    core: crate::engine_audio::EngineAudioCore,
+}
+
+#[wasm_bindgen]
+impl EngineAudio {
+    /// `names`/`bytes`: files including `<sim>.spl` and `<bank>.viv` (paths are matched by
+    /// base name, case-insensitively).
+    pub fn load(
+        names: Array,
+        bytes: Array,
+        sim_name: String,
+        bank: String,
+    ) -> Result<EngineAudio, JsValue> {
+        let files = files_from_js(names, bytes).map_err(|e| JsValue::from_str(&e))?;
+        let core = crate::engine_audio::EngineAudioCore::load(&files, &sim_name, &bank)
+            .map_err(|e| JsValue::from_str(&e))?;
+        Ok(EngineAudio { core })
+    }
+
+    pub fn slot_count(&self) -> usize {
+        self.core.slots().len()
+    }
+    /// Bank slot id of the `index`-th decoded slot.
+    pub fn slot_id(&self, index: usize) -> u32 {
+        self.core.slots()[index].id as u32
+    }
+    pub fn slot_sample_rate(&self, index: usize) -> u32 {
+        self.core.slots()[index].sample_rate
+    }
+    pub fn slot_channels(&self, index: usize) -> u32 {
+        self.core.slots()[index].channels.len() as u32
+    }
+    /// `(60 - root) * 100 + fine` cents; playbackRate = pitch/4096 * 2^(detune/1200).
+    pub fn slot_detune_cents(&self, index: usize) -> i32 {
+        self.core.slots()[index].detune_cents
+    }
+    /// Loop start in sample frames, or -1 when the slot doesn't loop.
+    /// `f64`, not `i64`: wasm-bindgen turns `i64` into a JS BigInt, which can't
+    /// be mixed with Numbers (it broke `loopStart / rate` in web/main.js).
+    pub fn slot_loop_start(&self, index: usize) -> f64 {
+        self.core.slots()[index]
+            .loop_range
+            .map_or(-1.0, |r| r.0 as f64)
+    }
+    /// Loop end in sample frames, or -1.
+    pub fn slot_loop_end(&self, index: usize) -> f64 {
+        self.core.slots()[index]
+            .loop_range
+            .map_or(-1.0, |r| r.1 as f64)
+    }
+    /// One channel of the slot's PCM, -1..1.
+    pub fn slot_pcm(&self, index: usize, channel: usize) -> Vec<f32> {
+        self.core.slots()[index].channels[channel].clone()
+    }
+
+    /// Steps the mixer in 1/100 s units for `dt` seconds. Returns commands, 7 ints each:
+    /// `[kind, voice, slot, volume, pitch, pan, looped]` with kind 0 Start, 1 SetVolume,
+    /// 2 SetPan, 3 SetPitch, 4 Stop. `view`: 0 Chase, 1 Bumper, 2 Free.
+    pub fn update(
+        &mut self,
+        dt: f32,
+        rpm: f32,
+        redline: f32,
+        throttle: f32,
+        view: u8,
+        gear: i32,
+    ) -> Vec<i32> {
+        self.core.update(dt, rpm, redline, throttle, view, gear)
+    }
+
+    pub fn set_running(&mut self, running: bool) {
+        self.core.set_running(running);
+    }
+}
+
+/// Original tyre squeal and surface rumble: decoded `SND_coll.bnk` slots plus `TyreSounds`
+/// stepped at 32 Hz (`docs/re/audio.md`, "Tyre and surface sounds"). Commands as in
+/// `EngineAudio::update`, with the fade ticks of a Stop in the pan field.
+#[wasm_bindgen]
+pub struct TyreAudio {
+    core: crate::tyre_audio::TyreAudioCore,
+}
+
+#[wasm_bindgen]
+impl TyreAudio {
+    /// `names`/`bytes`: files including `SND_coll.bnk` (matched by base name).
+    pub fn load(names: Array, bytes: Array) -> Result<TyreAudio, JsValue> {
+        let files = files_from_js(names, bytes).map_err(|e| JsValue::from_str(&e))?;
+        let core = crate::tyre_audio::TyreAudioCore::load(&files)
+            .map_err(|e| JsValue::from_str(&e))?;
+        Ok(TyreAudio { core })
+    }
+    pub fn slot_count(&self) -> usize {
+        self.core.slots().len()
+    }
+    pub fn slot_id(&self, index: usize) -> u32 {
+        self.core.slots()[index].id as u32
+    }
+    pub fn slot_sample_rate(&self, index: usize) -> u32 {
+        self.core.slots()[index].sample_rate
+    }
+    pub fn slot_channels(&self, index: usize) -> u32 {
+        self.core.slots()[index].channels.len() as u32
+    }
+    pub fn slot_detune_cents(&self, index: usize) -> i32 {
+        self.core.slots()[index].detune_cents
+    }
+    pub fn slot_loop_start(&self, index: usize) -> f64 {
+        self.core.slots()[index].loop_range.map_or(-1.0, |r| r.0 as f64)
+    }
+    pub fn slot_loop_end(&self, index: usize) -> f64 {
+        self.core.slots()[index].loop_range.map_or(-1.0, |r| r.1 as f64)
+    }
+    pub fn slot_pcm(&self, index: usize, channel: usize) -> Vec<f32> {
+        self.core.slots()[index].channels[channel].clone()
+    }
+    /// `inputs`: `Viewer::get_tyre_sound_inputs`; `view`: 0 Chase, 1 Bumper, 2 Free. Returns
+    /// 7 ints per command: `[kind, voice, slot, volume, pitch, fade_ticks, looped]`, kind 0
+    /// Start, 1 SetVolume, 3 SetPitch, 4 Stop.
+    pub fn update(&mut self, dt: f32, inputs: Vec<f32>, view: u8) -> Vec<i32> {
+        self.core.update(dt, &inputs, view)
+    }
+    /// Stop commands for every voice.
+    pub fn silence(&mut self) -> Vec<i32> {
+        self.core.silence()
+    }
+    /// Playing voices `[channel, slot, volume, control, pitch]*`, then `[ticks, starts]`.
+    pub fn state(&self) -> Vec<i32> {
+        self.core.state()
+    }
+}
+
+/// One original music stream (SCHl / EA-XA R1), decoded in chunks (`docs/re/music.md`).
+#[wasm_bindgen]
+pub struct MusicTrack {
+    core: crate::game_audio::MusicTrackCore,
+}
+
+#[wasm_bindgen]
+impl MusicTrack {
+    #[wasm_bindgen(constructor)]
+    pub fn new(bytes: Uint8Array) -> Result<MusicTrack, JsValue> {
+        crate::game_audio::MusicTrackCore::new(bytes.to_vec())
+            .map(|core| MusicTrack { core })
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    pub fn sample_rate(&self) -> u32 {
+        self.core.sample_rate()
+    }
+    pub fn channels(&self) -> u32 {
+        self.core.channels() as u32
+    }
+    pub fn total_frames(&self) -> f64 {
+        self.core.total_frames() as f64
+    }
+    pub fn done(&self) -> bool {
+        self.core.done()
+    }
+    /// At least `min_frames` frames (fewer at the end), planar: channel 0 then channel 1.
+    pub fn decode(&mut self, min_frames: u32) -> Result<Vec<f32>, JsValue> {
+        self.core
+            .decode(min_frames as usize)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+}
+
+/// The original music player (`nfs_assets::audio::MusicPlayer`). Every call queues stream
+/// commands; `take_commands` returns them as `[kind, a, b]` triples: 0 Start(file),
+/// 1 SetVolume(v), 2 Fade(ms, v), 3 Stop.
+#[wasm_bindgen]
+pub struct MusicDirector {
+    core: crate::game_audio::MusicDirectorCore,
+}
+
+#[wasm_bindgen]
+impl MusicDirector {
+    /// `names`: archive file names in TOC order; `level`: music level 0..127.
+    #[wasm_bindgen(constructor)]
+    pub fn new(names: Array, level: i32, seed: u32) -> MusicDirector {
+        let files = names.iter().filter_map(|v| v.as_string()).collect();
+        MusicDirector {
+            core: crate::game_audio::MusicDirectorCore::new(files, level, seed),
+        }
+    }
+    pub fn set_playlist(&mut self, ids: Vec<i32>) {
+        self.core.player.set_playlist(&ids);
+    }
+    pub fn set_front_end(&mut self, on: bool) {
+        self.core.player.front_end = on;
+    }
+    pub fn set_random_playlist(&mut self, on: bool) {
+        self.core.player.random_playlist = on;
+    }
+    /// `Music_Play` 0x4ae4d0; `pattern` empty = keep the playlist.
+    pub fn play(&mut self, pattern: String, mode: u8) -> u32 {
+        let p = (!pattern.is_empty()).then_some(pattern.as_str());
+        self.core.play(p, mode) as u32
+    }
+    pub fn stop(&mut self, ms: i32) {
+        self.core.player.stop(ms);
+    }
+    pub fn set_level(&mut self, level: i32) {
+        self.core.set_level(level);
+    }
+    pub fn level(&self) -> i32 {
+        self.core.player.level()
+    }
+    pub fn toggle(&mut self) {
+        self.core.toggle();
+    }
+    pub fn set_status(&mut self, playing: bool, volume: i32) {
+        self.core
+            .player
+            .set_status(nfs_assets::audio::StreamStatus { playing, volume });
+    }
+    /// `Music_Tick` 0x4ad9c0 with the stream state.
+    pub fn tick(&mut self, playing: bool, volume: i32) {
+        self.core.tick(playing, volume);
+    }
+    pub fn take_commands(&mut self) -> Vec<i32> {
+        self.core.take_commands()
+    }
+    pub fn index(&self) -> i32 {
+        self.core.player.index()
+    }
+    /// File of the open stream, or −1.
+    pub fn current_file(&self) -> i32 {
+        self.core.player.current_file().map_or(-1, |f| f as i32)
+    }
+    pub fn playlist(&self) -> Vec<u8> {
+        self.core.player.playlist().to_vec()
+    }
+    /// Switch state: 0 idle, 1 pending, 2 started, −1 stopping.
+    pub fn state(&self) -> i32 {
+        use nfs_assets::audio::SwitchState::*;
+        match self.core.player.state() {
+            Idle => 0,
+            Pending => 1,
+            Started => 2,
+            Stopping => -1,
+        }
+    }
+}
+
+/// Race announcer: phrases of `zzzxeng.viv` and the original calls (`docs/re/audio.md`).
+#[wasm_bindgen]
+pub struct RaceAnnouncer {
+    core: crate::game_audio::AnnouncerCore,
+}
+
+#[wasm_bindgen]
+impl RaceAnnouncer {
+    pub fn load(viv: Uint8Array, speech_level: i32, seed: u32) -> Result<RaceAnnouncer, JsValue> {
+        crate::game_audio::AnnouncerCore::load(&viv.to_vec(), speech_level, seed)
+            .map(|core| RaceAnnouncer { core })
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    pub fn phrase_count(&self) -> u32 {
+        self.core.phrases.len() as u32
+    }
+    pub fn phrase_name(&self, i: u32) -> String {
+        self.core.phrases[i as usize].name.clone()
+    }
+    pub fn phrase_rate(&self, i: u32) -> u32 {
+        self.core.phrases[i as usize].sample_rate
+    }
+    pub fn phrase_pcm(&self, i: u32) -> Vec<f32> {
+        self.core.phrases[i as usize].pcm.clone()
+    }
+    /// Phrase volume 0..127.
+    pub fn volume(&self) -> i32 {
+        self.core.volume()
+    }
+    pub fn set_speech_level(&mut self, level: i32) {
+        self.core.speech_level = level.clamp(0, 127);
+    }
+    pub fn reset(&mut self) {
+        self.core.reset();
+    }
+    /// Countdown at scheduler step `step` (64 Hz); returns the queued phrase or −1.
+    pub fn countdown(&mut self, step: i32) -> i32 {
+        self.core.countdown(step)
+    }
+    pub fn lap_completed(&mut self, laps_done: u32, total: u32, cars: u32, place: u32, best: bool) {
+        self.core.lap_completed(laps_done, total, cars, place, best);
+    }
+    /// Queues the result call; returns the result music pattern or "".
+    pub fn race_finished(&mut self, place: u32, cars: u32) -> String {
+        self.core.race_finished(place, cars).to_string()
+    }
+    /// Next phrase to start or −1; `remaining_cs` < 0 when nothing plays.
+    pub fn update(&mut self, remaining_cs: i32) -> i32 {
+        self.core.update(remaining_cs)
     }
 }
 
@@ -701,6 +1340,15 @@ pub fn shell_get_first_evolution_event() -> String {
         event.entry_fee,
         event.first_prize
     )
+}
+
+/// Parses `FEData/Data/nfs5.car` into a JSON array of
+/// `{index, display_name, model, sim_name, bank}` (all records, catalogue order).
+#[wasm_bindgen]
+pub fn parse_car_catalogue_json(bytes: Uint8Array) -> Result<String, JsValue> {
+    let entries =
+        nfs_formats::parse_car_catalogue(&bytes.to_vec()).map_err(|e| JsValue::from_str(&e))?;
+    Ok(nfs_formats::catalogue_json(&entries))
 }
 
 #[wasm_bindgen]

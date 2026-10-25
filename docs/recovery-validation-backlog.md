@@ -1,5 +1,14 @@
 # Отложенные проверки восстановления v2
 
+PR25 speech boundary: localzzzxeng.viv SHA256
+f89ab2839d14515a170e3dc2dfff37cff2b3df1be3dfcec6f50b8a3fd52cd64a: referencedbanks
+yield130range errors (header64+dataN=filelength, tag88=128) and25negativecounts.
+Original0059bdb5..bde7 sign-extends tagvalues;0059952f/0059962b..637 uses bank-relative
+offsets. No preparation/expansion path proved. Strict decoder retained; the exact
+revision test checks everyphrase:155distinct expectedrejections and5decodedbanks.
+Unsupported phrases remain unavailable; graceful reporting needs runtimevalidation. Trace
+00565b60 bankregistration/preparation and compare another trusted speechrevision.
+
 Run413: tenoriginalbodies1396B integrated after19936cases/sequences/19mutations,
 560pins;225TUs190names198refs,noEXE. getIDtypedcontract corrected. CallbackPARTIAL:
 76B uninitializedstatus isopaque; actualAPI consumption, arbitraryscratch overlap,

@@ -143,7 +143,13 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
 
     let mut scene = Scene {
         meshes: Vec::new(),
+        car_collision_box: None,
+        car_driver_camera: None,
         car_wheels: Vec::new(),
+        car_glares: Vec::new(),
+        car_in_car: Vec::new(),
+        effect_textures: Vec::new(),
+        particle_defs: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
@@ -161,9 +167,13 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         scenario_name: None,
         scenario_gates: Vec::new(),
         sky_texture: None,
+        sky_layers: [None, None, None],
+        sky_horizon: None,
+        sun_position: None,
         topology: None,
         road_surface: None,
         course: None,
+        ai_track: None,
     };
 
     let mut tex_map = BTreeMap::new();
@@ -236,10 +246,13 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
             alpha_cutoff: 0.5,
             double_sided,
             depth_bias,
+            // Track geometry carries prelit `df` vertex colours (approximation A22).
+            prelit: true,
         });
     }
 
     let mut raw_meshes = Vec::new();
+    let mut single_sided = std::collections::BTreeSet::new();
     // Rendering and source collision resources are assembled separately.
     let mut prop_templates: Vec<(u32, Vec<Mesh>)> = Vec::new();
     let mut total_tris = 0;
@@ -269,6 +282,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                 if let Some(vt) = a.children.iter().find(|c| c.tag == "vt" && c.index == 0) {
                     if vt.data.len() % 16 == 0 {
                         let uv = a.children.iter().find(|c| c.tag == "uv" && c.index == 0);
+                        let df = a.children.iter().find(|c| c.tag == "df" && c.index == 0);
                         let n_verts = vt.data.len() / 16;
                         let mut raw_positions = Vec::with_capacity(n_verts);
                         for i in 0..n_verts {
@@ -284,6 +298,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                         {
                             if let Ok(m) = parse_mesh(
                                 pr,
+                                df,
                                 &raw_positions,
                                 uv,
                                 &matmap,
@@ -307,6 +322,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
             continue;
         };
         let uv = a.children.iter().find(|c| c.tag == "uv" && c.index == 0);
+        let df = a.children.iter().find(|c| c.tag == "df" && c.index == 0);
         let tr = a.children.iter().find(|c| c.tag == "tr" && c.index == 0);
 
         if vt.data.len() % 16 != 0 {
@@ -345,6 +361,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
             raw_positions.push(to_scene_coordinates([tx, ty, tz]));
         }
 
+        let article_first_mesh = raw_meshes.len();
         for pr in a
             .children
             .iter()
@@ -352,6 +369,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         {
             let m = parse_mesh(
                 pr,
+                df,
                 &raw_positions,
                 uv,
                 &matmap,
@@ -368,7 +386,27 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                 raw_meshes.push(m);
             }
         }
+        // Signs carry a front and a back plate: two coplanar primitives with opposite
+        // winding. The original culls back-facing primitives per plane in its coordinate
+        // layers (0x449390, 0x448f80), so only one plate shows from each side; drawn
+        // double-sided they z-fight. Approximation A73: such materials are culled.
+        let article_meshes = &raw_meshes[article_first_mesh..];
+        for (i, a_mesh) in article_meshes.iter().enumerate() {
+            for b_mesh in &article_meshes[i + 1..] {
+                if reverse_twins(a_mesh, b_mesh) {
+                    single_sided.insert(a_mesh.material);
+                    single_sided.insert(b_mesh.material);
+                }
+            }
+        }
     }
+    for &m in &single_sided {
+        scene.materials[m].double_sided = false;
+    }
+    scene.diagnostics.push(format!(
+        "{} materials single-sided (front/back plate pairs)",
+        single_sided.len()
+    ));
 
     let anim = nfs_formats::animdefs::parse_animdefs(&String::from_utf8_lossy(find(
         files,
@@ -604,6 +642,24 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         }
     }
 
+    // --- Sun from the sky config Sky/<track>.bin ---
+    let sky_bin = files.iter().find(|(k, _)| {
+        let low = k.replace('\\', "/").to_ascii_lowercase();
+        (low.contains("/sky/") || low.starts_with("sky/"))
+            && !low.contains("sky new")
+            && low.rsplit('/').next() == Some(&format!("{}.bin", track.to_ascii_lowercase()))
+    });
+    if let Some((key, data)) = sky_bin {
+        match nfs_formats::parse_sky_sun(data) {
+            Ok(sun) => scene.sun_position = Some(to_scene_coordinates(sun.position())),
+            Err(e) => scene.diagnostics.push(format!("Sky {key}: {e}")),
+        }
+        match nfs_formats::parse_sky_horizon(data) {
+            Ok(horizon) => scene.sky_horizon = Some(horizon),
+            Err(e) => scene.diagnostics.push(format!("Sky {key}: horizon {e}")),
+        }
+    }
+
     // --- Sky texture loading ---
     let sky_fsh_key = files
         .keys()
@@ -628,6 +684,18 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         if let Some(sky_data) = files.get(&sky_key) {
             match parse_fsh(sky_data) {
                 Ok(sky_images) => {
+                    // Region A sky map and cloud map (`st1a`, `sc1a` in Sky/<track>.txt)
+                    // and the horizon haze strip.
+                    for (slot, prefix) in ["st", "sc", "hzcl"].iter().enumerate() {
+                        scene.sky_layers[slot] = sky_images
+                            .iter()
+                            .find(|img| img.name.starts_with(prefix))
+                            .map(|img| SkyTexture {
+                                width: img.width,
+                                height: img.height,
+                                rgba: img.rgba.clone(),
+                            });
+                    }
                     // Look for the horizon panorama texture ("horz")
                     if let Some(horz) = sky_images.iter().find(|img| img.name == "horz") {
                         scene.sky_texture = Some(SkyTexture {
@@ -773,6 +841,12 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         }
 
         scene.topology = Some(topology);
+        // The original AI: node graph from the CRP and the forward racing line.
+        if let Ok(lsp0) = find(files, &lsp0_key) {
+            scene.ai_track = crate::race::original_ai::field::OriginalAiTrack::from_files(
+                track, false, crp_data, jnc_data, lsp0,
+            );
+        }
     }
 
     scene.diagnostics.push(format!(
@@ -798,8 +872,44 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     Ok(scene)
 }
 
+/// Whether `a` and `b` are the two plates of one surface: the same vertex positions
+/// (any triangulation) with opposite facing (a back plate of a front plate).
+fn reverse_twins(a: &Mesh, b: &Mesh) -> bool {
+    let positions = |m: &Mesh| {
+        let mut p: Vec<[u32; 3]> = m
+            .indices
+            .iter()
+            .map(|&i| m.vertices[i as usize].position.map(f32::to_bits))
+            .collect();
+        p.sort_unstable();
+        p.dedup();
+        p
+    };
+    let facing = |m: &Mesh| {
+        let mut n = glam::Vec3::ZERO;
+        for t in m.indices.chunks_exact(3) {
+            let [p, q, r] = [0, 1, 2].map(|k| glam::Vec3::from(m.vertices[t[k] as usize].position));
+            n += (q - p).cross(r - p);
+        }
+        n.normalize_or_zero()
+    };
+    a.indices.len() >= 3 && positions(a) == positions(b) && facing(a).dot(facing(b)) < -0.99
+}
+
+/// A `df` colour (D3D ARGB word, bytes B, G, R, A) as RGBA 0..1.
+///
+/// Evidence for the byte order: the original packs byte +2 into the high five
+/// bits of the RGB555 road colour (0x475574..0x47559d), which `Road_SampleColour`
+/// 0x474700 returns as red; `LayerIndexedColour::Apply` 0x4499e0 copies the words
+/// unchanged into the vertex colour, the same slot that gets the glare colours,
+/// where the brake light word 0xffff0000 is red.
+fn df_rgba(px: &[u8]) -> [f32; 4] {
+    [px[2], px[1], px[0], px[3]].map(|b| f32::from(b) / 255.0)
+}
+
 fn parse_mesh(
     pr: &Entry,
+    df: Option<&Entry>,
     positions: &[[f32; 3]],
     uv: Option<&Entry>,
     materials: &BTreeMap<u16, usize>,
@@ -838,7 +948,8 @@ fn parse_mesh(
     for i in 0..ni {
         let o = 48 + i * 16;
         let kind = u16le(d, o + 10)?;
-        if kind <= 2 {
+        // Kinds 0/1/2/3 index vt/nm/uv/df (df: 4-byte ARGB colours).
+        if kind <= 3 {
             let adjust = u32le(d, o + 4)? as usize;
             let row = u16le(d, o + 14)?;
             let offset = if row == u16::MAX {
@@ -850,7 +961,11 @@ fn parse_mesh(
                         .ok_or("index row reference out of bounds")?,
                 )
             };
-            let stride = if kind == 2 { 8 } else { 16 };
+            let stride = match kind {
+                2 => 8,
+                3 => 4,
+                _ => 16,
+            };
             if !adjust.is_multiple_of(stride) {
                 return Err("unaligned index base".into());
             }
@@ -877,11 +992,21 @@ fn parse_mesh(
             }
         }
 
+        // `df` colours are D3D ARGB words (bytes B, G, R, A).
+        let mut color = [1.0; 4];
+        if let (Some(df), Some(&(off, adj))) = (df, channels.get(&3)) {
+            let c_ix = off.map_or(i, |off| raw[off + i] as usize) + adj;
+            if let Some(px) = df.data.get(c_ix * 4..c_ix * 4 + 4) {
+                color = df_rgba(px);
+            }
+        }
+
         raw_v_indices.push(ix);
         vertices.push(Vertex {
             position,
             normal: [0.0, 0.0, 0.0],
             uv: tex,
+            color,
         });
     }
 
@@ -965,6 +1090,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn reverse_twin_quads_are_detected() {
+        let quad = |idx: Vec<u32>| Mesh {
+            name: "q".into(),
+            vertices: [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]]
+                .map(|p| Vertex { position: p, normal: [0.0; 3], uv: [0.0; 2], color: [1.0; 4] })
+                .to_vec(),
+            indices: idx,
+            material: 0,
+        };
+        // alps 30 sign: pr0 (4,7,6),(4,6,5) vs pr1 (7,4,5),(7,5,6), here 0..3.
+        assert!(reverse_twins(&quad(vec![0, 3, 2, 0, 2, 1]), &quad(vec![3, 0, 1, 3, 1, 2])));
+        assert!(!reverse_twins(&quad(vec![0, 3, 2]), &quad(vec![0, 3, 2])));
+    }
+
+    #[test]
+    fn df_words_are_argb() {
+        // Alps road RD1136C: bytes 99 6b 4b ff = ARGB 0xff4b6b99.
+        let c = df_rgba(&[0x99, 0x6b, 0x4b, 0xff]);
+        assert_eq!(c, [0x4b as f32 / 255.0, 0x6b as f32 / 255.0, 0x99 as f32 / 255.0, 1.0]);
+        // Brake glare colour word 0xffff0000 (bytes 00 00 ff ff) is red.
+        assert_eq!(df_rgba(&[0, 0, 0xff, 0xff]), [1.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
     fn local_skidpad_loads_to_valid_scene() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../local/game/GameData/Track");
@@ -982,7 +1131,27 @@ mod tests {
             std::fs::read(root.join("animdefs.txt")).unwrap(),
         );
 
+        let sky = std::fs::read(root.join("Sky/Skidpad.bin")).ok();
+        if let Some(sky) = &sky {
+            files.insert("GameData/Track/Sky/Skidpad.bin".into(), sky.clone());
+        }
         let scene = load(&files, "skidpad").unwrap();
+        // Skidpad.bin: a = -122.1, theta = 0.65 turn, h = 115.5, s = 0.537.
+        assert_eq!(scene.sun_position.is_some(), sky.is_some());
+        if let Some(sun) = scene.sun_position {
+            let elevation = sun[1].atan2(sun[0].hypot(sun[2])).to_degrees();
+            assert!((40.0..45.0).contains(&elevation), "sun elevation {elevation}");
+        }
+        // Prelit `df` colours reach the vertices (pr channel kind 3). Skidpad's
+        // colours are almost all white; only 90 entries are shaded.
+        let colors: Vec<[f32; 4]> = scene
+            .meshes
+            .iter()
+            .flat_map(|m| m.vertices.iter().map(|v| v.color))
+            .collect();
+        let shaded = colors.iter().filter(|c| c[..3] != [1.0; 3]).count();
+        assert!((60..1000).contains(&shaded), "{shaded} of {} shaded", colors.len());
+        assert!(scene.materials.iter().all(|m| m.prelit));
         assert_eq!(scene.meshes.len(), 180);
         assert_eq!(scene.prop_articles.len(), 70);
         assert_eq!(scene.textures.len(), 98);

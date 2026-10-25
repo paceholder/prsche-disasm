@@ -38,6 +38,7 @@ const element = (id) => {
 const document = new Element();
 document.body = new Element();
 document.querySelector = element;
+document.getElementById = (id) => element(`#${id}`);
 document.querySelectorAll = () => [];
 document.createElement = () => new Element();
 const window = new Element();
@@ -50,13 +51,36 @@ const source = readFileSync(new URL("main.js", import.meta.url), "utf8")
   .replace(/\bboot\(\);\s*$/, "");
 vm.runInContext(source + `\n globalThis.testApi = {
   setViewer: value => viewer = value,
-  activeKeys, syncTourButton, updateNavigation, showBriefing, factoryGoalSatisfied, evaluateFactoryResult, findSimResource,
+  activeKeys, syncTourButton, updateNavigation, showBriefing, factoryGoalSatisfied, evaluateFactoryResult, findSimResource, buildQuickRaceCars,
   primeMotion: () => { velForward = 3; velRight = 2; velZoom = 1; },
   motion: () => [velForward, velRight, velZoom],
 };`, context);
 let driving = false;
 let lastControls;
+// Original C-key cycle from TailCam0 (Camera_Cycle, list & 3); V is the debug free camera.
+const cameraCycle = ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"];
+let cameraIndex = 3;
+let freeCamera = false;
+let originalModel = true;
+const calls = [];
+let lights = false;
+let sideView = 0;
+let aiLimit = -1;
 context.testApi.setViewer({
+  toggle_vehicle_model: () => calls.push("O"),
+  toggle_collision_model: () => calls.push("K"),
+  toggle_sim_mode: () => calls.push("M"),
+  has_original_vehicle: () => true,
+  cycle_car_view: () => { freeCamera = false; cameraIndex = (cameraIndex + 1) % 4; return cameraCycle[cameraIndex]; },
+  get_camera_name: () => freeCamera ? "Free" : cameraCycle[cameraIndex],
+  toggle_free_camera: () => freeCamera = !freeCamera,
+  is_free_camera: () => freeCamera,
+  is_original_vehicle: () => originalModel,
+  toggle_lights: () => lights = !lights,
+  cycle_side_view: () => sideView = sideView === 0 ? 25 : sideView > 0 ? -25 : 0,
+  get_side_view: () => sideView,
+  cycle_ai_speed_limit: () => calls.push("J"),
+  get_ai_speed_limit: () => aiLimit,
   is_drive_mode: () => driving,
   has_car: () => true,
   toggle_camera_mode: () => driving = !driving,
@@ -64,17 +88,22 @@ context.testApi.setViewer({
   get_car_speed: () => 0,
   get_car_gear: () => 0,
   get_car_rpm: () => 0,
+  get_car_engine_rpm: () => 0,
+  get_car_redline_rpm: () => 6000,
+  get_car_view: () => 0,
+  get_tyre_sound_inputs: () => [],
 });
 context.testApi.syncTourButton();
-assert.equal(element("#hud").hidden, true, "HUD hidden before driving");
+assert.equal(element("#hudCanvas").hidden, true, "HUD hidden before driving");
 element("#tourButton").dispatch("click");
 assert.equal(driving, true);
 assert.equal(document.body.classes.has("menu-hidden"), true);
-assert.equal(element("#hud").hidden, false);
+assert.equal(element("#hudCanvas").hidden, false);
+assert.equal(element("#debugPanel").hidden, false, "debug panel is on by default in a race");
 assert.equal(focused, element("#viewport"));
 // Exercise actual keyboard listeners and navigation, including both key layouts.
-const key = (type, code) => window.dispatch(type, {
-  code, target: new Element(), repeat: false, preventDefault() {},
+const key = (type, code, extra = {}) => window.dispatch(type, {
+  code, target: new Element(), repeat: false, preventDefault() {}, ...extra,
 });
 for (const [gas, left, right] of [["KeyW", "KeyA", "KeyD"], ["ArrowUp", "ArrowLeft", "ArrowRight"]]) {
   for (const [turn, sign] of [[left, -1], [right, 1]]) {
@@ -99,8 +128,46 @@ for (const reverse of ["KeyS", "ArrowDown"]) {
   context.testApi.updateNavigation(1 / 60);
   assert.deepEqual(Array.from(lastControls), [1 / 60, 0, 0, false]);
 }
+context.testApi.updateNavigation(1 / 60);
+const panel = () => element("#debugPanel").textContent.replace(/\u00a0/g, " ");
+context.testApi.updateNavigation(1 / 60);
+context.testApi.syncTourButton();
+for (const part of ["L lights off", "C TailCam0",
+  "V free cam off", "Shift+V side off", "B boxes off", "H HUD on", "R reset", "Shift+R restart", "Esc menu"]) {
+  assert.ok(panel().includes(part), `panel shows "${part}": ${panel()}`);
+}
+for (const gone of ["O car", "K collisions", "M 6 DOF", "J AI"]) {
+  assert.ok(!panel().includes(gone), `panel no longer lists "${gone}": ${panel()}`);
+}
+// The removed switches (O, K, M, J) must not reach the viewer.
+for (const code of ["KeyO", "KeyK", "KeyM", "KeyJ"]) key("keydown", code);
+assert.equal(originalModel, true, "O does nothing");
+assert.deepEqual(calls, [], "removed keys call no viewer switch");
+const shownCameras = [];
+for (let i = 0; i < 4; i++) {
+  key("keydown", "KeyC");
+  key("keyup", "KeyC");
+  shownCameras.push(panel().match(/C (\w+)/)[1]);
+}
+assert.deepEqual(shownCameras, ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"]);
+key("keydown", "KeyV");
+assert.ok(panel().includes("C Free") && panel().includes("V free cam on"), "V toggles the free camera");
+key("keydown", "KeyV");
+assert.ok(panel().includes("C TailCam0") && panel().includes("V free cam off"));
+key("keydown", "KeyL");
+assert.ok(panel().includes("L lights on"), "L shows in the panel");
+key("keydown", "KeyV", { shiftKey: true });
+assert.ok(panel().includes("Shift+V side R 25\u00b0"), panel());
+key("keydown", "KeyV", { shiftKey: true });
+assert.ok(panel().includes("Shift+V side L 25\u00b0"));
+key("keydown", "KeyV", { shiftKey: true });
+assert.ok(panel().includes("Shift+V side off"));
 window.dispatch("keydown", { code: "KeyH", target: new Element(), repeat: false });
-assert.equal(element("#hud").hidden, true);
+assert.equal(element("#hudCanvas").hidden, true);
+window.dispatch("keydown", { code: "Backquote", target: new Element(), repeat: false });
+assert.equal(element("#debugPanel").hidden, true, "Backquote hides the debug panel");
+window.dispatch("keydown", { code: "Backquote", target: new Element(), repeat: false });
+assert.equal(element("#debugPanel").hidden, false, "Backquote shows it again");
 window.dispatch("keydown", { code: "Escape", target: new Element(), repeat: false, preventDefault() {} });
 assert.equal(document.body.classes.has("menu-hidden"), false);
 assert.equal(element("#menuButton").attributes.get("aria-expanded"), "true");
@@ -119,13 +186,15 @@ assert.equal(element("#summary").hidden, true);
 element("#tourButton").dispatch("click");
 assert.equal(driving, false);
 assert.equal(document.body.classes.has("menu-hidden"), false);
-assert.equal(element("#hud").hidden, true);
+assert.equal(element("#hudCanvas").hidden, true);
 
 // 009 Shell UI & Modals regression checks
-element("#soundBtn").dispatch("click");
-assert.equal(element("#soundBtn").classes.has("active"), true, "Sound button toggles active");
+// Sound is on by default; the button toggles it off and on again.
+assert.equal(element("#soundBtn").classes.has("active"), true, "Sound starts on");
 element("#soundBtn").dispatch("click");
 assert.equal(element("#soundBtn").classes.has("active"), false, "Sound button toggles off");
+element("#soundBtn").dispatch("click");
+assert.equal(element("#soundBtn").classes.has("active"), true, "Sound button toggles on");
 
 element("#careerEvolutionBtn").dispatch("click");
 assert.equal(element("#evolutionTournamentsModal").hidden, false, "Evolution opens its tournament selection");
@@ -216,14 +285,20 @@ assert.equal(findSim(simFiles, "BOXSTER25.SIM"), simFiles[0]);
 assert.equal(findSim(simFiles, "356Acoupe16"), simFiles[1]);
 assert.throws(() => findSim(simFiles, "boxster"), /boxster\.sim/);
 assert.throws(() => findSim(simFiles, ""), /Не указан/);
-assert.throws(() => findSim([...simFiles, "other/boxster25.sim"], "boxster25"), /несколько/);
+assert.throws(() => findSim(["a/boxster25.sim", "other/boxster25.sim"], "boxster25"), /несколько/);
+// 959coupe29 and 928coupeGTS54 exist twice; the original reads Simulation/CarData.
+const twin = ["GameData/Simulation/928coupeGTS54.sim", "GameData/Simulation/CarData/928coupeGTS54.sim"];
+assert.equal(findSim(twin, "928coupeGTS54"), twin[1]);
 const customSim = { path: "Chosen\\GameData\\boxster25.sim" };
 assert.equal(findSim([customSim], "boxster25", file => file.path), customSim);
 // Exercise the actual frame loop and Continue handler with terminal race telemetry.
 let phase = 2;
+let resetRequests = 0;
 context.testApi.setViewer({
+  request_car_reset: () => { resetRequests++; },
   is_drive_mode: () => true, has_car: () => true, update_car() {},
   get_car_speed: () => 0, get_car_gear: () => 0, get_car_rpm: () => 0,
+  get_car_engine_rpm: () => 0, get_car_redline_rpm: () => 6000, get_car_view: () => 0, get_tyre_sound_inputs: () => [],
   get_race_phase: () => phase, get_player_position: () => 1,
   get_total_participants: () => 1, get_current_lap: () => 1,
   get_total_laps: () => 1, get_current_lap_time: () => 12,
@@ -245,8 +320,13 @@ for (const terminalPhase of [4, 5]) {
   tick();
   assert.equal(resultModal.hidden, true, "next briefing must not consume the previous finish");
   element("#briefingCancelBtn").dispatch("click");
+  // R is the original track reset: the race goes on.
+  const before = resetRequests;
+  key("keydown", "KeyR");
+  assert.equal(resetRequests, before + 1, "R requests a track reset");
+  assert.equal(phase, terminalPhase, "R must not restart the race");
   for (const restart of [
-    () => key("keydown", "KeyR"),
+    () => key("keydown", "KeyR", { shiftKey: true }),
     () => element("#resetButton").dispatch("click"),
     () => element("#raceRestartBtn").dispatch("click"),
   ]) {
@@ -260,3 +340,23 @@ for (const terminalPhase of [4, 5]) {
   }
 }
 console.log("UI state: existing checks and result Continue/restart lifecycle passed");
+
+// Quick Race list comes from the catalogue records, keyed by record index.
+{
+  const rec = (index, display_name, model, sim_name, bank = "sd1a", style = 0) => ({ index, display_name, model, sim_name, bank, style });
+  const cars = context.testApi.buildQuickRaceCars([
+    rec(0, "'50 356 1100 Cabriolet", "356_1", "356cabrio11"),
+    rec(1, "Eden2", "Eden", ""),
+    rec(2, "Gone", "nomodel", "356cabrio11"),
+    rec(3, "NoSim", "356_1", "missing"),
+    rec(4, "'00 911 Turbo (996)", "F996", "996Tcoupe36", "sd7a", 8),
+    rec(5, "Twin", "F996", "996Tcoupe36", "sd7b"),
+  ], ["356_1", "f996"], ["GameData/Simulation/CarData/356cabrio11.sim", "x/996tcoupe36.sim"]);
+  assert.deepEqual(Array.from(cars, c => c.id), ["0", "4", "5"]);
+  assert.equal(cars[1].model_name, "f996");
+  assert.equal(cars[1].sim_name, "996Tcoupe36");
+  assert.equal(cars[1].bank, "sd7a");
+  assert.equal(cars[1].style, 8, "the TPG style index of the record reaches the car");
+  assert.equal(cars[0].style, 0);
+  assert.equal(cars[2].bank, "sd7b", "repeated SIM names stay distinct by record index");
+}

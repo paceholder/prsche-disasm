@@ -1,6 +1,7 @@
 """Differential probe of an original contact-response slice, not a game solver.
 
-Install unicorn==2.1.3 into local/tools/python-unicorn. Runs original x86 bytes
+Install unicorn==2.1.3 into local/tools/python-unicorn (or run with a Python that
+has it). --module selects Porsche.exe or nfs5.exe; their code bytes match. Runs original x86 bytes
 from 0x4940ae after geometry preparation, including the optional angular callback.
 No original instruction is patched or replaced. See original-collision/response.md.
 """
@@ -16,11 +17,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'local/tools/python-unicorn'))
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_ESP, UC_X86_REG_EIP
+from unicorn.x86_const import UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_FPCW
 
-SHA = 'ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39'
 CAR, NORMAL, STACK, EXIT, RESULT = 0x2000000, 0x2002000, 0x2108000, 0x2200000, 0x2200100
 WHEELS = (0x7f8, 0x8bc, 0x980, 0xa44)
+
+
+# The real game runs with x87 control word 0x27f (53-bit precision; the CRT calls
+# _controlfp(_PC_53)); Unicorn starts at 0 (24-bit), which rounds intermediates differently.
+FPCW = 0x27f
 
 
 def f32(value):
@@ -107,6 +112,7 @@ def run_case(module, data, fixture):
     uc.reg_write(UC_X86_REG_ESP, STACK - 16)
     uc.reg_write(UC_X86_REG_EBX, CAR)
     uc.reg_write(UC_X86_REG_EDI, NORMAL)
+    uc.reg_write(UC_X86_REG_FPCW, FPCW)
     uc.emu_start(0x4940ae, EXIT + 6, count=10000)
     if uc.reg_read(UC_X86_REG_EIP) != EXIT + 6:
         raise RuntimeError('instruction budget exhausted')
@@ -136,21 +142,28 @@ def run_case(module, data, fixture):
             expected['contact_field_434'] = [0.]
             expected['angular'] = [angular_response(strength, fixture['old_forward'], normal, .375)]
     for key, values in expected.items():
-        for want, got in zip(values, actual[key], strict=True):
+        if len(values) != len(actual[key]):
+            raise AssertionError(f"{fixture['name']} {key}: length mismatch")
+        for want, got in zip(values, actual[key]):
             if not math.isclose(want, got, rel_tol=2e-6, abs_tol=2e-6):
                 raise AssertionError(f"{fixture['name']} {key}: expected {want}, original {got}")
     return {'input': fixture, 'original': actual}
 
 
 def main():
+    global FPCW
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--fixture-tsv', type=Path, help='Export original outputs for the Rust regression')
+    parser.add_argument('--module', default='Porsche.exe', choices=['Porsche.exe', 'nfs5.exe'])
+    parser.add_argument('--game-dir', type=Path, default=ROOT / 'local/game')
+    parser.add_argument('--fpcw', type=lambda v: int(v, 0), default=FPCW, help='x87 control word (default 0x27f)')
     args = parser.parse_args()
+    FPCW = args.fpcw
     modules = [json.loads(line) for line in (ROOT / 'research/binary-index/static/binaries.jsonl').read_text(encoding='utf-8').splitlines()]
-    module, = [m for m in modules if m['file'] == 'Porsche.exe']
-    data = (ROOT / 'local/game' / module['path']).read_bytes()
-    if module['sha256'] != SHA or hashlib.sha256(data).hexdigest() != SHA:
+    module, = [m for m in modules if m['file'] == args.module]
+    data = (args.game_dir / module['path']).read_bytes()
+    if hashlib.sha256(data).hexdigest() != module['sha256']:
         raise RuntimeError('original SHA256 mismatch')
     rng = random.Random(494000)
     vectors = [('head_on', [-10., 0., 0.], [1., 0., 0.]),
@@ -178,7 +191,7 @@ def main():
                                'alternate': alternate, 'angular': angular, 'old_forward': f32(old_forward),
                                'surface': rng.choice([0, 0x10, 0x20, 0x60, 0xff])}
                     results.append(run_case(module, data, fixture))
-    output = {'module': 'Porsche.exe', 'sha256': SHA, 'entry': '0x4940ae',
+    output = {'module': args.module, 'sha256': module['sha256'], 'entry': '0x4940ae',
               'scope': 'prepared geometry; optional angular callback enabled/disabled; original x86 scalar path in Unicorn 2.1.3',
               'cases_passed': len(results), 'results': results}
     args.output.parent.mkdir(parents=True, exist_ok=True)
