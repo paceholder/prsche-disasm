@@ -172,6 +172,37 @@ fn parked_levels(article: &Entry, style: &StyleSelection) -> Result<Vec<u16>, St
     Ok(levels)
 }
 
+/// Layer parameter of an `mt` record that selects the texture slot of the car's
+/// sphere-map reflection (`R3DSpecularTextureLayer` 0x445520 reads one float:
+/// `< 0.05` slot 0, `< 0.95` slot 1, else slot 2 → `carcmn.fsh` SPC1/SPC2/SPC3).
+/// Record layout (scene loader 0x44a770): `+0x08` u16 texture count, u16 layer count;
+/// textures of 0x2c bytes at `+0x20`; then 16-byte layer headers `{type, offset, size, 0}`
+/// and the parameter blob. The float is the layer of type 7 (`CarExtEnv` and `CarWindow`
+/// both carry it; in the shipped cars the other slot floats of a record are equal to it).
+pub(crate) const ENV_SLOT_LAYER: u32 = 7;
+
+/// Texture slot of the reflection layer from an `mt` payload, `None` when it has none.
+pub(crate) fn material_env_slot(mt: &[u8]) -> Option<u8> {
+    let textures = usize::from(u16le(mt, 8).ok()?);
+    let layers = usize::from(u16le(mt, 10).ok()?);
+    let table = 0x20 + textures * 0x2c;
+    let blob = table + layers * 16;
+    (0..layers).find_map(|k| {
+        let header = table + k * 16;
+        if u32le(mt, header).ok()? != ENV_SLOT_LAYER || u32le(mt, header + 8).ok()? != 4 {
+            return None;
+        }
+        let value = f32le(mt, blob + u32le(mt, header + 4).ok()? as usize).ok()?;
+        Some(if value < 0.05 {
+            0
+        } else if value < 0.95 {
+            1
+        } else {
+            2
+        })
+    })
+}
+
 /// Glare and shadow textures of `Render/common.fsh` (`R3DCar_DrawGlare` 0x43cdd0 and
 /// `R3DCar_DrawShadow` 0x43b820 look them up by FSH name). Absent file: no effects.
 fn effect_textures(files: &AssetFiles) -> Result<Vec<Texture>, String> {
@@ -912,6 +943,11 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             depth_bias: u32le(&e.data, 0x114)? as i32,
             prelit: false,
             uv_scroll: None,
+            env_slot: if matches!(render.as_str(), "CarExtEnv" | "CarWindow") {
+                material_env_slot(&e.data)
+            } else {
+                None
+            },
         });
     }
     scene.car_in_car = in_car_parts(&crp, &style, &matmap)?;
@@ -2001,6 +2037,52 @@ mod tests {
                 .all(|c| c.starts_with("eas") || c.starts_with("eden") || c == "postship"),
             "cars without steering wheel or rev needle: {without:?}"
         );
+    }
+
+    #[test]
+    fn env_slot_reads_the_type_7_layer_float() {
+        // One texture, three layers: render state (24 bytes), type 7, type 5.
+        let mut mt = vec![0u8; 0x20 + 0x2c];
+        mt[8..10].copy_from_slice(&1u16.to_le_bytes());
+        mt[10..12].copy_from_slice(&3u16.to_le_bytes());
+        for (t, off, size) in [(0x0eu32, 0u32, 24u32), (7, 24, 4), (5, 28, 12)] {
+            for v in [t, off, size, 0] {
+                mt.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        let blob = mt.len();
+        mt.resize(blob + 40, 0);
+        for (value, slot) in [(0.0f32, 0u8), (0.5, 1), (1.0, 2)] {
+            mt[blob + 24..blob + 28].copy_from_slice(&value.to_le_bytes());
+            assert_eq!(material_env_slot(&mt), Some(slot));
+        }
+        // No type-7 layer: no reflection.
+        mt[0x20 + 0x2c + 16..0x20 + 0x2c + 20].copy_from_slice(&6u32.to_le_bytes());
+        assert_eq!(material_env_slot(&mt), None);
+    }
+
+    #[test]
+    fn local_356a_env_slots_cover_spc1_to_spc3() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in ["356a.crp", "356a.tpg", "INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh"] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        let scene = load(&files, "356a", 0).unwrap();
+        let mut seen = [false; 3];
+        for m in &scene.materials {
+            let env = m.name.ends_with(":CarExtEnv") || m.name.ends_with(":CarWindow");
+            assert_eq!(m.env_slot.is_some(), env, "{}", m.name);
+            if let Some(slot) = m.env_slot {
+                seen[usize::from(slot)] = true;
+            }
+        }
+        assert_eq!(seen, [true; 3]);
     }
 
     #[test]

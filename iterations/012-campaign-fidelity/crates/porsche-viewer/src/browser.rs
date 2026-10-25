@@ -24,6 +24,9 @@ pub struct BrowserViewer {
     /// The canvas can be composited with premultiplied alpha (the compare screen's cars).
     premultiplied_ok: bool,
     default_alpha: wgpu::CompositeAlphaMode,
+    /// Car reflection switch (key Y, `?reflection=0`), kept across scene loads: each load
+    /// makes a new renderer.
+    car_reflection: bool,
 }
 
 #[wasm_bindgen]
@@ -81,6 +84,7 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         room_started_ms: 0.0,
         premultiplied_ok,
         default_alpha,
+        car_reflection: true,
     })
 }
 
@@ -813,6 +817,15 @@ impl BrowserViewer {
             .is_some_and(|r| r.original_vehicle.is_some())
     }
 
+    /// Car sphere-map reflection pass on or off (on by default, A71). Returns the new state.
+    pub fn set_car_reflection(&mut self, on: bool) -> bool {
+        self.car_reflection = on;
+        if let Some(r) = self.renderer.as_mut() {
+            r.set_car_reflection(on);
+        }
+        on
+    }
+
     /// Show or hide the collision-box wireframes. Returns the new state.
     pub fn toggle_collision_boxes(&mut self) -> bool {
         self.renderer
@@ -1132,6 +1145,9 @@ impl BrowserViewer {
         )
         .map_err(|e| JsValue::from_str(&e))?;
         self.renderer = Some(renderer);
+        if let Some(r) = self.renderer.as_mut() {
+            r.set_car_reflection(self.car_reflection);
+        }
         Ok(summary)
     }
 }

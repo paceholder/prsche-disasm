@@ -2033,6 +2033,9 @@ detailsButton.addEventListener("click", () => {
 });
 
 let viewer = null;
+// Car sphere-map reflection (approximation A71): on by default, Y or ?reflection=0 turn it off.
+let carReflection = !(typeof location !== "undefined" && typeof URLSearchParams !== "undefined"
+  && new URLSearchParams(location.search).get("reflection") === "0");
 let selectedFiles = [];
 let localGameAvailable = false;
 let localGameFiles = [];
@@ -3136,6 +3139,14 @@ function onKeyDown(event) {
     }
     return;
   }
+  if (event.code === "KeyY" && !event.repeat) {
+    if (viewer) {
+      carReflection = viewer.set_car_reflection(!carReflection);
+      setStatus(carReflection ? "Car reflection: on (Y)" : "Car reflection: off (Y)");
+      queueFrame();
+    }
+    return;
+  }
   if (event.code === "KeyB" && !event.repeat) {
     if (viewer) {
       const on = viewer.toggle_collision_boxes();
@@ -3603,6 +3614,7 @@ async function boot() {
     await init();
     resizeCanvas();
     viewer = await create_viewer(canvas);
+    viewer.set_car_reflection?.(carReflection);
     setStatus("WebGPU готов.");
     animate();
 
@@ -3771,6 +3783,7 @@ function updateDebugPanel() {
     `V free cam ${onOff(viewer.is_free_camera?.())}`,
     `Shift+V side ${side === 0 ? "off" : `${side > 0 ? "R" : "L"} ${Math.abs(Math.round(side))}\u00b0`}`,
     `B boxes ${onOff(viewer.is_collision_boxes?.())}`,
+    `Y reflection ${onOff(carReflection)}`,
     `H HUD ${onOff(hudVisible)}`,
     `hit: ${viewer.object_hit_report?.() || "-"}`,
     ...weatherReadout(),

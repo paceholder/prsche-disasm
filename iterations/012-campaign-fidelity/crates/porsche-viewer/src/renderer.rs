@@ -353,8 +353,9 @@ struct CameraUniform {
     /// Camera right/up in world space (sphere map of the specular texture layer).
     view_right: [f32; 4],
     view_up: [f32; 4],
-    /// Specular highlight colour of slot 1 (`+0x388`: 0.8) and `w = 1` to enable the
-    /// specular layers (`R3DSpecularLayer`, `R3DSpecularTextureLayer`).
+    /// `w = 1` enables the sphere-map reflection layer (`R3DSpecularTextureLayer`
+    /// 0x445520) in a race; rgb unused. The per-vertex sun highlight
+    /// (`R3DSpecularLayer` 0x446e80, type 0x8105) is in no shipped render method.
     specular: [f32; 4],
     /// World fog of the weather keys (`0x45d3b0`, `docs/re/weather.md`): sRGB colour and the
     /// EXP density (0 = off).
@@ -395,8 +396,7 @@ impl CarLighting {
     /// slot colours are multiplied by it, 0x43a560).
     fn apply(&self, uniform: &mut CameraUniform, road: [f32; 3]) {
         uniform.sun = [self.sun.x, self.sun.y, self.sun.z, 1.0];
-        // 0x43a560: slot 1 specular colour (1, .8, .8, .8); light colour (1, 1, 1).
-        uniform.specular = [0.8, 0.8, 0.8, 1.0];
+        uniform.specular = [0.0, 0.0, 0.0, 1.0];
         for slot in 0..2 {
             let [r, g, b] = self.ambient[slot];
             uniform.ambient[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
@@ -647,6 +647,10 @@ pub struct Renderer {
     pub topology: Option<TopologyRenderer>,
     pub show_topology: bool,
     pub show_collision_boxes: bool,
+    /// Car sphere-map reflection pass (`R3DSpecularTextureLayer` 0x445520). On by default: most videos of the
+    /// original show this glossy sheen. Its blend strength is a guess (approximation A71); key Y or
+    /// `?reflection=0` turn it off for comparison.
+    pub car_reflection: bool,
     box_overlay: Option<BoxOverlay>,
     pub road_edges: Vec<nfs_assets::TopologyEdge>,
     pub road_surface: Option<nfs_assets::RoadSurface>,
@@ -1840,6 +1844,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             topology: topology_renderer,
             show_topology: false,
             show_collision_boxes: false,
+            car_reflection: true,
             box_overlay: box_overlay_init,
             road_surface: scene.road_surface.clone(),
             road_edges,
@@ -2817,6 +2822,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.show_collision_boxes
     }
 
+    /// Turn the car sphere-map reflection on or off; returns the new state.
+    pub fn set_car_reflection(&mut self, on: bool) -> bool {
+        self.car_reflection = on;
+        on
+    }
+
     /// Current pair cars (player first) and the chassis box, if a sim car is loaded.
     fn current_pair_cars(&self) -> Option<Vec<nfs_assets::physics::original_pair::PairCar>> {
         let sim = self.sim_car.as_ref()?;
@@ -3440,6 +3451,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let mut uniform = self.camera.uniform(self.width, self.height);
         if let Some(lighting) = &self.car_lighting {
             lighting.apply(&mut uniform, [1.0; 3]);
+            uniform.specular[3] = if self.car_reflection { 1.0 } else { 0.0 };
         }
         self.apply_fog(&mut uniform);
         uniform
@@ -3526,6 +3538,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 .map(crate::shade_sample::desaturate)
                 .unwrap_or([1.0; 3]);
             lighting.apply(&mut uniform, road);
+            uniform.specular[3] = if self.car_reflection { 1.0 } else { 0.0 };
         }
         uniform.model = model.to_cols_array_2d();
         self.apply_fog(&mut uniform);
@@ -5911,11 +5924,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 material.alpha_cutoff,
                 if material.paintable { 1.0 } else { 0.0 },
                 // Light slot 1 for the interior (approximation A23: by render method).
-                // 3 = exterior with the env/specular layers (render method `CarExtEnv`).
-                if material.name.ends_with(":CarInt") {
+                // 3 + k = reflection layer with texture slot k (`CarExtEnv`, `CarWindow`).
+                if let Some(slot) = material.env_slot {
+                    3.0 + f32::from(slot)
+                } else if material.name.ends_with(":CarInt") {
                     2.0
-                } else if material.name.ends_with(":CarExtEnv") {
-                    3.0
                 } else {
                     0.0
                 },
@@ -6167,14 +6180,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         });
 
         self.car_glares = scene.car_glares.clone();
-        // Specular map slot 1 (SPC2) of `Car_Load` 0x441a10; approximation A71.
-        if let Some(t) = scene
-            .effect_textures
-            .iter()
-            .find(|t| t.name == SPECULAR_MAP)
-            .filter(|t| t.rgba.len() as u64 == u64::from(t.width) * u64::from(t.height) * 4)
-        {
-            let view = upload_texture(&self.device, &self.queue, t.width, t.height, &t.rgba);
+        // Reflection texture slots SPC1..SPC3 of `Car_Load` 0x441a10, side by side.
+        if let Some((width, height, rgba)) = specular_atlas(&scene.effect_textures) {
+            let view = upload_texture(&self.device, &self.queue, width, height, &rgba);
             self.camera_group = camera_bind_group(
                 &self.device,
                 &self.camera_layout,
@@ -6524,8 +6532,30 @@ fn depth_bias_state(bias: i32) -> wgpu::DepthBiasState {
 }
 const Z_BIAS_UNIT: i32 = 256;
 
-/// Car specular sphere map: `carcmn.fsh` SPC2, slot 1 of 0x441a10 (A71).
-const SPECULAR_MAP: &str = "SPC2";
+/// Reflection texture slots 0..2 of `Car_Load` 0x441a10 in a race (`carcmn.fsh`).
+const SPECULAR_MAPS: [&str; 3] = ["SPC1", "SPC2", "SPC3"];
+
+/// The three reflection textures side by side (slot k in the k-th third), so a
+/// material picks its slot by `u` (`car.wgsl`). `None` unless all three are present
+/// with the same size.
+fn specular_atlas(textures: &[nfs_assets::Texture]) -> Option<(u32, u32, Vec<u8>)> {
+    let maps = SPECULAR_MAPS.map(|name| textures.iter().find(|t| t.name == name));
+    let first = maps[0]?;
+    let (w, h) = (first.width, first.height);
+    let row = w as usize * 4;
+    let mut rgba = vec![0u8; row * 3 * h as usize];
+    for (k, map) in maps.iter().enumerate() {
+        let map = (*map)?;
+        if map.width != w || map.height != h || map.rgba.len() != row * h as usize {
+            return None;
+        }
+        for y in 0..h as usize {
+            let dst = y * row * 3 + k * row;
+            rgba[dst..dst + row].copy_from_slice(&map.rgba[y * row..(y + 1) * row]);
+        }
+    }
+    Some((w * 3, h, rgba))
+}
 
 fn camera_bind_group(
     device: &wgpu::Device,
@@ -7214,6 +7244,25 @@ mod sky_tests {
         let turned = drive_camera(Vec3::new(510.0, 3.0, -200.0)).sky_view();
         let east = turned.transform_vector3(Vec3::X);
         assert!(east.z < -0.99, "{east:?}");
+    }
+
+    #[test]
+    fn specular_atlas_puts_slot_k_in_the_kth_third() {
+        let map = |name: &str, value: u8| nfs_assets::Texture {
+            name: name.into(),
+            width: 2,
+            height: 2,
+            rgba: vec![value; 16],
+        };
+        let textures = [map("SPC3", 30), map("SPC1", 10), map("SPC2", 20)];
+        let (w, h, rgba) = specular_atlas(&textures).unwrap();
+        assert_eq!((w, h), (6, 2));
+        for y in 0..2 {
+            for x in 0..6 {
+                assert_eq!(rgba[(y * 6 + x) * 4], [10, 20, 30][x / 2]);
+            }
+        }
+        assert!(specular_atlas(&textures[..2]).is_none());
     }
 }
 

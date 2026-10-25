@@ -107,6 +107,7 @@ mod tests {
                 depth_bias: 0,
                 prelit: true,
                 uv_scroll: None,
+                env_slot: None,
             }],
             ..Default::default()
         }

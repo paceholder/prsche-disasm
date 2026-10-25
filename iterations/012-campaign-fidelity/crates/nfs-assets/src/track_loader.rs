@@ -362,6 +362,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             // Track geometry carries prelit `df` vertex colours (approximation A22).
             prelit: true,
             uv_scroll: uv_animate_speed(&e.data),
+            env_slot: None,
         });
     }
 

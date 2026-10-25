@@ -167,6 +167,10 @@ pub struct Material {
     /// `LayerUVAnimate` mode 0: the texture V scrolls by `frac(t * speed * 0.0001)`, `t` in
     /// 128 Hz ticks, `speed` signed (`FUN_00448cc0`, `docs/re/water.md` section 4).
     pub uv_scroll: Option<i32>,
+    /// Texture slot (0..2) of the car's sphere-map reflection layer
+    /// (`R3DSpecularTextureLayer` 0x445520), for materials whose render method has one
+    /// (`CarExtEnv`, `CarWindow`); `None` otherwise.
+    pub env_slot: Option<u8>,
 }
 
 /// Game timer rate of `TIMER_init(0x80)` [VA 0x4a5410, 0x565030].
