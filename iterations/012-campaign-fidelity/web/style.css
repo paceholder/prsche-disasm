@@ -542,17 +542,8 @@ body:not(.menu-hidden) #menuButton {
   font: 11px/1.5 Consolas, monospace;
 }
 
-/* Original race HUD canvas (race-hud.js) and the debug hint overlay (#hud, ?hints=1 / Backquote). */
+/* Original race HUD canvas (race-hud.js). */
 .hud-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 14; }
-.porsche-hud { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); pointer-events: none; user-select: none; z-index: 15; }
-.hud-hint {
-  font-size: 10px;
-  color: #94a3b8;
-  background: rgba(15, 19, 24, 0.85);
-  border: 1px solid #334155;
-  border-radius: 9999px;
-  padding: 3px 12px;
-}
 
 /* ==========================================================================
    RACE LOOP TOP HUD (Race stats & cues)
@@ -1138,19 +1129,26 @@ body:not(.menu-hidden) #menuButton {
 .music-level { display: inline-flex; align-items: center; gap: 6px; }
 .music-level input { width: 90px; accent-color: #d3bd83; }
 
-/* Debug: active vehicle model, top centre of the drive view (not part of the original HUD). */
-.vehicle-model-tag {
+/* Debug panel: state of the debug keys, top centre of the drive view (not part of the original
+   HUD; the corner gauges and the top-right boxes stay clear). */
+.debug-panel {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  top: calc(env(safe-area-inset-top, 0px) + 4px);
   left: 50%;
   transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content;
+  /* clear of the corner gauges and the top-right boxes */
+  max-width: max(300px, min(960px, calc(100vw - 500px)));
   padding: 2px 8px;
   border-radius: 4px;
-  font: 600 11px/1.4 system-ui, sans-serif;
-  letter-spacing: 0.05em;
-  color: #fff;
-  background: rgba(120, 120, 120, 0.7);
+  font: 600 10px/1.45 system-ui, sans-serif;
+  text-align: center;
+  color: #e2e8f0;
+  background: rgba(60, 66, 76, 0.72);
+  border-left: 3px solid #94a3b8;
   pointer-events: none;
+  user-select: none;
   z-index: 30;
 }
-.vehicle-model-tag.original { background: rgba(200, 40, 30, 0.8); }
+.debug-panel.original { border-left-color: #ef4444; }

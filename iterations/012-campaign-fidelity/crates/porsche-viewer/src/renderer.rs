@@ -4600,6 +4600,36 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.collision_model
     }
 
+    /// Debug panel: the original vehicle model is selected.
+    pub fn vehicle_model_is_original(&self) -> bool {
+        self.vehicle_model == nfs_assets::physics::original_vehicle::VehicleModel::Original
+    }
+
+    /// Debug panel: the original collision response is selected.
+    pub fn collision_model_is_original(&self) -> bool {
+        self.collision_model == nfs_assets::race::original_collision::CollisionModel::Original
+    }
+
+    /// Debug panel: AI speed cap in km/h, negative for none.
+    pub fn ai_speed_limit_kmh(&self) -> f32 {
+        self.ai_speed_limit.map_or(-1.0, |limit| limit * 3.6)
+    }
+
+    /// Debug panel: the light switch.
+    pub fn lights_on(&self) -> bool {
+        self.light_switch
+    }
+
+    /// Debug panel: the free camera is on.
+    pub fn is_free_camera(&self) -> bool {
+        self.free_camera
+    }
+
+    /// Debug panel: side view angle in degrees (0 = off).
+    pub fn side_view_degrees(&self) -> f32 {
+        self.side_view_deg
+    }
+
     pub fn toggle_sim_mode(&mut self) -> bool {
         self.sim_mode = !self.sim_mode;
         self.sim_mode
@@ -4634,6 +4664,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let model = nfs_assets::physics::original_vehicle::driver::model_for_sim(stem);
         self.original_sim = Some((bytes.to_vec(), model.to_string()));
         self.rebuild_original_vehicle();
+        // The original model is the default whenever a `.sim` is loaded (O switches to the
+        // prototype for comparison).
+        if self.original_vehicle.is_some() {
+            self.vehicle_model = nfs_assets::physics::original_vehicle::VehicleModel::Prototype;
+            self.toggle_vehicle_model();
+        }
         self.ai_performance = nfs_formats::parse_sim(bytes)
             .ok()
             .and_then(|spec| nfs_assets::AiPerformance::from_sim(&spec));

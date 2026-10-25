@@ -82,22 +82,12 @@ const topologyField = document.querySelector("#topologyField");
 const topologyCheckbox = document.querySelector("#topologyCheckbox");
 const tourButton = document.querySelector("#tourButton");
 const cameraButton = document.querySelector("#cameraButton");
-const cameraBadge = document.querySelector("#cameraBadge");
-
-// HUD camera name (original camera names in 6 DOF driving: TailCam0, HeliCam2, ...).
-function syncCameraBadge() {
-  if (!viewer || !cameraBadge || typeof viewer.get_camera_name !== "function") return;
-  const text = `C: ${viewer.get_camera_name()}`;
-  if (cameraBadge.textContent !== text) cameraBadge.textContent = text;
-}
 
 function cycleCarCamera() {
   const name = viewer.cycle_car_view();
   setStatus(`Камера: ${name}`);
-  syncCameraBadge();
 }
 const paintButton = document.querySelector("#paintButton");
-const hud = document.querySelector("#hud");
 const hudCanvas = document.querySelector("#hudCanvas");
 const loadButton = document.querySelector("#loadButton");
 const resetButton = document.querySelector("#resetButton");
@@ -121,9 +111,9 @@ const raceRestartBtn = document.querySelector("#raceRestartBtn");
 
 let menuVisible = true;
 let hudVisible = true;
-// Debug hint bar (#hud): ?hints=1 or the Backquote key.
-let hintsVisible = typeof URLSearchParams !== "undefined" && typeof location !== "undefined"
-  && new URLSearchParams(location.search).get("hints") === "1";
+// Debug panel (#debugPanel): live state of the debug keys; Backquote toggles, the choice is remembered.
+let debugPanelVisible = true;
+try { debugPanelVisible = localStorage.getItem("nfs5.debugPanel") !== "0"; } catch {}
 let raceHud = null; // original 2D HUD (race-hud.js), created on first use
 let raceHudLoading = false;
 let raceHudCarIndex = null;
@@ -2758,14 +2748,9 @@ function syncTourButton() {
   tourButton.textContent = isDrive ? "Орбита (F)" : (hasCar ? "Заезд (F)" : "Прогон (F)");
 
   const isDriveAndCar = isDrive && hasCar;
-  if (hud) {
-    hud.hidden = !(isDriveAndCar && hintsVisible);
-  }
   if (hudCanvas) hudCanvas.hidden = !(isDriveAndCar && hudVisible);
-  // Debug tag with the active vehicle model, shown in every drive view (not original HUD).
-  const modelTag = document.getElementById("vehicleModelTag");
-  if (modelTag) modelTag.hidden = !isDriveAndCar;
   if (!isDriveAndCar && raceHud) raceHud.clear();
+  updateDebugPanel();
   if (!isDriveAndCar) {
     if (countdownBanner) countdownBanner.hidden = true;
     if (wrongWayBanner) wrongWayBanner.hidden = true;
@@ -2897,7 +2882,7 @@ function isTyping(event) {
   );
 }
 
-window.addEventListener("keydown", (event) => {
+function onKeyDown(event) {
   if (event.code === "Escape" && !event.repeat) {
     event.preventDefault();
     if (!quickRaceModal.hidden) {
@@ -2916,8 +2901,9 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (event.code === "Backquote" && !event.repeat) {
-    hintsVisible = !hintsVisible;
-    syncTourButton();
+    debugPanelVisible = !debugPanelVisible;
+    try { localStorage.setItem("nfs5.debugPanel", debugPanelVisible ? "1" : "0"); } catch {}
+    updateDebugPanel();
     return;
   }
 
@@ -2974,10 +2960,6 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "KeyM" && !event.repeat) {
     if (viewer) {
       const isSim = viewer.toggle_sim_mode();
-      const badge = document.getElementById("physicsModeBadge");
-      if (badge) {
-        badge.textContent = isSim ? "M: 6 DOF Физика" : "M: Аркада";
-      }
       setStatus(
         isSim
           ? "Физика: 6 DOF Реалистичная симуляция (.sim, 4 независимых колеса, подвеска)"
@@ -3000,8 +2982,6 @@ window.addEventListener("keydown", (event) => {
     if (viewer) {
       const limit = viewer.cycle_ai_speed_limit();
       const text = limit < 0 ? "J: AI full speed" : limit === 0 ? "J: AI parked" : `J: AI ${Math.round(limit)} km/h`;
-      const badge = document.getElementById("aiSpeedBadge");
-      if (badge) badge.textContent = text;
       setStatus(text);
     }
     return;
@@ -3009,8 +2989,6 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "KeyK" && !event.repeat) {
     if (viewer) {
       const original = viewer.toggle_collision_model();
-      const badge = document.getElementById("collisionModelBadge");
-      if (badge) badge.textContent = original ? "K: original collisions" : "K: prototype collisions";
       setStatus(
         original
           ? "Collisions: original NFS5 response (K)"
@@ -3023,8 +3001,6 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "KeyO" && !event.repeat) {
     if (viewer) {
       const original = viewer.toggle_vehicle_model();
-      debugVehicleModel = original ? "original" : "prototype";
-      setVehicleModelBadge(original);
       setStatus(
         original
           ? "Vehicle model: original NFS5 (O)"
@@ -3071,7 +3047,6 @@ window.addEventListener("keydown", (event) => {
     if (viewer && viewer.is_drive_mode() && viewer.has_car()) {
       const free = viewer.toggle_free_camera();
       setStatus(free ? "Свободная камера (V)" : `Камера: ${viewer.get_camera_name()}`);
-      syncCameraBadge();
       queueFrame();
     }
     return;
@@ -3096,6 +3071,10 @@ window.addEventListener("keydown", (event) => {
   }
 
   activeKeys.add(event.code);
+}
+window.addEventListener("keydown", (event) => {
+  onKeyDown(event);
+  updateDebugPanel();
 });
 
 window.addEventListener("keyup", (event) => {
@@ -3168,7 +3147,6 @@ function updateNavigation(dt) {
     const handbrake = activeKeys.has("Space");
 
     viewer.update_car(dt, throttle, steer, handbrake);
-    syncCameraBadge();
 
     // Update HUD display
     const speed = Math.round(viewer.get_car_speed());
@@ -3455,7 +3433,7 @@ function animate(now = 0) {
     updateNavigation(dt);
   }
   lastTime = now;
-  updateVehicleModelTag();
+  updateDebugPanel();
 
   if (viewer && needsFrame) {
     try {
@@ -3505,7 +3483,6 @@ async function boot() {
 // ---- URL autostart and debug hook (tools/browser-shot.mjs) ----
 // ?race=<track>&car=<id>&opponents=<n>&laps=<n>&model=original|prototype&lights=0|1&cam=<name>
 // skips the front end and starts a Quick Race through the same calls as the Quick Race dialog.
-let debugVehicleModel = "prototype";
 let debugReady = false;
 // `?cam=` camera still to select (after the race intro); `__nfs.ready` waits for it.
 let debugPendingCamera = null;
@@ -3538,7 +3515,7 @@ window.__nfs = {
       rpm: viewer.get_car_rpm(),
       gear: viewer.get_car_gear(),
       camera: viewer.get_camera_name(),
-      model: debugVehicleModel,
+      model: viewer.is_original_vehicle?.() ? "original" : "prototype",
       phase: viewer.get_race_phase(),
       position: viewer.get_player_position(),
       lap: viewer.get_current_lap(),
@@ -3586,10 +3563,8 @@ async function autostartRace(params) {
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
     setMenuVisible(false);
     syncTourButton();
-    if (params.get("model") === "original" && viewer.toggle_vehicle_model()) {
-      debugVehicleModel = "original";
-      setVehicleModelBadge(true);
-    }
+    // The original vehicle model is the default once the car's .sim is loaded.
+    if (params.get("model") === "prototype" && viewer.is_original_vehicle()) viewer.toggle_vehicle_model();
     if (params.get("lights") === "1") lightsOn = Boolean(viewer.toggle_lights());
     const cam = params.get("cam");
     // The C key is ignored during the race intro (AnimCam, Camera_Cycle 0x465a60), and the
@@ -3604,25 +3579,41 @@ async function autostartRace(params) {
   }
 }
 
-// Debug tag: visible whenever a car is driven, whatever path started the race.
-let vehicleModelTagShown = null;
-function updateVehicleModelTag() {
-  const tag = document.getElementById("vehicleModelTag");
-  if (!tag || !viewer) return;
-  const show = Boolean(viewer.is_drive_mode?.() && viewer.has_car?.() && !frontEnd?.visible);
-  if (show !== vehicleModelTagShown) {
-    tag.hidden = !show;
-    vehicleModelTagShown = show;
+// Debug panel: the state of every debug key, top centre of the drive view (not part of the
+// original HUD). Refreshed every frame and after each key press.
+let debugPanelShown = null;
+let debugPanelText = null;
+function updateDebugPanel() {
+  const panel = document.getElementById("debugPanel");
+  if (!panel || !viewer) return;
+  const show = Boolean(debugPanelVisible && viewer.is_drive_mode?.() && viewer.has_car?.() && !frontEnd?.visible);
+  if (show !== debugPanelShown) {
+    panel.hidden = !show;
+    debugPanelShown = show;
   }
-}
-
-function setVehicleModelBadge(original) {
-  const badge = document.getElementById("vehicleModelBadge");
-  if (badge) badge.textContent = original ? "O: original car" : "O: prototype car";
-  const tag = document.getElementById("vehicleModelTag");
-  if (tag) {
-    tag.textContent = original ? "ORIGINAL (O)" : "PROTOTYPE (O)";
-    tag.classList.toggle("original", original);
+  if (!show) return;
+  const onOff = (v) => (v ? "on" : "off");
+  const ai = viewer.get_ai_speed_limit?.() ?? -1;
+  const side = viewer.get_side_view?.() ?? 0;
+  const original = Boolean(viewer.is_original_vehicle?.());
+  const items = [
+    `O car ${original ? "original" : "prototype"}`,
+    `K collisions ${viewer.is_original_collision?.() === false ? "prototype" : "original"}`,
+    `M ${viewer.is_sim_mode?.() === false ? "arcade" : "6 DOF"}`,
+    `J AI ${ai < 0 ? "full speed" : ai === 0 ? "parked" : `${Math.round(ai)} km/h`}`,
+    `L lights ${onOff(lightsOn)}`,
+    `C ${viewer.get_camera_name?.() ?? "-"}`,
+    `V free cam ${onOff(viewer.is_free_camera?.())}`,
+    `Shift+V side ${side === 0 ? "off" : `${side > 0 ? "R" : "L"} ${Math.abs(Math.round(side))}\u00b0`}`,
+    `B boxes ${onOff(viewer.is_collision_boxes?.())}`,
+    `H HUD ${onOff(hudVisible)}`,
+    "R reset", "Shift+R restart", "Esc menu", "` panel",
+  ];
+  const text = items.map((item) => item.replace(/ /g, "\u00a0")).join(" \u00b7 ");
+  panel.classList.toggle("original", original);
+  if (text !== debugPanelText) {
+    panel.textContent = text;
+    debugPanelText = text;
   }
 }
 

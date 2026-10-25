@@ -62,12 +62,22 @@ const cameraCycle = ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"];
 let cameraIndex = 3;
 let freeCamera = false;
 let originalModel = false;
+let lights = false;
+let sideView = 0;
+let aiLimit = -1;
 context.testApi.setViewer({
   toggle_vehicle_model: () => originalModel = !originalModel,
   has_original_vehicle: () => true,
   cycle_car_view: () => { freeCamera = false; cameraIndex = (cameraIndex + 1) % 4; return cameraCycle[cameraIndex]; },
   get_camera_name: () => freeCamera ? "Free" : cameraCycle[cameraIndex],
   toggle_free_camera: () => freeCamera = !freeCamera,
+  is_free_camera: () => freeCamera,
+  is_original_vehicle: () => originalModel,
+  toggle_lights: () => lights = !lights,
+  cycle_side_view: () => sideView = sideView === 0 ? 25 : sideView > 0 ? -25 : 0,
+  get_side_view: () => sideView,
+  cycle_ai_speed_limit: () => aiLimit = aiLimit < 0 ? 30 : aiLimit > 0 ? 0 : -1,
+  get_ai_speed_limit: () => aiLimit,
   is_drive_mode: () => driving,
   has_car: () => true,
   toggle_camera_mode: () => driving = !driving,
@@ -86,7 +96,7 @@ element("#tourButton").dispatch("click");
 assert.equal(driving, true);
 assert.equal(document.body.classes.has("menu-hidden"), true);
 assert.equal(element("#hudCanvas").hidden, false);
-assert.equal(element("#hud").hidden, true, "debug hint bar is off by default");
+assert.equal(element("#debugPanel").hidden, false, "debug panel is on by default in a race");
 assert.equal(focused, element("#viewport"));
 // Exercise actual keyboard listeners and navigation, including both key layouts.
 const key = (type, code, extra = {}) => window.dispatch(type, {
@@ -116,29 +126,49 @@ for (const reverse of ["KeyS", "ArrowDown"]) {
   assert.deepEqual(Array.from(lastControls), [1 / 60, 0, 0, false]);
 }
 context.testApi.updateNavigation(1 / 60);
-assert.equal(element("#cameraBadge").textContent, "C: TailCam0", "HUD shows the camera name");
+const panel = () => element("#debugPanel").textContent.replace(/\u00a0/g, " ");
+context.testApi.updateNavigation(1 / 60);
+context.testApi.syncTourButton();
+for (const part of ["O car prototype", "K collisions original", "M 6 DOF", "L lights off", "C TailCam0",
+  "V free cam off", "Shift+V side off", "B boxes off", "H HUD on", "R reset", "Shift+R restart", "Esc menu"]) {
+  assert.ok(panel().includes(part), `panel shows "${part}": ${panel()}`);
+}
+assert.ok(panel().includes("J AI full speed"));
+key("keydown", "KeyJ");
+assert.ok(panel().includes("J AI 30 km/h"));
+key("keydown", "KeyJ");
+assert.ok(panel().includes("J AI parked"));
+key("keydown", "KeyJ");
 const shownCameras = [];
 for (let i = 0; i < 4; i++) {
   key("keydown", "KeyC");
   key("keyup", "KeyC");
-  shownCameras.push(element("#cameraBadge").textContent);
+  shownCameras.push(panel().match(/C (\w+)/)[1]);
 }
-assert.deepEqual(shownCameras, ["C: HeliCam2", "C: BumperCam2", "C: BumperCam", "C: TailCam0"]);
+assert.deepEqual(shownCameras, ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"]);
 key("keydown", "KeyO");
 assert.equal(originalModel, true, "O selects the original vehicle model");
-assert.equal(element("#vehicleModelBadge").textContent, "O: original car");
+assert.ok(panel().includes("O car original"));
 key("keydown", "KeyO");
-assert.equal(element("#vehicleModelBadge").textContent, "O: prototype car");
+assert.ok(panel().includes("O car prototype"));
 key("keydown", "KeyV");
-assert.equal(element("#cameraBadge").textContent, "C: Free", "V toggles the free camera");
+assert.ok(panel().includes("C Free") && panel().includes("V free cam on"), "V toggles the free camera");
 key("keydown", "KeyV");
-assert.equal(element("#cameraBadge").textContent, "C: TailCam0");
+assert.ok(panel().includes("C TailCam0") && panel().includes("V free cam off"));
+key("keydown", "KeyL");
+assert.ok(panel().includes("L lights on"), "L shows in the panel");
+key("keydown", "KeyV", { shiftKey: true });
+assert.ok(panel().includes("Shift+V side R 25\u00b0"), panel());
+key("keydown", "KeyV", { shiftKey: true });
+assert.ok(panel().includes("Shift+V side L 25\u00b0"));
+key("keydown", "KeyV", { shiftKey: true });
+assert.ok(panel().includes("Shift+V side off"));
 window.dispatch("keydown", { code: "KeyH", target: new Element(), repeat: false });
 assert.equal(element("#hudCanvas").hidden, true);
 window.dispatch("keydown", { code: "Backquote", target: new Element(), repeat: false });
-assert.equal(element("#hud").hidden, false, "Backquote shows the hint bar");
+assert.equal(element("#debugPanel").hidden, true, "Backquote hides the debug panel");
 window.dispatch("keydown", { code: "Backquote", target: new Element(), repeat: false });
-assert.equal(element("#hud").hidden, true);
+assert.equal(element("#debugPanel").hidden, false, "Backquote shows it again");
 window.dispatch("keydown", { code: "Escape", target: new Element(), repeat: false, preventDefault() {} });
 assert.equal(document.body.classes.has("menu-hidden"), false);
 assert.equal(element("#menuButton").attributes.get("aria-expanded"), "true");

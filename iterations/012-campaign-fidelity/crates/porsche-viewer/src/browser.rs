@@ -661,6 +661,41 @@ impl BrowserViewer {
             .unwrap_or_else(|| "no renderer".to_string())
     }
 
+    /// Debug panel: original vehicle model selected (O).
+    pub fn is_original_vehicle(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.vehicle_model_is_original()).unwrap_or(false)
+    }
+
+    /// Debug panel: original collision response selected (K).
+    pub fn is_original_collision(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.collision_model_is_original()).unwrap_or(false)
+    }
+
+    /// Debug panel: AI speed cap in km/h, negative for none (J).
+    pub fn get_ai_speed_limit(&self) -> f32 {
+        self.renderer.as_ref().map(|r| r.ai_speed_limit_kmh()).unwrap_or(-1.0)
+    }
+
+    /// Debug panel: light switch (L).
+    pub fn is_lights_on(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.lights_on()).unwrap_or(false)
+    }
+
+    /// Debug panel: free camera on (V).
+    pub fn is_free_camera(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.is_free_camera()).unwrap_or(false)
+    }
+
+    /// Debug panel: side view angle in degrees (Shift+V).
+    pub fn get_side_view(&self) -> f32 {
+        self.renderer.as_ref().map(|r| r.side_view_degrees()).unwrap_or(0.0)
+    }
+
+    /// Debug panel: collision boxes shown (B).
+    pub fn is_collision_boxes(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.show_collision_boxes).unwrap_or(false)
+    }
+
     pub fn toggle_sim_mode(&mut self) -> bool {
         self.renderer
             .as_mut()
