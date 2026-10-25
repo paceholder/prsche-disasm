@@ -168,6 +168,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         scenario_gates: Vec::new(),
         sky_texture: None,
         sky_layers: [None, None, None],
+        sky_horizon: None,
         sun_position: None,
         topology: None,
         road_surface: None,
@@ -652,6 +653,10 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         match nfs_formats::parse_sky_sun(data) {
             Ok(sun) => scene.sun_position = Some(to_scene_coordinates(sun.position())),
             Err(e) => scene.diagnostics.push(format!("Sky {key}: {e}")),
+        }
+        match nfs_formats::parse_sky_horizon(data) {
+            Ok(horizon) => scene.sky_horizon = Some(horizon),
+            Err(e) => scene.diagnostics.push(format!("Sky {key}: horizon {e}")),
         }
     }
 

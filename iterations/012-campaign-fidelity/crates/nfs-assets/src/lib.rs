@@ -264,6 +264,8 @@ pub struct Scene {
     /// Sky layers of the sky `.fsh` behind the horizon: sky map (`st1a`), cloud map
     /// (`sc1a`) and horizon haze (`hzcl`), each if present (approximation A4).
     pub sky_layers: [Option<SkyTexture>; 3],
+    /// Placement of the horizon panorama from `Sky/<track>.bin` (`SkyHorizon_Build` 0x459d30).
+    pub sky_horizon: Option<nfs_formats::SkyHorizon>,
     /// Sun position of `Sky/<track>.bin` in scene coordinates (`Sky_SunPosition`
     /// 0x461090); its direction lights the cars.
     pub sun_position: Option<[f32; 3]>,
@@ -303,6 +305,7 @@ impl Default for Scene {
             scenario_gates: Vec::new(),
             sky_texture: None,
             sky_layers: [None, None, None],
+            sky_horizon: None,
             sun_position: None,
             topology: None,
             road_surface: None,

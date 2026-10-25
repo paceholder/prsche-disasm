@@ -436,6 +436,8 @@ struct SkyState {
     camera_buffer: wgpu::Buffer,
     camera_group: wgpu::BindGroup,
     texture_group: wgpu::BindGroup,
+    /// Uniform with the horizon placement; only `view_projection` changes per frame.
+    uniform: SkyUniform,
 }
 
 #[repr(C)]
@@ -1178,6 +1180,7 @@ impl Renderer {
                 sky_tex.height,
                 &sky_tex.rgba,
                 &scene.sky_layers,
+                &scene.sky_horizon.unwrap_or_else(default_sky_horizon),
             )
         });
 
@@ -1952,9 +1955,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // Update sky camera if present
         if let Some(sky) = &self.sky {
             let sky_vp = self.camera.sky_view_projection(self.width, self.height);
-            let sky_uniform = SkyUniform {
-                view_projection: sky_vp.to_cols_array_2d(),
-            };
+            let mut sky_uniform = sky.uniform;
+            sky_uniform.view_projection = sky_vp.to_cols_array_2d();
             self.queue
                 .write_buffer(&sky.camera_buffer, 0, bytemuck::bytes_of(&sky_uniform));
         }
@@ -5474,6 +5476,45 @@ fn depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureVi
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct SkyUniform {
     view_projection: [[f32; 4]; 4],
+    /// rotation (turns), base height, band height, tile rows.
+    horizon: [f32; 4],
+    /// tile columns, first `hzcl` column, 0, 0.
+    grid: [f32; 4],
+    /// per ring segment: tile index, mirrored.
+    tiles: [[f32; 4]; 16],
+    /// `hzcl` colours of the ring vertices, upper and lower edge, indexed by segment.
+    top_colors: [[f32; 4]; 16],
+    bottom_colors: [[f32; 4]; 16],
+}
+
+impl SkyUniform {
+    /// Horizon ring of `Sky/<track>.bin` (`SkyHorizon_Build` 0x459d30); the vertex colours are
+    /// the 16x2 `hzcl` strip, column `(start + k) & 15` for ring vertex `k`.
+    fn new(
+        view_projection: Mat4,
+        horizon: &nfs_formats::SkyHorizon,
+        hzcl: Option<&nfs_assets::SkyTexture>,
+    ) -> Self {
+        let pixel = |column: usize, row: usize| -> [f32; 4] {
+            let Some(t) = hzcl.filter(|t| t.width == 16 && t.height >= 2 && t.rgba.len() >= 16 * 2 * 4)
+            else {
+                return [1.0; 4];
+            };
+            let i = (row * 16 + (column & 15)) * 4;
+            [0, 1, 2, 3].map(|c| f32::from(t.rgba[i + c]) / 255.0)
+        };
+        let mut u = SkyUniform::zeroed();
+        u.view_projection = view_projection.to_cols_array_2d();
+        u.horizon = [horizon.rotation, horizon.base, horizon.height, horizon.rows as f32];
+        u.grid = [horizon.columns as f32, horizon.start as f32, 0.0, 0.0];
+        for k in 0..16 {
+            u.tiles[k] = [f32::from(horizon.tiles[k].0), f32::from(u8::from(horizon.tiles[k].1)), 0.0, 0.0];
+            // Vertex k carries column start + k; the shader interpolates to vertex k + 1.
+            u.top_colors[k] = pixel(horizon.start as usize + k, 0);
+            u.bottom_colors[k] = pixel(horizon.start as usize + k, 1);
+        }
+        u
+    }
 }
 
 #[repr(C)]
@@ -5540,6 +5581,7 @@ fn create_sky_state(
     tex_height: u32,
     tex_rgba: &[u8],
     layers: &[Option<nfs_assets::SkyTexture>; 3],
+    horizon: &nfs_formats::SkyHorizon,
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
@@ -5550,7 +5592,7 @@ fn create_sky_state(
         label: Some("sky camera"),
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
+            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Buffer {
                 ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false,
@@ -5637,9 +5679,7 @@ fn create_sky_state(
     });
 
     let vp = camera.view_projection(width, height);
-    let sky_uniform = SkyUniform {
-        view_projection: vp.to_cols_array_2d(),
-    };
+    let sky_uniform = SkyUniform::new(vp, horizon, layers[2].as_ref());
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sky camera"),
         contents: bytemuck::bytes_of(&sky_uniform),
@@ -5735,6 +5775,20 @@ fn create_sky_state(
         camera_buffer,
         camera_group,
         texture_group,
+        uniform: sky_uniform,
+    }
+}
+
+/// `SkyConfig_Upgrade` 0x459700 defaults of a config without horizon fields.
+fn default_sky_horizon() -> nfs_formats::SkyHorizon {
+    nfs_formats::SkyHorizon {
+        rotation: 0.0,
+        start: 0,
+        columns: 2,
+        rows: 2,
+        base: -100.0,
+        height: 250.0,
+        tiles: [(0, false); 16],
     }
 }
 

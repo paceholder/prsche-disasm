@@ -727,6 +727,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         scenario_gates: Vec::new(),
         sky_texture: None,
         sky_layers: [None, None, None],
+        sky_horizon: None,
         sun_position: None,
         topology: None,
         road_surface: None,
