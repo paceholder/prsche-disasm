@@ -103,7 +103,7 @@ impl Bnk {
 }
 
 /// Reads tag/value pairs the way `0x599760` does. Returns `None` at the `0xFF` terminator.
-fn next_tag(d: &[u8], p: &mut usize) -> Result<Option<(u8, Option<i32>)>> {
+pub(crate) fn next_tag(d: &[u8], p: &mut usize) -> Result<Option<(u8, Option<i32>)>> {
     loop {
         let t = bytes(d, *p, 1)?[0];
         match t {

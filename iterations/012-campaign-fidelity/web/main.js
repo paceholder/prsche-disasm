@@ -1,4 +1,4 @@
-import init, { create_viewer, EngineAudio, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings } from "./package/viewer_impl.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -334,6 +334,7 @@ class SoundManager {
 
   toggle() {
     this.enabled = !this.enabled;
+    gameAudio.setEnabled(this.enabled);
     if (this.enabled) {
       this.init();
     } else {
@@ -427,6 +428,351 @@ class SoundManager {
 }
 
 const soundManager = new SoundManager();
+
+// --- Original music and race speech (docs/re/music.md, docs/re/audio.md "race speech") ---
+// The wasm MusicDirector runs the original player (Music_Play 0x4ae4d0, Music_Tick 0x4ad9c0);
+// MusicStream executes its stream commands with Web Audio. RaceAnnouncer picks the original
+// phrases (countdown 0x414ff0, laps 0x4277d0, result 0x41d050); playSpeech plays them.
+// Approximations (docs/approximations.md): A50 gain law, A51 tick rate, A52 stream buffering,
+// A53 phrase loading, A54 speech inputs, A56 front-end mapping.
+const MUSIC_CHUNK_FRAMES = 64000; // 2 s at 32 kHz per decode call
+const MUSIC_AHEAD_S = 4;
+
+class MusicStream {
+  constructor(owner) {
+    this.owner = owner;
+    this.gen = 0;
+    this.file = -1;
+    this.loading = false;
+    this.track = null;
+    this.sources = [];
+    this.nextTime = 0;
+    this.ramp = null; // VolumeRamp (game-audio.js)
+    this.gain = null;
+    this.gainCtx = null;
+  }
+  get playing() {
+    return this.loading || this.track !== null || this.sources.length > 0;
+  }
+  now() { return soundManager.ctx ? soundManager.ctx.currentTime : performance.now() / 1000; }
+  volume() { return this.ramp ? this.ramp.value(this.now()) : 0; }
+  node(ctx) {
+    if (this.gainCtx !== ctx) {
+      this.gain = ctx.createGain();
+      this.gain.gain.value = this.volume() / 127;
+      this.gain.connect(this.owner.musicBus(ctx));
+      this.gainCtx = ctx;
+    }
+    return this.gain;
+  }
+  setVolume(v) {
+    this.ramp.set(v, this.now());
+    const ctx = soundManager.ctx;
+    if (ctx && this.gainCtx === ctx) {
+      this.gain.gain.cancelScheduledValues(ctx.currentTime);
+      this.gain.gain.setValueAtTime(v / 127, ctx.currentTime);
+    }
+  }
+  fade(ms, v) {
+    const t = this.now();
+    const from = this.volume();
+    this.ramp.fade(ms, v, t);
+    const ctx = soundManager.ctx;
+    if (ctx && this.gainCtx === ctx) {
+      const g = this.gain.gain;
+      g.cancelScheduledValues(ctx.currentTime);
+      g.setValueAtTime(from / 127, ctx.currentTime);
+      g.linearRampToValueAtTime(v / 127, ctx.currentTime + Math.max(ms, 1) / 1000);
+    }
+  }
+  stop() {
+    this.gen++;
+    this.loading = false;
+    this.track?.free?.();
+    this.track = null;
+    for (const s of this.sources) { try { s.onended = null; s.stop(); s.disconnect(); } catch {} }
+    this.sources = [];
+    this.file = -1;
+  }
+  async start(file) {
+    this.stop();
+    const gen = this.gen;
+    this.file = file;
+    this.loading = true;
+    try {
+      const bytes = await this.owner.readMusicFile(file);
+      if (gen !== this.gen) return;
+      this.track = new MusicTrack(bytes);
+      this.nextTime = 0;
+    } catch (error) {
+      console.warn("Music track unavailable:", error);
+    } finally {
+      if (gen === this.gen) this.loading = false;
+    }
+    this.pump();
+  }
+  // Keeps MUSIC_AHEAD_S of decoded audio queued on the context clock (A52).
+  pump() {
+    const ctx = soundManager.ctx;
+    if (!this.track || !ctx || ctx.state !== "running") return;
+    const out = this.node(ctx);
+    if (this.nextTime < ctx.currentTime) this.nextTime = ctx.currentTime + 0.05;
+    while (this.track && this.nextTime - ctx.currentTime < MUSIC_AHEAD_S) {
+      const ch = this.track.channels();
+      const pcm = this.track.decode(MUSIC_CHUNK_FRAMES);
+      const frames = pcm.length / ch;
+      if (frames > 0) {
+        const buf = ctx.createBuffer(ch, frames, this.track.sample_rate());
+        for (let c = 0; c < ch; c++) buf.copyToChannel(pcm.subarray(c * frames, (c + 1) * frames), c);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(out);
+        src.start(this.nextTime);
+        this.nextTime += frames / this.track.sample_rate();
+        this.sources.push(src);
+        src.onended = () => {
+          this.sources = this.sources.filter(s => s !== src);
+          try { src.disconnect(); } catch {}
+        };
+      }
+      if (this.track.done()) { this.track.free?.(); this.track = null; }
+    }
+  }
+}
+
+class GameAudio {
+  constructor() {
+    this.ready = false;
+    this.director = null;
+    this.stream = new MusicStream(this);
+    this.musicToc = null;
+    this.musicPath = null;
+    this.musicWhole = null; // archive bytes when the server ignores ranges
+    this.fe = null;
+    this.level = 127;
+    this.screen = null; // ScreenMusic
+    this.inRace = false;
+    this.events = null; // RaceEvents
+    this.helpers = null;
+    this.announcer = null;
+    this.speechPath = null;
+    this.speechLoading = null;
+    this.speechSource = null;
+    this.speechEnd = 0;
+    this.speechBuffers = new Map();
+    this.bus = null;
+    this.busCtx = null;
+    this.enabled = true;
+    this.log = [];
+  }
+
+  record(kind, detail) {
+    this.log.push({ t: Math.round(performance.now()), kind, ...detail });
+    if (this.log.length > 200) this.log.shift();
+  }
+
+  musicBus(ctx) {
+    if (this.busCtx !== ctx) {
+      this.bus = ctx.createGain();
+      this.bus.gain.value = this.enabled ? 1 : 0;
+      this.bus.connect(ctx.destination);
+      this.busCtx = ctx;
+    }
+    return this.bus;
+  }
+
+  setEnabled(on) {
+    this.enabled = on;
+    if (this.bus && this.busCtx) this.bus.gain.setValueAtTime(on ? 1 : 0, this.busCtx.currentTime);
+    if (!on && this.speechSource) { try { this.speechSource.stop(); } catch {} }
+  }
+
+  async init(files) {
+    try {
+      this.helpers = await import("./game-audio.js");
+      const find = re => files.find(p => re.test(p.replace(/\\/g, "/")));
+      this.musicPath = find(/(^|\/)gamedata\/music\/zzzymus\.viv$/i);
+      this.speechPath = find(/(^|\/)gamedata\/speech\/zzzxeng\.viv$/i);
+      const fePath = find(/^fe\.txt$/i);
+      const feText = fePath ? await (await fetch("/game/" + fePath)).text() : "";
+      this.fe = this.helpers.parseFeAudio(feText);
+      let stored = NaN;
+      try { stored = parseInt(localStorage.getItem("nfs5.musicLevel") ?? "", 10); } catch {}
+      this.level = Number.isFinite(stored) ? Math.max(0, Math.min(127, stored)) : this.fe.musicLevel;
+      this.syncSlider();
+      this.screen = new this.helpers.ScreenMusic();
+      this.events = new this.helpers.RaceEvents();
+      this.stream.ramp = new this.helpers.VolumeRamp();
+      if (!this.musicPath) throw new Error("GameData/Music/zzzymus.viv not found");
+      this.musicToc = this.helpers.parseVivToc(await this.readRange(this.musicPath, 0, 65535));
+      this.director = new MusicDirector(this.musicToc.map(e => e.name), this.level, (Date.now() >>> 0) || 1);
+      this.director.set_random_playlist(this.fe.randomPlaylist);
+      this.ready = true;
+      setInterval(() => this.tick(), this.helpers.MUSIC_TICK_MS);
+    } catch (error) {
+      console.warn("Music unavailable:", error);
+    }
+  }
+
+  async readRange(path, start, end) {
+    const resp = await fetch("/game/" + path.replace(/\\/g, "/"), { headers: { Range: `bytes=${start}-${end}` } });
+    if (!resp.ok) throw new Error(`${path}: HTTP ${resp.status}`);
+    const data = new Uint8Array(await resp.arrayBuffer());
+    if (resp.status === 206) return data;
+    this.musicWhole = data; // no range support: keep the whole archive
+    return data.subarray(start, end + 1);
+  }
+
+  async readMusicFile(file) {
+    const e = this.musicToc[file];
+    if (!e) throw new Error(`music file ${file}`);
+    if (this.musicWhole) return this.musicWhole.slice(e.offset, e.offset + e.size);
+    return this.readRange(this.musicPath, e.offset, e.offset + e.size - 1);
+  }
+
+  execute() {
+    const c = this.director.take_commands();
+    for (let i = 0; i + 3 <= c.length; i += 3) {
+      const [kind, a, b] = [c[i], c[i + 1], c[i + 2]];
+      if (kind === 0) {
+        this.record("music-start", { file: a, name: this.musicToc[a]?.name });
+        this.stream.start(a);
+      } else if (kind === 1) this.stream.setVolume(a);
+      else if (kind === 2) this.stream.fade(a, b);
+      else if (kind === 3) { this.record("music-stop", {}); this.stream.stop(); }
+    }
+  }
+
+  // Which music the original would ask for now (A56: the web shell counts as `menu*`).
+  context() {
+    const phase = viewer?.get_race_phase ? viewer.get_race_phase() : 0;
+    const race = Boolean(viewer && viewer.is_drive_mode?.() && phase > 0 && !frontEnd?.visible);
+    return { race, phase };
+  }
+
+  tick() {
+    if (!this.ready) return;
+    const d = this.director;
+    const { race } = this.context();
+    d.set_status(this.stream.playing, this.stream.volume());
+    if (race && !this.inRace) {
+      // Audio_RaceStart 0x4a88a0: fade the menu music, start the race playlist.
+      d.set_front_end(false);
+      d.stop(this.helpers.SCREEN_FADE_MS);
+      d.set_playlist(Int32Array.from(this.fe.playlist));
+      d.play("", 0);
+      this.screen.reset();
+    } else if (!race && this.inRace) {
+      d.stop(0); // Audio_StopRace 0x4ab270
+    }
+    this.inRace = race;
+    if (!race) {
+      d.set_front_end(true);
+      const attrs = frontEnd?.visible ? frontEnd.screen?.screenAttrs : null;
+      if (!frontEnd?.visible || attrs) this.screen.update(this.helpers.screenMusicPattern(attrs), d);
+    }
+    d.tick(this.stream.playing, this.stream.volume());
+    this.execute();
+    this.stream.pump();
+  }
+
+  setLevel(level) {
+    this.level = Math.max(0, Math.min(127, level | 0));
+    try { localStorage.setItem("nfs5.musicLevel", String(this.level)); } catch {}
+    if (!this.director) return;
+    this.director.set_status(this.stream.playing, this.stream.volume());
+    this.director.set_level(this.level); // Music_SetVolume(80 × level >> 7) 0x4ae8c0
+    this.execute();
+  }
+
+  syncSlider() {
+    const s = document.querySelector("#musicLevel");
+    if (s) s.value = String(this.level);
+  }
+
+  // --- race speech ---
+  loadSpeech() {
+    if (this.announcer || this.speechLoading || !this.speechPath) return this.speechLoading;
+    this.speechLoading = (async () => {
+      try {
+        const resp = await fetch("/game/" + this.speechPath.replace(/\\/g, "/"));
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const bytes = new Uint8Array(await resp.arrayBuffer());
+        this.announcer = RaceAnnouncer.load(bytes, this.fe?.speechLevel ?? 127, (Date.now() >>> 0) || 1);
+      } catch (error) {
+        console.warn("Race speech unavailable:", error);
+      }
+    })();
+    return this.speechLoading;
+  }
+
+  get speechReady() { return this.announcer !== null; }
+
+  speechBuffer(ctx, i) {
+    let b = this.speechBuffers.get(i);
+    if (b && b.__ctx === ctx) return b;
+    const pcm = this.announcer.phrase_pcm(i);
+    if (!pcm.length) return null;
+    b = ctx.createBuffer(1, pcm.length, this.announcer.phrase_rate(i));
+    b.copyToChannel(pcm, 0);
+    b.__ctx = ctx;
+    this.speechBuffers.set(i, b);
+    return b;
+  }
+
+  // Per frame from the race HUD state.
+  frame(phase, remaining) {
+    if (!this.helpers || !viewer) return;
+    if (!this.speechLoading) this.loadSpeech();
+    const a = this.announcer;
+    const ev = this.events.update({ phase, lap: viewer.get_current_lap(), best: viewer.get_best_lap_time() });
+    if (ev.start) a?.reset();
+    if (a && phase === 1) {
+      const step = this.helpers.countdownStep(remaining);
+      const p = a.countdown(step);
+      if (p >= 0) this.record("speech-request", { phrase: p, step });
+    }
+    const cars = viewer.get_total_participants();
+    const place = viewer.get_player_position();
+    if (a && ev.lap) a.lap_completed(ev.lap.lapsDone, viewer.get_total_laps(), cars, place, ev.lap.best);
+    if (ev.finished) {
+      const pattern = a ? a.race_finished(place, cars) : (cars > 1 ? (place === 1 ? "win*" : "lose*") : "");
+      if (pattern && this.director) { this.director.play(pattern, 1); this.execute(); }
+    }
+    if (ev.pause && this.director) { this.director.stop(0); this.execute(); } // Audio_Pause 0x4ab150
+    if (ev.resume && this.director) { this.director.set_level(this.level); this.director.play("", 0); this.execute(); }
+    this.playSpeech();
+  }
+
+  playSpeech() {
+    const a = this.announcer, ctx = soundManager.ctx;
+    if (!a) return;
+    const now = ctx ? ctx.currentTime : 0;
+    const remaining = this.speechSource ? Math.round((this.speechEnd - now) * 100) : -1;
+    const next = a.update(remaining < 0 ? -1 : remaining);
+    if (next < 0) return;
+    this.record("speech-play", { phrase: next, name: a.phrase_name(next) });
+    if (!ctx || !this.enabled || !soundManager.enabled) { this.speechSource = null; return; }
+    const buf = this.speechBuffer(ctx, next);
+    if (!buf) { this.speechSource = null; return; }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    // Two identical voices at speech × 127 × 0x55 >> 14 (0x4b04e0, 0x4a8300); A50.
+    gain.gain.value = 2 * a.volume() / 127;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+    this.speechSource = src;
+    this.speechEnd = now + buf.duration;
+    src.onended = () => {
+      if (this.speechSource === src) this.speechSource = null;
+      try { src.disconnect(); gain.disconnect(); } catch {}
+    };
+  }
+}
+
+const gameAudio = new GameAudio();
 
 // --- Profile Persistence and State ---
 const storage = typeof localStorage !== "undefined" ? localStorage : {
@@ -1184,6 +1530,12 @@ const startAudioOnGesture = () => {
 window.addEventListener("pointerdown", startAudioOnGesture, true);
 window.addEventListener("keydown", startAudioOnGesture, true);
 
+// Music level 0..127 (Audio.MusicLevel; playlist volume 80 × level >> 7, 0x4a82f0).
+const musicLevelInput = document.querySelector("#musicLevel");
+if (musicLevelInput) {
+  musicLevelInput.addEventListener("input", () => gameAudio.setLevel(Number(musicLevelInput.value)));
+}
+
 const soundBtn = document.querySelector("#soundBtn");
 if (soundBtn) {
   soundBtn.classList.toggle("active", soundManager.enabled);
@@ -1618,6 +1970,7 @@ async function checkLocalGame() {
     if (Array.isArray(files) && files.length > 0) {
       localGameFiles = files;
       localGameAvailable = true;
+      if (!gameAudio.initStarted) { gameAudio.initStarted = true; gameAudio.init(files); }
       if (!useCustomFiles) {
         scanLocalGameCatalog();
       }
@@ -2735,17 +3088,17 @@ function updateNavigation(dt) {
     // Countdown Banner
     if (countdownBanner) {
       if (phase === 1) {
-        if (lastPhase !== 1) soundManager.playCue(440, 80);
-        countdownBanner.hidden = false;
+        // The original start lasts 7 s; "3, 2, 1" come in its last 3 s (Sched_Step 0x414ff0).
         const remaining = viewer.get_countdown_remaining();
-        if (countdownText) {
+        const digit = remaining > 3.0 ? null : remaining > 2.0 ? "3" : remaining > 1.0 ? "2" : "1";
+        if (digit && countdownText?.textContent !== digit && !gameAudio.speechReady) soundManager.playCue(440, 80);
+        countdownBanner.hidden = !digit;
+        if (countdownText && digit) {
           countdownText.classList.remove("go");
-          if (remaining > 2.0) countdownText.textContent = "3";
-          else if (remaining > 1.0) countdownText.textContent = "2";
-          else countdownText.textContent = "1";
+          countdownText.textContent = digit;
         }
       } else if (phase === 2 && lastPhase === 1) {
-        soundManager.playCue(880, 150);
+        if (!gameAudio.speechReady) soundManager.playCue(880, 150);
         countdownBanner.hidden = false;
         if (countdownText) {
           countdownText.classList.add("go");
@@ -2759,6 +3112,7 @@ function updateNavigation(dt) {
       }
     }
     lastPhase = phase;
+    gameAudio.frame(phase, phase === 1 ? viewer.get_countdown_remaining() : 0);
 
     // Wrong Way Alert
     if (wrongWayBanner) {
@@ -3027,6 +3381,16 @@ window.__nfs = {
       model: debugVehicleModel,
       phase: viewer.get_race_phase(),
       position: viewer.get_player_position(),
+      audio: {
+        music: gameAudio.director ? {
+          state: gameAudio.director.state(), index: gameAudio.director.index(),
+          file: gameAudio.director.current_file(), level: gameAudio.level,
+          playing: gameAudio.stream.playing, volume: gameAudio.stream.volume(),
+        } : null,
+        speech: gameAudio.speechReady,
+        context: soundManager.ctx?.state ?? "none",
+        log: gameAudio.log.slice(-40),
+      },
       pose: Array.from(pose),
       status: statusLine.textContent,
     };

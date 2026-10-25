@@ -3,7 +3,9 @@ import argparse
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
+import re
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -54,7 +56,40 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
+        if self.headers.get('Range') and self._send_range():
+            return
         super().do_GET()
+
+    def _send_range(self):
+        """Single `bytes=a-b` range of a file (music tracks inside the 115 MB zzzymus.viv)."""
+        m = re.fullmatch(r'bytes=(\d*)-(\d*)', self.headers['Range'].strip())
+        path = self.translate_path(self.path)
+        if not m or not path or not os.path.isfile(path):
+            return False
+        size = os.path.getsize(path)
+        if m.group(1):
+            start = int(m.group(1))
+            end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+        elif m.group(2):
+            start, end = max(0, size - int(m.group(2))), size - 1
+        else:
+            return False
+        if start > end or start >= size:
+            self.send_response(416)
+            self.send_header('Content-Range', f'bytes */{size}')
+            self.end_headers()
+            return True
+        with open(path, 'rb') as f:
+            f.seek(start)
+            data = f.read(end - start + 1)
+        self.send_response(206)
+        self.send_header('Content-Type', self.guess_type(path))
+        self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Accept-Ranges', 'bytes')
+        self.end_headers()
+        self.wfile.write(data)
+        return True
 
     def translate_path(self, path):
         clean_path = path.split('?', 1)[0].split('#', 1)[0]

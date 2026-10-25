@@ -594,6 +594,7 @@ fn quick_race_grid(
     let effective_laps = if course.is_circuit { laps } else { 1 };
     let mut session =
         nfs_assets::RaceSession::new("quick_race", effective_laps, !course.is_circuit);
+    original_start_countdown(&mut session);
     session.add_participant(0, "Player", true, "Porsche 911 Carrera");
     let mut ai = Vec::with_capacity(opponents as usize);
     let profiles = [
@@ -1375,6 +1376,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let total_laps = if course.is_circuit { 3 } else { 1 };
             let mut session =
                 nfs_assets::RaceSession::new("track0", total_laps, !course.is_circuit);
+            original_start_countdown(&mut session);
             session.add_participant(0, "Player", true, "Porsche 911 Carrera");
 
             let (p0_pos, _, p0_yaw) = nfs_assets::calculate_grid_slot(0, course);
@@ -2766,7 +2768,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.mission_timed_out = false;
             self.course_tracker = Some(nfs_assets::CourseProgressTracker::new(car_pos.to_array()));
             if let Some(session) = &mut self.race_session {
-                session.restart(3.0);
+                session.restart(nfs_assets::audio::START_SECS);
             }
             for (i, ai) in self.ai_opponents.iter_mut().enumerate() {
                 let slot = i + 1;
@@ -4642,6 +4644,15 @@ fn create_sky_state(
     }
 }
 
+/// The original start lasts 0x1c0 scheduler steps at 64 Hz (7 s): the announcer says "3" at
+/// 4 s and "Go" at 7 s when the car is released (`Sched_Step` 0x414ff0, `docs/re/audio.md`).
+fn original_start_countdown(session: &mut nfs_assets::RaceSession) {
+    session.phase = nfs_assets::RacePhase::Countdown {
+        remaining_secs: nfs_assets::audio::START_SECS,
+        initial_secs: nfs_assets::audio::START_SECS,
+    };
+}
+
 #[cfg(test)]
 mod sim_loading_tests {
     use super::*;
@@ -4857,3 +4868,4 @@ mod original_camera_tests {
         assert!((cam.drive_up - sim.body.up()).length() < 1e-4);
     }
 }
+

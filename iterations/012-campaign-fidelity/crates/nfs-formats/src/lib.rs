@@ -225,6 +225,12 @@ pub use career::{
 pub mod bnk;
 pub use bnk::{decode_patch, parse_bnk, wav_bytes, Bnk, BnkCodec, BnkPatch, BNK_MAGIC};
 
+pub mod ea_stream;
+pub use ea_stream::{parse_ea_stream, EaStream, SCHL_MAGIC};
+
+pub mod oneshots;
+pub use oneshots::{parse_oneshots, Phrase};
+
 pub mod engine_sound;
 pub use engine_sound::{parse_crd, parse_spl, CrdLayer, CrdTable, EngineSpl, ENGINE_TABLE_EXTS};
 

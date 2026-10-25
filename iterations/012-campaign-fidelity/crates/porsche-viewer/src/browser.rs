@@ -859,6 +859,170 @@ impl EngineAudio {
     }
 }
 
+/// One original music stream (SCHl / EA-XA R1), decoded in chunks (`docs/re/music.md`).
+#[wasm_bindgen]
+pub struct MusicTrack {
+    core: crate::game_audio::MusicTrackCore,
+}
+
+#[wasm_bindgen]
+impl MusicTrack {
+    #[wasm_bindgen(constructor)]
+    pub fn new(bytes: Uint8Array) -> Result<MusicTrack, JsValue> {
+        crate::game_audio::MusicTrackCore::new(bytes.to_vec())
+            .map(|core| MusicTrack { core })
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    pub fn sample_rate(&self) -> u32 {
+        self.core.sample_rate()
+    }
+    pub fn channels(&self) -> u32 {
+        self.core.channels() as u32
+    }
+    pub fn total_frames(&self) -> f64 {
+        self.core.total_frames() as f64
+    }
+    pub fn done(&self) -> bool {
+        self.core.done()
+    }
+    /// At least `min_frames` frames (fewer at the end), planar: channel 0 then channel 1.
+    pub fn decode(&mut self, min_frames: u32) -> Result<Vec<f32>, JsValue> {
+        self.core
+            .decode(min_frames as usize)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+}
+
+/// The original music player (`nfs_assets::audio::MusicPlayer`). Every call queues stream
+/// commands; `take_commands` returns them as `[kind, a, b]` triples: 0 Start(file),
+/// 1 SetVolume(v), 2 Fade(ms, v), 3 Stop.
+#[wasm_bindgen]
+pub struct MusicDirector {
+    core: crate::game_audio::MusicDirectorCore,
+}
+
+#[wasm_bindgen]
+impl MusicDirector {
+    /// `names`: archive file names in TOC order; `level`: music level 0..127.
+    #[wasm_bindgen(constructor)]
+    pub fn new(names: Array, level: i32, seed: u32) -> MusicDirector {
+        let files = names.iter().filter_map(|v| v.as_string()).collect();
+        MusicDirector {
+            core: crate::game_audio::MusicDirectorCore::new(files, level, seed),
+        }
+    }
+    pub fn set_playlist(&mut self, ids: Vec<i32>) {
+        self.core.player.set_playlist(&ids);
+    }
+    pub fn set_front_end(&mut self, on: bool) {
+        self.core.player.front_end = on;
+    }
+    pub fn set_random_playlist(&mut self, on: bool) {
+        self.core.player.random_playlist = on;
+    }
+    /// `Music_Play` 0x4ae4d0; `pattern` empty = keep the playlist.
+    pub fn play(&mut self, pattern: String, mode: u8) -> u32 {
+        let p = (!pattern.is_empty()).then_some(pattern.as_str());
+        self.core.play(p, mode) as u32
+    }
+    pub fn stop(&mut self, ms: i32) {
+        self.core.player.stop(ms);
+    }
+    pub fn set_level(&mut self, level: i32) {
+        self.core.set_level(level);
+    }
+    pub fn level(&self) -> i32 {
+        self.core.player.level()
+    }
+    pub fn toggle(&mut self) {
+        self.core.toggle();
+    }
+    pub fn set_status(&mut self, playing: bool, volume: i32) {
+        self.core
+            .player
+            .set_status(nfs_assets::audio::StreamStatus { playing, volume });
+    }
+    /// `Music_Tick` 0x4ad9c0 with the stream state.
+    pub fn tick(&mut self, playing: bool, volume: i32) {
+        self.core.tick(playing, volume);
+    }
+    pub fn take_commands(&mut self) -> Vec<i32> {
+        self.core.take_commands()
+    }
+    pub fn index(&self) -> i32 {
+        self.core.player.index()
+    }
+    /// File of the open stream, or −1.
+    pub fn current_file(&self) -> i32 {
+        self.core.player.current_file().map_or(-1, |f| f as i32)
+    }
+    pub fn playlist(&self) -> Vec<u8> {
+        self.core.player.playlist().to_vec()
+    }
+    /// Switch state: 0 idle, 1 pending, 2 started, −1 stopping.
+    pub fn state(&self) -> i32 {
+        use nfs_assets::audio::SwitchState::*;
+        match self.core.player.state() {
+            Idle => 0,
+            Pending => 1,
+            Started => 2,
+            Stopping => -1,
+        }
+    }
+}
+
+/// Race announcer: phrases of `zzzxeng.viv` and the original calls (`docs/re/audio.md`).
+#[wasm_bindgen]
+pub struct RaceAnnouncer {
+    core: crate::game_audio::AnnouncerCore,
+}
+
+#[wasm_bindgen]
+impl RaceAnnouncer {
+    pub fn load(viv: Uint8Array, speech_level: i32, seed: u32) -> Result<RaceAnnouncer, JsValue> {
+        crate::game_audio::AnnouncerCore::load(&viv.to_vec(), speech_level, seed)
+            .map(|core| RaceAnnouncer { core })
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    pub fn phrase_count(&self) -> u32 {
+        self.core.phrases.len() as u32
+    }
+    pub fn phrase_name(&self, i: u32) -> String {
+        self.core.phrases[i as usize].name.clone()
+    }
+    pub fn phrase_rate(&self, i: u32) -> u32 {
+        self.core.phrases[i as usize].sample_rate
+    }
+    pub fn phrase_pcm(&self, i: u32) -> Vec<f32> {
+        self.core.phrases[i as usize].pcm.clone()
+    }
+    /// Phrase volume 0..127.
+    pub fn volume(&self) -> i32 {
+        self.core.volume()
+    }
+    pub fn set_speech_level(&mut self, level: i32) {
+        self.core.speech_level = level.clamp(0, 127);
+    }
+    pub fn reset(&mut self) {
+        self.core.reset();
+    }
+    /// Countdown at scheduler step `step` (64 Hz); returns the queued phrase or −1.
+    pub fn countdown(&mut self, step: i32) -> i32 {
+        self.core.countdown(step)
+    }
+    pub fn lap_completed(&mut self, laps_done: u32, total: u32, cars: u32, place: u32, best: bool) {
+        self.core.lap_completed(laps_done, total, cars, place, best);
+    }
+    /// Queues the result call; returns the result music pattern or "".
+    pub fn race_finished(&mut self, place: u32, cars: u32) -> String {
+        self.core.race_finished(place, cars).to_string()
+    }
+    /// Next phrase to start or −1; `remaining_cs` < 0 when nothing plays.
+    pub fn update(&mut self, remaining_cs: i32) -> i32 {
+        self.core.update(remaining_cs)
+    }
+}
+
 fn files_from_js(names: Array, bytes: Array) -> Result<AssetFiles, String> {
     if names.length() != bytes.length() {
         return Err("internal file list mismatch".into());
