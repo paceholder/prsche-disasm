@@ -1,5 +1,20 @@
 # 012-campaign-fidelity
 
+## Disclaimer and game data
+
+- This project is not affiliated with, endorsed by or sponsored by Electronic Arts or
+  Porsche. *Need for Speed*, *Porsche Unleashed* and Porsche names and marks are trademarks
+  of their respective owners.
+- The repository contains no game assets: no models, textures, sounds, tracks, executables,
+  car data or recordings made from them. Screenshots are limited to a few illustrations.
+- Running the engine requires your own legitimate copy of the original game; the engine reads
+  the files from it at run time.
+- Tests that compare the port with the original executable use data derived from the game.
+  That data is not committed: `scripts/research/record-local-fixtures.sh` regenerates it from
+  your own game into the gitignored `local/fixtures/` (`--check` compares it with the recorded
+  SHA-256 sums in `scripts/research/local-fixtures.sha256`). Without it these tests skip and
+  print a `SKIPPED` line.
+
 2026-10-06, [Run 019](runs/019-original-contact-runtime/README.md): EDG и
 type-1 опоры в одном игровом дереве, 15 трасс проверены. Первая body selection,
 подготовка/response и wheel material state перенесены в исходные API и сверены
