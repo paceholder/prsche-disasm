@@ -592,6 +592,11 @@ pub struct Renderer {
     pub original_ai: Option<nfs_assets::race::original_ai::field::OriginalAiField>,
     collision_clock: nfs_assets::race::original_collision::CollisionClock,
     pair_globals: nfs_assets::physics::original_pair::PairGlobals,
+    /// Car setup screen choices (transmission, damage) for the original vehicle.
+    car_setup: nfs_assets::physics::original_vehicle::CarSetup,
+    /// Pending gear event (SHIFTUP 2 / SHIFTDOWN 3) and the frames it is still held: the input
+    /// word is read on even steps only; the request is idempotent until the gear changes.
+    pending_shift: (u8, u8),
     /// Persistent body support owner (original car+8) for the barrier pass.
     body_support_owner: nfs_assets::physics::original_support_owner::OriginalSupportOwner,
     /// Original collision box of the loaded car: centre in race body space
@@ -1654,6 +1659,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             original_ai: None,
             collision_clock: Default::default(),
             pair_globals: Default::default(),
+            car_setup: Default::default(),
+            pending_shift: (0, 0),
             body_support_owner: Default::default(),
             car_collision_box: None,
             race_session,
@@ -4393,8 +4400,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return;
         };
         let (_, half) = self.collision_box_or_fallback();
-        self.original_vehicle =
-            OriginalVehicle::from_sim(bytes, model, half, self.original_wheel_points()).ok();
+        self.original_vehicle = OriginalVehicle::from_sim_with(
+            bytes,
+            model,
+            half,
+            self.original_wheel_points(),
+            self.car_setup,
+        )
+        .ok();
         self.sync_original_from_sim(false);
     }
 
@@ -4483,6 +4496,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         car.speed_35c * 3.6
     }
 
+    /// Car setup screen: manual box (`.TRANSMISSION` 0) and the damage option (`Game.Damage`,
+    /// `[0x657a2c]`, which also gates the zone damage of collisions). Applied to the original
+    /// car at once; the manual box changes the derived drive factors, so the car is rebuilt.
+    pub fn set_car_setup(&mut self, manual_box: bool, damage: bool) {
+        use nfs_assets::physics::original_vehicle::CarSetup;
+        let setup = CarSetup { manual_box, damage };
+        let rebuild = setup.manual_box != self.car_setup.manual_box;
+        self.car_setup = setup;
+        self.pair_globals.damage_on_657a2c = damage;
+        if rebuild && self.original_sim.is_some() {
+            self.rebuild_original_vehicle();
+        } else if let Some(v) = &mut self.original_vehicle {
+            v.set_setup(setup);
+        }
+    }
+
+    /// Gear event for the manual box: +1 SHIFTUP, -1 SHIFTDOWN (`Input_GearRequest 0x413890`).
+    pub fn shift_gear(&mut self, direction: i32) {
+        use nfs_assets::physics::original_vehicle::controls::{EVENT_SHIFT_DOWN, EVENT_SHIFT_UP};
+        if self.car_setup.manual_box && direction != 0 {
+            let code = if direction > 0 { EVENT_SHIFT_UP } else { EVENT_SHIFT_DOWN };
+            self.pending_shift = (code, 2);
+        }
+    }
+
     /// Race (re)start of the original car at the 6 DOF body's spawn pose.
     fn restart_original_vehicle(&mut self) {
         self.drawn_states = None;
@@ -4533,7 +4571,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         };
         use nfs_assets::race::original_collision::{apply_pair_car_to_ai, pair_car_from_ai_original};
         let (center, half) = self.collision_box_or_fallback();
-        let word = input_word(throttle.max(0.0), (-throttle).max(0.0), steer, handbrake);
+        let mut word = input_word(throttle.max(0.0), (-throttle).max(0.0), steer, handbrake);
+        if self.pending_shift.1 > 0 {
+            word |= u32::from(self.pending_shift.0) << 3;
+            self.pending_shift.1 -= 1;
+        }
         if self.original_ai.is_some() {
             // Player and original AI cars in the original order (original_ai_view).
             self.run_original_field(dt, word);
@@ -4553,6 +4595,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             locator,
             clock,
             half_extents,
+            ..
         } = v;
 
         struct Queue<'a> {

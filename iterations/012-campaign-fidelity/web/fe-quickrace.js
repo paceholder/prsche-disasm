@@ -8,6 +8,9 @@ export const LAP_STRINGS = [420, 421, 422, 423, 424, 425, 426, 427]; // "1".."8"
 export const OPPONENT_STRINGS = [640, 642, 643, 644, 641];     // same car, era, class, era/class, random
 export const OPPONENT_SHORT_STRINGS = [640, 642, 643, 645, 641];
 export const DIFFICULTY_BASE = 450;                            // beginner, advanced, expert
+export const TRANSMISSION_STRINGS = [560, 561];                // manual, automatic [VA 0x5dab5c]
+export const OFF_ON_STRINGS = [1500, 1501];                    // ABS, traction control [VA 0x5daa20, 0x5daa0c]
+export const ROOF_STRINGS = [1509, 1510];                      // up (closed), down (open) [VA 0x5da9f0]
 export const MAX_OPPONENTS = 7;                                // Game.NumOpponents 0..7 [VA 0x4e5520]
 
 // Packed car colour (LE u32 of the bytes A, R, G, B in nfs5.car) -> CSS.
@@ -38,6 +41,14 @@ export class QuickRaceSetup {
     this.opponents = 4;
     this.colour = 0;
     this.difficulty = 1; // "advanced" [VA 0x4e5520]
+    // Car setup screen (settings.lay). The accessors live as long as the front end, so
+    // SETTYPEQUICKRACE does not reset them. Selections at creation: transmission 1 (automatic)
+    // [VA 0x4f1ea0], ABS/traction/roof 0, Game.Damage 1 [VA 0x4e5520].
+    this.transmission = 1;
+    this.abs = 0;
+    this.traction = 0;
+    this.roof = 0;
+    this.damage = 1;
     this.reset();
   }
 
@@ -102,6 +113,16 @@ export class QuickRaceSetup {
           () => this.opponentMode, i => { this.opponentMode = i; });
       case "Game.Difficutly": // sic, the original accessor name [VA 0x4e5520]
         return list(() => [0, 1, 2].map(i => this.str(DIFFICULTY_BASE + i)), () => this.difficulty, i => { this.difficulty = i; });
+      case "Car.Transmission":
+        return list(() => TRANSMISSION_STRINGS.map(id => this.str(id)), () => this.transmission, i => { this.transmission = i; });
+      case "Car.ABS":
+        return list(() => OFF_ON_STRINGS.map(id => this.str(id)), () => this.abs, i => { this.abs = i; });
+      case "Car.Traction":
+        return list(() => OFF_ON_STRINGS.map(id => this.str(id)), () => this.traction, i => { this.traction = i; });
+      case "Car.Roof":
+        return list(() => ROOF_STRINGS.map(id => this.str(id)), () => this.roof, i => { this.roof = i; });
+      case "Game.Damage": // FEBoolAccessor; off/on text is a hypothesis (A130)
+        return list(() => OFF_ON_STRINGS.map(id => this.str(id)), () => this.damage, i => { this.damage = i; });
       case "Game.NumOpponents":
         return list(() => Array.from({ length: MAX_OPPONENTS + 1 }, (_, i) => String(i)),
           () => this.opponents, i => { this.opponents = i; });
@@ -126,6 +147,10 @@ export class QuickRaceSetup {
       traffic: this.traffic,
       opponents: this.opponents,
       opponentMode: this.opponentMode,
+      // FE_WriteCarConfig 0x4eeda0 writes ABS 0, traction 0 and roof 0 for game type 0, so only
+      // the transmission and the damage option reach the race.
+      manualBox: this.transmission === 0,
+      damage: this.damage === 1,
     };
   }
 }

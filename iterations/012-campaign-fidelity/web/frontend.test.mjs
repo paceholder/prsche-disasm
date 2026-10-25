@@ -102,6 +102,18 @@ test("quick race settings follow the original lists (VA 0x4f9790, 0x4fc0b0)", as
   assert.equal(q.accessor("GenericCar.Colour").color(), "rgb(8,34,89)");
   assert.equal(carColourCss(0x0000ffff), "rgb(255,0,0)");
   assert.equal(q.accessor("No.Such"), null);
+  // Car setup screen: automatic, aids off, roof up, damage on at creation.
+  const setup = { 560: "manual", 561: "automatic", 1500: "off", 1501: "on", 1509: "up", 1510: "down" };
+  const s2 = new QuickRaceSetup({ strings: setup, cars, tracks });
+  assert.deepEqual(["Car.Transmission", "Car.ABS", "Car.Traction", "Car.Roof", "Game.Damage"]
+    .map(n => s2.accessor(n).text()), ["automatic", "off", "off", "up", "on"]);
+  assert.deepEqual([s2.raceParams().manualBox, s2.raceParams().damage], [false, true]);
+  s2.accessor("Car.Transmission").step(1);   // wraps: automatic -> manual
+  s2.accessor("Game.Damage").select(0);
+  s2.accessor("Car.Roof").select(1);
+  assert.deepEqual([s2.raceParams().manualBox, s2.raceParams().damage], [true, false]);
+  s2.reset();                                // SETTYPEQUICKRACE keeps the setup choices
+  assert.equal(s2.accessor("Car.Transmission").text(), "manual");
   let p = q.raceParams();
   assert.deepEqual([p.track.internal_name, p.laps, p.reverse, p.mirror, p.opponents], ["monaco1", 2, false, false, 4]);
   q.accessor("Track1.Direction(SHORT)").select(3);

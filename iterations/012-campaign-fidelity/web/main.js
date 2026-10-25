@@ -1843,6 +1843,7 @@ if (briefingStartBtn) {
       const simName = activeCareerEvent.is_factory
         ? activeCareerEvent.mission_obj?.car_sim || activeCareerEvent.car_sim
         : currentProfile?.garage?.[selectedIdx]?.sim_name;
+      viewer.set_car_setup?.(false, true); // not a Quick Race: automatic box, damage on
       await loadRaceCar(targetCar, simName);
     } catch (error) {
       setStatus(`Заезд не начат: ${error instanceof Error ? error.message : String(error)}`);
@@ -2530,7 +2531,9 @@ quickRaceStartBtn.addEventListener('click', async () => {
 });
 
 // Load and start a Quick Race (web dialog or the original front end's PLAYGAME).
-async function launchQuickRace({ car, track, laps, opponents, fromDialog = false }) {
+// manualBox / damage: the car setup screen's transmission and Game.Damage [VA 0x4eeda0, 0x4e5520];
+// defaults are the Quick Race ones (automatic box, damage on).
+async function launchQuickRace({ car, track, laps, opponents, manualBox = false, damage = true, fromDialog = false }) {
   quickRaceStartBtn.disabled = true;
   quickRaceCancelBtn.disabled = true;
   quickRaceStatus.textContent = 'Загрузка заезда…';
@@ -2549,6 +2552,7 @@ async function launchQuickRace({ car, track, laps, opponents, fromDialog = false
     updateOptions();
     targetSelect.value = track;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
+    viewer.set_car_setup?.(manualBox, damage);
     await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(laps, opponents);
@@ -2911,6 +2915,12 @@ function onKeyDown(event) {
     debugPanelVisible = !debugPanelVisible;
     try { localStorage.setItem("nfs5.debugPanel", debugPanelVisible ? "1" : "0"); } catch {}
     updateDebugPanel();
+    return;
+  }
+
+  // Manual box (car setup screen): X shifts up, Z down (SHIFTUP/SHIFTDOWN events, A131).
+  if ((event.code === "KeyX" || event.code === "KeyZ") && !event.repeat && viewer?.is_drive_mode?.()) {
+    viewer.shift_gear?.(event.code === "KeyX" ? 1 : -1);
     return;
   }
 
@@ -3465,6 +3475,7 @@ window.__nfs = {
   get ready() { return debugReady && !debugPendingCamera; },
   get error() { return debugError; },
   get viewer() { return viewer; },
+  get frontEnd() { return frontEnd; },
   state() {
     if (!viewer) return { ready: false, error: debugError };
     const pose = viewer.get_car_pose?.() ?? [];
@@ -3518,6 +3529,8 @@ async function autostartRace(params) {
     clearNavigation();
     activeCareerEvent = null;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
+    // ?manual=1 / ?damage=0 stand in for the car setup screen.
+    viewer.set_car_setup?.(params.get("manual") === "1", params.get("damage") !== "0");
     await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(Number(params.get("laps") || 3), Number(params.get("opponents") ?? 3));
@@ -3643,7 +3656,8 @@ async function frontEndPlayGame() {
   // Direction, traffic and opponent car mode are chosen but not raced yet, and the race
   // supports 0 or 3 opponents only (A100).
   const opponents = p.opponents > 0 ? 3 : 0;
-  await launchQuickRace({ car: p.car, track: p.track.internal_name.toLowerCase(), laps: p.laps, opponents });
+  await launchQuickRace({ car: p.car, track: p.track.internal_name.toLowerCase(), laps: p.laps, opponents,
+    manualBox: p.manualBox, damage: p.damage });
 }
 
 // room= of the shown layout; a 3DCAR control adds the selected car [VA 0x4bfdc0].

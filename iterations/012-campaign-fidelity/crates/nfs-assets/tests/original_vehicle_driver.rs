@@ -285,3 +285,18 @@ fn race_clock_puts_the_car_in_neutral_before_the_green_light() {
     v.set_race_clock(START_SCHED_STEP + 640);
     assert_eq!(v.car.gear_d82, 3);
 }
+
+/// Car setup screen: the manual box and the damage option (`[0x657a2c]`) survive a restart.
+#[test]
+fn car_setup_reaches_the_car_globals() {
+    use nfs_assets::physics::original_vehicle::CarSetup;
+    skip_without_local_fixtures!(fixture::CARS);
+    let mut v = boxster();
+    v.restart();
+    assert_eq!(v.car.globals.auto_box_658098, 1);
+    assert_eq!(v.car.globals.flip_events_657a2c, 0);
+    v.set_setup(CarSetup { manual_box: true, damage: true });
+    v.restart();
+    assert_eq!(v.car.globals.auto_box_658098, 0);
+    assert_eq!(v.car.globals.flip_events_657a2c, 1);
+}

@@ -225,6 +225,27 @@ pub struct OriginalVehicle {
     pub clock: StepClock,
     /// Collision box half extents (`+0x3a8`).
     pub half_extents: [f32; 3],
+    /// Front-end choices that reach the car (transmission, damage).
+    pub setup: CarSetup,
+}
+
+/// The front-end settings the car consumes in a Quick Race. `FE_WriteCarConfig 0x4eeda0` writes
+/// `.TRANSMISSION` (`res+0xc`, 1 = automatic) from the settings screen; ABS (`res+0x24`),
+/// traction control (`res+0x20`) and the roof key are forced off for game type 0, so they are
+/// not part of this. `damage` is the option DAMAGE `[0x657a2c]` (`Game.Damage`, key 0x20) that
+/// gates zone damage in `Car_ApplyImpact` and the flip event of `0x49bd40`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarSetup {
+    pub manual_box: bool,
+    pub damage: bool,
+}
+
+impl Default for CarSetup {
+    /// No front end (recordings, tests): automatic box, damage gate off. A Quick Race passes
+    /// the screen's values (defaults: automatic, `Game.Damage` 1 [VA 0x4e5520]).
+    fn default() -> Self {
+        Self { manual_box: false, damage: false }
+    }
 }
 
 /// Model name (`res+0x2a8`, the AICarData `.ais` stem) for a `.sim` file
@@ -275,17 +296,45 @@ impl OriginalVehicle {
         half_extents: [f32; 3],
         wheel_points: [[f32; 3]; 4],
     ) -> Result<Self, String> {
+        Self::from_sim_with(raw_sim, model, half_extents, wheel_points, CarSetup::default())
+    }
+
+    /// [`Self::from_sim`] with the front-end settings: a manual box derives with `res+0xc = 0`
+    /// (drive factors x1.05, `Sim_DeriveFields 0x49cb50`).
+    pub fn from_sim_with(
+        raw_sim: &[u8],
+        model: &str,
+        half_extents: [f32; 3],
+        wheel_points: [[f32; 3]; 4],
+        setup: CarSetup,
+    ) -> Result<Self, String> {
         if raw_sim.len() < SIM_FILE_SIZE {
             return Err(format!(
                 "SIM is {} bytes, need {SIM_FILE_SIZE}",
                 raw_sim.len()
             ));
         }
-        let specs = derive(&raw_sim[..SIM_FILE_SIZE], &Tuning::quick_race(model));
+        let mut tuning = Tuning::quick_race(model);
+        tuning.flag_c = i32::from(!setup.manual_box);
+        let specs = derive(&raw_sim[..SIM_FILE_SIZE], &tuning);
         if !specs_usable(&specs) {
             return Err("SIM is not usable for the original model".into());
         }
-        Ok(Self::from_specs(specs, half_extents, wheel_points))
+        let mut v = Self::from_specs(specs, half_extents, wheel_points);
+        v.set_setup(setup);
+        Ok(v)
+    }
+
+    /// Applies the settings to the car globals (kept by resets, set again by [`Self::restart`]).
+    pub fn set_setup(&mut self, setup: CarSetup) {
+        self.setup = setup;
+        self.apply_setup();
+    }
+
+    fn apply_setup(&mut self) {
+        let g = &mut self.car.globals;
+        g.auto_box_658098 = i32::from(!self.setup.manual_box);
+        g.flip_events_657a2c = i32::from(self.setup.damage);
     }
 
     /// Car from derived carSpecs (see [`Self::from_sim`]).
@@ -302,6 +351,7 @@ impl OriginalVehicle {
             locator: Default::default(),
             clock: StepClock::default(),
             half_extents,
+            setup: CarSetup::default(),
         };
         v.car.body_points_8c = wheel_points.to_vec();
         v.restart();
@@ -323,13 +373,13 @@ impl OriginalVehicle {
         car.res_14 = 1;
         car.start_db0 = START_DB0;
         car.globals.sched_step_606ac4 = COUNTDOWN_SCHED_STEP;
-        car.globals.auto_box_658098 = 1;
         // A race participant: `0x40f160` sets `+0x52c` bit 0 for the human and
         // the AI racers (res+8 bits 0/1), so `Car_BuildGroundFrame` builds the
         // full frame and `0x417190` gives `+0x78 = 0`.
         car.flags_52c = 1;
         update_world_points(&mut car);
         self.car = car;
+        self.apply_setup();
         self.lcg = OriginalLcg::default();
         self.ground = GroundAdapter::default();
         self.locator = Default::default();

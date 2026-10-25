@@ -796,6 +796,20 @@ impl BrowserViewer {
             .map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Car setup screen choices: manual transmission and damage on (see `Renderer::set_car_setup`).
+    pub fn set_car_setup(&mut self, manual_box: bool, damage: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_car_setup(manual_box, damage);
+        }
+    }
+
+    /// Manual box gear event: +1 up, -1 down.
+    pub fn shift_gear(&mut self, direction: i32) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.shift_gear(direction);
+        }
+    }
+
     pub fn configure_mission(&mut self, is_factory: bool, time_limit: f32, has_opponent: bool) {
         if let Some(renderer) = &mut self.renderer {
             renderer.configure_mission(is_factory, time_limit, has_opponent);

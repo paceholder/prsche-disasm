@@ -48,7 +48,7 @@ pub mod tyre;
 pub use attitude::{wheel_ground_and_attitude, WheelGround};
 pub use car::{OriginalCar, OriginalGlobals, OriginalWheel, TrackFields};
 pub use controls::{apply_controls, gear_request, read_inputs, ControlsCar, ControlsEnv};
-pub use driver::{input_word, OriginalVehicle, StepClock, VehicleModel};
+pub use driver::{input_word, CarSetup, OriginalVehicle, StepClock, VehicleModel};
 pub use engine::{auto_gearbox, engine_drive_force, EngineCar, EngineEnv};
 pub use ground::{
     ground_contact_tick, FlatGround, GroundAdapter, GroundHit, GroundQuery, RoadGround,
