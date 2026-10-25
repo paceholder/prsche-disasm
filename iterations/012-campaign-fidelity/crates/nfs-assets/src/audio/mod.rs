@@ -5,6 +5,7 @@ pub mod engine_mixer;
 pub mod inputs;
 pub mod music;
 pub mod speech;
+pub mod tyre_sounds;
 
 pub use engine_mixer::{
     engine_tables_from_viv, EngineAudioFrame, EngineMixer, MixerGlobals, OneShotClock,
@@ -22,4 +23,9 @@ pub use music::{
 pub use speech::{
     on_lap_completed, on_race_finished, result_music, speech_volume, Countdown, LapEvent,
     SpeechQueue, COUNTDOWN_STEPS, SCHED_HZ, START_SECS, START_STEP,
+};
+pub use tyre_sounds::{
+    attenuation, control_cents, rpm_term, squeal_slot, tyre_code, tyre_slots, ActiveTyreVoice, Channel,
+    SkidEvent, TyreCommand, TyreInputs, TyreSounds, FADE_STOP_TICKS, FADE_SWITCH_TICKS,
+    RUMBLE_FIRST_SLOT, SURFACE_PATCH, TICK_HZ as TYRE_TICK_HZ,
 };

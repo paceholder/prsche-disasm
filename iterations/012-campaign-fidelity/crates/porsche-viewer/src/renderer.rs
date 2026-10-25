@@ -3964,6 +3964,78 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// SIM redline RPM of the loaded car (7000 when the arcade car is driven).
+    /// Car state for the tyre sounds as 16 floats (`tyre_audio::inputs_from_slice`): skids of
+    /// the front and rear pairs, `+0x78`, height, ground normal, surface, `+0x540`, tyre type,
+    /// `+0x52c` bit 4, forward speed, rpm, redline, wheels off, `res+0xc == 1`. The original
+    /// model gives its own fields; the 6 DOF prototype gives equivalents (approximations A108,
+    /// A112); the arcade car makes no tyre sounds.
+    pub fn get_tyre_sound_inputs(&self) -> Vec<f32> {
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            let c = &v.car;
+            let skid = |i: usize| c.wheels[i].tyre.skid_b8;
+            return vec![
+                skid(0),
+                skid(1),
+                skid(2),
+                skid(3),
+                0.0,
+                c.height_424,
+                c.ground_up_3a0,
+                (c.body_surface_2c & 0xf) as f32,
+                (c.field_540 != 0) as u8 as f32,
+                c.specs.tyre_type_1c0 as f32,
+                (c.flags_52c & 4 != 0) as u8 as f32,
+                c.vel_fwd_d60(),
+                c.rpm_db4,
+                c.specs.redline_94,
+                (c.wheels_off_418 > 5) as u8 as f32,
+                1.0,
+            ];
+        }
+        let (true, Some(tel), Some(sim)) = (self.sim_mode, &self.sim_telemetry, &self.sim_car)
+        else {
+            return Vec::new();
+        };
+        let moving = tel.speed_mps.abs() > 2.0;
+        let skid = |i: usize| -> f32 {
+            if !moving || !tel.wheels_in_contact[i] {
+                return 0.0;
+            }
+            let angle = ((tel.wheel_slip_angles[i].abs() - 0.14) / 0.20).clamp(0.0, 1.0);
+            let ratio = ((tel.wheel_slip_ratios[i].abs() - 0.25) / 0.5).clamp(0.0, 1.0);
+            angle.max(ratio)
+        };
+        let surface = match (self.player_pose(), self.road_surface.as_ref()) {
+            (Some((pos, _)), Some(road)) => road
+                .query(pos.x, pos.z, pos.y, 2.0, 6.0)
+                .map_or(0, |h| h.flags_word_a.map_or(1, |f| (f & 0xf) as i32)),
+            _ => 1,
+        };
+        let airborne = !tel.wheels_in_contact.iter().any(|&c| c);
+        vec![
+            skid(0),
+            skid(1),
+            skid(2),
+            skid(3),
+            0.0,
+            if airborne { 1.0 } else { 0.0 },
+            1.0,
+            surface as f32,
+            0.0,
+            0.0,
+            0.0,
+            tel.speed_mps,
+            tel.engine_rpm,
+            sim.powertrain.redline_rpm,
+            0.0,
+            1.0,
+        ]
+    }
+
     pub fn get_car_redline_rpm(&self) -> f32 {
         if let Some(v) = self
             .original_vehicle

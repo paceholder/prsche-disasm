@@ -525,6 +525,14 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Car state for the tyre sounds, 16 floats (`tyre_audio::inputs_from_slice`).
+    pub fn get_tyre_sound_inputs(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_tyre_sound_inputs())
+            .unwrap_or_default()
+    }
+
     /// Real engine RPM (`get_car_rpm` is rpm / 7000, clamped).
     pub fn get_car_engine_rpm(&self) -> f32 {
         self.renderer
@@ -962,6 +970,63 @@ impl EngineAudio {
 
     pub fn set_running(&mut self, running: bool) {
         self.core.set_running(running);
+    }
+}
+
+/// Original tyre squeal and surface rumble: decoded `SND_coll.bnk` slots plus `TyreSounds`
+/// stepped at 32 Hz (`docs/re/audio.md`, "Tyre and surface sounds"). Commands as in
+/// `EngineAudio::update`, with the fade ticks of a Stop in the pan field.
+#[wasm_bindgen]
+pub struct TyreAudio {
+    core: crate::tyre_audio::TyreAudioCore,
+}
+
+#[wasm_bindgen]
+impl TyreAudio {
+    /// `names`/`bytes`: files including `SND_coll.bnk` (matched by base name).
+    pub fn load(names: Array, bytes: Array) -> Result<TyreAudio, JsValue> {
+        let files = files_from_js(names, bytes).map_err(|e| JsValue::from_str(&e))?;
+        let core = crate::tyre_audio::TyreAudioCore::load(&files)
+            .map_err(|e| JsValue::from_str(&e))?;
+        Ok(TyreAudio { core })
+    }
+    pub fn slot_count(&self) -> usize {
+        self.core.slots().len()
+    }
+    pub fn slot_id(&self, index: usize) -> u32 {
+        self.core.slots()[index].id as u32
+    }
+    pub fn slot_sample_rate(&self, index: usize) -> u32 {
+        self.core.slots()[index].sample_rate
+    }
+    pub fn slot_channels(&self, index: usize) -> u32 {
+        self.core.slots()[index].channels.len() as u32
+    }
+    pub fn slot_detune_cents(&self, index: usize) -> i32 {
+        self.core.slots()[index].detune_cents
+    }
+    pub fn slot_loop_start(&self, index: usize) -> f64 {
+        self.core.slots()[index].loop_range.map_or(-1.0, |r| r.0 as f64)
+    }
+    pub fn slot_loop_end(&self, index: usize) -> f64 {
+        self.core.slots()[index].loop_range.map_or(-1.0, |r| r.1 as f64)
+    }
+    pub fn slot_pcm(&self, index: usize, channel: usize) -> Vec<f32> {
+        self.core.slots()[index].channels[channel].clone()
+    }
+    /// `inputs`: `Viewer::get_tyre_sound_inputs`; `view`: 0 Chase, 1 Bumper, 2 Free. Returns
+    /// 7 ints per command: `[kind, voice, slot, volume, pitch, fade_ticks, looped]`, kind 0
+    /// Start, 1 SetVolume, 3 SetPitch, 4 Stop.
+    pub fn update(&mut self, dt: f32, inputs: Vec<f32>, view: u8) -> Vec<i32> {
+        self.core.update(dt, &inputs, view)
+    }
+    /// Stop commands for every voice.
+    pub fn silence(&mut self) -> Vec<i32> {
+        self.core.silence()
+    }
+    /// Playing voices `[channel, slot, volume, control, pitch]*`, then `[ticks, starts]`.
+    pub fn state(&self) -> Vec<i32> {
+        self.core.state()
     }
 }
 

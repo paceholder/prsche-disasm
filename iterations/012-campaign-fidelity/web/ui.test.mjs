@@ -78,6 +78,7 @@ context.testApi.setViewer({
   get_car_engine_rpm: () => 0,
   get_car_redline_rpm: () => 6000,
   get_car_view: () => 0,
+  get_tyre_sound_inputs: () => [],
 });
 context.testApi.syncTourButton();
 assert.equal(element("#hudCanvas").hidden, true, "HUD hidden before driving");
@@ -265,7 +266,7 @@ context.testApi.setViewer({
   request_car_reset: () => { resetRequests++; },
   is_drive_mode: () => true, has_car: () => true, update_car() {},
   get_car_speed: () => 0, get_car_gear: () => 0, get_car_rpm: () => 0,
-  get_car_engine_rpm: () => 0, get_car_redline_rpm: () => 6000, get_car_view: () => 0,
+  get_car_engine_rpm: () => 0, get_car_redline_rpm: () => 6000, get_car_view: () => 0, get_tyre_sound_inputs: () => [],
   get_race_phase: () => phase, get_player_position: () => 1,
   get_total_participants: () => 1, get_current_lap: () => 1,
   get_total_laps: () => 1, get_current_lap_time: () => 12,

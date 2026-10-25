@@ -37,6 +37,39 @@ pub struct SlotPcm {
     /// Loop points in sample frames.
     pub loop_range: Option<(u32, u32)>,
     pub channels: Vec<Vec<f32>>,
+    /// Patch tag 0x0a: semitones the pitch controller moves the voice at its extremes
+    /// (`Voice_UpdatePitch` 0x589f40, voice+0x66).
+    pub bend_range: i32,
+}
+
+/// Decodes one slot of a parsed bank to planar f32 PCM; `None` for an empty slot.
+pub fn decode_slot(bank: &[u8], parsed: &nfs_formats::Bnk, id: u8) -> Result<Option<SlotPcm>, String> {
+    let Some(patch) = parsed.patch(id as usize) else {
+        return Ok(None);
+    };
+    let pcm = decode_patch(bank, patch).map_err(|e| format!("слот {id}: {e}"))?;
+    let ch = patch.channels.max(1) as usize;
+    let channels = (0..ch)
+        .map(|c| {
+            pcm.iter()
+                .skip(c)
+                .step_by(ch)
+                .map(|&s| s as f32 / 32768.0)
+                .collect()
+        })
+        .collect();
+    let loop_range = match (patch.loop_start, patch.loop_end) {
+        (Some(s), Some(e)) if s < e => Some((s, e)),
+        _ => None,
+    };
+    Ok(Some(SlotPcm {
+        id,
+        sample_rate: patch.sample_rate,
+        detune_cents: patch.detune_cents(),
+        loop_range,
+        channels,
+        bend_range: patch.tags.get(&0x0a).copied().unwrap_or(0),
+    }))
 }
 
 /// Command kinds in the flat output of [`EngineAudioCore::update`].
@@ -195,35 +228,15 @@ impl EngineAudioCore {
         let mut slots = Vec::new();
         let mut clock = StepClock::default();
         for id in wanted {
-            let Some(patch) = parsed.patch(id as usize) else {
+            let Some(slot) = decode_slot(bnk_bytes, &parsed, id)? else {
                 continue;
             };
-            let pcm = decode_patch(bnk_bytes, patch).map_err(|e| format!("слот {id}: {e}"))?;
-            let ch = patch.channels.max(1) as usize;
-            let channels = (0..ch)
-                .map(|c| {
-                    pcm.iter()
-                        .skip(c)
-                        .step_by(ch)
-                        .map(|&s| s as f32 / 32768.0)
-                        .collect()
-                })
-                .collect();
-            let loop_range = match (patch.loop_start, patch.loop_end) {
-                (Some(s), Some(e)) if s < e => Some((s, e)),
-                _ => None,
-            };
             if ONE_SHOT_SLOTS.contains(&id) {
+                let patch = parsed.patch(id as usize).expect("decoded");
                 let secs = patch.num_samples as f64 / patch.base_rate_hz().max(1.0);
                 clock.length_cs.insert(id, (secs * 100.0).ceil() as i64);
             }
-            slots.push(SlotPcm {
-                id,
-                sample_rate: patch.sample_rate,
-                detune_cents: patch.detune_cents(),
-                loop_range,
-                channels,
-            });
+            slots.push(slot);
         }
         Ok(Self {
             mixer: EngineMixer::new(spl, &tables, MixerGlobals::default()),

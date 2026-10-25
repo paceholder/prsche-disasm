@@ -1,4 +1,4 @@
-import init, { create_viewer, EngineAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json } from "./package/viewer_impl.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -181,6 +181,12 @@ class EngineVoices {
     this.free();
     this.files = null;
     const audio = EngineAudio.load(names, bytes, simName, bank);
+    this.adopt(audio);
+    this.files = { names, bytes, simName, bank };
+  }
+
+  // Takes the decoded bank slots of a wasm audio object (EngineAudio, TyreAudio).
+  adopt(audio) {
     for (let i = 0; i < audio.slot_count(); i++) {
       const channels = [];
       for (let c = 0; c < audio.slot_channels(i); c++) channels.push(audio.slot_pcm(i, c));
@@ -195,7 +201,6 @@ class EngineVoices {
       });
     }
     this.audio = audio;
-    this.files = { names, bytes, simName, bank };
   }
 
   unload() {
@@ -319,13 +324,98 @@ class EngineVoices {
 
 const engineSound = new EngineVoices();
 
+// Original tyre squeal and surface rumble (docs/re/audio.md, "Tyre and surface sounds"): the wasm
+// `TyreAudio` runs the recovered logic at 32 Hz on the car state of the frame; the voices are the
+// looped SND_coll.bnk slots. A Stop carries the original's fade in ticks, played at 100 Hz
+// (approximation A110).
+const TYRE_FADE_TICK_S = 0.01;
+const TYRE_LOG_LIMIT = 40;
+const TYRE_CHANNELS = ["front", "rear", "rumble"];
+
+class TyreVoices extends EngineVoices {
+  constructor() {
+    super();
+    this.lastInputs = [];
+    this.log = []; // newest last: { t, kind, slot, volume }
+    this.starts = 0;
+  }
+
+  load(names, bytes) {
+    this.deactivate();
+    this.free();
+    this.files = null;
+    this.adopt(TyreAudio.load(names, bytes));
+    this.files = { names, bytes };
+  }
+
+  deactivate() {
+    if (this.audio && this.active) { try { this.audio.silence(); } catch {} }
+    super.deactivate();
+  }
+
+  update(dt, inputs, view) {
+    const ctx = soundManager.ctx;
+    if (!this.audio || !ctx || !soundManager.enabled) return;
+    try {
+      if (!this.active) { this.deactivate(); this.active = true; }
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      this.lastInputs = Array.from(inputs);
+      const out = this.audio.update(dt, inputs, view);
+      for (let i = 0; i + ENGINE_CMD_STRIDE <= out.length; i += ENGINE_CMD_STRIDE) {
+        const [kind, voice, slot, volume, pitch, fade, looped] = out.slice(i, i + ENGINE_CMD_STRIDE);
+        if (kind === 0 || kind === 4) {
+          this.log.push({ t: Math.round(performance.now()), kind: kind === 0 ? "start" : "stop", slot, volume });
+          if (kind === 0) this.starts++;
+          if (this.log.length > TYRE_LOG_LIMIT) this.log.shift();
+        }
+        this.execute(ctx, kind, voice, slot, volume, pitch, fade, looped);
+      }
+    } catch (error) {
+      console.error("Tyre sound stopped:", error);
+      this.unload();
+    }
+  }
+
+  // Stop fades out over `fade` ticks; the other commands are the engine's (pan unused).
+  execute(ctx, kind, voice, slot, volume, pitch, fade, looped) {
+    if (kind !== 4) return super.execute(ctx, kind, voice, slot, volume, pitch, 0, looped);
+    const v = this.voices.get(voice);
+    if (!v) return;
+    this.voices.delete(voice);
+    const now = ctx.currentTime;
+    const end = now + Math.max(fade, 1) * TYRE_FADE_TICK_S;
+    try {
+      v.gain.gain.cancelScheduledValues(now);
+      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+      v.gain.gain.linearRampToValueAtTime(0, end);
+      v.src.onended = () => { try { v.src.disconnect(); v.gain.disconnect(); v.panner.disconnect(); } catch {} };
+      v.src.stop(end + 0.02);
+    } catch { this.disposeVoice(v); }
+  }
+
+  // Readout for `__nfs.state().audio.tyres`.
+  readout() {
+    if (!this.audio) return { loaded: false };
+    const s = Array.from(this.audio.state());
+    const voices = [];
+    for (let i = 0; i + 5 <= s.length - 2; i += 5) {
+      voices.push({ channel: TYRE_CHANNELS[s[i]], slot: s[i + 1], volume: s[i + 2], control: s[i + 3], pitch: s[i + 4] });
+    }
+    const i = this.lastInputs;
+    return {
+      loaded: true, active: this.active, ticks: s[s.length - 2], starts: s[s.length - 1], voices,
+      skidFront: [i[0], i[1]], skidRear: [i[2], i[3]], surface: i[7], speed: i[11],
+      log: this.log.slice(-20),
+    };
+  }
+}
+
+const tyreSound = new TyreVoices();
+
 class SoundManager {
   constructor() {
     this.ctx = null;
     this.enabled = true; // on by default; the AudioContext starts on the first user gesture
-    this.skidNoise = null;
-    this.skidFilter = null;
-    this.skidGain = null;
   }
 
   toggle() {
@@ -349,49 +439,11 @@ class SoundManager {
     if (this.ctx && this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
     }
-    if (this.ctx && !this.skidNoise) {
-      try {
-        const bufferSize = this.ctx.sampleRate * 2;
-        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          output[i] = Math.random() * 2 - 1;
-        }
-        this.skidNoise = this.ctx.createBufferSource();
-        this.skidNoise.buffer = noiseBuffer;
-        this.skidNoise.loop = true;
-
-        this.skidFilter = this.ctx.createBiquadFilter();
-        this.skidFilter.type = "bandpass";
-        this.skidFilter.frequency.setValueAtTime(900, this.ctx.currentTime);
-        this.skidFilter.Q.setValueAtTime(1.5, this.ctx.currentTime);
-
-        this.skidGain = this.ctx.createGain();
-        this.skidGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
-
-        this.skidNoise.connect(this.skidFilter);
-        this.skidFilter.connect(this.skidGain);
-        this.skidGain.connect(this.ctx.destination);
-        this.skidNoise.start();
-      } catch {}
-    }
   }
 
   stop() {
     engineSound.deactivate();
-    if (this.skidGain && this.ctx) {
-      try { this.skidGain.gain.setValueAtTime(0.0, this.ctx.currentTime); } catch {}
-    }
-  }
-
-  update(rpm, speed, handbrake) {
-    if (!this.enabled || !this.ctx || !this.skidNoise) return;
-    try {
-      if (this.skidGain) {
-        const isSkidding = handbrake || (Math.abs(speed) > 20 && rpm > 0.85);
-        this.skidGain.gain.setTargetAtTime(isSkidding ? 0.08 : 0.0, this.ctx.currentTime, 0.05);
-      }
-    } catch {}
+    tyreSound.deactivate();
   }
 
   playCue(freq, durationMs) {
@@ -2317,6 +2369,8 @@ async function loadRaceCar(model, simName, bank = "", gauges = null) {
   await setCarGauges(target, simName, gauges);
   await loadCarSim(simName);
   lastEngineSoundError = await loadEngineSound(simName, bank);
+  const tyreError = await loadTyreSound();
+  if (tyreError && !lastEngineSoundError) lastEngineSoundError = tyreError;
 }
 
 // Cockpit needle calibration of the race car; the needles rest at 0 if nfs5.car is missing.
@@ -2373,6 +2427,21 @@ async function loadEngineSound(simName, recordBank = "") {
     const reason = error instanceof Error ? error.message : String(error);
     console.warn("Engine sound unavailable:", reason);
     return `Звук двигателя недоступен: ${reason}`;
+  }
+}
+
+// Loads the original tyre sounds (SND_coll.bnk). Never throws: returns "" or the reason.
+async function loadTyreSound() {
+  tyreSound.unload();
+  try {
+    const bank = await readGameFileByName("SND_coll.bnk", "sounds");
+    tyreSound.load([bank.name], [bank.data]);
+    return "";
+  } catch (error) {
+    tyreSound.unload();
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn("Tyre sound unavailable:", reason);
+    return `Звук шин недоступен: ${reason}`;
   }
 }
 
@@ -3094,9 +3163,9 @@ function updateNavigation(dt) {
     const gear = viewer.get_car_gear();
     const rpm = Math.max(0, Math.min(1, viewer.get_car_rpm()));
 
-    soundManager.update(rpm, speed, handbrake);
     engineSound.update(dt, viewer.get_car_engine_rpm(), viewer.get_car_redline_rpm(),
       Math.max(0, throttle), viewer.get_car_view(), gear);
+    tyreSound.update(dt, viewer.get_tyre_sound_inputs(), viewer.get_car_view());
 
     // Update Race HUD
     const phase = viewer.get_race_phase ? viewer.get_race_phase() : 0;
@@ -3297,6 +3366,7 @@ function updateNavigation(dt) {
   }
 
   engineSound.deactivate(); // not driving: silence the engine
+  tyreSound.deactivate();
   let inForward = 0;
   let inRight = 0;
   let inZoom = 0;
@@ -3467,6 +3537,7 @@ window.__nfs = {
           gain: gameAudio.stream.gain?.gain.value ?? null,
         } : null,
         speech: gameAudio.speechReady,
+        tyres: tyreSound.readout(),
         context: soundManager.ctx?.state ?? "none",
         log: gameAudio.log.slice(-40),
       },
