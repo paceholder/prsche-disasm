@@ -348,6 +348,10 @@ pub struct Scene {
     pub sky_layers: [Option<SkyTexture>; 3],
     /// Placement of the horizon panorama from `Sky/<track>.bin` (`SkyHorizon_Build` 0x459d30).
     pub sky_horizon: Option<nfs_formats::SkyHorizon>,
+    /// Dome of the sky-map layers (`Sky/<track>.bin`, `docs/re/sky.md`).
+    pub sky_dome: Option<nfs_formats::SkyDome>,
+    /// Layer table of the `HIGH` block of `Sky/<track>.txt` (maps are `sky_layers[0..2]`).
+    pub sky_map: Option<nfs_formats::SkyMapBlock>,
     /// Sun position of `Sky/<track>.bin` in scene coordinates (`Sky_SunPosition`
     /// 0x461090); its direction lights the cars.
     pub sun_position: Option<[f32; 3]>,
@@ -394,6 +398,8 @@ impl Default for Scene {
             sky_texture: None,
             sky_layers: [None, None, None],
             sky_horizon: None,
+            sky_dome: None,
+            sky_map: None,
             sun_position: None,
             topology: None,
             road_surface: None,

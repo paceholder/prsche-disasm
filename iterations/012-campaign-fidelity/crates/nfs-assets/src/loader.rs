@@ -758,6 +758,8 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         sky_texture: None,
         sky_layers: [None, None, None],
         sky_horizon: None,
+        sky_dome: None,
+        sky_map: None,
         sun_position: None,
         topology: None,
         road_surface: None,

@@ -442,6 +442,8 @@ struct SkyState {
     texture_group: wgpu::BindGroup,
     /// Uniform with the horizon placement; only `view_projection` changes per frame.
     uniform: SkyUniform,
+    /// Drift of the two layers, UV per second (`sky_drift_velocity`).
+    drift: [f32; 4],
 }
 
 #[repr(C)]
@@ -1316,6 +1318,8 @@ impl Renderer {
                 &sky_tex.rgba,
                 &scene.sky_layers,
                 &scene.sky_horizon.unwrap_or_else(default_sky_horizon),
+                scene.sky_dome.as_ref(),
+                scene.sky_map.as_ref(),
             )
         });
 
@@ -2169,6 +2173,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let sky_vp = self.camera.sky_view_projection(self.width, self.height);
             let mut sky_uniform = sky.uniform;
             sky_uniform.view_projection = sky_vp.to_cols_array_2d();
+            let t = animation_seconds();
+            sky_uniform.drift = sky.drift.map(|v| ((f64::from(v) * t).rem_euclid(1.0)) as f32);
             self.queue
                 .write_buffer(&sky.camera_buffer, 0, bytemuck::bytes_of(&sky_uniform));
         }
@@ -6350,6 +6356,30 @@ struct SkyUniform {
     /// `hzcl` colours of the ring vertices, upper and lower edge, indexed by segment.
     top_colors: [[f32; 4]; 16],
     bottom_colors: [[f32; 4]; 16],
+    /// Sky-map dome (`FUN_00460f40`): angle (turns), size, curvature, height.
+    dome: [f32; 4],
+    /// Dome scale, dome present (1/0), layer 0 `1/x scale`, `1/y scale` (0 = no layer).
+    dome2: [f32; 4],
+    /// Layer 1 `1/x scale`, `1/y scale` (0 = no layer), 0, 0.
+    dome3: [f32; 4],
+    /// Texture offsets of the two layers (u0, v0, u1, v1), wind drift (A194).
+    drift: [f32; 4],
+}
+
+/// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores
+/// `(sin, cos)(-direction / 360 turns) * speed * 0.00025`; applying it once per 128 Hz tick is
+/// a Hypothesis (A194).
+fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
+    let mut v = [0.0; 4];
+    if let Some(m) = map {
+        for k in 0..2 {
+            let turns = -m.wind_direction[k] / 360.0 * std::f32::consts::TAU;
+            let step = m.wind_speed[k] * 0.00025 * 128.0;
+            v[2 * k] = turns.sin() * step;
+            v[2 * k + 1] = turns.cos() * step;
+        }
+    }
+    v
 }
 
 impl SkyUniform {
@@ -6359,6 +6389,9 @@ impl SkyUniform {
         view_projection: Mat4,
         horizon: &nfs_formats::SkyHorizon,
         hzcl: Option<&nfs_assets::SkyTexture>,
+        dome: Option<&nfs_formats::SkyDome>,
+        map: Option<&nfs_formats::SkyMapBlock>,
+        layers: [bool; 2],
     ) -> Self {
         let pixel = |column: usize, row: usize| -> [f32; 4] {
             let Some(t) = hzcl.filter(|t| t.width == 16 && t.height >= 2 && t.rgba.len() >= 16 * 2 * 4)
@@ -6377,6 +6410,16 @@ impl SkyUniform {
             // Vertex k carries column start + k; the shader interpolates to vertex k + 1.
             u.top_colors[k] = pixel(horizon.start as usize + k, 0);
             u.bottom_colors[k] = pixel(horizon.start as usize + k, 1);
+        }
+        if let Some(d) = dome {
+            // Without the txt the layers repeat once per cell.
+            let inv = |scale: f32| if scale > 0.0 { 1.0 / scale } else { 0.0 };
+            let (x, y) = map.map_or(([1.0; 3], [1.0; 3]), |m| (m.x_scale, m.y_scale));
+            let on = |k: usize| if layers[k] { (inv(x[k]), inv(y[k])) } else { (0.0, 0.0) };
+            let (l0, l1) = (on(0), on(1));
+            u.dome = [d.angle, d.size, d.curvature, d.height];
+            u.dome2 = [d.scale, 1.0, l0.0, l0.1];
+            u.dome3 = [l1.0, l1.1, 0.0, 0.0];
         }
         u
     }
@@ -6447,6 +6490,8 @@ fn create_sky_state(
     tex_rgba: &[u8],
     layers: &[Option<nfs_assets::SkyTexture>; 3],
     horizon: &nfs_formats::SkyHorizon,
+    dome: Option<&nfs_formats::SkyDome>,
+    map: Option<&nfs_formats::SkyMapBlock>,
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
@@ -6544,7 +6589,14 @@ fn create_sky_state(
     });
 
     let vp = camera.view_projection(width, height);
-    let sky_uniform = SkyUniform::new(vp, horizon, layers[2].as_ref());
+    let sky_uniform = SkyUniform::new(
+        vp,
+        horizon,
+        layers[2].as_ref(),
+        dome,
+        map,
+        [layers[0].is_some(), layers[1].is_some()],
+    );
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sky camera"),
         contents: bytemuck::bytes_of(&sky_uniform),
@@ -6641,6 +6693,7 @@ fn create_sky_state(
         camera_group,
         texture_group,
         uniform: sky_uniform,
+        drift: sky_drift_velocity(map),
     }
 }
 

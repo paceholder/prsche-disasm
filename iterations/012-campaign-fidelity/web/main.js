@@ -2261,7 +2261,7 @@ function findTrackFilesFromCatalog(target, specificScn = null) {
     const stem = basename.replace(/\.[^.]+$/, "");
     const ext = basename.split(".").pop();
 
-    if (fullPath.includes("/sky/") && (ext === "fsh" || ext === "bin") && stem === targetLower) {
+    if (fullPath.includes("/sky/") && (ext === "fsh" || ext === "bin" || ext === "txt") && stem === targetLower) {
       matching.push(relPath);
       continue;
     }
@@ -2735,7 +2735,7 @@ async function loadTarget(specificScn = null, reverse = false) {
           const stem = basename.replace(/\.[^.]+$/, "");
           const ext = basename.split(".").pop();
 
-          if (fullPath.includes("/sky/") && (ext === "fsh" || ext === "bin") && stem === target) {
+          if (fullPath.includes("/sky/") && (ext === "fsh" || ext === "bin" || ext === "txt") && stem === target) {
             names.push(selectedName(file));
             bytes.push(new Uint8Array(await file.arrayBuffer()));
             continue;

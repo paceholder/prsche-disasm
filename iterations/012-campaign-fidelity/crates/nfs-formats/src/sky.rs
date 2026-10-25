@@ -180,6 +180,149 @@ impl SkyHorizon {
     }
 }
 
+/// Dome of the sky-map layers (`FUN_00460f40`, `docs/re/sky.md` "Sky-map dome"): a 16x16 vertex
+/// grid, a paraboloid `y = (height - (a^2 + b^2) * curvature) * scale` over `a, b` in
+/// `-size/2..size/2`, turned by `angle` turns about the vertical axis.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkyDome {
+    /// `+0x3c`, turns.
+    pub angle: f32,
+    /// `+0x40`: edge length of the square grid.
+    pub size: f32,
+    /// `+0x44`: paraboloid curvature.
+    pub curvature: f32,
+    /// `+0x48`: apex height before scaling.
+    pub height: f32,
+    /// `+0xce4`: uniform scale of the dome.
+    pub scale: f32,
+}
+
+/// Vertices per side minus one (`FUN_0045b5a0` calls the grid builder with 15).
+pub const SKY_DOME_CELLS: f32 = 15.0;
+
+impl SkyDome {
+    /// Grid position `(column, row)` (0..15 over the dome) hit by a view direction in original
+    /// axes (x = sin, z = cos, y up), or `None` outside the square grid; the shader
+    /// (`sky.wgsl`) does the same per pixel. Intersection of the ray `t * d` with
+    /// `y = scale * height - curvature * (x^2 + z^2) / scale` (`FUN_00460f40`).
+    pub fn grid_position(&self, d: [f32; 3]) -> Option<(f32, f32)> {
+        let h2 = d[0] * d[0] + d[2] * d[2];
+        let denom = (d[1] + (d[1] * d[1] + 4.0 * self.curvature * h2 * self.height).sqrt()).max(1e-6);
+        let t = 2.0 * self.scale * self.height / denom;
+        let (x, z) = (t * d[0], t * d[2]);
+        let turn = self.angle * std::f32::consts::TAU;
+        let (sn, cs) = turn.sin_cos();
+        let a = (x * cs - z * sn) / self.scale;
+        let b = (x * sn + z * cs) / self.scale;
+        let half = self.size * 0.5;
+        if a.abs() > half || b.abs() > half {
+            return None;
+        }
+        let cell = self.size / SKY_DOME_CELLS;
+        Some(((half - a) / cell, (b + half) / cell))
+    }
+}
+
+pub fn parse_sky_dome(data: &[u8]) -> Result<SkyDome> {
+    let dome = SkyDome {
+        angle: f32le(data, 0x3c)?,
+        size: f32le(data, 0x40)?,
+        curvature: f32le(data, 0x44)?,
+        height: f32le(data, 0x48)?,
+        scale: f32le(data, 0xce4)?,
+    };
+    if !(dome.size > 0.0 && dome.scale > 0.0 && dome.height > 0.0) {
+        return Err("sky dome has no size".into());
+    }
+    Ok(dome)
+}
+
+/// One `BEGIN..END` block of `Sky/<track>.txt`: the layers of one computer capability.
+/// Region A only (region B is the second weather set).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkyMapBlock {
+    /// `HIGH`, `MEDIUM`, ...
+    pub capability: String,
+    /// `MULTINORMAL`, `BASIC`, ...
+    pub kind: String,
+    /// Three sky map names; `none` for an unused layer.
+    pub maps: [String; 3],
+    /// Per layer: `MULTI*` maps advance `1 / scale` per grid cell (`FUN_0045f1b0`); `BASIC` has
+    /// one pair, the repeats over the dome.
+    pub x_scale: [f32; 3],
+    pub y_scale: [f32; 3],
+    pub move_ratio: f32,
+    pub wind_speed: [f32; 3],
+    /// Degrees, north 0, east 90.
+    pub wind_direction: [f32; 3],
+}
+
+/// Parse the commented script of `Sky/<track>.txt` (`#` starts a comment line).
+pub fn parse_sky_txt(text: &str) -> Vec<SkyMapBlock> {
+    let mut blocks = Vec::new();
+    let mut tokens: Option<Vec<&str>> = None;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') {
+            continue;
+        }
+        match (t.eq_ignore_ascii_case("BEGIN"), t.eq_ignore_ascii_case("END")) {
+            (true, _) => tokens = Some(Vec::new()),
+            (_, true) => {
+                if let Some(tok) = tokens.take() {
+                    if let Some(b) = sky_block(&tok) {
+                        blocks.push(b);
+                    }
+                }
+            }
+            _ => {
+                if let Some(tok) = tokens.as_mut() {
+                    tok.push(t.split_whitespace().next().unwrap_or(""));
+                }
+            }
+        }
+    }
+    blocks
+}
+
+fn sky_block(t: &[&str]) -> Option<SkyMapBlock> {
+    // capability, type, blocks-the-sun, then region A.
+    if t.len() < 3 + 3 {
+        return None;
+    }
+    let maps = [t[3].to_string(), t[4].to_string(), t[5].to_string()];
+    let (capability, kind) = (t[0].to_ascii_uppercase(), t[1].to_ascii_uppercase());
+    let n = |i: usize| t.get(3 + i).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
+    if kind == "BASIC" {
+        // `SkyBasicLayer` (0x45bf80): 3 maps, then x scale, y scale, 5 more numbers (cloud
+        // sprite parameters, not read); one scale pair for the single sky map.
+        return Some(SkyMapBlock {
+            capability,
+            kind,
+            maps,
+            x_scale: [n(3), 0.0, 0.0],
+            y_scale: [n(4), 0.0, 0.0],
+            move_ratio: 0.0,
+            wind_speed: [0.0; 3],
+            wind_direction: [0.0; 3],
+        });
+    }
+    // MULTI*: 3 maps, 3 x, 3 y, move, 3 speeds, 3 directions, warp speed, warp amount.
+    if t.len() < 3 + 18 {
+        return None;
+    }
+    Some(SkyMapBlock {
+        capability,
+        kind,
+        maps,
+        x_scale: [n(3), n(4), n(5)],
+        y_scale: [n(6), n(7), n(8)],
+        move_ratio: n(9),
+        wind_speed: [n(10), n(11), n(12)],
+        wind_direction: [n(13), n(14), n(15)],
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,5 +439,48 @@ mod tests {
         let (top, bottom) = h.edge_elevations();
         assert!((top.to_degrees() - 7.8).abs() < 0.1 && (bottom.to_degrees() + 24.55).abs() < 0.1);
         assert_eq!(h.tiles[9], (1, false));
+    }
+
+    #[test]
+    fn sky_txt_blocks_are_parsed() {
+        let text = "# c\nBEGIN\n\tHIGH\n\tMULTINORMAL\nNO\n# maps\n\tst1a\n\tsc1a\n\tnone\n1\n2\n0\n1\n3\n0\n400\n0\n2\n0\n90\n40\n0\n0\n0\n\tst1b\n\tsc1b\n\tnone\n1\n2\n0\n1\n2\n0\n400\n0\n2\n0\n90\n40\n0\n0\n0\n\tflat\n\tcc1a\n\tnone\nEND\nBEGIN\nMEDIUM\nBASIC\nNO\nEND\n";
+        let blocks = parse_sky_txt(text);
+        assert_eq!(blocks.len(), 1, "the truncated block is dropped");
+        let b = &blocks[0];
+        assert_eq!((b.capability.as_str(), b.kind.as_str()), ("HIGH", "MULTINORMAL"));
+        assert_eq!(b.maps, ["st1a", "sc1a", "none"]);
+        assert_eq!((b.x_scale, b.y_scale), ([1.0, 2.0, 0.0], [1.0, 3.0, 0.0]));
+        assert_eq!((b.move_ratio, b.wind_speed, b.wind_direction), (400.0, [0.0, 2.0, 0.0], [90.0, 40.0, 0.0]));
+    }
+
+    #[test]
+    fn local_sky_dome_and_txt() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../game/app/GameData/Track/Sky");
+        let (Ok(bin), Ok(txt)) = (std::fs::read(dir.join("Coastal.bin")), std::fs::read_to_string(dir.join("Coastal.txt"))) else {
+            return;
+        };
+        let d = parse_sky_dome(&bin).unwrap();
+        assert!((d.size - 1500.0).abs() < 1e-3 && (d.height - 44.3878).abs() < 1e-3 && (d.scale - 0.2357).abs() < 1e-3);
+        let blocks = parse_sky_txt(&txt);
+        let high = blocks.iter().find(|b| b.capability == "HIGH").unwrap();
+        assert_eq!(high.maps[0], "sm1b");
+        assert_eq!((high.x_scale[0], high.y_scale[0]), (2.0, 6.0));
+    }
+
+    #[test]
+    fn dome_apex_is_the_grid_centre_and_the_edge_is_the_border() {
+        let d = SkyDome { angle: 0.0, size: 1500.0, curvature: 0.0002, height: 44.0, scale: 0.25 };
+        let (col, row) = d.grid_position([0.0, 1.0, 0.0]).unwrap();
+        assert!((col - 7.5).abs() < 1e-3 && (row - 7.5).abs() < 1e-3);
+        // Slightly above the horizon the ray meets the dome far out, below it nothing is left
+        // of the grid on the sea side for a steeply descending ray.
+        let (col, _) = d.grid_position([1.0, 0.05, 0.0]).unwrap_or((-1.0, 0.0));
+        assert!(col < 7.5, "x > 0 moves towards column 0, got {col}");
+        assert!(d.grid_position([1.0, -0.5, 0.0]).is_none());
+        // The rotation turns the grid: a quarter turn swaps the axes.
+        let r = SkyDome { angle: 0.25, ..d };
+        let (c, rw) = r.grid_position([0.3, 1.0, 0.0]).unwrap();
+        let (c0, rw0) = d.grid_position([0.3, 1.0, 0.0]).unwrap();
+        assert!((c - 7.5).abs() < (c0 - 7.5).abs() && (rw - 7.5).abs() > (rw0 - 7.5).abs());
     }
 }

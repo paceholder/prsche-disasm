@@ -247,6 +247,8 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sky_texture: None,
         sky_layers: [None, None, None],
         sky_horizon: None,
+        sky_dome: None,
+        sky_map: None,
         sun_position: None,
         topology: None,
         road_surface: None,
@@ -805,10 +807,30 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             Ok(sun) => scene.sun_position = Some(to_scene_coordinates(sun.position())),
             Err(e) => scene.diagnostics.push(format!("Sky {key}: {e}")),
         }
+        match nfs_formats::parse_sky_dome(data) {
+            Ok(dome) => scene.sky_dome = Some(dome),
+            Err(e) => scene.diagnostics.push(format!("Sky {key}: dome {e}")),
+        }
         match nfs_formats::parse_sky_horizon(data) {
             Ok(horizon) => scene.sky_horizon = Some(horizon),
             Err(e) => scene.diagnostics.push(format!("Sky {key}: horizon {e}")),
         }
+    }
+
+    // --- Sky layer table Sky/<track>.txt (HIGH block, region A) ---
+    let sky_txt = files.iter().find(|(k, _)| {
+        let low = k.replace('\\', "/").to_ascii_lowercase();
+        (low.contains("/sky/") || low.starts_with("sky/"))
+            && !low.contains("sky new")
+            && low.rsplit('/').next() == Some(&format!("{}.txt", track.to_ascii_lowercase()))
+    });
+    if let Some((_, data)) = sky_txt {
+        let blocks = nfs_formats::parse_sky_txt(&String::from_utf8_lossy(data));
+        scene.sky_map = blocks
+            .iter()
+            .find(|b| b.capability == "HIGH")
+            .or(blocks.first())
+            .cloned();
     }
 
     // --- Sky texture loading ---
@@ -837,16 +859,28 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                 Ok(sky_images) => {
                     // Region A sky map and cloud map (`st1a`, `sc1a` in Sky/<track>.txt)
                     // and the horizon haze strip.
-                    for (slot, prefix) in ["st", "sc", "hzcl"].iter().enumerate() {
-                        scene.sky_layers[slot] = sky_images
+                    // Layer maps are named by the txt (Coastal: `sm1b`); without it the
+                    // first `st`/`sc` images stand in (approximation A4).
+                    let by_name = |name: &str| {
+                        sky_images
                             .iter()
-                            .find(|img| img.name.starts_with(prefix))
-                            .map(|img| SkyTexture {
-                                width: img.width,
-                                height: img.height,
-                                rgba: img.rgba.clone(),
-                            });
-                    }
+                            .find(|img| img.name.eq_ignore_ascii_case(name))
+                    };
+                    let pick = |slot: usize, prefix: &str| {
+                        match scene.sky_map.as_ref().map(|b| b.maps[slot].as_str()) {
+                            Some(name) if name.eq_ignore_ascii_case("none") => None,
+                            Some(name) => by_name(name),
+                            None => sky_images.iter().find(|img| img.name.starts_with(prefix)),
+                        }
+                    };
+                    let tex = |img: &nfs_formats::Image| SkyTexture {
+                        width: img.width,
+                        height: img.height,
+                        rgba: img.rgba.clone(),
+                    };
+                    scene.sky_layers[0] = pick(0, "st").map(tex);
+                    scene.sky_layers[1] = pick(1, "sc").map(tex);
+                    scene.sky_layers[2] = by_name("hzcl").map(tex);
                     // Look for the horizon panorama texture ("horz")
                     if let Some(horz) = sky_images.iter().find(|img| img.name == "horz") {
                         scene.sky_texture = Some(SkyTexture {
