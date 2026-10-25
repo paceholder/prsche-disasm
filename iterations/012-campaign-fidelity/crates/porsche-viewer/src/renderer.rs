@@ -212,6 +212,30 @@ impl Camera {
         let target = self.target();
         projection * Mat4::look_at_rh(eye, target, Vec3::Y)
     }
+    /// View matrix with the translation removed, so the sky dome follows the
+    /// camera's orientation only. Uses `eye()`/`target()` so it is correct in
+    /// both Orbit and Drive modes (`center` is stale in Drive mode).
+    fn sky_view(&self) -> Mat4 {
+        let view = Mat4::look_at_rh(self.eye(), self.target(), Vec3::Y);
+        Mat4::from_cols(
+            view.col(0),
+            view.col(1),
+            view.col(2),
+            glam::Vec4::new(0.0, 0.0, 0.0, 1.0),
+        )
+    }
+    fn sky_view_projection(&self, width: u32, height: u32) -> Mat4 {
+        let (fov, near) = match self.mode {
+            CameraMode::Orbit => (
+                45.0_f32.to_radians(),
+                (self.distance * 0.05).clamp(0.05, 1.0),
+            ),
+            CameraMode::Drive => (self.drive_fov.to_radians(), 0.1_f32),
+        };
+        let far = (self.radius * 20.0).max(10_000.0);
+        let projection = Mat4::perspective_rh(fov, width as f32 / height.max(1) as f32, near, far);
+        projection * self.sky_view()
+    }
     fn uniform(&self, width: u32, height: u32) -> CameraUniform {
         let eye = self.eye();
         CameraUniform {
@@ -323,6 +347,7 @@ pub struct Renderer {
     pub car: Option<crate::arcade::ArcadeCar>,
     pub sim_car: Option<nfs_assets::physics::VehicleSimulation>,
     pub sim_telemetry: Option<nfs_assets::physics::VehicleTelemetry>,
+    pub chase_camera: crate::chase_camera::ChaseCamera,
     pub vehicle_contact_count: u32,
     pub sim_mode: bool,
     pub race_session: Option<nfs_assets::RaceSession>,
@@ -1145,6 +1170,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             car,
             sim_car,
             sim_telemetry: None,
+            chase_camera: crate::chase_camera::ChaseCamera::default(),
             vehicle_contact_count: 0,
             sim_mode: true,
             race_session,
@@ -1312,23 +1338,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         // Update sky camera if present
         if let Some(sky) = &self.sky {
-            let eye = self.camera.eye();
-            let view_no_translate = Mat4::look_at_rh(eye, self.camera.center, Vec3::Y);
-            let rotation_only = Mat4::from_cols(
-                view_no_translate.col(0),
-                view_no_translate.col(1),
-                view_no_translate.col(2),
-                glam::Vec4::new(0.0, 0.0, 0.0, 1.0),
-            );
-            let near = (self.camera.distance * 0.05).clamp(0.05, 1.0);
-            let far = (self.camera.radius * 20.0).max(10_000.0);
-            let projection = Mat4::perspective_rh(
-                45.0_f32.to_radians(),
-                self.width as f32 / self.height.max(1) as f32,
-                near,
-                far,
-            );
-            let sky_vp = projection * rotation_only;
+            let sky_vp = self.camera.sky_view_projection(self.width, self.height);
             let sky_uniform = SkyUniform {
                 view_projection: sky_vp.to_cols_array_2d(),
             };
@@ -1766,6 +1776,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if let (true, Some(sim)) = (self.sim_mode, &mut self.sim_car) {
             sim.body.position += delta;
             sim.body.linear_velocity = Vec3::from(current[0].velocity);
+            sim.sync_wheel_spin_to_body();
             self.sim_telemetry =
                 Some(sim.telemetry(&nfs_assets::physics::VehicleControls::default()));
             self.camera.drive_pos += delta;
@@ -1815,17 +1826,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ) {
                 sim.body.position = Vec3::from(pos);
                 sim.body.linear_velocity = Vec3::from(vel);
+                sim.sync_wheel_spin_to_body();
             }
 
             player_pos = sim.body.position.to_array();
             player_fwd = sim.body.forward().to_array();
 
             if self.camera.mode == CameraMode::Drive {
-                let forward = sim.body.forward();
-                let eye = sim.body.position + Vec3::new(0.0, 2.0, 0.0) - forward * 5.8;
-                let target = sim.body.position + Vec3::new(0.0, 0.9, 0.0) + forward * 1.5;
-                self.camera.drive_pos = eye;
-                self.camera.drive_target = target;
+                let view = self.chase_camera.update(
+                    dt,
+                    sim.body.position,
+                    sim.body.forward(),
+                    sim.body.linear_velocity,
+                );
+                self.camera.drive_pos = view.eye;
+                self.camera.drive_target = view.target;
                 self.camera.drive_fov = 58.0 + (tel.speed_mps / 50.0).clamp(0.0, 1.0) * 10.0;
             }
             self.sim_telemetry = Some(tel);
@@ -1984,6 +1999,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn reset_car(&mut self) {
+        self.chase_camera.reset();
         self.vehicle_contact_count = 0;
         self.reset_scenario_props();
         if let Some(course) = &self.track_course {
@@ -3372,5 +3388,38 @@ mod sim_loading_tests {
         course.is_circuit = false;
         let (session, _) = quick_race_grid(&course, 5, 0);
         assert_eq!(session.lap_tracker.total_laps, 1);
+    }
+}
+
+#[cfg(test)]
+mod sky_tests {
+    use super::*;
+
+    fn drive_camera(target: Vec3) -> Camera {
+        let mut cam = Camera::new([[-1.0; 3], [1.0; 3]]);
+        cam.mode = CameraMode::Drive;
+        cam.drive_pos = Vec3::new(500.0, 3.0, -200.0);
+        cam.drive_target = target;
+        // Stale orbit center must not influence the sky.
+        cam.center = Vec3::new(0.0, 0.0, 0.0);
+        cam
+    }
+
+    #[test]
+    fn sky_view_ignores_translation() {
+        let a = drive_camera(Vec3::new(500.0, 3.0, -210.0)).sky_view();
+        assert_eq!(a.col(3), glam::Vec4::new(0.0, 0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn sky_view_rotates_with_drive_yaw() {
+        // Looking along -Z, the world +X direction appears on the right of the screen.
+        let fwd = drive_camera(Vec3::new(500.0, 3.0, -210.0)).sky_view();
+        let east = fwd.transform_vector3(Vec3::X);
+        assert!(east.x > 0.99);
+        // After turning to look along +X, world +X is straight ahead (-Z in view space).
+        let turned = drive_camera(Vec3::new(510.0, 3.0, -200.0)).sky_view();
+        let east = turned.transform_vector3(Vec3::X);
+        assert!(east.z < -0.99, "{east:?}");
     }
 }

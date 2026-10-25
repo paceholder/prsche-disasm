@@ -223,6 +223,21 @@ impl VehicleSimulation {
         self.wheel_visual_angles = [0.0; 4];
     }
 
+    /// Match wheel spin to the body's ground speed after an external velocity
+    /// change (collision response). Without this the wheels keep their old
+    /// speed and re-accelerate the car once the contact ends.
+    /// Approximation: the original contact response is not recovered.
+    pub fn sync_wheel_spin_to_body(&mut self) {
+        let forward = self.body.forward();
+        let ground_speed =
+            self.body.linear_velocity.x * forward.x + self.body.linear_velocity.z * forward.z;
+        for wheel in &mut self.suspension.wheels {
+            if wheel.tire.radius > 0.0 {
+                wheel.tire.omega = ground_speed / wheel.tire.radius;
+            }
+        }
+    }
+
     /// Approximate upright body height over a flat road under static spring load.
     pub fn resting_height(&self) -> f32 {
         let spring_sum: f32 = self.suspension.wheels.iter().map(|w| w.spring_k).sum();
@@ -676,6 +691,21 @@ mod tests {
             vehicle.body.forward_speed() > 1.0,
             "Forward speed should be positive"
         );
+    }
+
+    #[test]
+    fn wheel_spin_follows_body_after_collision() {
+        let mut vehicle = VehicleSimulation::from_sim(&test_boxster_sim());
+        vehicle.reset(Vec3::new(0.0, 0.35, 0.0), 0.0);
+        for w in &mut vehicle.suspension.wheels {
+            w.tire.omega = 30.0 / w.tire.radius;
+        }
+        // A wall stopped the body; the wheels must not keep 30 m/s of spin.
+        vehicle.body.linear_velocity = Vec3::new(0.0, 0.0, -5.0);
+        vehicle.sync_wheel_spin_to_body();
+        for w in &vehicle.suspension.wheels {
+            assert!((w.tire.omega * w.tire.radius - 5.0).abs() < 1e-3);
+        }
     }
 
     #[test]

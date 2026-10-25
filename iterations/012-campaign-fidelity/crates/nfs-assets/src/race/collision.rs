@@ -117,8 +117,16 @@ impl BarrierCollider {
                 // Bounce normal with restitution
                 let new_vn = -config.restitution * vn;
 
-                // Scrub tangential velocity with wall friction
-                let friction_factor = (1.0 - config.wall_friction).max(0.1);
+                // Coulomb wall friction: the tangential loss is bounded by the
+                // normal impulse, so a glancing scrape keeps most of its speed
+                // instead of losing a fixed share on every contact frame.
+                let vt = (vt_x * vt_x + vt_z * vt_z).sqrt();
+                let friction_loss = config.wall_friction * (new_vn - vn);
+                let friction_factor = if vt > 1e-6 {
+                    (1.0 - friction_loss / vt).max(0.0)
+                } else {
+                    0.0
+                };
                 vel[0] = vt_x * friction_factor + new_vn * hit.normal[0];
                 vel[2] = vt_z * friction_factor + new_vn * hit.normal[2];
             }
@@ -255,9 +263,12 @@ pub fn resolve_vehicle_contact(a: &mut VehicleContactProxy, b: &mut VehicleConta
         return false;
     }
 
+    // Frame displacement left unexecuted after rewinding to the impact time.
+    let mut remainder = None;
     let (normal, correction) = if entry > 0.0 {
         // A car can cross the other one's center yet finish the frame still
         // overlapping. Resolve at first impact even in that case.
+        let ends = [a.center, b.center];
         for body in [&mut *a, &mut *b] {
             for i in 0..3 {
                 body.center[i] =
@@ -282,6 +293,18 @@ pub fn resolve_vehicle_contact(a: &mut VehicleContactProxy, b: &mut VehicleConta
                 }
             }
         }
+        remainder = Some([
+            [
+                ends[0][0] - a.center[0],
+                ends[0][1] - a.center[1],
+                ends[0][2] - a.center[2],
+            ],
+            [
+                ends[1][0] - b.center[0],
+                ends[1][1] - b.center[1],
+                ends[1][2] - b.center[2],
+            ],
+        ]);
         (entry_normal, 0.001)
     } else {
         (current_normal, least_penetration + 0.001)
@@ -304,6 +327,25 @@ pub fn resolve_vehicle_contact(a: &mut VehicleContactProxy, b: &mut VehicleConta
         b.velocity[0] += impulse * b.inverse_mass * normal[0];
         b.velocity[2] += impulse * b.inverse_mass * normal[1];
     }
+
+    // Finish the frame after the impact. Without this, cars in sustained
+    // contact were rewound to the impact point every frame: they froze while
+    // touching and their retained velocity reappeared on separation.
+    // Approach along the normal is removed by mass share (no restitution);
+    // sliding and shared pushing motion are kept.
+    if let Some([mut rem_a, mut rem_b]) = remainder {
+        let approach = (rem_b[0] - rem_a[0]) * normal[0] + (rem_b[2] - rem_a[2]) * normal[1];
+        if approach < 0.0 {
+            rem_a[0] += approach * a_share * normal[0];
+            rem_a[2] += approach * a_share * normal[1];
+            rem_b[0] -= approach * b_share * normal[0];
+            rem_b[2] -= approach * b_share * normal[1];
+        }
+        for i in 0..3 {
+            a.center[i] += rem_a[i];
+            b.center[i] += rem_b[i];
+        }
+    }
     true
 }
 
@@ -320,6 +362,49 @@ mod tests {
             half_extents: [1.0, 1.0, 2.0],
             inverse_mass: 1.0,
         }
+    }
+
+    /// Integrate both cars for one frame, then resolve, as the renderer does.
+    fn step_pair(a: &mut VehicleContactProxy, b: &mut VehicleContactProxy, dt: f32) {
+        for body in [&mut *a, &mut *b] {
+            body.previous_center = body.center;
+            for i in 0..3 {
+                body.center[i] += body.velocity[i] * dt;
+            }
+        }
+        resolve_vehicle_contact(a, b);
+    }
+
+    #[test]
+    fn pushing_from_behind_keeps_both_cars_moving() {
+        // a (behind, 20 m/s) pushes b (15 m/s); both travel toward -Z.
+        let mut a = car(0.0, 4.0, 0.0);
+        let mut b = car(0.0, 0.0, 0.0);
+        let dt = 1.0 / 60.0;
+        for _ in 0..60 {
+            a.velocity[2] = -20.0;
+            b.velocity[2] = -15.0;
+            step_pair(&mut a, &mut b, dt);
+        }
+        // In contact the pair moves at >= 15 m/s; rewinding to impact froze it.
+        assert!(b.center[2] < -14.0, "front car frozen: {:?}", b.center);
+        assert!(a.center[2] < -10.0, "rear car frozen: {:?}", a.center);
+        assert!(a.center[2] > b.center[2], "cars crossed");
+    }
+
+    #[test]
+    fn side_by_side_scrape_keeps_forward_motion() {
+        // Two cars touching side by side, a drifting into b while both drive.
+        let mut a = car(-2.0, 0.0, 0.0);
+        let mut b = car(0.0, 0.0, 0.0);
+        let dt = 1.0 / 60.0;
+        for _ in 0..60 {
+            a.velocity = [1.0, 0.0, -20.0];
+            b.velocity = [0.0, 0.0, -20.0];
+            step_pair(&mut a, &mut b, dt);
+        }
+        assert!(a.center[2] < -18.0, "scraping car frozen: {:?}", a.center);
+        assert!(b.center[2] < -18.0, "scraped car frozen: {:?}", b.center);
     }
 
     #[test]
@@ -367,7 +452,9 @@ mod tests {
         a.velocity[0] = 200.0;
         assert!(resolve_vehicle_contact(&mut a, &mut b));
         assert!(a.center[0] < b.center[0]);
-        assert!((a.center[0] + 2.0).abs() < 0.01);
+        // Touching after impact, and the struck car is pushed for the rest of the frame.
+        assert!((b.center[0] - a.center[0] - 2.0).abs() < 0.01);
+        assert!(b.center[0] > 0.0);
         assert!(a.velocity[0] < 200.0 && b.velocity[0] > 0.0);
     }
 
@@ -379,7 +466,8 @@ mod tests {
         a.velocity[2] = -60.0;
         assert!(resolve_vehicle_contact(&mut a, &mut b));
         assert!(a.center[2] > b.center[2], "cars crossed through each other");
-        assert!((a.center[2] - 4.0).abs() < 0.01);
+        assert!((a.center[2] - b.center[2] - 4.0).abs() < 0.01);
+        assert!(b.center[2] < 0.0);
         assert!(a.velocity[2] > -60.0 && b.velocity[2] < 0.0);
     }
 
@@ -409,6 +497,51 @@ mod tests {
         assert!(pos[2] >= 1.25 - 1e-4); // Pushed out beyond radius
         assert!(vel[2] > 0.0); // Bounced back with positive velocity
         assert!(vel[2] < 10.0); // Lost energy via restitution
+    }
+
+    #[test]
+    fn glancing_scrape_keeps_most_tangential_speed() {
+        let edge = TopologyEdge {
+            flags: 0x10,
+            p1: [-100.0, 0.0, 0.0],
+            p2: [100.0, 0.0, 0.0],
+        };
+        let config = BarrierCollisionConfig::default();
+        let mut pos = [0.0, 0.0, 1.2];
+        let mut vel = [30.0, 0.0, -0.12];
+        // 60 contact frames, as when steering into a wall for one second.
+        for _ in 0..60 {
+            pos[2] = 1.2;
+            vel[2] = -0.12; // ~0.7 g of tire side force per frame
+            BarrierCollider::resolve_collision(
+                &mut pos,
+                &mut vel,
+                std::slice::from_ref(&edge),
+                &config,
+            );
+        }
+        // The old fixed 28%-per-frame scrub left ~0 m/s here.
+        assert!(vel[0] > 25.0, "scrape lost too much speed: {vel:?}");
+    }
+
+    #[test]
+    fn head_on_hit_loses_tangential_speed_by_impulse() {
+        let edge = TopologyEdge {
+            flags: 0x10,
+            p1: [-100.0, 0.0, 0.0],
+            p2: [100.0, 0.0, 0.0],
+        };
+        let config = BarrierCollisionConfig::default();
+        let mut pos = [0.0, 0.0, 1.0];
+        let mut vel = [10.0, 0.0, -20.0];
+        BarrierCollider::resolve_collision(
+            &mut pos,
+            &mut vel,
+            std::slice::from_ref(&edge),
+            &config,
+        );
+        // Friction is capped: it stops sliding along the wall, never reverses it.
+        assert!(vel[0] >= 0.0 && vel[0] < 10.0, "{vel:?}");
     }
 
     #[test]
