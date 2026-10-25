@@ -705,18 +705,28 @@ fn car_chassis_adapter_body(
     sim: &nfs_assets::physics::VehicleSimulation,
     car_render: &CarRenderState,
 ) -> Vec3 {
-    if car_render.wheels.is_empty() {
-        return Vec3::ZERO;
-    }
+    chassis_adapter_from_wheels(
+        sim,
+        car_render
+            .wheels
+            .iter()
+            .map(|w| (w.wheel_index, w.source_center)),
+    )
+}
 
+/// `car_chassis_adapter_body` from the model wheel pivots `(wheel index, source centre)`.
+fn chassis_adapter_from_wheels(
+    sim: &nfs_assets::physics::VehicleSimulation,
+    wheels: impl Iterator<Item = (usize, Vec3)>,
+) -> Vec3 {
     let mut sum = Vec3::ZERO;
     let mut count = 0.0;
-    for wheel_render in &car_render.wheels {
-        let Some(wheel) = sim.suspension.wheels.get(wheel_render.wheel_index) else {
+    for (wheel_index, source_center) in wheels {
+        let Some(wheel) = sim.suspension.wheels.get(wheel_index) else {
             continue;
         };
         let physics_rest_center = wheel.hardpoint_body - Vec3::Y * wheel.rest_length;
-        sum += physics_rest_center - wheel_render.source_center;
+        sum += physics_rest_center - source_center;
         count += 1.0;
     }
     if count == 0.0 {
@@ -728,6 +738,34 @@ fn car_chassis_adapter_body(
         adapter.x.clamp(-0.25, 0.25),
         adapter.y.clamp(-1.0, 1.0),
         adapter.z.clamp(-0.25, 0.25),
+    )
+}
+
+/// World matrix of a drawn wheel of the prototype 6 DOF car, origin at the wheel centre. As in the
+/// original (`0x43e670`, `0x43c830`) the wheel stays at its own CRP part pivot `source_center`
+/// (x and z never change); only y moves, by the suspension compression, and the wheel turns by
+/// steer and spin. The pivot is in the chassis mesh frame, so it carries the chassis adapter
+/// (`car_chassis_adapter_body`). Built from the current `sim.body`, not from the step's
+/// telemetry: a body moved after the step (barrier push-out, contact response) takes its wheels
+/// with it. Approximation A2/A37: the compression is the prototype's `wheel.compression`, not
+/// the original `w+0x68`.
+fn prototype_wheel_world_matrix(
+    sim: &nfs_assets::physics::VehicleSimulation,
+    wheel_index: usize,
+    source_center: Vec3,
+    adapter: Vec3,
+) -> Option<Mat4> {
+    let wheel = sim.suspension.wheels.get(wheel_index)?;
+    let steer_quat = if wheel.is_steered {
+        Quat::from_rotation_y(-wheel.steer_angle)
+    } else {
+        Quat::IDENTITY
+    };
+    let roll_quat = Quat::from_rotation_x(-sim.wheel_visual_angles[wheel_index]);
+    Some(
+        sim.body.transform_matrix()
+            * Mat4::from_translation(adapter + source_center + Vec3::Y * wheel.compression)
+            * Mat4::from_quat(steer_quat * roll_quat),
     )
 }
 
@@ -1861,30 +1899,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.cockpit_gauges = nfs_assets::cockpit::Gauges::from_record(values);
     }
 
-    fn sim_wheel_world_matrix(
-        &self,
-        sim: &nfs_assets::physics::VehicleSimulation,
-        wheel_index: usize,
-    ) -> Option<Mat4> {
-        if let Some(telemetry) = &self.sim_telemetry {
-            return telemetry.wheel_transforms.get(wheel_index).copied();
-        }
-        let wheel = sim.suspension.wheels.get(wheel_index)?;
-        let rel_wheel_pos =
-            wheel.hardpoint_body - Vec3::Y * (wheel.rest_length - wheel.compression);
-        let steer_quat = if wheel.is_steered {
-            Quat::from_rotation_y(-wheel.steer_angle)
-        } else {
-            Quat::IDENTITY
-        };
-        let roll_quat = Quat::from_rotation_x(-sim.wheel_visual_angles[wheel_index]);
-        Some(
-            sim.body.transform_matrix()
-                * Mat4::from_translation(rel_wheel_pos)
-                * Mat4::from_quat(steer_quat * roll_quat),
-        )
-    }
-
     pub fn cycle_paint_color(&mut self) {
         const COLORS: [[f32; 4]; 6] = [
             [1.0, 1.0, 1.0, 1.0],
@@ -2155,8 +2169,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     &car_render.chassis_mesh_indices,
                 );
                 for wheel in &car_render.wheels {
-                    let Some(wheel_matrix) = self.sim_wheel_world_matrix(sim, wheel.wheel_index)
-                    else {
+                    let Some(wheel_matrix) = prototype_wheel_world_matrix(
+                        sim,
+                        wheel.wheel_index,
+                        wheel.source_center,
+                        car_chassis_adapter_body(sim, car_render),
+                    ) else {
                         continue;
                     };
                     self.draw_car_meshes(
@@ -4121,10 +4139,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let mut state = Vec::with_capacity(3 + car_render.wheels.len() * 9);
         state.extend_from_slice(&adapter.to_array());
         for wheel in &car_render.wheels {
-            let world_center = self
-                .sim_wheel_world_matrix(sim, wheel.wheel_index)
-                .map(|matrix| matrix.transform_point3(Vec3::ZERO))
-                .unwrap_or(Vec3::ZERO);
+            let world_center = prototype_wheel_world_matrix(
+                sim,
+                wheel.wheel_index,
+                wheel.source_center,
+                adapter,
+            )
+            .map(|matrix| matrix.transform_point3(Vec3::ZERO))
+            .unwrap_or(Vec3::ZERO);
             state.extend_from_slice(&[
                 wheel.wheel_index as f32,
                 wheel.source_center.x,
@@ -4147,6 +4169,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if car_render.wheels.len() != 4 {
             return Vec::new();
         }
+        let adapter = car_chassis_adapter_body(sim, car_render);
         let mut visuals = Vec::with_capacity(4 * 16);
         for wheel_index in 0..4 {
             let Some(wheel) = car_render
@@ -4156,7 +4179,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             else {
                 return Vec::new();
             };
-            let Some(wheel_matrix) = self.sim_wheel_world_matrix(sim, wheel.wheel_index) else {
+            let Some(wheel_matrix) = prototype_wheel_world_matrix(
+                sim,
+                wheel.wheel_index,
+                wheel.source_center,
+                adapter,
+            ) else {
                 return Vec::new();
             };
             let render_matrix = wheel_matrix * Mat4::from_translation(-wheel.source_center);
@@ -5899,3 +5927,88 @@ mod original_camera_tests {
     }
 }
 
+
+#[cfg(test)]
+mod wheel_placement_tests {
+    use super::*;
+
+    /// A car's SIM on its CRP model wheel pivots, or `None` without local game data.
+    fn car_with_model_wheels(
+        car: &str,
+        sim_file: &str,
+    ) -> Option<(
+        nfs_assets::physics::VehicleSimulation,
+        Vec<nfs_assets::CarWheel>,
+    )> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData");
+        let models = root.join("CarModel");
+        if !models.join(format!("{car}.crp")).exists() {
+            return None;
+        }
+        let mut files = nfs_assets::AssetFiles::new();
+        for entry in std::fs::read_dir(&models).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let lower = name.to_ascii_lowercase();
+            // The car's own files and the shared (non-car) FSH packs.
+            if lower.starts_with(&car.to_ascii_lowercase())
+                || (lower.ends_with(".fsh") && !lower.ends_with("d.fsh") && !lower.ends_with("l.fsh"))
+            {
+                files.insert(name, std::fs::read(&path).unwrap());
+            }
+        }
+        let scene = nfs_assets::load_car(&files, car).unwrap();
+        let bytes = std::fs::read(root.join("Simulation/CarData").join(sim_file)).unwrap();
+        let mut sim = simulation_from_bytes_at_pose(&bytes, Vec3::ZERO, 0.0).unwrap();
+        sim.apply_model_wheels(&scene.car_wheels).unwrap();
+        Some((sim, scene.car_wheels))
+    }
+
+    /// The drawn wheel centre, in the drawn chassis frame (`body * adapter`), is the CRP wheel
+    /// part's pivot with only y moved by the compression, at rest, in a turn, and after the
+    /// body was moved by something other than the step (barrier push-out, contact response).
+    #[test]
+    fn prototype_wheels_stay_at_the_model_pivots() {
+        for (car, sim_file) in [
+            ("964", "964coupe36.sim"),
+            ("993", "993cabrio36.sim"),
+            ("356a", "356Acoupe16.sim"),
+        ] {
+            let Some((mut sim, wheels)) = car_with_model_wheels(car, sim_file) else {
+                continue;
+            };
+            let adapter = chassis_adapter_from_wheels(
+                &sim,
+                wheels.iter().map(|w| (w.wheel_index, Vec3::from(w.center))),
+            );
+            let controls = nfs_assets::physics::VehicleControls::default();
+            let turn = nfs_assets::physics::VehicleControls {
+                steer: 0.6,
+                throttle: 0.3,
+                ..Default::default()
+            };
+            for phase in 0..3 {
+                for _ in 0..120 {
+                    sim.step(None, if phase == 0 { &controls } else { &turn }, 1.0 / 60.0);
+                }
+                if phase == 2 {
+                    sim.body.position += Vec3::new(0.7, 0.2, -0.4);
+                    sim.body.orientation = Quat::from_rotation_y(0.3) * sim.body.orientation;
+                }
+                let chassis = sim.body.transform_matrix() * Mat4::from_translation(adapter);
+                for w in &wheels {
+                    let source = Vec3::from(w.center);
+                    let m = prototype_wheel_world_matrix(&sim, w.wheel_index, source, adapter)
+                        .unwrap();
+                    let local = chassis.inverse().transform_point3(m.transform_point3(Vec3::ZERO));
+                    let compression = sim.suspension.wheels[w.wheel_index].compression;
+                    let at = format!("{car} wheel {} phase {phase}: {local:?} vs {source:?}", w.wheel_index);
+                    assert!((local.x - source.x).abs() < 1e-4, "x {at}");
+                    assert!((local.z - source.z).abs() < 1e-4, "z {at}");
+                    assert!((local.y - source.y - compression).abs() < 1e-4, "y {at}");
+                }
+            }
+        }
+    }
+}
