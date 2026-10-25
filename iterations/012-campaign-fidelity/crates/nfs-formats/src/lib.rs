@@ -237,8 +237,9 @@ pub use engine_sound::{parse_crd, parse_spl, CrdLayer, CrdTable, EngineSpl, ENGI
 
 pub mod car_catalogue;
 pub use car_catalogue::{
-    catalogue_json, find_car, parse_car_catalogue, playable, quick_race_cars, quick_race_json,
-    CarEntry, CAR_RECORD_SIZE,
+    all_cars, all_cars_json, car_list_sort, car_mapping, catalogue_json, find_car,
+    parse_car_catalogue, playable, quick_race_cars, quick_race_json, CarEntry, CarMapping,
+    CAR_RECORD_SIZE,
 };
 
 pub mod lay;

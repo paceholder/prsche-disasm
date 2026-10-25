@@ -118,7 +118,11 @@ pub fn fe_track_catalog_json(bytes: Uint8Array) -> Result<String, JsValue> {
 
 /// Record indices of the original Quick Race car list from `nfs5.car`, as a JSON array.
 #[wasm_bindgen]
-pub fn fe_quick_race_cars_json(bytes: Uint8Array) -> Result<String, JsValue> {
+pub fn fe_quick_race_cars_json(bytes: Uint8Array, cheat_all: Option<bool>) -> Result<String, JsValue> {
     let c = nfs_formats::parse_car_catalogue(&bytes.to_vec()).map_err(|e| JsValue::from_str(&e))?;
-    Ok(nfs_formats::quick_race_json(&c))
+    Ok(if cheat_all == Some(true) {
+        nfs_formats::all_cars_json(&c)
+    } else {
+        nfs_formats::quick_race_json(&c)
+    })
 }

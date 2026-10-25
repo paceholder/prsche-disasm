@@ -42,33 +42,37 @@ struct StyleSelection {
     name: String,
 }
 
-fn default_style(ini: &Ini) -> Result<StyleSelection, String> {
+/// `R3DCar_ApplyStyle` 0x437b00: style index `N` (car `+0x568`, the catalogue record's i16 at
+/// `+0x1c0`) reads the TPG section `[style{N+1}]`; a missing section leaves every type 0.
+fn default_style(ini: &Ini, index: u32) -> Result<StyleSelection, String> {
+    let section = format!("style{}", index + 1);
+    let section = section.as_str();
     // A declared style is a coherent set of overrides on type zero. Special
     // cars such as f901 do not contain a complete all-zero geometry variant.
     let mut style = StyleSelection {
         name: "implicit type 0".into(),
         ..Default::default()
     };
-    if !ini.contains_key("style1") {
+    if !ini.contains_key(section) {
         return Ok(style);
     }
     style.name = format!(
-        "style1 ({})",
-        val(ini, "style1", "name").unwrap_or("unnamed")
+        "{section} ({})",
+        val(ini, section, "name").unwrap_or("unnamed")
     );
-    let count = num(ini, "style1", "count", 0)?;
+    let count = num(ini, section, "count", 0)?;
     if count > 512 {
         return Err("too many style overrides".into());
     }
     for index in 1..=count {
-        let variant = num(ini, "style1", &format!("type{index}"), 0)?;
+        let variant = num(ini, section, &format!("type{index}"), 0)?;
         for (domain, map) in [
             ("geometry", &mut style.geometry),
             ("texture", &mut style.texture),
         ] {
             let key = format!("{domain}{index}");
-            if val(ini, "style1", &key).is_some() {
-                map.insert(num(ini, "style1", &key, 0)?, variant);
+            if val(ini, section, &key).is_some() {
+                map.insert(num(ini, section, &key, 0)?, variant);
             }
         }
     }
@@ -644,10 +648,6 @@ fn place_tile(
     Ok(())
 }
 
-/// Style index `N` of `drivercamposstyleN` (car `+0x568`). The engine always shows the
-/// default style, so this is style 0.
-const DRIVER_CAMERA_STYLE: u32 = 0;
-
 /// `sscanf("%f,%f,%f")` into `default` (`0x523b50`): components are replaced until the
 /// first one that does not parse.
 fn tpg_vec3(ini: &Ini, key: &str, default: [f32; 3]) -> [f32; 3] {
@@ -675,14 +675,16 @@ fn driver_camera(ini: &Ini, style: u32) -> DriverCamera {
     }
 }
 
-pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
+/// `style` is the TPG style index N (car `+0x568`); it selects `[style{N+1}]` and the
+/// `drivercamposstyleN` keys.
+pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, String> {
     if car.is_empty() || !car.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
         return Err("car identifier must be alphanumeric".into());
     }
     let crp = nfs_formats::parse_crp(find(files, &format!("{car}.crp"))?)
         .map_err(|e| format!("{car}.crp: {e}"))?;
     let ini = nfs_formats::parse_ini(find(files, &format!("{car}.tpg"))?)?;
-    let style = default_style(&ini)?;
+    let style = default_style(&ini, style_index)?;
     let article_levels = crp
         .articles
         .iter()
@@ -698,7 +700,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
     let mut scene = Scene {
         meshes: Vec::new(),
         car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
-        car_driver_camera: Some(driver_camera(&ini, DRIVER_CAMERA_STYLE)),
+        car_driver_camera: Some(driver_camera(&ini, style_index)),
         car_wheels: Vec::new(),
         car_glares: car_glares(&crp, &style, scene_lod)?,
         car_in_car: Vec::new(),
@@ -1183,7 +1185,7 @@ mod tests {
         }
         let read = |car: &str| {
             let tpg = parse_ini_file(&root.join(format!("{car}.tpg")));
-            driver_camera(&tpg, DRIVER_CAMERA_STYLE)
+            driver_camera(&tpg, 0)
         };
         let c550 = read("550");
         assert_eq!(c550.position, [-0.239375, 0.425564, -0.121614]);
@@ -1204,7 +1206,7 @@ mod tests {
         let ini = ini(
             "[style1]\ncount=1\ntexture1=13\ntype1=1\n[file3.whf1]\ncount=1\ntexture1=13\ntype1=1\n",
         );
-        let style = default_style(&ini).unwrap();
+        let style = default_style(&ini, 0).unwrap();
         assert!(tile_selected(&ini, &style, "file3.whf1").unwrap());
         assert!(!tile_selected(&ini, &StyleSelection::default(), "file3.whf1").unwrap());
     }
@@ -1214,7 +1216,7 @@ mod tests {
         let ini = ini(
             "[style1]\ncount=1\ntexture1=7\ntype1=1\n[file1.geometry]\ncount=1\ngeometry1=7\ntype1=1\n[file1.texture]\ncount=1\ntexture1=7\ntype1=1\n",
         );
-        let style = default_style(&ini).unwrap();
+        let style = default_style(&ini, 0).unwrap();
         assert!(!tile_selected(&ini, &style, "file1.geometry").unwrap());
         assert!(tile_selected(&ini, &style, "file1.texture").unwrap());
     }
@@ -1224,7 +1226,7 @@ mod tests {
         let ini = ini(
             "[style1]\ncount=1\ntexture1=9\ntype1=2\n[file1.tile]\ncount=2\ngeometry1=4\ntype1=1\ntexture2=9\ntype2=2\n",
         );
-        assert!(tile_selected(&ini, &default_style(&ini).unwrap(), "file1.tile").unwrap());
+        assert!(tile_selected(&ini, &default_style(&ini, 0).unwrap(), "file1.tile").unwrap());
     }
 
     #[test]
@@ -1380,17 +1382,17 @@ mod tests {
 
     #[test]
     fn reject_missing_and_ambiguous() {
-        assert!(load(&AssetFiles::new(), "356a")
+        assert!(load(&AssetFiles::new(), "356a", 0)
             .unwrap_err()
             .contains("missing resource"));
         let mut f = AssetFiles::new();
         f.insert("a/356a.crp".into(), vec![]);
         f.insert("b/356a.crp".into(), vec![]);
-        assert!(load(&f, "356a").unwrap_err().contains("ambiguous"));
+        assert!(load(&f, "356a", 0).unwrap_err().contains("ambiguous"));
     }
     #[test]
     fn path_identifiers_rejected() {
-        assert!(load(&AssetFiles::new(), "../356a").is_err());
+        assert!(load(&AssetFiles::new(), "../356a", 0).is_err());
     }
     #[test]
     fn mesh_placement_scales_then_adds_translation_before_scene_flip() {
@@ -1522,7 +1524,7 @@ mod tests {
                 std::fs::read(root.join("CarModel").join(name)).unwrap(),
             );
         }
-        let scene = load(&files, "boxster").unwrap();
+        let scene = load(&files, "boxster", 0).unwrap();
         assert_eq!(scene.car_wheels.len(), 4, "{:?}", scene.diagnostics);
         let w = &scene.car_wheels;
         assert!((w[1].center[0] - w[0].center[0] - 1.3825873).abs() < 1e-5);
@@ -1590,7 +1592,7 @@ mod tests {
         for name in ["356a.crp", "356a.tpg", "INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh"] {
             files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
         }
-        let scene = load(&files, "356a").unwrap();
+        let scene = load(&files, "356a", 0).unwrap();
         let find = |name: &str| scene.car_glares.iter().find(|g| g.name == name);
         // 356a.tpg [style1] "13Cabrio": geometry7 type3 selects the cabrio variants.
         let brake = find("GlareBrakeCabrio").expect("cabrio brake light");
@@ -1629,7 +1631,7 @@ mod tests {
         ] {
             files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
         }
-        let scene = load(&files, "356a").unwrap();
+        let scene = load(&files, "356a", 0).unwrap();
         let parts = &scene.car_in_car;
         let find = |name: &str| parts.iter().find(|p| p.name == name);
         // [style1] selects the type-1 variants; level 2 for the body pass.
@@ -1694,7 +1696,7 @@ mod tests {
         }
         let mut without = Vec::new();
         for car in &cars {
-            let scene = load(&files, car).unwrap_or_else(|e| panic!("{car}: {e}"));
+            let scene = load(&files, car, 0).unwrap_or_else(|e| panic!("{car}: {e}"));
             let has = |channel: u8| scene.car_in_car.iter().any(|p| p.channel == channel);
             if !(has(5) && has(0xb)) {
                 without.push(car.clone());
@@ -1762,7 +1764,7 @@ mod tests {
                     std::fs::read(root.join(&name)).unwrap(),
                 );
             }
-            let scene = load(&files, car).unwrap_or_else(|error| panic!("{car}: {error}"));
+            let scene = load(&files, car, 0).unwrap_or_else(|error| panic!("{car}: {error}"));
             assert_eq!(scene.car_wheels.len(), 4, "{car}: selected wheel metadata");
             assert_eq!(scene.textures.len(), 11);
             for (name, expected) in [("mt4:", 0), ("mt12:", -3)] {

@@ -286,7 +286,10 @@ assert.equal(findSim(simFiles, "BOXSTER25.SIM"), simFiles[0]);
 assert.equal(findSim(simFiles, "356Acoupe16"), simFiles[1]);
 assert.throws(() => findSim(simFiles, "boxster"), /boxster\.sim/);
 assert.throws(() => findSim(simFiles, ""), /Не указан/);
-assert.throws(() => findSim([...simFiles, "other/boxster25.sim"], "boxster25"), /несколько/);
+assert.throws(() => findSim(["a/boxster25.sim", "other/boxster25.sim"], "boxster25"), /несколько/);
+// 959coupe29 and 928coupeGTS54 exist twice; the original reads Simulation/CarData.
+const twin = ["GameData/Simulation/928coupeGTS54.sim", "GameData/Simulation/CarData/928coupeGTS54.sim"];
+assert.equal(findSim(twin, "928coupeGTS54"), twin[1]);
 const customSim = { path: "Chosen\\GameData\\boxster25.sim" };
 assert.equal(findSim([customSim], "boxster25", file => file.path), customSim);
 // Exercise the actual frame loop and Continue handler with terminal race telemetry.
@@ -341,18 +344,20 @@ console.log("UI state: existing checks and result Continue/restart lifecycle pas
 
 // Quick Race list comes from the catalogue records, keyed by record index.
 {
-  const rec = (index, display_name, model, sim_name, bank = "sd1a") => ({ index, display_name, model, sim_name, bank });
+  const rec = (index, display_name, model, sim_name, bank = "sd1a", style = 0) => ({ index, display_name, model, sim_name, bank, style });
   const cars = context.testApi.buildQuickRaceCars([
     rec(0, "'50 356 1100 Cabriolet", "356_1", "356cabrio11"),
     rec(1, "Eden2", "Eden", ""),
     rec(2, "Gone", "nomodel", "356cabrio11"),
     rec(3, "NoSim", "356_1", "missing"),
-    rec(4, "'00 911 Turbo (996)", "F996", "996Tcoupe36", "sd7a"),
+    rec(4, "'00 911 Turbo (996)", "F996", "996Tcoupe36", "sd7a", 8),
     rec(5, "Twin", "F996", "996Tcoupe36", "sd7b"),
   ], ["356_1", "f996"], ["GameData/Simulation/CarData/356cabrio11.sim", "x/996tcoupe36.sim"]);
   assert.deepEqual(Array.from(cars, c => c.id), ["0", "4", "5"]);
   assert.equal(cars[1].model_name, "f996");
   assert.equal(cars[1].sim_name, "996Tcoupe36");
   assert.equal(cars[1].bank, "sd7a");
+  assert.equal(cars[1].style, 8, "the TPG style index of the record reaches the car");
+  assert.equal(cars[0].style, 0);
   assert.equal(cars[2].bank, "sd7b", "repeated SIM names stay distinct by record index");
 }

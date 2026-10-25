@@ -18,6 +18,9 @@ const FAMILY_AT: usize = 0x115;
 const SIM_NAME_AT: usize = 0xB1;
 const BANK_NAME_AT: usize = 0x179;
 const KIND_AT: usize = 0x1f4;
+/// i16 TPG style index (`FECarAccessor` slot 0x98 = `0x4f31d0`, read by `FECar3DControl_SyncCar`
+/// 0x4bffd0 into `car+0x568`; `R3DCar_ApplyStyle` 0x437b00 reads `[style{N+1}]`).
+const STYLE_AT: usize = 0x1c0;
 const CLASS_AT: usize = 0x204;
 const ERA_AT: usize = 0x1b0;
 const GROUP_AT: usize = 0x1ac;
@@ -52,6 +55,8 @@ pub struct CarEntry {
     /// first of two shapes, 2 × i16 at +0x1f6 [VA 0x4c1660].
     pub logo_pack: String,
     pub logo_shape: i32,
+    /// i16 at +0x1c0: TPG style index N, section `[style{N+1}]` of `<model>.tpg` (body variant).
+    pub style: i32,
     /// i16 at +0x1f4: 0 car, 1 traffic, 2 cop (the i32 there also holds a logo word in the high half).
     pub kind: i32,
     /// i32 at +0x204 (0 and 2 appear in the original Quick Race list, 1 and 3 do not).
@@ -120,6 +125,7 @@ pub fn parse_car_catalogue(d: &[u8]) -> Result<Vec<CarEntry>> {
             }),
             logo_pack: cstr(r, LOGO_PACK_AT, 16),
             logo_shape: 2 * i16::from_le_bytes([r[LOGO_INDEX_AT], r[LOGO_INDEX_AT + 1]]) as i32,
+            style: le_i16(r, STYLE_AT),
             kind: le_i16(r, KIND_AT),
             class: le_i32(r, CLASS_AT),
             era: le_i32(r, ERA_AT),
@@ -216,9 +222,10 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
             .map(|c| format!("[{},{},{},{}]", c[0], c[1], c[2], c[3]))
             .collect();
         out.push_str(&format!(
-            "\"logo_shape\":{},\"gauges\":[{}],\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}]}}",
+            "\"logo_shape\":{},\"gauges\":[{}],\"style\":{},\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}]}}",
             e.logo_shape,
             g.join(","),
+            e.style,
             e.kind,
             e.class,
             e.era,
@@ -231,24 +238,83 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
     out
 }
 
-/// Cars of the original Quick Race list: kind 0 (not traffic/cop), class 0 or 2, ordered by
-/// (era, group, year); catalogue order breaks ties.
+/// `CarList_Sort` 0x4f0f50: selection sort, `for i, for j > i: if less(list[j], list[i]) swap`,
+/// with `less` = `FUN_004f1d40` on (era +0x1b0, group +0x1ac, year i16 +0x1f8), ascending.
+/// [VA 0x4f0f50, 0x4f1d40] (the comparator's `this` is lost by the decompiler: **Hypothesis**
+/// `this = list[j]`; ascending order matches the shipped list, '59 356 A first). Not stable.
+pub fn car_list_sort(list: &mut [&CarEntry]) {
+    let key = |e: &CarEntry| (e.era, e.group, e.year);
+    for i in 0..list.len() {
+        for j in i + 1..list.len() {
+            if key(list[j]) < key(list[i]) {
+                list.swap(i, j);
+            }
+        }
+    }
+}
+
+/// Cars of the original Quick Race list: kind 0 (not traffic/cop), class 0 or 2, in the order of
+/// `car_list_sort`.
 pub fn quick_race_cars(entries: &[CarEntry]) -> Vec<&CarEntry> {
     let mut v: Vec<&CarEntry> = entries
         .iter()
         .filter(|e| e.kind == 0 && matches!(e.class, 0 | 2))
         .collect();
-    v.sort_by_key(|e| (e.era, e.group, e.year));
+    car_list_sort(&mut v);
     v
+}
+
+/// The list with `CHEATALLCARS` (0x691a04): kind 0 and class not 3 [VA 0x4f3e40], same sort.
+pub fn all_cars(entries: &[CarEntry]) -> Vec<&CarEntry> {
+    let mut v: Vec<&CarEntry> = entries
+        .iter()
+        .filter(|e| e.kind == 0 && e.class != 3)
+        .collect();
+    car_list_sort(&mut v);
+    v
+}
+
+/// What the original draws and drives for a record (`docs/formats/car-catalogue.md`,
+/// "Car record to model, style and sim").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CarMapping {
+    pub index: usize,
+    /// Model `.crp`/`.tpg` base name (rec +0x7f).
+    pub model: String,
+    /// TPG style index N (rec i16 +0x1c0), section `[style{N+1}]`.
+    pub style: u32,
+    /// `.sim`/`.spl` base name (rec +0xB1).
+    pub sim: String,
+    /// Engine sound bank (rec +0x179).
+    pub bank: String,
+    /// Name in the Quick Race drop-down: `(SHORT)` of the merged list reaches slot 0x30 = rec +0x02.
+    pub list_name: String,
+}
+
+pub fn car_mapping(e: &CarEntry) -> CarMapping {
+    CarMapping {
+        index: e.index,
+        model: e.model.clone(),
+        style: e.style.max(0) as u32,
+        sim: e.sim_name.clone(),
+        bank: e.bank_name.clone(),
+        list_name: e.display_name.clone(),
+    }
+}
+
+fn indices_json(v: Vec<&CarEntry>) -> String {
+    let v: Vec<String> = v.iter().map(|e| e.index.to_string()).collect();
+    format!("[{}]", v.join(","))
 }
 
 /// JSON array of the record indices of `quick_race_cars`.
 pub fn quick_race_json(entries: &[CarEntry]) -> String {
-    let v: Vec<String> = quick_race_cars(entries)
-        .iter()
-        .map(|e| e.index.to_string())
-        .collect();
-    format!("[{}]", v.join(","))
+    indices_json(quick_race_cars(entries))
+}
+
+/// JSON array of the record indices of `all_cars`.
+pub fn all_cars_json(entries: &[CarEntry]) -> String {
+    indices_json(all_cars(entries))
 }
 
 #[cfg(test)]
@@ -305,6 +371,7 @@ mod tests {
             sim_name: "996T".into(),
             bank_name: "sd7a".into(),
             gauges: [-0.07, 0.14, -0.01, 0.17],
+            style: 8,
             logo_pack: "finallogos1".into(),
             logo_shape: 4,
             kind: 0,
@@ -316,7 +383,7 @@ mod tests {
         };
         assert_eq!(
             catalogue_json(&[e]),
-            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"gauges\":[-0.07,0.14,-0.01,0.17],\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]]}]"
+            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"gauges\":[-0.07,0.14,-0.01,0.17],\"style\":8,\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]]}]"
         );
         assert_eq!(catalogue_json(&[]), "[]");
     }
@@ -377,6 +444,168 @@ mod tests {
         assert!(names.contains(&"'87 959"));
         assert!(names.contains(&"'98 911 GT3 Cup"));
         assert_eq!(quick_race_json(&e).matches(',').count(), 14);
+    }
+
+    /// Quick Race cars in original order: record, model (+0x7f), TPG style (i16 +0x1c0), SIM
+    /// (+0xB1), engine bank (+0x179), drop-down name (+0x02, `(SHORT)` of the merged list).
+    #[allow(clippy::type_complexity)]
+    const QUICK_RACE_MAPPING: [(usize, &str, u32, &str, &str, &str); 15] = [
+        (
+            19,
+            "356A",
+            5,
+            "356AconvS16",
+            "sd1a",
+            "'59 356 A 1600 Super Convertible D",
+        ),
+        (
+            23,
+            "356B",
+            5,
+            "356BcoupeS16",
+            "sd1a",
+            "'60 356 B 1600 Super Coup\u{e9}",
+        ),
+        (
+            36,
+            "901",
+            4,
+            "901coupe24",
+            "sd4b",
+            "'72 911 S 2.4 Coup\u{e9}",
+        ),
+        (40, "914", 1, "914coupe20", "sd1c", "'73 914/4 2.0"),
+        (
+            46,
+            "944",
+            5,
+            "944Tcoupe25",
+            "sd8a",
+            "'88 944 Turbo S Coup\u{e9}",
+        ),
+        (
+            43,
+            "930",
+            1,
+            "930Tcoupe33",
+            "sd4b",
+            "'78 911 Turbo 3.3 Coup\u{e9} (930)",
+        ),
+        (98, "959", 0, "959coupe29", "sd4a", "'87 959"),
+        (
+            47,
+            "964",
+            4,
+            "964coupe436",
+            "sd4a",
+            "'89 911 Carrera 4 Coup\u{e9} (964)",
+        ),
+        (
+            73,
+            "964",
+            1,
+            "964coupe36",
+            "sd4a",
+            "'90 911 Carrera 2 Coup\u{e9} (964)",
+        ),
+        (60, "Boxster", 0, "Boxster25", "sd7b", "'97 Boxster"),
+        (99, "928", 0, "928coupeGTS54", "sd9", "'92 928 GTS"),
+        (
+            53,
+            "993",
+            0,
+            "993coupe36",
+            "sd3a",
+            "'94 911 Carrera Coup\u{e9} (993)",
+        ),
+        (
+            56,
+            "993",
+            8,
+            "993Tcoupe36",
+            "sd5",
+            "'95 911 Turbo 3.6 Coup\u{e9} (993)",
+        ),
+        (100, "GT2", 0, "GT2race", "sd6a", "'97 911 GT2 race version"),
+        (101, "GT3", 0, "GT3race", "sd6b", "'98 911 GT3 Cup"),
+    ];
+
+    #[test]
+    fn quick_race_mapping_table_matches_records() {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/FEData/Data/nfs5.car");
+        let Ok(d) = std::fs::read(&p) else {
+            eprintln!("skip: nfs5.car not installed");
+            return;
+        };
+        let e = parse_car_catalogue(&d).unwrap();
+        let q = quick_race_cars(&e);
+        assert_eq!(q.len(), QUICK_RACE_MAPPING.len());
+        for (car, (index, model, style, sim, bank, name)) in q.iter().zip(QUICK_RACE_MAPPING) {
+            let m = car_mapping(car);
+            assert_eq!(
+                (
+                    m.index,
+                    m.model.as_str(),
+                    m.style,
+                    m.sim.as_str(),
+                    m.bank.as_str(),
+                    m.list_name.as_str()
+                ),
+                (index, model, style, sim, bank, name)
+            );
+        }
+        // Two different cars were both "911 Turbo" (short name); their records differ.
+        assert_eq!(e[43].short_name, e[56].short_name);
+        assert_ne!((&e[43].model, e[43].style), (&e[56].model, e[56].style));
+    }
+
+    #[test]
+    fn all_cars_use_the_original_sort() {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/FEData/Data/nfs5.car");
+        let Ok(d) = std::fs::read(&p) else {
+            eprintln!("skip: nfs5.car not installed");
+            return;
+        };
+        let e = parse_car_catalogue(&d).unwrap();
+        let a = all_cars(&e);
+        assert_eq!(a.len(), 84);
+        assert!(a.iter().all(|c| c.kind == 0 && c.class != 3));
+        let key = |c: &&CarEntry| (c.era, c.group, c.year);
+        assert!(a.windows(2).all(|w| key(&w[0]) <= key(&w[1])));
+        // Every Quick Race car is in the list, in the same relative order.
+        let q: Vec<usize> = quick_race_cars(&e).iter().map(|c| c.index).collect();
+        let in_all: Vec<usize> = a
+            .iter()
+            .map(|c| c.index)
+            .filter(|i| q.contains(i))
+            .collect();
+        assert_eq!(q, in_all);
+    }
+
+    #[test]
+    fn car_list_sort_is_ascending_selection_sort() {
+        let mk = |index, era, group, year| {
+            let mut r = record("s", "b");
+            let mut put = |at: usize, v: i32| r[at..at + 4].copy_from_slice(&v.to_le_bytes());
+            put(ERA_AT, era);
+            put(GROUP_AT, group);
+            r[YEAR_AT..YEAR_AT + 2].copy_from_slice(&(year as i16).to_le_bytes());
+            let _ = index;
+            r
+        };
+        let mut d = mk(0, 523, 501, 1997);
+        d.extend(mk(1, 521, 501, 1959));
+        d.extend(mk(2, 522, 503, 1978));
+        d.extend(mk(3, 522, 502, 1988));
+        let e = parse_car_catalogue(&d).unwrap();
+        let mut l: Vec<&CarEntry> = e.iter().collect();
+        car_list_sort(&mut l);
+        assert_eq!(
+            l.iter().map(|c| c.index).collect::<Vec<_>>(),
+            vec![1, 3, 2, 0]
+        );
     }
 
     fn stems(dir: &str, ext: &str) -> Option<Vec<String>> {

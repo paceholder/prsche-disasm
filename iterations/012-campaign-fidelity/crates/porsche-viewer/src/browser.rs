@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use js_sys::{Array, Uint8Array};
-use nfs_assets::{AssetFiles, Scene, load_car, load_track};
+use nfs_assets::{AssetFiles, Scene, load_car, load_car_style, load_track};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -101,9 +101,10 @@ impl BrowserViewer {
         names: Array,
         bytes: Array,
         car_name: String,
+        style: Option<u32>,
     ) -> Result<String, JsValue> {
         let scene = files_from_js(names, bytes)
-            .and_then(|files| load_car(&files, &car_name))
+            .and_then(|files| load_car_style(&files, &car_name, style.unwrap_or(0)))
             .map_err(|e| JsValue::from_str(&e))?;
         if let Some(renderer) = &mut self.renderer {
             renderer
@@ -142,8 +143,14 @@ impl BrowserViewer {
     }
 
     /// Car shown in the room (layouts with a `3DCAR` control); `set_car_model` files.
-    pub fn set_room_car(&mut self, names: Array, bytes: Array, car: String) -> Result<(), JsValue> {
-        self.set_car_model(names, bytes, car)?;
+    pub fn set_room_car(
+        &mut self,
+        names: Array,
+        bytes: Array,
+        car: String,
+        style: Option<u32>,
+    ) -> Result<(), JsValue> {
+        self.set_car_model(names, bytes, car, style)?;
         if let Some(renderer) = &mut self.renderer {
             renderer.fe_room_car = true;
         }

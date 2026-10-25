@@ -97,7 +97,8 @@ test("quick race settings follow the original lists (VA 0x4f9790, 0x4fc0b0)", as
   assert.equal(q.accessor("Track1.Laps").text(), "2");
   assert.equal(q.accessor("OpponentCar.Car(SHORT)").text(), "same car");
   assert.equal(q.accessor("Game.NumOpponents").text(), "4");
-  assert.equal(q.accessor("zMergedList.Car(SHORT)").text(), "356 A");
+  // (SHORT) of the merged list is the record's display name (rec +0x02), not +0x34.
+  assert.equal(q.accessor("zMergedList.Car(SHORT)").text(), "'59 356 A");
   assert.equal(q.accessor("GenericCar.Colour").color(), "rgb(8,34,89)");
   assert.equal(carColourCss(0x0000ffff), "rgb(255,0,0)");
   assert.equal(q.accessor("No.Such"), null);

@@ -2290,7 +2290,12 @@ function findSimResource(resources, simName, nameOf = value => value) {
     throw new Error("Не указан файл физики автомобиля.");
   }
   const basename = simName.trim().split(/[\\/]/).pop().replace(/\.sim$/i, "").toLowerCase() + ".sim";
-  const matches = resources.filter(value => nameOf(value).split(/[\\/]/).pop().toLowerCase() === basename);
+  let matches = resources.filter(value => nameOf(value).split(/[\\/]/).pop().toLowerCase() === basename);
+  // 959coupe29 and 928coupeGTS54 also sit in GameData/Simulation; the original reads CarData.
+  if (matches.length > 1) {
+    const inCarData = matches.filter(value => /(^|[\\/])simulation[\\/]cardata[\\/]/i.test(nameOf(value)));
+    if (inCarData.length === 1) matches = inCarData;
+  }
   if (matches.length !== 1) {
     throw new Error(matches.length ? `Найдено несколько файлов ${basename}.` : `Не найден файл ${basename}.`);
   }
@@ -2339,7 +2344,8 @@ async function loadCarAis() {
 // `bank` is the catalogue record's engine bank; without it the first record with this SIM is used.
 // `gauges` is the record's needle calibration (nfs5.car +0x2f0..+0x2fc, docs/re/cockpit.md);
 // without it the first record with this model and SIM is used.
-async function loadRaceCar(model, simName, bank = "", gauges = null) {
+// `style` is the record's TPG style index (nfs5.car i16 +0x1c0: body variant, `[style{N+1}]`).
+async function loadRaceCar(model, simName, bank = "", gauges = null, style = 0) {
   const target = model.toLowerCase();
   raceHudCarIndex = quickRaceCars.find(c => c.model_name.toLowerCase() === target)?.index ?? null;
   let files;
@@ -2355,7 +2361,7 @@ async function loadRaceCar(model, simName, bank = "", gauges = null) {
   if (!files.names.some(name => name.split(/[\\/]/).pop().toLowerCase() === `${target}.crp`)) {
     throw new Error(`Не найдена модель ${target}.crp.`);
   }
-  viewer.set_car_model(files.names, files.bytes, target);
+  viewer.set_car_model(files.names, files.bytes, target, style);
   await setCarGauges(target, simName, gauges);
   await loadCarSim(simName);
   lastEngineSoundError = await loadEngineSound(simName, bank);
@@ -2460,6 +2466,7 @@ function buildQuickRaceCars(records, installedModels, resources) {
       sim_name: record.sim_name,
       bank: record.bank,
       gauges: record.gauges,
+      style: record.style ?? 0,
     });
   }
   return cars;
@@ -2542,7 +2549,7 @@ async function launchQuickRace({ car, track, laps, opponents, fromDialog = false
     updateOptions();
     targetSelect.value = track;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
-    await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null);
+    await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(laps, opponents);
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
@@ -3557,7 +3564,7 @@ async function autostartRace(params) {
     clearNavigation();
     activeCareerEvent = null;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
-    await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null);
+    await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(Number(params.get("laps") || 3), Number(params.get("opponents") ?? 3));
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
@@ -3663,9 +3670,9 @@ async function buildFrontEndSetup(strings) {
   const records = await loadCarCatalogueRecords();
   quickRaceCars = buildQuickRaceCars(records, availableCars, localGameFiles);
   const carBytes = await readGamePath("FEData/Data/nfs5.car");
-  const order = JSON.parse(fe_quick_race_cars_json(carBytes));
+  const order = JSON.parse(fe_quick_race_cars_json(carBytes, all));
   const byIndex = new Map(records.map(r => [r.index, r]));
-  const ids = all ? [...order, ...quickRaceCars.map(c => c.index).filter(i => !order.includes(i))] : order;
+  const ids = order; // sorted by CarList_Sort (era, group, year), also for the cheat list
   const cars = ids
     .map(i => {
       const installed = quickRaceCars.find(c => c.index === i);
@@ -3709,10 +3716,13 @@ async function loadFrontEndRoom(room, carAccessor) {
     }
     if (carAccessor) {
       const car = await frontEndQuickRaceCar();
-      if (car && frontEndCar !== car.model_name) {
+      // Model and TPG style identify the drawn body: records share a model (964 Carrera 2/4,
+      // cabriolet/targa) and differ in `style`.
+      const carKey = car ? `${car.model_name}:${car.style || 0}` : null;
+      if (car && frontEndCar !== carKey) {
         const files = await fetchGameFiles(findCarFilesFromCatalog(car.model_name.toLowerCase()));
-        viewer.set_room_car(files.names, files.bytes, car.model_name.toLowerCase());
-        frontEndCar = car.model_name;
+        viewer.set_room_car(files.names, files.bytes, car.model_name.toLowerCase(), car.style || 0);
+        frontEndCar = carKey;
       }
       viewer.show_room_car(Boolean(car));
     } else {

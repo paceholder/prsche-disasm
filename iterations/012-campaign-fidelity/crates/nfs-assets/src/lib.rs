@@ -342,7 +342,12 @@ pub type AssetFiles = BTreeMap<String, Vec<u8>>;
 
 /// Load a car from user-selected bytes. Native and WASM call the same implementation.
 pub fn load_car(files: &AssetFiles, car: &str) -> Result<Scene, String> {
-    loader::load(files, car).map_err(|e| format!("{car}: {e}"))
+    load_car_style(files, car, 0)
+}
+
+/// Car with TPG style `style` (catalogue record i16 at `+0x1c0`, `docs/formats/car-catalogue.md`).
+pub fn load_car_style(files: &AssetFiles, car: &str, style: u32) -> Result<Scene, String> {
+    loader::load(files, car, style).map_err(|e| format!("{car}: {e}"))
 }
 
 /// Load a track from user-selected bytes. Native and WASM call the same implementation.

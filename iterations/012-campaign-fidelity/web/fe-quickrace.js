@@ -71,7 +71,9 @@ export class QuickRaceSetup {
     switch (key) {
       case "zMergedList.Car":
       case "GenericCar.Car":
-        return list(() => this.cars.map(c => (sel === "SHORT" ? c.short_name : c.display_name) || c.display_name),
+        // The merged list's (SHORT) reaches slot 0x30, the display name at rec +0x02
+        // (0x4bc4d0 -> 0x4f4a90 -> 0x4f2fe0), not the short name at +0x34 (0x4f3020).
+        return list(() => this.cars.map(c => c.display_name || c.short_name),
           () => this.car, i => { this.car = i; this.colour = 0; });
       case "GenericCar.Colour": {
         const colours = () => this.currentCar()?.colours ?? [];

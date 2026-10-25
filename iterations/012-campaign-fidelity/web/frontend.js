@@ -502,7 +502,20 @@ function drawComboBox(ctx, c, fe, now) {
   const valueFont = c.fonts["UniversC11m.ffn"];
   const value = acc?.text?.() ?? "";
   const valueColor = parseColor(disabled ? "0x30000000" : "0xff000000");
-  drawText(ctx, fe, valueFont, value, x + w - 12 - textWidth(valueFont, value) - (c.type === "COLORBOX" ? 30 : 0), y + 2, valueColor);
+  const valueW = textWidth(valueFont, value);
+  const room = w - (g.labelW || 0) - 24 - (c.type === "COLORBOX" ? 30 : 0);
+  if (valueW > room) {
+    // The Quick Race car names are the 50-byte display names (A126): a value wider than the
+    // bar is clipped to the area right of the divider, starting at its left end.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + (g.labelW || 0) + 2, y, room + 8, h);
+    ctx.clip();
+    drawText(ctx, fe, valueFont, value, x + (g.labelW || 0) + 5, y + 2, valueColor);
+    ctx.restore();
+  } else {
+    drawText(ctx, fe, valueFont, value, x + w - 12 - valueW - (c.type === "COLORBOX" ? 30 : 0), y + 2, valueColor);
+  }
   if (c.type === "COLORBOX" && acc?.color) {
     ctx.fillStyle = acc.color();
     ctx.fillRect(x + w - 40, y + 4, 20, 10);
