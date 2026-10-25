@@ -1,4 +1,5 @@
 import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json } from "./package/viewer_impl.js";
+import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE } from "./pause-menu.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -89,6 +90,7 @@ function cycleCarCamera() {
 }
 const paintButton = document.querySelector("#paintButton");
 const hudCanvas = document.querySelector("#hudCanvas");
+const pauseCanvas = document.querySelector("#pauseCanvas");
 const loadButton = document.querySelector("#loadButton");
 const resetButton = document.querySelector("#resetButton");
 const statusLine = document.querySelector("#status");
@@ -1909,6 +1911,93 @@ if (raceContinueBtn) {
   });
 }
 
+// Original in-race pause (docs/re/pause.md, web/pause-menu.js): the race clock and the scheduler stop
+// (viewer.set_paused), music stops through the phase 3 event (Audio_Pause 0x4ab150).
+const pauseMenu = new PauseMenu();
+let pauseText = null; // { drawText, textWidth } of frontend.js, loaded with the HUD
+
+function pauseLive() {
+  if (!viewer || frontEnd?.visible || !viewer.is_drive_mode?.() || !viewer.has_car?.()) return false;
+  const phase = viewer.get_race_phase?.() ?? 0;
+  return phase === 1 || phase === 2;
+}
+
+function pauseSync() {
+  if (!pauseCanvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const W = Math.max(1, Math.round(rect.width));
+  const H = Math.max(1, Math.round(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+  if (pauseCanvas.width !== Math.round(W * dpr) || pauseCanvas.height !== Math.round(H * dpr)) {
+    pauseCanvas.width = Math.round(W * dpr);
+    pauseCanvas.height = Math.round(H * dpr);
+  }
+  pauseCanvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  pauseMenu.resize(W, H);
+}
+
+function pauseDraw() {
+  if (!pauseCanvas) return;
+  pauseCanvas.hidden = !pauseMenu.isOpen;
+  if (!pauseMenu.isOpen) return;
+  pauseSync();
+  pauseMenu.strings = raceHud?.strings ?? {};
+  drawPauseMenu(pauseCanvas.getContext("2d"), pauseMenu, {
+    fe: raceHud?.fe, fonts: raceHud?.fonts ?? {}, ...(pauseText ?? {}),
+  });
+}
+
+function openPause(frozen = false) {
+  if (!frozen && !pauseLive()) return false;
+  viewer.set_paused(true);
+  pauseMenu.open();
+  clearNavigation();
+  ensureRaceHud().then(() => import("./frontend.js")).then(fe => {
+    pauseText = { drawText: fe.drawText, textWidth: fe.textWidth };
+    pauseDraw();
+  }).catch(() => {});
+  pauseDraw();
+  queueFrame();
+  return true;
+}
+
+function closePause() {
+  pauseMenu.close();
+  pauseDraw();
+}
+
+// Menu codes of PauseMenu_Handle 0x42a6a0 / ExitMenu_Handle 0x421b70 and the loop reaction of 0x4152e0.
+function pauseCode(code) {
+  if (code === null || code === undefined) { pauseDraw(); return; }
+  switch (code) {
+    case PAUSE_CODE.CONTINUE: // Audio_Resume, unpause
+      closePause();
+      viewer.set_paused(false);
+      break;
+    case PAUSE_CODE.RACE_AGAIN: // restart from the grid (A153)
+      closePause();
+      viewer.restart_race();
+      if (raceResultsModal) raceResultsModal.hidden = true;
+      eventFinishedHandled = false;
+      break;
+    case PAUSE_CODE.EXIT_WINDOWS: // A153: acts as exit to game menu
+    case PAUSE_CODE.EXIT_GAME_MENU: // leave the race loop to the front end; the world stays frozen
+      closePause();
+      activeCareerEvent = null;
+      setMenuVisible(true);
+      break;
+    default: // quit... / cancel switch the menu, nothing else happens
+      pauseDraw();
+  }
+  queueFrame();
+}
+
+if (pauseCanvas) {
+  const local = e => { const r = pauseCanvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  pauseCanvas.addEventListener("pointermove", e => { pauseMenu.pointerMove(...local(e)); pauseDraw(); });
+  pauseCanvas.addEventListener("pointerdown", e => { e.preventDefault(); pauseCode(pauseMenu.click(...local(e))); });
+}
+
 function setMenuVisible(visible) {
   menuVisible = visible;
   // The original front end replaces the web shell's menu when it is active.
@@ -1918,6 +2007,7 @@ function setMenuVisible(visible) {
     syncFrontEndClasses();
   }
   document.body.classList.toggle("menu-hidden", !visible);
+  if (!visible && viewer?.is_paused?.() && !pauseMenu.isOpen) openPause(true);
   menuButton.setAttribute("aria-expanded", String(visible));
   clearNavigation();
   if (visible) menuButton.focus();
@@ -2900,7 +2990,17 @@ function onKeyDown(event) {
       if (!quickRaceCancelBtn.disabled) quickRaceModal.hidden = true;
       return;
     }
+    if (pauseMenu.isOpen) { pauseCode(pauseMenu.key("Escape")); return; }
+    if (!menuVisible && openPause()) return;
     setMenuVisible(!menuVisible);
+    return;
+  }
+  if (pauseMenu.isOpen) {
+    if (["ArrowUp", "ArrowDown", "Enter", "NumpadEnter"].includes(event.code)) {
+      event.preventDefault();
+      pauseCode(pauseMenu.key(event.code) ?? undefined);
+      pauseDraw();
+    }
     return;
   }
   if (!quickRaceModal.hidden) return;
@@ -3106,6 +3206,16 @@ function updateNavigation(dt) {
   if (!viewer) return;
 
   const isDriveCar = viewer.is_drive_mode() && viewer.has_car();
+  if (isDriveCar && viewer.is_paused?.()) {
+    // Paused: nothing steps; Audio_Pause sets the effect voices to volume 0 (re/audio.md) and the
+    // phase 3 event stops the music director (re/music.md).
+    engineSound.deactivate();
+    tyreSound.deactivate();
+    gameAudio.frame(viewer.get_race_phase(), 0);
+    if (countdownBanner) countdownBanner.hidden = true;
+    queueFrame();
+    return;
+  }
   if (isDriveCar) {
     let throttle = 0;
     if (activeKeys.has("KeyW") || activeKeys.has("ArrowUp")) throttle += 1.0;
@@ -3392,6 +3502,7 @@ function resizeCanvas() {
 
 function animate(now = 0) {
   resizeCanvas();
+  if (pauseMenu.isOpen) pauseDraw();
   applyPendingCamera();
   if (frontEnd?.visible) {
     frontEnd.render(now);

@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE_VALUES } from "./pause-menu.js";
 
 class Element {
   constructor() {
@@ -45,9 +46,10 @@ const window = new Element();
 const context = vm.createContext({
   document, window, console, setTimeout,
   HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
+  PauseMenu, drawPauseMenu, PAUSE_CODE: PAUSE_CODE_VALUES, // main.js imports of ./pause-menu.js
 });
 const source = readFileSync(new URL("main.js", import.meta.url), "utf8")
-  .replace(/^import .*;\r?\n/, "")
+  .replace(/^import .*;\r?\n/gm, "")
   .replace(/\bboot\(\);\s*$/, "");
 vm.runInContext(source + `\n globalThis.testApi = {
   setViewer: value => viewer = value,

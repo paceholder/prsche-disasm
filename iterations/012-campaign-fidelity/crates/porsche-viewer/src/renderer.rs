@@ -613,6 +613,8 @@ pub struct Renderer {
     ai_speed_limit: Option<f32>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
+    /// In-race pause (`DAT_00606a90`): `update_car` runs no step. `re/pause.md`.
+    pub paused: bool,
     /// Track reset (R, `Car_ResetWatch 0x40f740`): its timers, the pending key event, the
     /// 32 Hz tick clock, and the number of resets done (debug).
     reset_watch: nfs_assets::race::reset::ResetWatch,
@@ -1671,6 +1673,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ai_speed_limit: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
+            paused: false,
             reset_watch: Default::default(),
             reset_request: false,
             reset_clock: 0.0,
@@ -2711,7 +2714,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
+    /// Pauses or resumes the race: while paused no scheduler step runs (the original gates
+    /// `Sched_Step` on `DAT_00606a90`, `re/pause.md` section 3). The session phase follows.
+    pub fn set_paused(&mut self, paused: bool) {
+        if self.paused == paused {
+            return;
+        }
+        self.paused = paused;
+        if let Some(session) = self.race_session.as_mut() {
+            if paused {
+                session.pause();
+            } else {
+                session.resume();
+            }
+        }
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+
     pub fn update_car(&mut self, dt: f32, mut throttle: f32, steer: f32, handbrake: bool) {
+        if self.paused {
+            return;
+        }
         let previous_contacts = self.vehicle_contact_proxies();
         let original = self.original_active();
         let edges = &self.road_edges;
@@ -3468,6 +3494,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn get_race_phase(&self) -> u32 {
+        if self.paused {
+            return 3;
+        }
         if self.is_mission_mode {
             return if self.mission_timed_out || self.get_mission_goal_reached() {
                 4
@@ -3545,6 +3574,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn restart_race(&mut self) {
+        self.set_paused(false);
         self.reset_car();
         if self.is_mission_mode {
             self.mission_elapsed_time = 0.0;
@@ -3572,6 +3602,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return Err("Quick Race track course has no starting grid".into());
         }
         let (session, ai) = quick_race_grid(course, laps, opponents);
+        self.paused = false;
         self.race_session = Some(session);
         self.ai_opponents = ai;
         for ai in &mut self.ai_opponents {

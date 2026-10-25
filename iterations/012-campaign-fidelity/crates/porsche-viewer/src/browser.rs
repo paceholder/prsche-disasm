@@ -318,6 +318,17 @@ impl BrowserViewer {
         }
     }
 
+    /// Pause menu: freezes or resumes the race clock and scheduler.
+    pub fn set_paused(&mut self, paused: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_paused(paused);
+        }
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.renderer.as_ref().map(|r| r.is_paused()).unwrap_or(false)
+    }
+
     pub fn reset_car(&mut self) {
         if let Some(renderer) = &mut self.renderer {
             renderer.reset_car();
