@@ -779,9 +779,12 @@ fn original_wheel_index(p: Vec3) -> usize {
     front + usize::from(p.x >= 0.0)
 }
 
-/// Wheel mesh transform in mesh space for the original car: steer of the front wheels from
-/// the smoothed steer `+0xac8/+0xacc`, spin from `w+0x88` (turns), and the suspension lift
-/// along the body up from the arm angle `w+0x70` (`draw_wheel_lift`, approximation A37).
+/// Wheel mesh transform in mesh space for the original car, as `0x43c830` draws a wheel part:
+/// translated by the pivot `(0, w+0x68, 0)` (the compression along the body up, both ways,
+/// `draw_wheel_pose`), then steer of the front wheels from the smoothed steer
+/// `+0xac8/+0xacc`, the camber `w+0x70` turns about the forward axis, and the spin `w+0x88`
+/// turns about the axle. The rotation order and the camber sense in the mirrored mesh space
+/// are not read from the original (approximation A37).
 fn original_wheel_matrix(
     v: &nfs_assets::physics::original_vehicle::OriginalVehicle,
     wheel: &CarWheelRender,
@@ -795,9 +798,13 @@ fn original_wheel_matrix(
         0.0
     };
     let spin = v.car.wheels[index].spin_88 * TAU;
-    let lift = v.draw_wheel_lift(index);
-    Mat4::from_translation(wheel.source_center + Vec3::Y * lift)
+    let (offset, camber) = v.draw_wheel_pose(index);
+    // Mesh space is the original model rotated 180° about up (x and z negated), so a turn
+    // about the model's forward axis is the opposite turn about mesh z: a compressed wheel's
+    // top leans toward the car's centre line.
+    Mat4::from_translation(wheel.source_center + Vec3::Y * offset)
         * Mat4::from_rotation_y(-steer)
+        * Mat4::from_rotation_z(-camber * TAU)
         * Mat4::from_rotation_x(-spin)
         * Mat4::from_translation(-wheel.source_center)
 }

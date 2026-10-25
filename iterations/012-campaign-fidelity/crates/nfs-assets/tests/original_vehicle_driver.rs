@@ -182,3 +182,32 @@ fn collision_runs_in_the_32_hz_queue_after_the_ground() {
         }
     }
 }
+
+/// Wheel drawing (`0x43e670`/`0x43c830`): in a steady turn the body rolls,
+/// and each drawn wheel moves along the body up by its compression `w+0x68`,
+/// so the drawn tyre bottom (the body's wheel ground point plus that offset)
+/// stays on the road for the compressed outside wheels and the drooping
+/// inside wheels alike.
+#[test]
+fn drawn_wheels_follow_the_road_in_a_roll() {
+    skip_without_local_fixtures!(fixture::CARS);
+    let mut v = boxster();
+    let mut q = Queue::new(&v, vec![]);
+    drive(&mut v, &mut q, 0.5, 0);
+    drive(&mut v, &mut q, 4.0, input_word(1.0, 0.0, 0.0, false));
+    drive(&mut v, &mut q, 1.5, input_word(0.6, 0.0, 1.0, false));
+    let c = &v.car;
+    let roll = c.axes_364[1][0];
+    assert!(roll.abs() > 0.03, "body roll {:?}", c.axes_364[1]);
+    let up = c.axes_364[1];
+    for i in 0..4 {
+        let (offset, _) = v.draw_wheel_pose(i);
+        let bottom = c.world_points_1dc[i][1] + offset * up[1];
+        assert!(
+            bottom.abs() < 0.005,
+            "wheel {i}: tyre bottom {bottom}, offset {offset}, roll {roll}"
+        );
+    }
+    // Outside of a right turn is the left (wheels 0, 2): compressed.
+    assert!(v.draw_wheel_pose(2).0 > 0.0 && v.draw_wheel_pose(3).0 < 0.0);
+}

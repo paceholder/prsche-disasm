@@ -432,21 +432,22 @@ impl OriginalVehicle {
         self.car.gear_d82 as i32 - 1
     }
 
-    /// Suspension lift of wheel `i` for drawing, along U in metres: the arm
-    /// angle `w+0x70` (`0x499a70`, read per wheel by the model animation
-    /// `0x438440`) as `10·sin`, which is `ride + compression` while the
-    /// wheel is compressed and `ride` otherwise (approximation A37: how the
-    /// model applies the angle is not read).
-    pub fn draw_wheel_lift(&self, wheel: usize) -> f32 {
-        let Some(w) = self.car.wheels.get(wheel) else {
-            return 0.0;
-        };
-        let a = if wheel == 1 || wheel == 3 {
-            -w.angle_70
-        } else {
-            w.angle_70
-        };
-        10.0 * a.sin()
+    /// Suspension pose of drawn wheel `i` (FL, FR, RL, RR) as the original
+    /// car draw applies it: `(offset, camber)`.
+    /// - `offset`: metres along the body up. `0x43e670` (R3DCarLOD, from
+    ///   `0x439f90`) sets the wheel pivot `R3DCar+0x6d0+12·i` y to the
+    ///   compression `w+0x68` of physics wheel `[0x5b36f0 + 4·i]` = i
+    ///   (`[0x5b3700]` = 1, 0, 3, 2 in mirror mode, not supported), and
+    ///   `0x43c830` translates the wheel part by that pivot: up when
+    ///   compressed, down when drooping, 0 at rest.
+    /// - `camber`: turns; `0x438440` puts the arm angle `w+0x70` into the
+    ///   wheel channel's z (`car+0x828 + 0xc4·i`), which `0x43c830` turns
+    ///   by `ch.z·360°` about the part's forward axis.
+    pub fn draw_wheel_pose(&self, wheel: usize) -> (f32, f32) {
+        self.car
+            .wheels
+            .get(wheel)
+            .map_or((0.0, 0.0), |w| (w.compression_68, w.angle_70))
     }
 
     /// Front wheel steer angle for drawing, in turns: `sim+0xfc·steer/17`
