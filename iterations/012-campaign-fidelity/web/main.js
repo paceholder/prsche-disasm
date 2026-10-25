@@ -2265,7 +2265,9 @@ async function loadCarSim(simName) {
 }
 
 // `bank` is the catalogue record's engine bank; without it the first record with this SIM is used.
-async function loadRaceCar(model, simName, bank = "") {
+// `gauges` is the record's needle calibration (nfs5.car +0x2f0..+0x2fc, docs/re/cockpit.md);
+// without it the first record with this model and SIM is used.
+async function loadRaceCar(model, simName, bank = "", gauges = null) {
   const target = model.toLowerCase();
   let files;
   if (useCustomFiles && selectedFiles.length > 0) {
@@ -2281,8 +2283,27 @@ async function loadRaceCar(model, simName, bank = "") {
     throw new Error(`Не найдена модель ${target}.crp.`);
   }
   viewer.set_car_model(files.names, files.bytes, target);
+  await setCarGauges(target, simName, gauges);
   await loadCarSim(simName);
   lastEngineSoundError = await loadEngineSound(simName, bank);
+}
+
+// Cockpit needle calibration of the race car; the needles rest at 0 if nfs5.car is missing.
+async function setCarGauges(model, simName, gauges) {
+  if (typeof viewer.set_car_gauges !== "function") return;
+  try {
+    let values = gauges;
+    if (!values) {
+      const records = await loadCarCatalogueRecords();
+      const sim = String(simName || "").toLowerCase();
+      const match = records.find(r => r.model.toLowerCase() === model && r.sim_name.toLowerCase() === sim)
+        || records.find(r => r.model.toLowerCase() === model);
+      values = match?.gauges;
+    }
+    if (Array.isArray(values) && values.length === 4) viewer.set_car_gauges(...values);
+  } catch (error) {
+    console.warn("Cockpit gauges unavailable:", error);
+  }
 }
 
 // Bytes of one game file found by base name (preferring a path that contains `hint`).
@@ -2348,6 +2369,7 @@ function buildQuickRaceCars(records, installedModels, resources) {
       model_name: record.model.toLowerCase(),
       sim_name: record.sim_name,
       bank: record.bank,
+      gauges: record.gauges,
     });
   }
   return cars;
@@ -2425,7 +2447,7 @@ quickRaceStartBtn.addEventListener('click', async () => {
     updateOptions();
     targetSelect.value = track;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
-    await loadRaceCar(car.model_name, car.sim_name, car.bank || "");
+    await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(laps, opponents);
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
@@ -3410,7 +3432,7 @@ async function autostartRace(params) {
     clearNavigation();
     activeCareerEvent = null;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
-    await loadRaceCar(car.model_name, car.sim_name, car.bank || "");
+    await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(Number(params.get("laps") || 3), Number(params.get("opponents") ?? 3));
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();

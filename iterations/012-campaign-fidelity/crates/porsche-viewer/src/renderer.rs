@@ -353,19 +353,19 @@ impl CarLighting {
 }
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct GpuVertex {
-    position: [f32; 3],
-    normal: [f32; 3],
-    uv: [f32; 2],
+pub(crate) struct GpuVertex {
+    pub(crate) position: [f32; 3],
+    pub(crate) normal: [f32; 3],
+    pub(crate) uv: [f32; 2],
     /// sRGB-encoded vertex colour (track prelit colours, white for cars).
-    color: [f32; 4],
+    pub(crate) color: [f32; 4],
 }
-struct GpuMesh {
-    vertex: wgpu::Buffer,
-    index: wgpu::Buffer,
-    count: u32,
-    material: usize,
-    center: Vec3,
+pub(crate) struct GpuMesh {
+    pub(crate) vertex: wgpu::Buffer,
+    pub(crate) index: wgpu::Buffer,
+    pub(crate) count: u32,
+    pub(crate) material: usize,
+    pub(crate) center: Vec3,
 }
 struct GpuMaterial {
     group: wgpu::BindGroup,
@@ -474,6 +474,8 @@ struct CarRenderState {
     wheels: Vec<CarWheelRender>,
     /// Source body bounds in driving coordinates, before the physics adapter.
     body_bounds: Option<[Vec3; 2]>,
+    /// In-car parts drawn instead of the car in BumperCam2 (`docs/re/cockpit.md`).
+    in_car: Vec<crate::in_car::InCarPartRender>,
 }
 
 #[derive(Clone)]
@@ -568,6 +570,8 @@ pub struct Renderer {
     /// Car glares and shadows (`docs/re/lighting.md`).
     effects: crate::effects::Effects,
     car_glares: Vec<nfs_assets::CarGlare>,
+    /// Needle calibration of the car's `nfs5.car` record (`docs/re/cockpit.md`).
+    cockpit_gauges: nfs_assets::cockpit::Gauges,
     player_lights: nfs_assets::lights::LightGroups,
     ai_lights: Vec<nfs_assets::lights::LightGroups>,
     /// Player's light switch (original `car+0xd87` bit 0, `Controller.Lights`).
@@ -1362,6 +1366,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 chassis_mesh_indices: (0..geom.parts.len()).collect(),
                 wheels: Vec::new(),
                 body_bounds: None,
+                in_car: Vec::new(),
             });
         }
 
@@ -1518,6 +1523,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             stunt_detector: None,
             effects,
             car_glares: Vec::new(),
+            cockpit_gauges: Default::default(),
             player_lights: Default::default(),
             ai_lights: Vec::new(),
             light_switch: false,
@@ -1539,6 +1545,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         target: &wgpu::TextureView,
         label: &'static str,
         car_render: &CarRenderState,
+        model_matrix: Mat4,
+        mesh_indices: &[usize],
+    ) {
+        self.draw_gpu_meshes(
+            target,
+            label,
+            &car_render.meshes,
+            &car_render.materials,
+            model_matrix,
+            mesh_indices,
+        );
+    }
+
+    fn draw_gpu_meshes(
+        &self,
+        target: &wgpu::TextureView,
+        label: &'static str,
+        meshes: &[GpuMesh],
+        materials: &[GpuMaterial],
         model_matrix: Mat4,
         mesh_indices: &[usize],
     ) {
@@ -1575,13 +1600,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             });
             pass.set_bind_group(0, &self.camera_group, &[]);
             for &mesh_index in mesh_indices {
-                let Some(mesh) = car_render.meshes.get(mesh_index) else {
+                let Some(mesh) = meshes.get(mesh_index) else {
                     continue;
                 };
-                if mesh.material >= car_render.materials.len() {
+                if mesh.material >= materials.len() {
                     continue;
                 }
-                let material = &car_render.materials[mesh.material];
+                let material = &materials[mesh.material];
                 let pipeline_key = (
                     material.alpha_mode == AlphaMode::Blend,
                     material.double_sided,
@@ -1602,6 +1627,80 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         self.queue.submit([encoder.finish()]);
+    }
+
+    /// Car-mesh-to-world matrix of the player car body (original model or 6 DOF prototype).
+    fn player_body_matrix(&self, car_render: &CarRenderState) -> Option<Mat4> {
+        if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
+            let (center, _) = self.collision_box_or_fallback();
+            return Some(original_body_matrix(&v.car) * Mat4::from_translation(-center));
+        }
+        let sim = self.sim_car.as_ref().filter(|_| self.sim_mode)?;
+        Some(sim.body.transform_matrix() * Mat4::from_translation(car_chassis_adapter_body(sim, car_render)))
+    }
+
+    /// Inputs of `R3DCar_SetAnimChannels` 0x438440 from `OriginalCar` when the original vehicle
+    /// model drives, otherwise from the prototype (approximation A62).
+    fn cockpit_inputs(&self) -> nfs_assets::cockpit::CockpitInputs {
+        use nfs_assets::cockpit::{speed_ec4, CockpitInputs};
+        if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
+            // `[0x657424] >= 2`: the smoothed copies `+0xac8/+0xacc`.
+            return CockpitInputs {
+                steer: v.car.steer_smooth_ac8,
+                rpm: v.car.rpm_db4,
+                speed: speed_ec4(v.car.velocity_33c),
+                mirror: false,
+            };
+        }
+        let Some(sim) = self.sim_car.as_ref() else {
+            return CockpitInputs::default();
+        };
+        // Prototype wheel angle (rad) as steer units: the original draws w+0xb4/216 turns.
+        let units = |i: usize| {
+            sim.suspension.wheels.get(i).map_or(0.0, |w| w.steer_angle) / std::f32::consts::TAU * 216.0
+        };
+        let v = sim.body.linear_velocity;
+        CockpitInputs {
+            steer: [units(0), units(1)],
+            rpm: self.sim_telemetry.as_ref().map_or(0.0, |t| t.engine_rpm),
+            speed: speed_ec4([v.x, v.y, v.z]),
+            mirror: false,
+        }
+    }
+
+    /// BumperCam2: the in-car parts of the player car (`R3DObject_DrawPasses` 0x444e00) in pass
+    /// order, the steering wheel and needles rotated about their pivots, the hands at their frame;
+    /// the driver pass is skipped while a look key is held.
+    fn draw_in_car(&self, target: &wgpu::TextureView, car_render: &CarRenderState) {
+        let Some(body) = self.player_body_matrix(car_render) else {
+            return;
+        };
+        let channels =
+            nfs_assets::cockpit::cockpit_channels(&self.cockpit_inputs(), &self.cockpit_gauges);
+        let keys = &self.player_camera.keys;
+        let looking = keys.left_5e99b4 || keys.right_5e99ac || keys.behind_5e99b0;
+        for pass in nfs_assets::InCarPass::ALL {
+            if pass == nfs_assets::InCarPass::Driver && looking {
+                continue;
+            }
+            for part in car_render.in_car.iter().filter(|p| p.pass == pass) {
+                part.update_frames(&self.queue, &channels);
+                let indices: Vec<usize> = (0..part.meshes.len()).collect();
+                self.draw_gpu_meshes(
+                    target,
+                    "in-car part",
+                    &part.meshes,
+                    &car_render.materials,
+                    body * part.matrix(&channels),
+                    &indices,
+                );
+            }
+        }
+    }
+
+    /// Needle calibration (`nfs5.car` record `+0x2f0..+0x2fc`) of the player car.
+    pub fn set_car_gauges(&mut self, values: [f32; 4]) {
+        self.cockpit_gauges = nfs_assets::cockpit::Gauges::from_record(values);
     }
 
     fn sim_wheel_world_matrix(
@@ -1858,7 +1957,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     car.view_mode == crate::arcade::DriveViewMode::Bumper
                 };
             if bumper_view && self.sim_mode {
-                // nothing to draw for the player car
+                // BumperCam: the viewed car isn't drawn (`R3DCar_SelectLOD` 0x439f90 returns 0);
+                // BumperCam2: its in-car passes (0x444e00).
+                if self.player_camera.id() == 1 {
+                    self.draw_in_car(target, car_render);
+                }
             } else if let Some(v) = self
                 .original_vehicle
                 .as_ref()
@@ -4043,6 +4146,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 && body_max.is_finite()
                 && (body_max - body_min).min_element() > 0.0)
                 .then_some([body_min, body_max]),
+            in_car: crate::in_car::build(&self.device, &scene.car_in_car),
         });
 
         self.car_glares = scene.car_glares.clone();

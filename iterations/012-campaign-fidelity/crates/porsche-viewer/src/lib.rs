@@ -1,6 +1,7 @@
 pub mod arcade;
 pub mod car_mesh;
 mod effects;
+mod in_car;
 mod shade_sample;
 pub mod engine_audio;
 pub mod game_audio;

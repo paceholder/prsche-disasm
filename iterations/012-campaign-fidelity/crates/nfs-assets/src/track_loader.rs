@@ -147,6 +147,7 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
         car_driver_camera: None,
         car_wheels: Vec::new(),
         car_glares: Vec::new(),
+        car_in_car: Vec::new(),
         effect_textures: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),

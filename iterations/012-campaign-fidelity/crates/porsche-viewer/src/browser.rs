@@ -115,6 +115,14 @@ impl BrowserViewer {
         }
     }
 
+    /// Needle calibration of the race car: `nfs5.car` record `+0x2f0..+0x2fc` (rev needle at
+    /// 0 rpm, per 1000 rpm, speed needle at 0, per unit), `docs/re/cockpit.md`.
+    pub fn set_car_gauges(&mut self, tach_0: f32, tach_per_1000: f32, speedo_0: f32, speedo_per_unit: f32) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_car_gauges([tach_0, tach_per_1000, speedo_0, speedo_per_unit]);
+        }
+    }
+
     /// Front-end 3D room (`room=` of a layout, e.g. `ID_GARAGE`) from its `FEData/Models`
     /// files; replaces the scene. Returns false for rooms that are not drawn yet.
     pub fn load_room(&mut self, names: Array, bytes: Array, room: String) -> Result<bool, JsValue> {

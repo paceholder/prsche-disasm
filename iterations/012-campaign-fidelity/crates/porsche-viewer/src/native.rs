@@ -76,6 +76,8 @@ pub fn run_cli(args: impl IntoIterator<Item = String>) -> Result<(), String> {
             "--orbit-yaw" => race.orbit_yaw = Some(parse_f32(&mut iter, "--orbit-yaw")?),
             "--camera-cycles" => race.camera_cycles = parse_u32(&mut iter, "--camera-cycles")?,
             "--brake-last" => race.brake_last = parse_f32(&mut iter, "--brake-last")?,
+            "--steer" => race.steer = parse_f32(&mut iter, "--steer")?,
+            "--original-model" => race.original_model = true,
             "--opponents" => race.opponents = parse_u32(&mut iter, "--opponents")?,
             "--width" => width = parse_u32(&mut iter, "--width")?,
             "--height" => height = parse_u32(&mut iter, "--height")?,
@@ -182,6 +184,10 @@ struct RaceShot {
     /// After the run, look at the car from an orbit camera at this yaw (radians).
     orbit_yaw: Option<f32>,
     opponents: u32,
+    /// Steering held during the run (-1..1, positive right).
+    steer: f32,
+    /// Drive with the original vehicle model (key O).
+    original_model: bool,
 }
 
 async fn render_race_screenshot(
@@ -200,6 +206,12 @@ async fn render_race_screenshot(
     let format = wgpu::TextureFormat::Rgba8UnormSrgb;
     let mut renderer = Renderer::new(device, queue, format, width, height, track)?;
     renderer.set_car_model(&car_scene, car)?;
+    if let Some(gauges) = car_gauges(game_dir, car) {
+        renderer.set_car_gauges(gauges);
+    }
+    if race.original_model {
+        renderer.toggle_vehicle_model();
+    }
     if race.opponents > 0 {
         renderer.configure_quick_race(1, race.opponents)?;
     }
@@ -208,15 +220,18 @@ async fn render_race_screenshot(
     }
     renderer.restart_race();
     renderer.light_switch = race.lights;
-    for _ in 0..race.camera_cycles {
-        renderer.cycle_car_view();
-    }
     let dt = 1.0 / 60.0;
     let steps = (race.seconds / dt).round().max(1.0) as u32;
     let brake_steps = (race.brake_last / dt).round() as u32;
     for step in 0..steps {
         let pedal = if step + brake_steps >= steps { -1.0 } else { race.pedal };
-        renderer.update_car(dt, pedal, 0.0, false);
+        renderer.update_car(dt, pedal, race.steer, false);
+        // The C key is ignored during the race intro (AnimCam): cycle once it has ended.
+        if step == 0 {
+            for _ in 0..race.camera_cycles {
+                renderer.cycle_car_view();
+            }
+        }
     }
     if let Some(yaw) = race.orbit_yaw {
         renderer.toggle_camera_mode();
@@ -238,7 +253,7 @@ async fn render_race_screenshot(
 }
 
 fn usage() -> String {
-    "Usage:\n  porsche-viewer\n  porsche-viewer inspect --game-dir <path> (--car <name> | --track <name>)\n  porsche-viewer view --game-dir <path> (--car <name> | --track <name>) [--screenshot out.png] [--paint-index 0..5 (car screenshot only)] [--yaw radians] [--pitch radians] [--width px] [--height px]\n  porsche-viewer view --game-dir <path> --track <name> --race-car <car> --screenshot out.png [--pedal -1..1] [--seconds s] [--brake-last s] [--lights] [--opponents 0|3] [--camera-cycles n] [--orbit-yaw radians]".into()
+    "Usage:\n  porsche-viewer\n  porsche-viewer inspect --game-dir <path> (--car <name> | --track <name>)\n  porsche-viewer view --game-dir <path> (--car <name> | --track <name>) [--screenshot out.png] [--paint-index 0..5 (car screenshot only)] [--yaw radians] [--pitch radians] [--width px] [--height px]\n  porsche-viewer view --game-dir <path> --track <name> --race-car <car> --screenshot out.png [--pedal -1..1] [--seconds s] [--brake-last s] [--lights] [--opponents 0|3] [--camera-cycles n] [--orbit-yaw radians] [--steer -1..1] [--original-model]".into()
 }
 
 fn next_value(iter: &mut impl Iterator<Item = String>, name: &str) -> Result<String, String> {
@@ -641,6 +656,15 @@ fn parse_u32(iter: &mut impl Iterator<Item = String>, name: &str) -> Result<u32,
     NonZeroU32::new(value)
         .map(NonZeroU32::get)
         .ok_or_else(|| format!("{name} must be greater than zero"))
+}
+
+/// Needle calibration of the first `FEData/Data/nfs5.car` record with this model
+/// (`docs/re/cockpit.md`).
+fn car_gauges(game_dir: &Path, model: &str) -> Option<[f32; 4]> {
+    let bytes = fs::read(game_dir.join("FEData/Data/nfs5.car")).ok()?;
+    let entries = nfs_formats::parse_car_catalogue(&bytes).ok()?;
+    let entry = entries.iter().find(|e| e.model.eq_ignore_ascii_case(model))?;
+    Some(entry.gauges)
 }
 
 fn read_game_files(root: &Path, car: &str) -> Result<AssetFiles, String> {

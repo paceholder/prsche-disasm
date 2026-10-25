@@ -15,8 +15,13 @@ const FAMILY_AT: usize = 0x115;
 const SIM_NAME_AT: usize = 0xB1;
 const BANK_NAME_AT: usize = 0x179;
 const FIELD_LEN: usize = 32;
+/// Gauge calibration `+0x2f0..+0x2fc` (4 f32): written by the front end as the race config
+/// keys `.TACH0RPM`, `.TACH1000RPM`, `.SPEEDO0KM`, `.SPEEDO100KM` (`FE_WriteCarConfig`
+/// 0x4eeda0 from object `+0x2f4` = record `+0x2f0`), read as `res+0x524..0x530` by
+/// `R3DCar_SetAnimChannels` 0x438440. See `docs/re/cockpit.md`.
+const GAUGES_AT: usize = 0x2f0;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarEntry {
     /// Record index in the file.
     pub index: usize,
@@ -29,6 +34,9 @@ pub struct CarEntry {
     pub sim_name: String,
     /// Engine sound bank archive base name, e.g. `sd1a`.
     pub bank_name: String,
+    /// Needle calibration in turns: rev needle at 0 rpm, per 1000 rpm; speed needle at 0,
+    /// per unit of `0.144·v` (`GAUGES_AT`).
+    pub gauges: [f32; 4],
 }
 
 fn cstr(r: &[u8], at: usize, len: usize) -> String {
@@ -57,6 +65,10 @@ pub fn parse_car_catalogue(d: &[u8]) -> Result<Vec<CarEntry>> {
             family: cstr(r, FAMILY_AT, FIELD_LEN),
             sim_name: cstr(r, SIM_NAME_AT, FIELD_LEN),
             bank_name: cstr(r, BANK_NAME_AT, FIELD_LEN),
+            gauges: std::array::from_fn(|i| {
+                let o = GAUGES_AT + 4 * i;
+                f32::from_le_bytes([r[o], r[o + 1], r[o + 2], r[o + 3]])
+            }),
         })
         .collect())
 }
@@ -110,7 +122,7 @@ fn json_str(s: &str, out: &mut String) {
     out.push('"');
 }
 
-/// JSON array `[{index, display_name, model, sim_name, bank}, ...]` for the web front end.
+/// JSON array `[{index, display_name, model, sim_name, bank, gauges}, ...]` for the web front end.
 pub fn catalogue_json(entries: &[CarEntry]) -> String {
     let mut out = String::from("[");
     for (i, e) in entries.iter().enumerate() {
@@ -126,8 +138,20 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
         ] {
             out.push_str(&format!("\"{k}\":"));
             json_str(v, &mut out);
-            out.push(if k == "bank" { '}' } else { ',' });
+            out.push(',');
         }
+        let g: Vec<String> = e
+            .gauges
+            .iter()
+            .map(|x| {
+                if x.is_finite() {
+                    format!("{x}")
+                } else {
+                    "0".into()
+                }
+            })
+            .collect();
+        out.push_str(&format!("\"gauges\":[{}]}}", g.join(",")));
     }
     out.push(']');
     out
@@ -186,10 +210,11 @@ mod tests {
             family: String::new(),
             sim_name: "996T".into(),
             bank_name: "sd7a".into(),
+            gauges: [-0.07, 0.14, -0.01, 0.17],
         };
         assert_eq!(
             catalogue_json(&[e]),
-            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\"}]"
+            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"gauges\":[-0.07,0.14,-0.01,0.17]}]"
         );
         assert_eq!(catalogue_json(&[]), "[]");
     }
@@ -211,6 +236,9 @@ mod tests {
         let e = parse_car_catalogue(&d).unwrap();
         assert_eq!(find_car(&e, "356Acabrio16").unwrap().bank_name, "sd1a");
         assert_eq!(find_car(&e, "356cabrio11").unwrap().bank_name, "sd1b");
+        // Gauge calibration (docs/re/cockpit.md): 356A record 8 and 993 record 56.
+        assert_eq!(e[8].gauges, [-0.07, 0.14, -0.01, 0.17]);
+        assert_eq!(e[56].gauges, [-0.37, 0.09, -0.37, 0.07]);
     }
 
     fn stems(dir: &str, ext: &str) -> Option<Vec<String>> {

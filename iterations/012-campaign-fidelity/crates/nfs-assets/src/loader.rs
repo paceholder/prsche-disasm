@@ -283,6 +283,184 @@ fn car_glares(
     Ok(out)
 }
 
+/// Column-major 4×4 `tr` matrix of an article at `level` (raw CRP units), identity if absent.
+fn part_frame(article: &Entry, level: u16) -> Result<[f32; 16], String> {
+    match article.find("tr", level).filter(|t| t.data.len() >= 64) {
+        Some(t) => {
+            let mut m = [0.0; 16];
+            for (i, v) in m.iter_mut().enumerate() {
+                *v = f32le(&t.data, i * 4)?;
+            }
+            Ok(m)
+        }
+        None => Ok([
+            1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
+        ]),
+    }
+}
+
+fn frame_point(m: &[f32; 16], p: [f32; 3], w: f32) -> [f32; 3] {
+    std::array::from_fn(|r| m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r] * w)
+}
+
+/// Parts of the in-car view (`docs/re/cockpit.md`). `R3DObject_DrawPasses` 0x444e00 draws, for
+/// the viewed car in BumperCam2, mask 0x10 at level 2, mask 0x40 at level 1 and mask 0x80 at
+/// the car-detail LOD; `R3DCarLOD_DrawParts` 0x43c830 keeps parts with `Base+0x44` byte 0xd
+/// set and draws them in their full `tr` frame (rotation and scale). Part style as the parked
+/// car; glare (`ef`) articles are drawn by the glare pass instead.
+fn in_car_parts(
+    crp: &nfs_formats::Crp,
+    style: &StyleSelection,
+    matmap: &BTreeMap<u16, usize>,
+) -> Result<Vec<InCarPart>, String> {
+    let mut parts = Vec::new();
+    for (ai, a) in crp.articles.iter().enumerate() {
+        if a.children.iter().any(|e| e.tag == "ef") {
+            continue;
+        }
+        let Some(base) = a.find("Base", 0) else {
+            continue;
+        };
+        let info = bytes(&base.data, 0x44, 16)?;
+        let selected = u32::from(info[1])
+            == style
+                .geometry
+                .get(&u32::from(info[0]))
+                .copied()
+                .unwrap_or(0);
+        if !selected || info[0xd] == 0 {
+            continue;
+        }
+        let level_count = (u32le(&base.data, 12)? as usize).min(15);
+        let levels = (0..level_count)
+            .map(|i| u16le(&base.data, 108 + i * 12))
+            .collect::<Result<Vec<_>, _>>()?;
+        let name = a
+            .find("Name", 0)
+            .map(text)
+            .unwrap_or_else(|| format!("article{ai}"));
+        for pass in InCarPass::ALL {
+            if info[10] & pass.mask() == 0 {
+                continue;
+            }
+            let level = pass.level();
+            let lod = if levels.contains(&level) {
+                level
+            } else if levels.contains(&0) {
+                0
+            } else {
+                continue;
+            };
+            let Some(vt) = a.find("vt", lod) else {
+                continue;
+            };
+            let m = part_frame(a, lod)?;
+            let to_scene_point = |p: [f32; 3]| to_scene_coordinates(frame_point(&m, p, 1.0));
+            let to_scene_normal =
+                |n: [f32; 3]| to_scene_coordinates(normalize(frame_point(&m, n, 0.0)));
+            let frame_count = if info[8] > 1 { info[8] } else { 0 };
+            let mut meshes = Vec::new();
+            for pr in a
+                .children
+                .iter()
+                .filter(|e| e.tag == "pr" && e.index >> 12 == lod)
+            {
+                let label = format!("{name}#{ai}/{} (in-car)", pr.index & 4095);
+                let local = |frame: u16| -> Result<Mesh, String> {
+                    let index = lod | (frame << 4);
+                    let vt = a.find("vt", index).unwrap_or(vt);
+                    let nm = a.find("nm", index).or_else(|| a.find("nm", lod));
+                    mesh(
+                        pr,
+                        vt,
+                        nm,
+                        a.find("uv", lod),
+                        [0.0; 3],
+                        matmap,
+                        label.clone(),
+                    )
+                    .map_err(|e| format!("{name}, CRP offset 0x{:x}: {e}", pr.offset))
+                };
+                // mesh() returns raw/5: the frame's translation is divided by five too.
+                let place = |mesh: &Mesh| -> Vec<([f32; 3], [f32; 3])> {
+                    mesh.vertices
+                        .iter()
+                        .map(|v| {
+                            let mut m5 = m;
+                            for t in &mut m5[12..15] {
+                                *t /= 5.0;
+                            }
+                            (
+                                to_scene_coordinates(frame_point(&m5, v.position, 1.0)),
+                                to_scene_normal(v.normal),
+                            )
+                        })
+                        .collect()
+                };
+                let mut base_mesh = local(0)?;
+                if base_mesh.indices.is_empty() {
+                    continue;
+                }
+                let placed = place(&base_mesh);
+                for (v, (p, n)) in base_mesh.vertices.iter_mut().zip(&placed) {
+                    v.position = *p;
+                    v.normal = *n;
+                }
+                for tri in base_mesh.vertices.as_chunks_mut::<3>().0 {
+                    if tri.iter().all(|vertex| vertex.normal == [0.; 3]) {
+                        let normal =
+                            triangle_normal([tri[0].position, tri[1].position, tri[2].position]);
+                        for vertex in tri {
+                            vertex.normal = normal;
+                        }
+                    }
+                }
+                let mut frames = Vec::new();
+                if frame_count > 0 {
+                    for f in 0..u16::from(frame_count) {
+                        let index = lod | (f << 4);
+                        if a.find("vt", index).is_none() {
+                            break;
+                        }
+                        let mut fm = place(&local(f)?);
+                        for tri in fm.chunks_mut(3) {
+                            if tri.len() == 3 && tri.iter().all(|(_, n)| *n == [0.; 3]) {
+                                let n = triangle_normal([tri[0].0, tri[1].0, tri[2].0]);
+                                tri.iter_mut().for_each(|v| v.1 = n);
+                            }
+                        }
+                        frames.push(fm);
+                    }
+                }
+                meshes.push(InCarMesh {
+                    mesh: base_mesh,
+                    frames,
+                });
+            }
+            if meshes.is_empty() {
+                continue;
+            }
+            parts.push(InCarPart {
+                name: name.clone(),
+                pass,
+                channel: info[7],
+                pivot_origin: to_scene_point([0.0, 0.0, 0.0]).map(|x| x / 5.0),
+                pivot_axis: to_scene_normal([0.0, 0.0, 1.0]),
+                frame_channel: info[9],
+                frame_count: frames_or_zero(frame_count, &meshes),
+                meshes,
+            });
+        }
+    }
+    Ok(parts)
+}
+
+/// Frame count of the part: the frames actually present in every mesh.
+fn frames_or_zero(declared: u8, meshes: &[InCarMesh]) -> u8 {
+    let present = meshes.iter().map(|m| m.frames.len()).min().unwrap_or(0);
+    declared.min(present as u8)
+}
+
 fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
     [v[0], v[1], -v[2]]
 }
@@ -292,7 +470,9 @@ fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8]) -> (AlphaMode, f32) {
     if matches!(render, "CarExt" | "CarExtEnv") {
         return (AlphaMode::Mask, 0.0);
     }
-    if render == "CarInt" {
+    // Interior glass (`intglass.fsh`, a 32-bit page) is translucent: seen from the in-car
+    // view it must not hide the road. Other interior pages stay opaque.
+    if render == "CarInt" && tpg_bpp != 32 {
         return (AlphaMode::Opaque, 0.0);
     }
     let mut alpha = rgba.iter().skip(3).step_by(4);
@@ -484,6 +664,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         car_driver_camera: Some(driver_camera(&ini, DRIVER_CAMERA_STYLE)),
         car_wheels: Vec::new(),
         car_glares: car_glares(&crp, &style, scene_lod)?,
+        car_in_car: Vec::new(),
         effect_textures: effect_textures(files)?,
         textures: Vec::new(),
         materials: Vec::new(),
@@ -563,11 +744,16 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
         if page == 0 || page > pages {
             return Err(format!("[{section}]: invalid page {page}"));
         }
-        // Driver isn't part of a parked-car view. Avoid requiring head/suit resources.
-        if matches!(num(&ini, &section, "global", 0)?, 3 | 4) {
-            continue;
-        }
-        let source = texture_source(files, &crp, &ini, f)?;
+        // Driver packs (suit, head) aren't part of the parked-car view and aren't required;
+        // the in-car hands use the suit pack, so it is placed when present.
+        let source = if matches!(num(&ini, &section, "global", 0)?, 3 | 4) {
+            match texture_source(files, &crp, &ini, f) {
+                Ok(source) => source,
+                Err(_) => continue,
+            }
+        } else {
+            texture_source(files, &crp, &ini, f)?
+        };
         let images = nfs_formats::parse_fsh(source).map_err(|e| format!("TPG file{f}: {e}"))?;
         let mut selected = 0;
         for image in images {
@@ -637,6 +823,7 @@ pub fn load(files: &AssetFiles, car: &str) -> Result<Scene, String> {
             prelit: false,
         });
     }
+    scene.car_in_car = in_car_parts(&crp, &style, &matmap)?;
     for (ai, a) in crp.articles.iter().enumerate() {
         let article_name = a
             .find("Name", 0)
@@ -1378,6 +1565,112 @@ mod tests {
         assert_eq!(find("GlareMirror1").unwrap().pivot, 6, "follows the left door");
         // Each glare appears once per detail level; only the scene level is used.
         assert_eq!(scene.car_glares.iter().filter(|g| g.name == "GlareHeadLight").count(), 1);
+    }
+
+    #[test]
+    fn local_356a_in_car_parts() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in [
+            "356a.crp",
+            "356a.tpg",
+            "INTGLASS.FSH",
+            "Shadow.fsh",
+            "Cabrio.fsh",
+            "Suit.fsh",
+            "Head.fsh",
+        ] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        let scene = load(&files, "356a").unwrap();
+        let parts = &scene.car_in_car;
+        let find = |name: &str| parts.iter().find(|p| p.name == name);
+        // [style1] selects the type-1 variants; level 2 for the body pass.
+        let dash = find("Dash1").expect("dashboard");
+        assert_eq!(dash.pass, InCarPass::Body);
+        assert!(find("Dash").is_none());
+        let steer = find("Steer1").expect("steering wheel");
+        assert_eq!((steer.pass, steer.channel), (InCarPass::SteeringWheel, 5));
+        // The column tilts: local z is (0, 0.284, 0.959) raw, z flipped in the scene.
+        assert!((steer.pivot_axis[1] - 0.284).abs() < 0.01 && steer.pivot_axis[2] < -0.9);
+        assert_eq!(find("Needle1a").unwrap().channel, 0xc);
+        assert_eq!(find("Needle2a").unwrap().channel, 0xb);
+        // Hands with their frames; no driver body, arms, legs, wheels, bottom or engine.
+        // [style1] selects the type-2 hands.
+        let left = find("LeftHand2").unwrap();
+        assert_eq!(
+            (left.pass, left.frame_channel, left.frame_count),
+            (InCarPass::Driver, 5, 10)
+        );
+        let right = find("RightHand2").unwrap();
+        assert_eq!((right.frame_channel, right.frame_count), (4, 20));
+        assert!(right
+            .meshes
+            .iter()
+            .all(|m| m.frames.len() == 20
+                && m.frames.iter().all(|f| f.len() == m.mesh.vertices.len())));
+        for hidden in [
+            "DriverBody1",
+            "LeftArm1",
+            "Legs1",
+            "WheelFront",
+            "Bottom",
+            "Engine",
+            "HoodIn",
+        ] {
+            assert!(find(hidden).is_none(), "{hidden}");
+        }
+        assert!(find("Body").is_some() && find("SideMirrorLeft").is_some());
+    }
+
+    #[test]
+    fn local_cars_have_a_cockpit() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        let Ok(dir) = std::fs::read_dir(&root) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        let mut cars = Vec::new();
+        for entry in dir {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let lower = name.to_ascii_lowercase();
+            if lower.ends_with(".crp") {
+                cars.push(lower.trim_end_matches(".crp").to_string());
+            }
+            if lower.ends_with(".crp") || lower.ends_with(".tpg") || lower.ends_with(".fsh") {
+                files.insert(name, std::fs::read(&path).unwrap());
+            }
+        }
+        let mut without = Vec::new();
+        for car in &cars {
+            let scene = load(&files, car).unwrap_or_else(|e| panic!("{car}: {e}"));
+            let has = |channel: u8| scene.car_in_car.iter().any(|p| p.channel == channel);
+            if !(has(5) && has(0xb)) {
+                without.push(car.clone());
+            }
+            // 935 has no speedometer needle; gt1's exists at level 3 only.
+            if has(5) && has(0xb) && !has(0xc) {
+                assert!(
+                    ["935", "gt1"].contains(&car.as_str()),
+                    "{car}: no speed needle"
+                );
+            }
+        }
+        // Traffic models and the post ship have no modelled interior.
+        assert!(
+            without
+                .iter()
+                .all(|c| c.starts_with("eas") || c.starts_with("eden") || c == "postship"),
+            "cars without steering wheel or rev needle: {without:?}"
+        );
     }
 
     #[test]

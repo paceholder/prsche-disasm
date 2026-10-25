@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 
 pub mod audio;
 pub mod camera;
+pub mod cockpit;
 pub mod collision_box;
 pub mod lights;
 pub mod physics;
@@ -69,6 +70,66 @@ pub struct CarWheel {
     pub center: [f32; 3],
     pub radius: f32,
     pub mesh_indices: Vec<usize>,
+}
+
+/// Pass of the in-car view (`R3DObject_DrawPasses` 0x444e00): part mask and CRP level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InCarPass {
+    /// Mask 0x10 (body and interior) at level 2.
+    Body,
+    /// Mask 0x40 (steering wheel) at level 1.
+    SteeringWheel,
+    /// Mask 0x80 (driver; only the hands have the in-car flag) at level 1, skipped while a
+    /// look key is held.
+    Driver,
+}
+
+impl InCarPass {
+    pub const ALL: [InCarPass; 3] = [InCarPass::Body, InCarPass::SteeringWheel, InCarPass::Driver];
+    pub fn mask(self) -> u8 {
+        match self {
+            InCarPass::Body => 0x10,
+            InCarPass::SteeringWheel => 0x40,
+            InCarPass::Driver => 0x80,
+        }
+    }
+    /// CRP level: LOD index + 1 (`R3DObject_BuildLODs` 0x4425b0). Driver: car detail 2
+    /// (`[0x5cdb1c]` = {1, 0, 0}, LOD 0).
+    pub fn level(self) -> u16 {
+        match self {
+            InCarPass::Body => 2,
+            InCarPass::SteeringWheel | InCarPass::Driver => 1,
+        }
+    }
+}
+
+/// One drawn piece (`pr`) of an in-car part. Coordinates are scene coordinates like
+/// [`Mesh`]; the part's `tr` frame is already applied.
+#[derive(Debug, Clone)]
+pub struct InCarMesh {
+    pub mesh: Mesh,
+    /// Positions and normals per animation frame (`vt`/`nm` index `(frame << 4) | level`),
+    /// in the vertex order of `mesh`; empty for parts without frames.
+    pub frames: Vec<Vec<([f32; 3], [f32; 3])>>,
+}
+
+/// A CRP part drawn in the in-car view (`Base+0x44` byte 0xd set; `R3DCarLOD_DrawParts`
+/// 0x43c830). See `docs/re/cockpit.md`.
+#[derive(Debug, Clone)]
+pub struct InCarPart {
+    pub name: String,
+    pub pass: InCarPass,
+    /// Transform channel `Base+0x4b` (5 steering wheel, 0xb rev needle, 0xc speed needle,
+    /// 6..9 doors/hood/trunk, 0 none).
+    pub channel: u8,
+    /// Pivot of the channel rotation: the `tr` origin and its local z axis (unit), in scene
+    /// coordinates. The rotation is about local z (0x43c830 order x, y, z; only z is driven).
+    pub pivot_origin: [f32; 3],
+    pub pivot_axis: [f32; 3],
+    /// Frame channel `Base+0x4d` and frame count `Base+0x4c`.
+    pub frame_channel: u8,
+    pub frame_count: u8,
+    pub meshes: Vec<InCarMesh>,
 }
 
 #[derive(Debug, Clone)]
@@ -172,6 +233,8 @@ pub struct Scene {
     pub car_wheels: Vec<CarWheel>,
     /// Light glares of a car scene (empty for tracks).
     pub car_glares: Vec<CarGlare>,
+    /// Parts of the in-car view (BumperCam2) of a car scene; empty for tracks.
+    pub car_in_car: Vec<InCarPart>,
     /// Car effect textures from `GameData/Render/common.fsh`, named by their
     /// FSH entry (`CARG`, `SPIK`, `GLNT`, `SHAD`, ...); empty if the file is absent.
     pub effect_textures: Vec<Texture>,
@@ -218,6 +281,7 @@ impl Default for Scene {
             meshes: Vec::new(),
             car_wheels: Vec::new(),
             car_glares: Vec::new(),
+            car_in_car: Vec::new(),
             effect_textures: Vec::new(),
             textures: Vec::new(),
             materials: Vec::new(),
