@@ -96,6 +96,21 @@ impl BrowserViewer {
         self.set_scene(scene)
     }
 
+    /// `load_track` for a race direction: `reverse` runs the track backwards (`<track>1.lsp`, the
+    /// AI node graph walked backwards, the course from the other end).
+    pub fn load_track_direction(
+        &mut self,
+        names: Array,
+        bytes: Array,
+        track: String,
+        reverse: bool,
+    ) -> Result<String, JsValue> {
+        let scene = files_from_js(names, bytes)
+            .and_then(|files| nfs_assets::load_track_direction(&files, &track, reverse))
+            .map_err(|e| JsValue::from_str(&e))?;
+        self.set_scene(scene)
+    }
+
     pub fn set_car_model(
         &mut self,
         names: Array,
@@ -806,6 +821,22 @@ impl BrowserViewer {
         renderer
             .configure_quick_race(laps, opponents)
             .map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// Quick Race difficulty (`SKILL`), mirror, the opponents' skill values (8 per opponent,
+    /// from `fe_pick_opponents_json`) and the body paints (RGBA; empty player paint = unchanged,
+    /// 4 per opponent); call before `configure_quick_race`.
+    pub fn set_race_options(
+        &mut self,
+        difficulty: i32,
+        mirror: bool,
+        skills: Vec<f32>,
+        player_paint: Vec<f32>,
+        opponent_paints: Vec<f32>,
+    ) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_race_options(difficulty, mirror, &skills, &player_paint, &opponent_paints);
+        }
     }
 
     /// Car setup screen choices: manual transmission and damage on (see `Renderer::set_car_setup`).

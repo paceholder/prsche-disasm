@@ -73,6 +73,9 @@ impl OriginalAiTrack {
 pub struct AiDriverCar {
     pub vehicle: OriginalVehicle,
     pub ai: AiState,
+    /// The car's own skill values `res+0x154..+0x174` (base values, then ranges), written by the
+    /// front end from the driver's `nfs5.per` record (keys 0x23f..0x246, `FUN_004ebba0`).
+    pub skill_154: [f32; 8],
     /// Laps counted from the node fraction (A41).
     pub laps: i32,
     last_fraction: f32,
@@ -190,9 +193,11 @@ impl OriginalAiField {
         vehicle.car.track.node_lat_3b8 = ai.node_lat_3b8;
         vehicle.car.track.node_up_3c4 = ai.node_up_3c4;
         vehicle.car.track.node_fwd_3d0 = ai.node_fwd_3d0;
+        let skill_154 = self.options.res_skill_154;
         self.cars.push(AiDriverCar {
             vehicle,
             ai,
+            skill_154,
             laps: 0,
             last_fraction: 0.0,
         });
@@ -321,7 +326,7 @@ impl OriginalAiField {
                 player.car.store_controls(&cc, &ce);
             }
             if run_ai {
-                let world = AiWorld {
+                let mut world = AiWorld {
                     track: &self.track.nodes,
                     line: &self.track.line,
                     ais: &self.ais,
@@ -347,6 +352,7 @@ impl OriginalAiField {
                         })
                         .collect();
                     let c = &mut self.cars[i];
+                    world.res_skill_154 = c.skill_154;
                     c.ai.order_528 = order.iter().position(|&(k, _)| k == me).unwrap() as i32;
                     read_inputs_ai(&mut c.vehicle.car, &mut c.ai, &world, &slots, input_word, lcg);
                 }

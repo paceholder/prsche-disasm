@@ -120,6 +120,14 @@ pub fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
 }
 
 pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
+    load_direction(files, track, false)
+}
+
+/// Loads a track for a race direction. `reverse` is the original's `REVERSE` option
+/// `[0x657430]`: the AI graph uses `<track>1.lsp` (`<dir><track><REVERSE>.lsp`, `docs/re/ai.md`),
+/// with the node graph walked backwards, and the course (start, laps, finish) runs against the
+/// racing-line point order.
+pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<Scene, String> {
     if track.is_empty()
         || !track
             .bytes()
@@ -728,12 +736,14 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     let jnc_key = format!("{track}.jnc");
     let map_key = format!("{track}.map");
     let lsp0_key = format!("{track}0.lsp");
+    let lsp_dir_key = format!("{track}{}.lsp", reverse as u8);
     let lsp_key = format!("{track}.lsp");
 
     let edg_data = find(files, &edg_key).ok();
     let jnc_data = find(files, &jnc_key).ok();
     let map_data = find(files, &map_key).ok();
-    let lsp_data = find(files, &lsp0_key)
+    let lsp_data = find(files, &lsp_dir_key)
+        .or_else(|_| find(files, &lsp0_key))
         .or_else(|_| find(files, &lsp_key))
         .ok();
 
@@ -809,8 +819,14 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
                         let gap = ((p_first.x - p_last.x).powi(2) + (p_first.z - p_last.z).powi(2))
                             .sqrt();
                         let is_circuit = gap < 60.0;
+                        // A backward race runs the racing line against its point order.
+                        let ordered: Vec<_> = if reverse {
+                            lsp.points.iter().rev().cloned().collect()
+                        } else {
+                            lsp.points.clone()
+                        };
                         if let Ok(course) =
-                            TrackCourse::from_spline_points(&lsp.points, is_circuit, |x, z| {
+                            TrackCourse::from_spline_points(&ordered, is_circuit, |x, z| {
                                 scene
                                     .road_surface
                                     .as_ref()
@@ -842,9 +858,9 @@ pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
 
         scene.topology = Some(topology);
         // The original AI: node graph from the CRP and the forward racing line.
-        if let Ok(lsp0) = find(files, &lsp0_key) {
+        if let Ok(lsp) = find(files, &lsp_dir_key).or_else(|_| find(files, &lsp0_key)) {
             scene.ai_track = crate::race::original_ai::field::OriginalAiTrack::from_files(
-                track, false, crp_data, jnc_data, lsp0,
+                track, reverse, crp_data, jnc_data, lsp,
             );
         }
     }
@@ -1397,6 +1413,46 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn local_backward_race_uses_lsp1_and_reversed_course() {
+        // Local game data (skipped without it): alps, a point-to-point track.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let read = |n: &str| std::fs::read(root.join(n)).ok();
+        let (Some(crp), Some(fsh), Some(anim), Some(l0), Some(l1)) = (
+            read("alps.crp"),
+            read("alps.fsh"),
+            read("animdefs.txt"),
+            read("racer/work/alps0.lsp"),
+            read("racer/work/alps1.lsp"),
+        ) else {
+            eprintln!("skipped: no local game data");
+            return;
+        };
+        let mut files = AssetFiles::new();
+        files.insert("alps.crp".into(), crp);
+        files.insert("alps.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        files.insert("alps0.lsp".into(), l0);
+        files.insert("alps1.lsp".into(), l1);
+        if let Some(j) = read("alps.jnc") {
+            files.insert("alps.jnc".into(), j);
+        }
+        let fwd = load_direction(&files, "alps", false).unwrap();
+        let bwd = load_direction(&files, "alps", true).unwrap();
+        let (cf, cb) = (fwd.course.unwrap(), bwd.course.unwrap());
+        assert!(!cf.is_circuit);
+        // The backward course starts where the forward one ends and runs the other way.
+        let last = cf.waypoints.last().unwrap().position;
+        let first = cb.waypoints[0].position;
+        assert!((last[0] - first[0]).abs() < 1e-3 && (last[2] - first[2]).abs() < 1e-3);
+        assert!(cf.waypoints[0].forward[2] * cb.waypoints[0].forward[2] < 0.0);
+        // The AI graph: the direction's racing line and REVERSE.
+        let (af, ab) = (fwd.ai_track.unwrap(), bwd.ai_track.unwrap());
+        assert!(!af.reverse && ab.reverse);
+        assert_ne!(af.line, ab.line, "alps1.lsp differs from alps0.lsp");
     }
 
     #[test]

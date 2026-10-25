@@ -415,6 +415,8 @@ struct GpuMaterial {
     group: wgpu::BindGroup,
     color_buffer: wgpu::Buffer,
     paintable: bool,
+    /// Last value of the material uniform (prelit flag / light slot), kept when repainting.
+    tail: f32,
     alpha_mode: AlphaMode,
     alpha_cutoff: f32,
     double_sided: bool,
@@ -611,6 +613,8 @@ pub struct Renderer {
     ai_performance: Option<nfs_assets::AiPerformance>,
     /// Debug cap for AI speed (m/s), cycled with J: none, 30 km/h, parked.
     ai_speed_limit: Option<f32>,
+    /// Quick Race choices that reach the race (`docs/re/frontend.md` "Race start parameters").
+    pub race_options: RaceOptions,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
     /// In-race pause (`DAT_00606a90`): `update_car` runs no step. `re/pause.md`.
@@ -678,6 +682,22 @@ fn scenario_start_pose(start: nfs_assets::ScenarioStart) -> (Vec3, f32) {
     (Vec3::from(start.position), yaw)
 }
 
+/// Race options of the Quick Race front end, written like the original's `FE_WriteCarConfig`
+/// 0x4eb470/0x4ecf00 writes them as config keys.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RaceOptions {
+    /// `SKILL` `[0x6573f4]` = `Game.Difficutly` (0 beginner, 1 advanced, 2 expert).
+    pub difficulty: i32,
+    /// `MIRROR` `[0x65742c]`: the picture is mirrored and the steering swapped.
+    pub mirror: bool,
+    /// Skill values of each opponent (`res+0x154`, from the driver records), by grid slot.
+    pub opponent_skills: Vec<[f32; 8]>,
+    /// Body paint of the player's car and of each opponent (linear RGBA), by grid slot; the
+    /// front end picks them (`docs/re/frontend.md` "Opponent cars and colours").
+    pub player_paint: Option<[f32; 4]>,
+    pub opponent_paints: Vec<[f32; 4]>,
+}
+
 fn quick_race_grid(
     course: &nfs_assets::TrackCourse,
     laps: u32,
@@ -694,7 +714,8 @@ fn quick_race_grid(
         nfs_assets::AiProfile::veteran(),
         nfs_assets::AiProfile::novice(),
     ];
-    for (i, profile) in profiles.into_iter().take(opponents as usize).enumerate() {
+    for i in 0..opponents as usize {
+        let profile = profiles[i % profiles.len()].clone();
         let slot = i + 1;
         let opponent = nfs_assets::AiOpponent::new(
             slot,
@@ -1038,6 +1059,7 @@ impl Renderer {
                 group,
                 color_buffer: color,
                 paintable: material.paintable,
+                tail: if material.prelit { 1.0 } else { 0.0 },
                 alpha_mode: material.alpha_mode,
                 alpha_cutoff: material.alpha_cutoff,
                 double_sided: material.double_sided,
@@ -1478,6 +1500,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     group,
                     color_buffer: color_buf,
                     paintable: color_idx == crate::car_mesh::MAT_BODY,
+                    tail: 0.0,
                     alpha_mode,
                     alpha_cutoff: 0.0,
                     double_sided: false,
@@ -1671,6 +1694,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ai_opponents,
             ai_performance: None,
             ai_speed_limit: None,
+            race_options: RaceOptions::default(),
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
             paused: false,
@@ -1721,6 +1745,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.depth = depth_view(&self.device, width, height);
         }
     }
+    /// Writes the body paint of the car meshes (the `CarExt` materials).
+    fn paint_car(&self, car_render: &CarRenderState, color: [f32; 4]) {
+        for material in car_render.materials.iter().filter(|m| m.paintable) {
+            self.queue.write_buffer(
+                &material.color_buffer,
+                0,
+                bytemuck::cast_slice(&[
+                    color[0],
+                    color[1],
+                    color[2],
+                    color[3],
+                    alpha_mode_code(material.alpha_mode),
+                    material.alpha_cutoff,
+                    1.0,
+                    material.tail,
+                ]),
+            );
+        }
+    }
+
     fn draw_car_meshes(
         &self,
         target: &wgpu::TextureView,
@@ -2132,6 +2176,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         // 3.5. Draw car on track (if present)
         if let (Some(car), Some(car_render), None) = (&self.car, &self.car_render, &self.fe_room) {
+            if let Some(paint) = self.race_options.player_paint {
+                self.paint_car(car_render, paint);
+            }
             // The bumper view looks out from inside the body: like the
             // original BumperCam, the player's own car isn't drawn.
             let bumper_view = self.camera.mode == CameraMode::Drive
@@ -2209,7 +2256,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
 
             // Draw AI opponent vehicles on track with the same visible model.
-            for ai in &self.ai_opponents {
+            for (slot, ai) in self.ai_opponents.iter().enumerate() {
+                // Each opponent's own paint; the player's goes back after the loop.
+                if let Some(paint) = self.race_options.opponent_paints.get(slot) {
+                    self.paint_car(car_render, *paint);
+                }
                 // Approximation: AI cars are kinematic; tilt follows the road
                 // surface, not the original vehicle model.
                 let model_matrix = Mat4::from_translation(Vec3::from(ai.position))
@@ -2242,6 +2293,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                         &wheel.mesh_indices,
                     );
                 }
+            }
+
+            if let Some(paint) = self.race_options.player_paint {
+                self.paint_car(car_render, paint);
             }
 
             // Restore identity model for remaining passes
@@ -2738,6 +2793,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if self.paused {
             return;
         }
+        // MIRROR `[0x65742c]` mirrors the steering input (`docs/re/vehicle.md`); the page
+        // flips the picture.
+        let steer = if self.race_options.mirror { -steer } else { steer };
         let previous_contacts = self.vehicle_contact_proxies();
         let original = self.original_active();
         let edges = &self.road_edges;
@@ -3588,11 +3646,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     /// Start a standalone race on the loaded course with the selected grid size.
     pub fn configure_quick_race(&mut self, laps: u32, opponents: u32) -> Result<(), String> {
-        if !matches!(laps, 1 | 3 | 5) {
-            return Err("Quick Race laps must be 1, 3, or 5".into());
+        if !(1..=8).contains(&laps) {
+            return Err("Quick Race laps must be 1 to 8".into());
         }
-        if !matches!(opponents, 0 | 3) {
-            return Err("Quick Race opponents must be 0 or 3".into());
+        if opponents > 7 {
+            return Err("Quick Race opponents must be 0 to 7".into());
         }
         let course = self
             .track_course
@@ -4558,6 +4616,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     /// Car setup screen: manual box (`.TRANSMISSION` 0) and the damage option (`Game.Damage`,
     /// `[0x657a2c]`, which also gates the zone damage of collisions). Applied to the original
     /// car at once; the manual box changes the derived drive factors, so the car is rebuilt.
+    /// Difficulty, mirror and the opponents' driver skills of the next race (call before
+    /// `configure_quick_race`). `skills` is 8 values per opponent.
+    pub fn set_race_options(
+        &mut self,
+        difficulty: i32,
+        mirror: bool,
+        skills: &[f32],
+        player_paint: &[f32],
+        opponent_paints: &[f32],
+    ) {
+        let rgba = |c: &[f32]| -> [f32; 4] { c.try_into().unwrap() };
+        self.race_options = RaceOptions {
+            difficulty: difficulty.clamp(0, 2),
+            mirror,
+            opponent_skills: skills
+                .chunks_exact(8)
+                .map(|c| c.try_into().unwrap())
+                .collect(),
+            player_paint: (player_paint.len() == 4).then(|| rgba(player_paint)),
+            opponent_paints: opponent_paints.chunks_exact(4).map(rgba).collect(),
+        };
+        self.rebuild_original_ai();
+    }
+
     pub fn set_car_setup(&mut self, manual_box: bool, damage: bool) {
         use nfs_assets::physics::original_vehicle::CarSetup;
         let setup = CarSetup { manual_box, damage };
@@ -5023,6 +5105,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 group,
                 color_buffer: color,
                 paintable: material.paintable,
+                tail: material_uniform[7],
                 alpha_mode: material.alpha_mode,
                 alpha_cutoff: material.alpha_cutoff,
                 double_sided: material.double_sided,
@@ -6052,6 +6135,9 @@ mod sim_loading_tests {
         assert_eq!(session.lap_tracker.total_laps, 3);
         assert_eq!(session.participants.len(), 1);
         assert!(ai.is_empty());
+        let (session, ai) = quick_race_grid(&course, 8, 7);
+        assert_eq!(session.lap_tracker.total_laps, 8);
+        assert_eq!((session.participants.len(), ai.len()), (8, 7));
         course.is_circuit = false;
         let (session, _) = quick_race_grid(&course, 5, 0);
         assert_eq!(session.lap_tracker.total_laps, 1);

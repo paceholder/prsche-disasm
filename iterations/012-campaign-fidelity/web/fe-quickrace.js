@@ -19,6 +19,28 @@ export function carColourCss(packed) {
   return `rgb(${(v >>> 8) & 255},${(v >>> 16) & 255},${v >>> 24})`;
 }
 
+// Packed car colour -> [r, g, b, a] floats for the 3D paint.
+export function carColourRgba(packed) {
+  const v = packed >>> 0;
+  return [((v >>> 8) & 255) / 255, ((v >>> 16) & 255) / 255, (v >>> 24) / 255, 1];
+}
+
+// Body paint of the player's car: the record colour list entry the colour button selected.
+export function playerPaint(car, colour) {
+  const entry = car?.colours?.[colour];
+  return entry ? carColourRgba(entry[0]) : null;
+}
+
+// OpponentCar apply (FEOpponentCarAccessor 0x4f4fa0, "same car" mode 0): each of the opponents
+// takes a random entry of the car's colour list (`rand() % count` over record +0x3e6, entries at
+// +0x3ec). Other opponent modes pick other cars; they are not raced yet (A40, A100), so every
+// mode paints from the player's car list. `rand` returns an integer.
+export function opponentPaints(car, count, rand) {
+  const list = car?.colours ?? [];
+  if (!list.length) return [];
+  return Array.from({ length: count }, () => carColourRgba(list[rand() % list.length][0]));
+}
+
 // Tracks offered in Quick Race [VA 0x4fbc10]: installed nfs5.trk records in file order, no
 // Skidpad; records with unlock 3 need a finished career era (none outside the career).
 // `all` lists every installed track, as the original does for GameType 3 (debugging aid).
@@ -147,10 +169,53 @@ export class QuickRaceSetup {
       traffic: this.traffic,
       opponents: this.opponents,
       opponentMode: this.opponentMode,
+      // Game.Difficutly -> SKILL (key 0x12, FE_WriteCarConfig 0x4eb470).
+      difficulty: this.difficulty,
       // FE_WriteCarConfig 0x4eeda0 writes ABS 0, traction 0 and roof 0 for game type 0, so only
       // the transmission and the damage option reach the race.
       manualBox: this.transmission === 0,
       damage: this.damage === 1,
     };
   }
+}
+
+// Race start parameters of the web front end as `launchQuickRace` takes them. The original writes
+// them as config keys (FE_WriteCarConfig 0x4eb470/0x4ecdf0/0x4ecf00, docs/re/frontend.md
+// "Race start parameters"): REVERSE 0x23, MIRROR 0x22, NUM_LAPS 0x11, SKILL 0x12,
+// NUMOPPONENTRACECARS 0x28 (Game.NumOpponents, at most 8 racers in all), traffic cars from
+// Track1.Traffic.
+export function raceStart(p) {
+  return {
+    car: p.car,
+    colour: p.colour,
+    track: p.track.internal_name.toLowerCase(),
+    laps: p.laps,
+    reverse: Boolean(p.reverse),
+    mirror: Boolean(p.mirror),
+    traffic: p.traffic | 0,
+    opponents: Math.max(0, Math.min(MAX_OPPONENTS, p.opponents | 0)),
+    opponentMode: p.opponentMode | 0,
+    difficulty: Math.max(0, Math.min(2, p.difficulty | 0)),
+    manualBox: p.manualBox,
+    damage: p.damage,
+  };
+}
+
+// Debug URL (`?race=<track>`): `dir` is the Track1.Direction index 0..3 (forward, backward,
+// forward/mirrored, backward/mirrored), `difficulty` 0..2, `traffic` 0..3, `opponents` 0..7.
+export function raceStartFromUrl(params) {
+  const int = (name, def, lo, hi) => {
+    const v = params.get(name);
+    const n = v === null || v === "" ? def : Number(v);
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.trunc(n))) : def;
+  };
+  const dir = int("dir", 0, 0, 3);
+  return {
+    laps: int("laps", 3, 1, 8),
+    reverse: dir === 1 || dir === 3,
+    mirror: dir >= 2,
+    traffic: int("traffic", 0, 0, 3),
+    opponents: int("opponents", 3, 0, MAX_OPPONENTS),
+    difficulty: int("difficulty", 1, 0, 2),
+  };
 }

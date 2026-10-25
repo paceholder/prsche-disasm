@@ -358,5 +358,10 @@ pub fn load_track(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     track_loader::load(files, track).map_err(|e| format!("{track}: {e}"))
 }
 
+/// `load_track` for a race direction (`reverse`: the backward race, `docs/re/frontend.md`).
+pub fn load_track_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<Scene, String> {
+    track_loader::load_direction(files, track, reverse).map_err(|e| format!("{track}: {e}"))
+}
+
 mod loader;
 pub mod track_loader;

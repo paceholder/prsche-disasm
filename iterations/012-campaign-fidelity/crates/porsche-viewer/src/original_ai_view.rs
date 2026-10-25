@@ -110,6 +110,8 @@ impl Renderer {
         let mut template = player.clone();
         let mut s140 = template.car.specs.field_140;
         let mut field = OriginalAiField::new(track.clone(), ais, model, &mut s140);
+        // `Game.Difficutly` -> SKILL `[0x6573f4]` (FE_WriteCarConfig 0x4eb470, key 0x12).
+        field.options.skill_6573f4 = self.race_options.difficulty;
         template.car.specs.field_140 = s140;
         // Grid on the node graph ahead of the player (A44): upstream's grid behind the
         // player has no road on point-to-point tracks (alps starts at node 0).
@@ -138,6 +140,9 @@ impl Renderer {
                 ),
             }
             if let Some(c) = field.cars.last_mut() {
+                if let Some(skill) = self.race_options.opponent_skills.get(slot) {
+                    c.skill_154 = *skill;
+                }
                 c.vehicle.owners = owners;
             }
         }
@@ -212,15 +217,22 @@ impl Renderer {
             .map(|c| {
                 let k = &c.vehicle.car;
                 format!(
-                    r#"{{"node":{},"laps":{},"pos":[{:.2},{:.2},{:.2}],"up":{:.2},"h":{:.2},"v":{:.2},"gear":{},"gas":{},"brake":{},"steer":{},"target":{:.1},"db0":{}}}"#,
+                    r#"{{"node":{},"laps":{},"pos":[{:.2},{:.2},{:.2}],"up":{:.2},"h":{:.2},"v":{:.2},"gear":{},"gas":{},"brake":{},"steer":{},"target":{:.1},"db0":{},"skill":{:?}}}"#,
                     c.ai.locator_08.node_00, c.laps, k.position_330[0], k.position_330[1],
                     k.position_330[2], k.ground_up_3a0, k.height_424, k.vel_ground_d58[2],
                     k.gear_d82, k.gas_eff_d7f, k.brake_eff_d80, k.steer_d94, c.ai.target_eb8,
-                    k.start_db0
+                    k.start_db0, c.skill_154
                 )
             })
             .collect();
-        format!(r#"{{"running":{},"cars":[{}]}}"#, field.running, cars.join(","))
+        format!(
+            r#"{{"running":{},"reverse":{},"skill":{},"mirror":{},"cars":[{}]}}"#,
+            field.running,
+            field.track.reverse,
+            field.options.skill_6573f4,
+            self.race_options.mirror,
+            cars.join(",")
+        )
     }
 
     /// Copies each AI car's pose, speed and controls into its `AiOpponent`.

@@ -129,3 +129,46 @@ test("quick race settings follow the original lists (VA 0x4f9790, 0x4fc0b0)", as
   q.reset();
   assert.deepEqual([q.car, q.track, q.direction, q.lapsIndex, q.traffic], [0, 0, 0, 1, 0]);
 });
+
+test("location and quick race choices reach the race start (VA 0x4fc0b0, 0x4eb470, 0x4ecf00)", async () => {
+  const { QuickRaceSetup, raceStart, raceStartFromUrl, playerPaint, opponentPaints } =
+    await import("./fe-quickrace.js");
+  const strings = { 410: "forward", 411: "backward", 412: "forward/mirrored", 413: "backward/mirrored",
+    450: "beginner", 451: "advanced", 452: "expert" };
+  const tracks = [{ internal_name: "ALPS", name_string: 301, circuit: false, unlock: 0, difficulty: 1 },
+    { internal_name: "monaco1", name_string: 300, circuit: true, unlock: 0, difficulty: 1 }];
+  const cars = [{ display_name: "356", short_name: "356", colours: [[0x000000ff], [0x0000ffff]] }];
+  const q = new QuickRaceSetup({ strings, cars, tracks });
+  // The location screen: TRACK1INC steps the track, the combo lists set direction and traffic.
+  q.stepTrack(1);
+  q.accessor("Track1.Direction").select(3);
+  q.accessor("Track1.Traffic").select(2);
+  q.accessor("Track1.Laps").select(4);
+  q.accessor("Game.NumOpponents").select(7);
+  q.accessor("Game.Difficutly").select(2);
+  q.accessor("OpponentCar.Car").select(2);
+  const s = raceStart(q.raceParams());
+  assert.deepEqual([s.track, s.laps, s.reverse, s.mirror, s.traffic, s.opponents, s.opponentMode, s.difficulty],
+    ["monaco1", 5, true, true, 2, 7, 2, 2]);
+  // Directions: 0 forward, 1 backward, 2 forward/mirrored, 3 backward/mirrored.
+  for (const [dir, reverse, mirror] of [[0, false, false], [1, true, false], [2, false, true], [3, true, true]]) {
+    q.accessor("Track1.Direction").select(dir);
+    const r = raceStart(q.raceParams());
+    assert.deepEqual([r.reverse, r.mirror], [reverse, mirror], `direction ${dir}`);
+  }
+  // Point-to-point tracks race one lap whatever the lap selector says.
+  q.stepTrack(-1);
+  assert.equal(raceStart(q.raceParams()).laps, 1);
+  // Debug URL.
+  const u = raceStartFromUrl(new URLSearchParams("race=alps&dir=1&opponents=9&difficulty=2&traffic=1&laps=4"));
+  assert.deepEqual([u.reverse, u.mirror, u.opponents, u.difficulty, u.traffic, u.laps], [true, false, 7, 2, 1, 4]);
+  const d = raceStartFromUrl(new URLSearchParams(""));
+  assert.deepEqual([d.reverse, d.mirror, d.opponents, d.difficulty, d.laps], [false, false, 3, 1, 3]);
+  // Paints: the chosen list entry (packed A,R,G,B bytes) and a random entry per opponent.
+  assert.deepEqual(playerPaint(cars[0], 1), [1, 0, 0, 1]);
+  assert.equal(playerPaint(cars[0], 5), null);
+  const picks = [1, 0, 1];
+  let i = 0;
+  assert.deepEqual(opponentPaints(cars[0], 3, () => picks[i++]), [[1, 0, 0, 1], [0, 0, 0, 1], [1, 0, 0, 1]]);
+  assert.deepEqual(opponentPaints({ colours: [] }, 3, () => 0), []);
+});

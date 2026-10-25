@@ -1,4 +1,4 @@
-import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_quick_race_cars_json, fe_pick_opponents_json } from "./package/viewer_impl.js";
 import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE } from "./pause-menu.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
@@ -2293,6 +2293,7 @@ function findTrackFilesFromCatalog(target, specificScn = null) {
         `${targetLower}.jnc`,
         "animdefs.txt",
         `${targetLower}0.lsp`,
+        `${targetLower}1.lsp`,
         `${targetLower}.lsp`,
       ].includes(basename)
     ) {
@@ -2558,6 +2559,7 @@ function buildQuickRaceCars(records, installedModels, resources) {
       sim_name: record.sim_name,
       bank: record.bank,
       gauges: record.gauges,
+      colours: record.colours,
       style: record.style ?? 0,
     });
   }
@@ -2621,10 +2623,38 @@ quickRaceStartBtn.addEventListener('click', async () => {
   await launchQuickRace({ car, track, laps, opponents, fromDialog: true });
 });
 
+// Race choices of the running race, for the debug state and the loading screen.
+let lastRaceStart = null;
+
+// Difficulty (SKILL), mirror and the opponents drawn from nfs5.per for the level (FUN_004e3160);
+// each opponent car gets its driver's skill values. The page flips the picture for MIRROR.
+async function setRaceOptions({ difficulty, mirror, opponents, car = null, colour = null }) {
+  const { playerPaint, opponentPaints } = await import("./fe-quickrace.js");
+  const per = await readGamePath("FEData/Data/nfs5.per");
+  let skills = [];
+  if (per && opponents > 0) {
+    const seed = (Math.random() * 0x7fffffff) >>> 0;
+    const drivers = JSON.parse(fe_pick_opponents_json(per, opponents, difficulty, seed));
+    skills = drivers.flatMap(d => d.skill);
+    lastRaceDrivers = drivers;
+  }
+  // Colours: the chosen one for the player (null keeps the default paint), a random list entry
+  // per opponent (OpponentCar apply 0x4f4fa0).
+  const own = colour === null ? null : playerPaint(car, colour);
+  const paints = opponentPaints(car, opponents, () => Math.floor(Math.random() * 0x7fff)).flat();
+  viewer.set_race_options(difficulty, mirror, new Float32Array(skills), new Float32Array(own ?? []),
+    new Float32Array(paints));
+  canvas.classList.toggle("mirror", Boolean(mirror));
+}
+let lastRaceDrivers = [];
+
 // Load and start a Quick Race (web dialog or the original front end's PLAYGAME).
 // manualBox / damage: the car setup screen's transmission and Game.Damage [VA 0x4eeda0, 0x4e5520];
 // defaults are the Quick Race ones (automatic box, damage on).
-async function launchQuickRace({ car, track, laps, opponents, manualBox = false, damage = true, fromDialog = false }) {
+// reverse / mirror / difficulty / traffic: Track1.Direction, Game.Difficutly, Track1.Traffic
+// (docs/re/frontend.md "Race start parameters"). Traffic cars are not raced yet (A100).
+async function launchQuickRace({ car, track, laps, opponents, manualBox = false, damage = true, fromDialog = false,
+  reverse = false, mirror = false, difficulty = 1, traffic = 0, colour = null }) {
   quickRaceStartBtn.disabled = true;
   quickRaceCancelBtn.disabled = true;
   quickRaceStatus.textContent = 'Загрузка заезда…';
@@ -2636,17 +2666,19 @@ async function launchQuickRace({ car, track, laps, opponents, manualBox = false,
     if (frontEnd) {
       // Race loading screen: era0tr.fsh outside Evolution plus the track picture [VA 0x4a4a70].
       quickRaceModal.hidden = true;
-      await frontEnd.showLoading({ pack: "era0tr.fsh", track });
+      await frontEnd.showLoading({ pack: "era0tr.fsh", track, reverse });
       syncFrontEndClasses();
     }
     modeSelect.value = 'track';
     updateOptions();
     targetSelect.value = track;
-    if (!await loadTarget()) throw new Error(statusLine.textContent);
+    if (!await loadTarget(null, reverse)) throw new Error(statusLine.textContent);
     viewer.set_car_setup?.(manualBox, damage);
     await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
+    await setRaceOptions({ difficulty, mirror, opponents, car, colour });
     viewer.configure_quick_race(laps, opponents);
+    lastRaceStart = { reverse, mirror, difficulty, traffic, opponents };
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
     quickRaceModal.hidden = true;
     setMenuVisible(false);
@@ -2665,7 +2697,7 @@ async function launchQuickRace({ car, track, laps, opponents, manualBox = false,
   }
 }
 
-async function loadTarget(specificScn = null) {
+async function loadTarget(specificScn = null, reverse = false) {
   if (!viewer) {
     setStatus("WebGPU еще не готов.");
     return false;
@@ -2735,6 +2767,7 @@ async function loadTarget(specificScn = null) {
               `${target}.jnc`,
               "animdefs.txt",
               `${target}0.lsp`,
+              `${target}1.lsp`,
               `${target}.lsp`,
             ].includes(basename)
           ) {
@@ -2776,7 +2809,8 @@ async function loadTarget(specificScn = null) {
     }
 
     if (isTrack) {
-      const text = viewer.load_track(names, bytes, target);
+      const text = viewer.load_track_direction(names, bytes, target, Boolean(reverse));
+      canvas.classList.remove("mirror");
       viewer.set_show_topology(topologyCheckbox.checked);
       summary.textContent = text;
       const hasTopo = viewer.has_topology();
@@ -3584,6 +3618,8 @@ function applyPendingCamera() {
 }
 let debugError = null;
 window.__nfs = {
+  get raceStart() { return lastRaceStart; },
+  get raceDrivers() { return lastRaceDrivers; },
   quickRace() { return frontEndSetup ? { cars: frontEndSetup.cars.length, tracks: frontEndSetup.tracks.map(t => t.internal_name) } : null; },
   get ready() { return debugReady && !debugPendingCamera; },
   get error() { return debugError; },
@@ -3642,12 +3678,18 @@ async function autostartRace(params) {
     targetSelect.value = track;
     clearNavigation();
     activeCareerEvent = null;
-    if (!await loadTarget()) throw new Error(statusLine.textContent);
+    // ?dir=0..3 (forward, backward, forward/mirrored, backward/mirrored), ?difficulty=0..2,
+    // ?opponents=0..7, ?traffic=0..3 stand in for the location and quick race screens.
+    const { raceStartFromUrl } = await import("./fe-quickrace.js");
+    const start = raceStartFromUrl(params);
+    if (!await loadTarget(null, start.reverse)) throw new Error(statusLine.textContent);
     // ?manual=1 / ?damage=0 stand in for the car setup screen.
     viewer.set_car_setup?.(params.get("manual") === "1", params.get("damage") !== "0");
     await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
-    viewer.configure_quick_race(Number(params.get("laps") || 3), Number(params.get("opponents") ?? 3));
+    await setRaceOptions({ ...start, car, colour: params.has("colour") ? Number(params.get("colour")) : null });
+    viewer.configure_quick_race(start.laps, start.opponents);
+    lastRaceStart = start;
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
     setMenuVisible(false);
     syncTourButton();
@@ -3739,9 +3781,11 @@ function cheatAllCars() {
     return v === "allcars";
   }
 }
+let raceStart = null;
 async function buildFrontEndSetup(strings) {
   const all = cheatAllCars();
-  const { QuickRaceSetup, quickRaceTracks } = await import("./fe-quickrace.js");
+  const { QuickRaceSetup, quickRaceTracks, raceStart: rs } = await import("./fe-quickrace.js");
+  raceStart = rs;
   const records = await loadCarCatalogueRecords();
   quickRaceCars = buildQuickRaceCars(records, availableCars, localGameFiles);
   const carBytes = await readGamePath("FEData/Data/nfs5.car");
@@ -3767,11 +3811,10 @@ async function frontEndPlayGame() {
     setStatus("Quick Race: no installed car or track");
     return;
   }
-  // Direction, traffic and opponent car mode are chosen but not raced yet, and the race
-  // supports 0 or 3 opponents only (A100).
-  const opponents = p.opponents > 0 ? 3 : 0;
-  await launchQuickRace({ car: p.car, track: p.track.internal_name.toLowerCase(), laps: p.laps, opponents,
-    manualBox: p.manualBox, damage: p.damage });
+  // Direction, mirror, difficulty and 0..7 opponents are raced; traffic and the opponent car
+  // mode are chosen but not raced yet (A100).
+  const start = raceStart(p);
+  await launchQuickRace(start);
 }
 
 // room= of the shown layout; a 3DCAR control adds the selected car [VA 0x4bfdc0].
