@@ -7,6 +7,7 @@ pub mod original_ai;
 pub mod original_collision;
 pub mod reset;
 pub mod state;
+pub mod track_map;
 
 pub use ai::{calculate_grid_slot, AiOpponent, AiPerformance, AiProfile};
 pub use collision::{BarrierCollider, BarrierCollisionConfig, BarrierHit};

@@ -4,7 +4,7 @@ import {
   parseHudFiles, selectConfig, SLOT, carGauges, gaugePacks, NEEDLE_SIZES, speedoUnits, tachUnits,
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
   BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale,
-  resampleOutline, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP,
+  parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP,
 } from "./race-hud-core.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
 import { drawText, textWidth } from "./frontend.js";
@@ -39,7 +39,7 @@ export class RaceHud {
     this.raceTime = 0;
     this.lastPhase = 0;
     this.tinted = new Map();
-    this.outline = { raw: null, pts: null, at: -1e9, closed: false };
+    this.outline = { segs: null, at: -1e9, closed: false, bbox: null };
     this.standings = { at: -1e9, rows: [] };
     this.last = { speedUnits: 0, tachUnits: 0, gear: "" };
     this.nightPacks = null;
@@ -351,19 +351,12 @@ export class RaceHud {
 
   getOutline(viewer) {
     const now = performance.now();
-    if (now - this.outline.at > 2000 || !this.outline.pts) {
-      const raw = Array.from(viewer.get_course_outline());
+    if (now - this.outline.at > 2000 || !this.outline.segs) {
+      const raw = Array.from(viewer.get_course_map());
       this.outline.at = now;
-      const sig = raw.length ? `${raw.length}|${raw[0]}|${raw[1]}|${raw[raw.length - 2]}` : "";
+      const sig = raw.length ? `${raw.length}|${raw[0]}|${raw[1]}|${raw[2]}|${raw[raw.length - 2]}` : "";
       if (sig !== this.outline.sig) {
-        this.outline.sig = sig;
-        this.outline.pts = raw.length >= 6 ? resampleOutline(raw) : [];
-        const n = raw.length;
-        this.outline.closed = n >= 6 && Math.hypot(raw[0] - raw[n - 2], raw[1] - raw[n - 1]) < 100;
-        // Bounding box for the whole-track view.
-        let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
-        for (let i = 0; i < n; i += 2) { x0 = Math.min(x0, raw[i]); x1 = Math.max(x1, raw[i]); z0 = Math.min(z0, raw[i + 1]); z1 = Math.max(z1, raw[i + 1]); }
-        this.outline.bbox = { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, ext: Math.max(x1 - x0, z1 - z0) };
+        this.outline = { ...parseCourseMap(raw), sig, at: now };
       }
     }
     return this.outline;
@@ -400,15 +393,16 @@ export class RaceHud {
     const mirror = true;
     const tf = mapTransform(b, cx, cz, Z, up, mirror);
     const scale = b.w / 2 / Z;
-    const pts = outline.pts;
-    if (pts && pts.length >= 4) {
+    const segs = outline.segs;
+    if (segs && segs.length >= 4) {
       ctx.strokeStyle = "#fff";
       ctx.beginPath();
-      for (let i = 0; i < pts.length; i += 2) {
-        const [x, y] = tf(pts[i], pts[i + 1]);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      for (let i = 0; i + 3 < segs.length; i += 4) {
+        const [x0, y0] = tf(segs[i], segs[i + 1]);
+        const [x1, y1] = tf(segs[i + 2], segs[i + 3]);
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
       }
-      if (outline.closed) ctx.closePath();
       ctx.stroke();
     }
     const car = this.packs.radar?.[0];

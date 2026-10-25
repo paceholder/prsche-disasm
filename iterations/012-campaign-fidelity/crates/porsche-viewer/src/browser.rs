@@ -584,12 +584,13 @@ impl BrowserViewer {
             .unwrap_or_else(|| "[]".to_string())
     }
 
-    /// Course racing line as x,z pairs (not the original SimD node centre line,
-    /// `HTrackMap_BuildOutline` 0x432230).
-    pub fn get_course_outline(&self) -> Vec<f32> {
+    /// HUD track map (`HTrackMap_BuildOutline` 0x432230): 4 header floats
+    /// (bounding box centre x, z, extent, 1 if the course is a circuit) then line
+    /// segments `x0, z0, x1, z1`.
+    pub fn get_course_map(&self) -> Vec<f32> {
         self.renderer
             .as_ref()
-            .map(|r| r.get_course_outline())
+            .map(|r| r.get_course_map())
             .unwrap_or_default()
     }
 

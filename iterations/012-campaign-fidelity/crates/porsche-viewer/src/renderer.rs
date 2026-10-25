@@ -4089,19 +4089,47 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         format!("[{}]", items.join(","))
     }
 
-    /// Track course polyline as x,z pairs in world units. This is the racing line (the
-    /// `.lsp` spline), not the original SimD node centre line (`HTrackMap_BuildOutline`
-    /// 0x432230).
-    pub fn get_course_outline(&self) -> Vec<f32> {
-        self.track_course
-            .as_ref()
-            .map(|c| {
-                c.waypoints
-                    .iter()
-                    .flat_map(|w| [w.position[0], w.position[2]])
-                    .collect()
-            })
-            .unwrap_or_default()
+    /// HUD track map: 4 header floats (bounding box centre x, z, extent, 1 for a
+    /// circuit) then line segments `x0, z0, x1, z1` in engine world units. Built from the
+    /// node graph as `HTrackMap_BuildOutline` 0x432230 builds it (one polyline per
+    /// section plus junction connectors); without a node graph (A87) the `.lsp`
+    /// racing line of the course, one polyline.
+    pub fn get_course_map(&self) -> Vec<f32> {
+        use nfs_assets::race::track_map::TrackMap;
+        if let Some(t) = self.original_ai_track.as_ref() {
+            let n = &t.nodes.nodes;
+            if n.len() >= 2 {
+                let m = TrackMap::build(&t.nodes);
+                let (a, b) = (n[0].pos_04, n[n.len() - 1].pos_04);
+                let closed = ((a[0] - b[0]).powi(2) + (a[2] - b[2]).powi(2)).sqrt() < 100.0;
+                // Node coordinates are the original's; the engine world has z negated
+                // (`from_original`), like the car markers.
+                let mut out = vec![m.centre[0] as f32, -(m.centre[1] as f32), m.extent, closed as u8 as f32];
+                out.extend(m.segments().iter().flat_map(|s| [s[0], -s[1], s[2], -s[3]]));
+                return out;
+            }
+        }
+        let Some(c) = self.track_course.as_ref() else {
+            return Vec::new();
+        };
+        let pts: Vec<[f32; 2]> = c.waypoints.iter().map(|w| [w.position[0], w.position[2]]).collect();
+        if pts.len() < 3 {
+            return Vec::new();
+        }
+        let (mut x0, mut x1, mut z0, mut z1) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+        for p in &pts {
+            x0 = x0.min(p[0]);
+            x1 = x1.max(p[0]);
+            z0 = z0.min(p[1]);
+            z1 = z1.max(p[1]);
+        }
+        let (a, b) = (pts[0], pts[pts.len() - 1]);
+        let closed = ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt() < 100.0;
+        let mut out = vec![(x0 + x1) / 2.0, (z0 + z1) / 2.0, (x1 - x0).max(z1 - z0), closed as u8 as f32];
+        for w in pts.windows(2) {
+            out.extend([w[0][0], w[0][1], w[1][0], w[1][1]]);
+        }
+        out
     }
 
     /// Car markers, 8 floats per car, player first then AI:

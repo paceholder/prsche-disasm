@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import {
   anchorBox, parseHudFiles, selectConfig, carGauges, speedoUnits, tachUnits, needleAngle,
   needleQuad, dialCentre, SLOT, formatTicks, gearText, accentColor, mapZoom, markerScale,
-  resampleOutline, mapTransform, damageColor, DAMAGE_UNDAMAGED, DAMAGE_RAMP, damageLevel, damageDraws,
+  parseCourseMap, mapTransform, damageColor, DAMAGE_UNDAMAGED, DAMAGE_RAMP, damageLevel, damageDraws,
   mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints,
 } from "./race-hud-core.js";
 
@@ -77,10 +77,12 @@ test("map zoom, markers, outline and view (VA 0x41e9c0, 0x433110, 0x432230, 0x43
   assert.equal(markerScale(1, false), 20);
   assert.equal(markerScale(1, true), 60);
   assert.equal(markerScale(3, false), 1);
-  // A straight line keeps only its ends; a square ring keeps its corners.
-  const line = [];
-  for (let i = 0; i <= 10; i++) line.push(i, 0);
-  assert.equal(resampleOutline(line).length, 4);
+  // Course map: header (centre, extent, circuit flag) then segments; empty input is empty.
+  const cm = parseCourseMap([5, -6, 700, 1, 0, 0, 10, 0, 10, 0, 10, 10]);
+  assert.deepEqual(cm.bbox, { cx: 5, cz: -6, ext: 700 });
+  assert.equal(cm.closed, true);
+  assert.deepEqual(cm.segs, [0, 0, 10, 0, 10, 0, 10, 10]);
+  assert.deepEqual(parseCourseMap([]), { segs: [], bbox: null, closed: false });
   // Heading up = +z: a point ahead of the centre is above the box centre.
   const t = mapTransform({ x: 0, y: 0, w: 120, h: 120 }, 0, 0, 60, 0);
   assert.deepEqual(t(0, 30), [60, 30]);

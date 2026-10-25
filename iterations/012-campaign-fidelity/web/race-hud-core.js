@@ -308,37 +308,17 @@ export function markerScale(map, whole) {
   return map === 3 ? 1 : whole ? 60 : 20;
 }
 
-// Outline resampling [VA 0x432230]: keep the first point, then a point each time the heading
-// has turned by total_turn * 0.005 since the last kept one, and the last point; <= 400 points.
-export function resampleOutline(points) {
-  const n = Math.floor(points.length / 2);
-  if (n < 3) return points.slice();
-  const heading = i => {
-    const j = Math.min(n - 1, i + 1);
-    const k = j === i ? i - 1 : i;
-    return Math.atan2(points[2 * j + 1] - points[2 * k + 1], points[2 * j] - points[2 * k]);
+// Track map from `viewer.get_course_map()` [VA 0x432230 built in the engine from the node graph]:
+// 4 header floats (bounding box centre x, z, extent, 1 for a circuit) then line segments
+// x0, z0, x1, z1. Segments never join two sections (the original draws a segment only between
+// consecutive outline points of one section [VA 0x433690]).
+export function parseCourseMap(raw) {
+  if (!raw || raw.length < 8) return { segs: [], bbox: null, closed: false };
+  return {
+    bbox: { cx: raw[0], cz: raw[1], ext: raw[2] },
+    closed: raw[3] !== 0,
+    segs: raw.slice(4),
   };
-  const turn = (a, b) => {
-    let d = b - a;
-    while (d > Math.PI) d -= 2 * Math.PI;
-    while (d < -Math.PI) d += 2 * Math.PI;
-    return Math.abs(d);
-  };
-  let total = 0;
-  for (let i = 1; i < n; i++) total += turn(heading(i - 1), heading(i));
-  const step = total * 0.005;
-  if (!(step > 0)) return [points[0], points[1], points[2 * (n - 1)], points[2 * (n - 1) + 1]];
-  const out = [points[0], points[1]];
-  let acc = 0;
-  for (let i = 1; i < n - 1 && out.length < 2 * 399; i++) {
-    acc += turn(heading(i - 1), heading(i));
-    if (acc >= step) {
-      out.push(points[2 * i], points[2 * i + 1]);
-      acc = 0;
-    }
-  }
-  out.push(points[2 * (n - 1)], points[2 * (n - 1) + 1]);
-  return out;
 }
 
 // Map view transform [VA 0x433440]: world (x, z) -> box pixels, centred on (cx, cz), scale
