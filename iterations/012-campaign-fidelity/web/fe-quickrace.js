@@ -18,10 +18,11 @@ export function carColourCss(packed) {
 
 // Tracks offered in Quick Race [VA 0x4fbc10]: installed nfs5.trk records in file order, no
 // Skidpad; records with unlock 3 need a finished career era (none outside the career).
-export function quickRaceTracks(records, installed) {
+// `all` lists every installed track, as the original does for GameType 3 (debugging aid).
+export function quickRaceTracks(records, installed, all = false) {
   const have = new Set(installed.map(name => name.toLowerCase()));
   return records.filter(t => have.has(t.internal_name.toLowerCase())
-    && t.internal_name.toLowerCase() !== "skidpad" && t.unlock !== 3);
+    && (all || (t.internal_name.toLowerCase() !== "skidpad" && t.unlock !== 3)));
 }
 
 function wrap(i, n) { return n > 0 ? ((i % n) + n) % n : 0; }

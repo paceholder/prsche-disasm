@@ -3411,6 +3411,7 @@ function applyPendingCamera() {
 }
 let debugError = null;
 window.__nfs = {
+  quickRace() { return frontEndSetup ? { cars: frontEndSetup.cars.length, tracks: frontEndSetup.tracks.map(t => t.internal_name) } : null; },
   get ready() { return debugReady && !debugPendingCamera; },
   get error() { return debugError; },
   get viewer() { return viewer; },
@@ -3517,14 +3518,29 @@ async function frontEndQuickRaceCar() {
 // the original order [VA 0x4f3e40, 0x4f0f50] that are installed, and the quick-race tracks
 // of nfs5.trk [VA 0x4fbc10] that are installed.
 let frontEndSetup = null;
+// Debug: every installed car and track in Quick Race, like the original CHEATALLCARS callback
+// (0x50dd70 -> flag 0x691a04: all car classes) and GameType 3 (all tracks). `?cheat=allcars`
+// turns it on and is remembered; `?cheat=off` turns it off.
+function cheatAllCars() {
+  const v = new URLSearchParams(location.search).get("cheat");
+  try {
+    if (v === "allcars") localStorage.setItem("nfs5.cheatAllCars", "1");
+    if (v === "off") localStorage.removeItem("nfs5.cheatAllCars");
+    return localStorage.getItem("nfs5.cheatAllCars") === "1";
+  } catch {
+    return v === "allcars";
+  }
+}
 async function buildFrontEndSetup(strings) {
+  const all = cheatAllCars();
   const { QuickRaceSetup, quickRaceTracks } = await import("./fe-quickrace.js");
   const records = await loadCarCatalogueRecords();
   quickRaceCars = buildQuickRaceCars(records, availableCars, localGameFiles);
   const carBytes = await readGamePath("FEData/Data/nfs5.car");
   const order = JSON.parse(fe_quick_race_cars_json(carBytes));
   const byIndex = new Map(records.map(r => [r.index, r]));
-  const cars = order
+  const ids = all ? [...order, ...quickRaceCars.map(c => c.index).filter(i => !order.includes(i))] : order;
+  const cars = ids
     .map(i => {
       const installed = quickRaceCars.find(c => c.index === i);
       const r = byIndex.get(i);
@@ -3533,7 +3549,7 @@ async function buildFrontEndSetup(strings) {
     })
     .filter(Boolean);
   const trackBytes = await readGamePath("FEData/Data/nfs5.trk");
-  const tracks = trackBytes ? quickRaceTracks(JSON.parse(fe_track_catalog_json(trackBytes)), availableTracks) : [];
+  const tracks = trackBytes ? quickRaceTracks(JSON.parse(fe_track_catalog_json(trackBytes)), availableTracks, all) : [];
   frontEndSetup = new QuickRaceSetup({ strings, cars, tracks });
 }
 
