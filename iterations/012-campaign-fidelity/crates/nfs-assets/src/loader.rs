@@ -317,11 +317,39 @@ fn frame_point(m: &[f32; 16], p: [f32; 3], w: f32) -> [f32; 3] {
 /// the car-detail LOD; `R3DCarLOD_DrawParts` 0x43c830 keeps parts with `Base+0x44` byte 0xd
 /// set and draws them in their full `tr` frame (rotation and scale). Part style as the parked
 /// car; glare (`ef`) articles are drawn by the glare pass instead.
+/// Driver index (`res+0x150`, config key `.DRIVER` 0x23d). The front end picks `rand() & 7`
+/// for a quick race (career: `[0x5db748]`) [VA 0x4eeda0]; the engine uses driver 0
+/// (approximation A63).
+const DRIVER_INDEX: u32 = 0;
+/// Driver body type by driver index (`0x5cd5c4`).
+const DRIVER_BODY_TYPE: [u32; 8] = [2, 3, 4, 5, 10, 8, 9, 7];
+
+/// Driver geometry types set after the TPG style (`R3DCar_SelectStyle` 0x43ae50, outside the
+/// showroom and not for cop cars): body (GeomIndex 9) from `0x5cd5c4`, arms (43)
+/// `(d/4)·2 + 2`, hands (56) `d/4 + 1`; drivers ≥ 8 use type 1. The Factory Driver mode
+/// (`[0x6573e8] == 9`) and the `.GEOMCONFIG` overrides (`res+0x32c`) are not applied.
+fn with_driver(style: &StyleSelection, driver: u32) -> StyleSelection {
+    let mut out = StyleSelection {
+        geometry: style.geometry.clone(),
+        texture: style.texture.clone(),
+        name: style.name.clone(),
+    };
+    let (body, arms, hands) = match DRIVER_BODY_TYPE.get(driver as usize) {
+        Some(&body) => (body, driver / 4 * 2 + 2, driver / 4 + 1),
+        None => (1, 1, 1),
+    };
+    out.geometry.insert(9, body);
+    out.geometry.insert(43, arms);
+    out.geometry.insert(56, hands);
+    out
+}
+
 fn in_car_parts(
     crp: &nfs_formats::Crp,
     style: &StyleSelection,
     matmap: &BTreeMap<u16, usize>,
 ) -> Result<Vec<InCarPart>, String> {
+    let style = &with_driver(style, DRIVER_INDEX);
     let mut parts = Vec::new();
     for (ai, a) in crp.articles.iter().enumerate() {
         if a.children.iter().any(|e| e.tag == "ef") {
@@ -1614,13 +1642,14 @@ mod tests {
         assert_eq!(find("Needle1a").unwrap().channel, 0xc);
         assert_eq!(find("Needle2a").unwrap().channel, 0xb);
         // Hands with their frames; no driver body, arms, legs, wheels, bottom or engine.
-        // [style1] selects the type-2 hands.
-        let left = find("LeftHand2").unwrap();
+        // Driver 0: type-1 hands (0x43ae50 overrides the [style1] type 2).
+        assert!(find("LeftHand2").is_none());
+        let left = find("LeftHand1").unwrap();
         assert_eq!(
             (left.pass, left.frame_channel, left.frame_count),
             (InCarPass::Driver, 5, 10)
         );
-        let right = find("RightHand2").unwrap();
+        let right = find("RightHand1").unwrap();
         assert_eq!((right.frame_channel, right.frame_count), (4, 20));
         assert!(right
             .meshes
@@ -1668,6 +1697,10 @@ mod tests {
             let has = |channel: u8| scene.car_in_car.iter().any(|p| p.channel == channel);
             if !(has(5) && has(0xb)) {
                 without.push(car.clone());
+            } else {
+                // Every car with a cockpit has the driver's hands (the 993 style lists none).
+                let hands = scene.car_in_car.iter().filter(|p| p.pass == InCarPass::Driver);
+                assert_eq!(hands.count(), 2, "{car}: hands");
             }
             // 935 has no speedometer needle; gt1's exists at level 3 only.
             if has(5) && has(0xb) && !has(0xc) {

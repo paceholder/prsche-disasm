@@ -3334,6 +3334,7 @@ function resizeCanvas() {
 
 function animate(now = 0) {
   resizeCanvas();
+  applyPendingCamera();
   if (frontEnd?.visible) {
     frontEnd.render(now);
     // The room turns continuously (one turn per 30 s).
@@ -3394,9 +3395,23 @@ async function boot() {
 // skips the front end and starts a Quick Race through the same calls as the Quick Race dialog.
 let debugVehicleModel = "prototype";
 let debugReady = false;
+// `?cam=` camera still to select (after the race intro); `__nfs.ready` waits for it.
+let debugPendingCamera = null;
+let debugCameraTries = 0;
+// One C press per frame: right after the intro the camera can still refuse the cycle (a
+// pending re-init), so a press only counts once the name changes.
+function applyPendingCamera() {
+  if (!debugPendingCamera || !viewer || viewer.get_camera_name() === "AnimCam") return;
+  if (viewer.get_camera_name() === debugPendingCamera || ++debugCameraTries > 600) {
+    debugPendingCamera = null;
+    return;
+  }
+  cycleCarCamera();
+  queueFrame();
+}
 let debugError = null;
 window.__nfs = {
-  get ready() { return debugReady; },
+  get ready() { return debugReady && !debugPendingCamera; },
   get error() { return debugError; },
   get viewer() { return viewer; },
   state() {
@@ -3458,7 +3473,10 @@ async function autostartRace(params) {
     }
     if (params.get("lights") === "1") lightsOn = Boolean(viewer.toggle_lights());
     const cam = params.get("cam");
-    for (let i = 0; cam && i < 12 && viewer.get_camera_name() !== cam; i++) cycleCarCamera();
+    // The C key is ignored during the race intro (AnimCam, Camera_Cycle 0x465a60), and the
+    // race only steps once the frame loop runs: animate() switches after the intro.
+    debugPendingCamera = cam || null;
+    debugCameraTries = 0;
     queueFrame();
     debugReady = true;
   } catch (error) {
