@@ -222,6 +222,11 @@ pub use career::{
     FACTORY_MISSION_REC_SIZE, TRACK_CATALOG_COUNT, TRACK_CATALOG_REC_SIZE,
 };
 
+pub mod car_catalogue;
+pub use car_catalogue::{
+    catalogue_json, find_car, parse_car_catalogue, playable, CarEntry, CAR_RECORD_SIZE,
+};
+
 pub mod replay;
 pub use replay::{
     parse_replay, ReplayCar, ReplayFile, ReplayFrame, REPLAY_BUFFER_SIZE, REPLAY_CAR_STRIDE,

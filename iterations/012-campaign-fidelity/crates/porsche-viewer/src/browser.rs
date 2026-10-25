@@ -740,6 +740,15 @@ pub fn shell_get_first_evolution_event() -> String {
     )
 }
 
+/// Parses `FEData/Data/nfs5.car` into a JSON array of
+/// `{index, display_name, model, sim_name, bank}` (all records, catalogue order).
+#[wasm_bindgen]
+pub fn parse_car_catalogue_json(bytes: Uint8Array) -> Result<String, JsValue> {
+    let entries =
+        nfs_formats::parse_car_catalogue(&bytes.to_vec()).map_err(|e| JsValue::from_str(&e))?;
+    Ok(nfs_formats::catalogue_json(&entries))
+}
+
 #[wasm_bindgen]
 pub fn shell_get_dealership_catalog() -> String {
     let cars = nfs_game::economy::get_dealership_catalog();

@@ -1,4 +1,4 @@
-import init, { create_viewer, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission } from "./package/viewer_impl.js";
+import init, { create_viewer, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission } from "./package/viewer_impl.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -1759,7 +1759,43 @@ const quickRaceStartBtn = document.querySelector('#quickRaceStartBtn');
 const quickRaceCancelBtn = document.querySelector('#quickRaceCancelBtn');
 const quickRaceStatus = document.querySelector('#quickRaceStatus');
 let quickRaceCars = [];
-function openQuickRace() {
+
+// Quick Race cars come from the original catalogue FEData/Data/nfs5.car: records with a SIM name
+// whose model (.crp, matched case-insensitively) and SIM file are installed, in catalogue order.
+// Keyed by record index because SIM names repeat with different engine banks.
+function buildQuickRaceCars(records, installedModels, resources) {
+  const models = new Set(installedModels.map(name => name.toLowerCase()));
+  const cars = [];
+  for (const record of records) {
+    if (!record.sim_name || !models.has(record.model.toLowerCase())) continue;
+    try { findSimResource(resources, record.sim_name); } catch { continue; }
+    cars.push({
+      id: String(record.index),
+      index: record.index,
+      display_name: record.display_name,
+      model_name: record.model.toLowerCase(),
+      sim_name: record.sim_name,
+      bank: record.bank,
+    });
+  }
+  return cars;
+}
+
+async function loadCarCatalogueRecords() {
+  let bytes;
+  if (useCustomFiles && selectedFiles.length > 0) {
+    const file = selectedFiles.find(f => /(^|[\\/])nfs5\.car$/i.test(selectedName(f)));
+    if (!file) throw new Error('В выбранных файлах нет FEData/Data/nfs5.car.');
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } else {
+    const path = localGameFiles.find(p => /(^|[\\/])fedata[\\/]data[\\/]nfs5\.car$/i.test(p));
+    if (!path) throw new Error('Не найден FEData/Data/nfs5.car.');
+    bytes = (await fetchGameFiles([path])).bytes[0];
+  }
+  return JSON.parse(parse_car_catalogue_json(bytes));
+}
+
+async function openQuickRace() {
   quickRaceModal.hidden = false;
   quickRaceStatus.textContent = '';
   const populate = (select, options) => {
@@ -1776,16 +1812,15 @@ function openQuickRace() {
   populate(quickRaceTrack, availableTracks.map(id => [id, KNOWN_TRACKS.find(track => track.id === id)?.name || id]));
   try {
     const resources = useCustomFiles ? selectedFiles.map(selectedName) : localGameFiles;
-    quickRaceCars = JSON.parse(shell_get_dealership_catalog()).filter(car => {
-      if (!availableCars.includes(car.model_name.toLowerCase())) return false;
-      try { findSimResource(resources, car.sim_name); return true; } catch { return false; }
-    });
+    quickRaceCars = buildQuickRaceCars(await loadCarCatalogueRecords(), availableCars, resources);
     populate(quickRaceCar, quickRaceCars.map(car => [car.id, car.display_name]));
     quickRaceStartBtn.disabled = !quickRaceCars.length || !availableTracks.length;
     if (quickRaceStartBtn.disabled) quickRaceStatus.textContent = 'Выберите папку игры с трассами, моделями и файлами физики автомобилей.';
   } catch (error) {
+    quickRaceCars = [];
+    populate(quickRaceCar, []);
     quickRaceStartBtn.disabled = true;
-    quickRaceStatus.textContent = String(error);
+    quickRaceStatus.textContent = error instanceof Error ? error.message : String(error);
   }
   quickRaceTrack.focus();
 }

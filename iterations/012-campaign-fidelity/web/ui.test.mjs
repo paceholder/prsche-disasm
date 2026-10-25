@@ -50,7 +50,7 @@ const source = readFileSync(new URL("main.js", import.meta.url), "utf8")
   .replace(/\bboot\(\);\s*$/, "");
 vm.runInContext(source + `\n globalThis.testApi = {
   setViewer: value => viewer = value,
-  activeKeys, syncTourButton, updateNavigation, showBriefing, factoryGoalSatisfied, evaluateFactoryResult, findSimResource,
+  activeKeys, syncTourButton, updateNavigation, showBriefing, factoryGoalSatisfied, evaluateFactoryResult, findSimResource, buildQuickRaceCars,
   primeMotion: () => { velForward = 3; velRight = 2; velZoom = 1; },
   motion: () => [velForward, velRight, velZoom],
 };`, context);
@@ -260,3 +260,21 @@ for (const terminalPhase of [4, 5]) {
   }
 }
 console.log("UI state: existing checks and result Continue/restart lifecycle passed");
+
+// Quick Race list comes from the catalogue records, keyed by record index.
+{
+  const rec = (index, display_name, model, sim_name, bank = "sd1a") => ({ index, display_name, model, sim_name, bank });
+  const cars = context.testApi.buildQuickRaceCars([
+    rec(0, "'50 356 1100 Cabriolet", "356_1", "356cabrio11"),
+    rec(1, "Eden2", "Eden", ""),
+    rec(2, "Gone", "nomodel", "356cabrio11"),
+    rec(3, "NoSim", "356_1", "missing"),
+    rec(4, "'00 911 Turbo (996)", "F996", "996Tcoupe36", "sd7a"),
+    rec(5, "Twin", "F996", "996Tcoupe36", "sd7b"),
+  ], ["356_1", "f996"], ["GameData/Simulation/CarData/356cabrio11.sim", "x/996tcoupe36.sim"]);
+  assert.deepEqual(Array.from(cars, c => c.id), ["0", "4", "5"]);
+  assert.equal(cars[1].model_name, "f996");
+  assert.equal(cars[1].sim_name, "996Tcoupe36");
+  assert.equal(cars[1].bank, "sd7a");
+  assert.equal(cars[2].bank, "sd7b", "repeated SIM names stay distinct by record index");
+}
