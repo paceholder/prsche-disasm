@@ -61,12 +61,15 @@ let lastControls;
 const cameraCycle = ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"];
 let cameraIndex = 3;
 let freeCamera = false;
-let originalModel = false;
+let originalModel = true;
+const calls = [];
 let lights = false;
 let sideView = 0;
 let aiLimit = -1;
 context.testApi.setViewer({
-  toggle_vehicle_model: () => originalModel = !originalModel,
+  toggle_vehicle_model: () => calls.push("O"),
+  toggle_collision_model: () => calls.push("K"),
+  toggle_sim_mode: () => calls.push("M"),
   has_original_vehicle: () => true,
   cycle_car_view: () => { freeCamera = false; cameraIndex = (cameraIndex + 1) % 4; return cameraCycle[cameraIndex]; },
   get_camera_name: () => freeCamera ? "Free" : cameraCycle[cameraIndex],
@@ -76,7 +79,7 @@ context.testApi.setViewer({
   toggle_lights: () => lights = !lights,
   cycle_side_view: () => sideView = sideView === 0 ? 25 : sideView > 0 ? -25 : 0,
   get_side_view: () => sideView,
-  cycle_ai_speed_limit: () => aiLimit = aiLimit < 0 ? 30 : aiLimit > 0 ? 0 : -1,
+  cycle_ai_speed_limit: () => calls.push("J"),
   get_ai_speed_limit: () => aiLimit,
   is_drive_mode: () => driving,
   has_car: () => true,
@@ -129,16 +132,17 @@ context.testApi.updateNavigation(1 / 60);
 const panel = () => element("#debugPanel").textContent.replace(/\u00a0/g, " ");
 context.testApi.updateNavigation(1 / 60);
 context.testApi.syncTourButton();
-for (const part of ["O car prototype", "K collisions original", "M 6 DOF", "L lights off", "C TailCam0",
+for (const part of ["L lights off", "C TailCam0",
   "V free cam off", "Shift+V side off", "B boxes off", "H HUD on", "R reset", "Shift+R restart", "Esc menu"]) {
   assert.ok(panel().includes(part), `panel shows "${part}": ${panel()}`);
 }
-assert.ok(panel().includes("J AI full speed"));
-key("keydown", "KeyJ");
-assert.ok(panel().includes("J AI 30 km/h"));
-key("keydown", "KeyJ");
-assert.ok(panel().includes("J AI parked"));
-key("keydown", "KeyJ");
+for (const gone of ["O car", "K collisions", "M 6 DOF", "J AI"]) {
+  assert.ok(!panel().includes(gone), `panel no longer lists "${gone}": ${panel()}`);
+}
+// The removed switches (O, K, M, J) must not reach the viewer.
+for (const code of ["KeyO", "KeyK", "KeyM", "KeyJ"]) key("keydown", code);
+assert.equal(originalModel, true, "O does nothing");
+assert.deepEqual(calls, [], "removed keys call no viewer switch");
 const shownCameras = [];
 for (let i = 0; i < 4; i++) {
   key("keydown", "KeyC");
@@ -146,11 +150,6 @@ for (let i = 0; i < 4; i++) {
   shownCameras.push(panel().match(/C (\w+)/)[1]);
 }
 assert.deepEqual(shownCameras, ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"]);
-key("keydown", "KeyO");
-assert.equal(originalModel, true, "O selects the original vehicle model");
-assert.ok(panel().includes("O car original"));
-key("keydown", "KeyO");
-assert.ok(panel().includes("O car prototype"));
 key("keydown", "KeyV");
 assert.ok(panel().includes("C Free") && panel().includes("V free cam on"), "V toggles the free camera");
 key("keydown", "KeyV");

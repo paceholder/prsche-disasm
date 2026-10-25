@@ -2964,57 +2964,11 @@ function onKeyDown(event) {
     }
     return;
   }
-  if (event.code === "KeyM" && !event.repeat) {
-    if (viewer) {
-      const isSim = viewer.toggle_sim_mode();
-      setStatus(
-        isSim
-          ? "Физика: 6 DOF Реалистичная симуляция (.sim, 4 независимых колеса, подвеска)"
-          : "Физика: Прототип Аркадной модели"
-      );
-      queueFrame();
-    }
-    return;
-  }
   if (event.code === "KeyB" && !event.repeat) {
     if (viewer) {
       const on = viewer.toggle_collision_boxes();
       setStatus(on ? "Collision boxes: shown (B)" : "Collision boxes: hidden (B)");
       if (on) console.log(viewer.collision_box_report());
-      queueFrame();
-    }
-    return;
-  }
-  if (event.code === "KeyJ" && !event.repeat) {
-    if (viewer) {
-      const limit = viewer.cycle_ai_speed_limit();
-      const text = limit < 0 ? "J: AI full speed" : limit === 0 ? "J: AI parked" : `J: AI ${Math.round(limit)} km/h`;
-      setStatus(text);
-    }
-    return;
-  }
-  if (event.code === "KeyK" && !event.repeat) {
-    if (viewer) {
-      const original = viewer.toggle_collision_model();
-      setStatus(
-        original
-          ? "Collisions: original NFS5 response (K)"
-          : "Collisions: prototype response (K)"
-      );
-      queueFrame();
-    }
-    return;
-  }
-  if (event.code === "KeyO" && !event.repeat) {
-    if (viewer) {
-      const original = viewer.toggle_vehicle_model();
-      setStatus(
-        original
-          ? "Vehicle model: original NFS5 (O)"
-          : viewer.has_original_vehicle()
-            ? "Vehicle model: prototype 6 DOF (O)"
-            : "Vehicle model: original needs the car's .sim (O)"
-      );
       queueFrame();
     }
     return;
@@ -3488,7 +3442,7 @@ async function boot() {
 }
 
 // ---- URL autostart and debug hook (tools/browser-shot.mjs) ----
-// ?race=<track>&car=<id>&opponents=<n>&laps=<n>&model=original|prototype&lights=0|1&cam=<name>
+// ?race=<track>&car=<id>&opponents=<n>&laps=<n>&lights=0|1&cam=<name>
 // skips the front end and starts a Quick Race through the same calls as the Quick Race dialog.
 let debugReady = false;
 // `?cam=` camera still to select (after the race intro); `__nfs.ready` waits for it.
@@ -3570,8 +3524,7 @@ async function autostartRace(params) {
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
     setMenuVisible(false);
     syncTourButton();
-    // The original vehicle model is the default once the car's .sim is loaded.
-    if (params.get("model") === "prototype" && viewer.is_original_vehicle()) viewer.toggle_vehicle_model();
+    // Always the original vehicle model, collisions and AI; the old `model=` URL param is ignored.
     if (params.get("lights") === "1") lightsOn = Boolean(viewer.toggle_lights());
     const cam = params.get("cam");
     // The C key is ignored during the race intro (AnimCam, Camera_Cycle 0x465a60), and the
@@ -3600,14 +3553,9 @@ function updateDebugPanel() {
   }
   if (!show) return;
   const onOff = (v) => (v ? "on" : "off");
-  const ai = viewer.get_ai_speed_limit?.() ?? -1;
   const side = viewer.get_side_view?.() ?? 0;
   const original = Boolean(viewer.is_original_vehicle?.());
   const items = [
-    `O car ${original ? "original" : "prototype"}`,
-    `K collisions ${viewer.is_original_collision?.() === false ? "prototype" : "original"}`,
-    `M ${viewer.is_sim_mode?.() === false ? "arcade" : "6 DOF"}`,
-    `J AI ${ai < 0 ? "full speed" : ai === 0 ? "parked" : `${Math.round(ai)} km/h`}`,
     `L lights ${onOff(lightsOn)}`,
     `C ${viewer.get_camera_name?.() ?? "-"}`,
     `V free cam ${onOff(viewer.is_free_camera?.())}`,
