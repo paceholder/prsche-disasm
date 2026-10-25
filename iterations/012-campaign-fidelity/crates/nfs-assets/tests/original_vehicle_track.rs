@@ -160,6 +160,13 @@ fn boxster_drives_on_real_tracks() {
         let mut travelled = 0.0;
         let mut last = start_scene;
         let mut off_steps = 0;
+        // The 7 s start: the original gating holds the car on the grid.
+        let grid = v.car.position_330;
+        for _ in 0..nfs_assets::physics::original_vehicle::driver::START_SCHED_STEP {
+            scheduler_step(&mut v.car, input_word(1.0, 0.0, 0.0, false), &mut v.lcg, &mut q);
+        }
+        let held = (0..3).map(|k| (v.car.position_330[k] - grid[k]).powi(2)).sum::<f32>().sqrt();
+        assert!(held < 0.05, "{name}: moved {held} m before the green light");
         let steps = 64 * 25;
         for n in 0..steps {
             let c = &v.car;

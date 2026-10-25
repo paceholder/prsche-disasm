@@ -2667,7 +2667,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return;
         }
         if let Some(session) = self.race_session.as_mut().filter(|_| !self.is_mission_mode) {
-            if !session.phase.allows_driving_input() {
+            // The original model holds itself at the start (`Car_ApplyControls` gating:
+            // brake 0xff until the green light, gas from `+0xdb0 = 0x40`, so the engine
+            // revs in neutral); otherwise no gas while driving is not allowed.
+            let held_by_gating =
+                original && matches!(session.phase, nfs_assets::RacePhase::Countdown { .. });
+            if !session.phase.allows_driving_input() && !held_by_gating {
                 throttle = 0.0;
             }
             session.step(dt);
@@ -3152,6 +3157,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
             RacePhase::Finished { .. } | RacePhase::Results => (i32::MAX, true),
             _ => (0, false),
+        }
+    }
+
+    /// `g_SchedStep` of the original car for the current race phase: counting from 0 at the
+    /// start of the countdown to `START_SCHED_STEP` at the green light (approximation A29),
+    /// then on with the race time; outside a race, past the start.
+    fn original_race_sched(&self) -> i32 {
+        use nfs_assets::RacePhase;
+        use nfs_assets::physics::original_vehicle::driver::START_SCHED_STEP;
+        let Some(session) = self.race_session.as_ref().filter(|_| !self.is_mission_mode) else {
+            return START_SCHED_STEP;
+        };
+        match &session.phase {
+            RacePhase::Countdown { remaining_secs, .. } => {
+                START_SCHED_STEP - (remaining_secs.max(0.0) * 64.0) as i32
+            }
+            RacePhase::Racing { elapsed_secs } => {
+                START_SCHED_STEP + (elapsed_secs * 64.0) as i32
+            }
+            _ => START_SCHED_STEP,
         }
     }
 
@@ -4247,6 +4272,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             VehicleModel::Prototype if self.original_vehicle.is_some() => {
                 self.drawn_states = None;
                 self.sync_original_from_sim(true);
+                let sched = self.original_race_sched();
+                if let Some(v) = &mut self.original_vehicle {
+                    v.set_race_clock(sched);
+                }
                 self.vehicle_model = VehicleModel::Original;
                 self.rebuild_original_ai();
             }

@@ -198,12 +198,19 @@ pub fn collide_player(
     pairs
 }
 
-/// Scheduler step at the start of a race: the race-start gating of
-/// `Car_ApplyControls` (`docs/re/vehicle.md` V4 results) has run its
-/// counter, and the automatic box requests 1st on steps 0x1c1..0x1c3.
+/// Scheduler step of the green light: the race-start gating of
+/// `Car_ApplyControls` (`docs/re/vehicle.md` V4 results) releases the brake
+/// after it, and the automatic box requests 1st on steps 0x1c1..0x1c3.
 pub const START_SCHED_STEP: i32 = 0x1c0;
-/// `+0xdb0` at [`START_SCHED_STEP`]: past the 0x40 steps that hold the brake.
-pub const START_DB0: i32 = 0x40;
+/// Scheduler step when the car is placed on the grid: the 7 s start
+/// (0x1c0 steps at 64 Hz) runs from 0 to [`START_SCHED_STEP`]
+/// (approximation A29: the writer of `g_SchedStep` is not read).
+pub const COUNTDOWN_SCHED_STEP: i32 = 0;
+/// `+0xdb0` set by the car reset `0x410730`. `Car_ApplyControls` counts it
+/// up every 32 Hz step; below 0x40 it forces gas 0 and brake 0xff, then
+/// until [`START_SCHED_STEP`] brake 0xff only (the engine revs in neutral),
+/// so the car holds on a slope through the countdown.
+pub const START_DB0: i32 = 1;
 
 /// The player car on the original model: car state, random generator,
 /// ground adapter state, the per-wheel support owners and the step clock.
@@ -300,7 +307,9 @@ impl OriginalVehicle {
 
     /// Back to the start state (the race start): a fresh car with the same
     /// specs and body points, at rest in neutral, the scheduler at
-    /// [`START_SCHED_STEP`]. The pose is kept.
+    /// [`COUNTDOWN_SCHED_STEP`] with the start counter at [`START_DB0`], so
+    /// the original gating holds the brake until the green light. The pose
+    /// is kept.
     pub fn restart(&mut self) {
         let old = &self.car;
         let mut car = OriginalCar::new(old.specs.clone());
@@ -310,7 +319,7 @@ impl OriginalVehicle {
         car.axes_364 = old.axes_364;
         car.res_14 = 1;
         car.start_db0 = START_DB0;
-        car.globals.sched_step_606ac4 = START_SCHED_STEP;
+        car.globals.sched_step_606ac4 = COUNTDOWN_SCHED_STEP;
         car.globals.auto_box_658098 = 1;
         update_world_points(&mut car);
         self.car = car;
@@ -376,6 +385,23 @@ impl OriginalVehicle {
         self.car = car;
         self.ground = GroundAdapter::default();
         self.owners = Default::default();
+    }
+
+    /// Puts the car on the race clock: `g_SchedStep` at `sched` and the start
+    /// counter `+0xdb0` as `Car_ApplyControls` would have counted it from
+    /// the reset (1 at step [`COUNTDOWN_SCHED_STEP`], +1 per 32 Hz step).
+    /// Before the green light the car is in its reset gear, neutral
+    /// (`0x49e220`; the gear logic of `Car_ApplyControls` only runs after
+    /// [`START_SCHED_STEP`]), so the engine revs without driving. Used when
+    /// the model is switched on during a race.
+    pub fn set_race_clock(&mut self, sched: i32) {
+        let sched = sched.max(COUNTDOWN_SCHED_STEP);
+        self.car.globals.sched_step_606ac4 = sched;
+        self.car.start_db0 = START_DB0 + (sched - COUNTDOWN_SCHED_STEP) / 2;
+        if sched < START_SCHED_STEP {
+            let rpm = self.car.rpm_db4;
+            self.set_gear(1, rpm);
+        }
     }
 
     /// Moves the car to a pose (box centre, axes R/U/F, velocity, angular

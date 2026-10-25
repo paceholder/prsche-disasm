@@ -40,8 +40,13 @@ fn sim_bytes() -> Option<Vec<u8>> {
     std::fs::read(game().join("Simulation/CarData/boxster25.sim")).ok()
 }
 
+/// The car at the green light (the tests start the session in `Racing`):
+/// the start gating has run its counter past 0x40.
 fn vehicle() -> OriginalVehicle {
-    OriginalVehicle::from_sim(&sim_bytes().unwrap(), "boxster", HALF, WHEELS).unwrap()
+    let mut v = OriginalVehicle::from_sim(&sim_bytes().unwrap(), "boxster", HALF, WHEELS).unwrap();
+    v.car.globals.sched_step_606ac4 = START_SCHED_STEP;
+    v.car.start_db0 = 0x40;
+    v
 }
 
 enum World<'a> {

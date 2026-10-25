@@ -17,6 +17,7 @@ use nfs_assets::physics::original_lcg::OriginalLcg;
 use nfs_assets::physics::original_pair::{PairCar, PairGlobals};
 use nfs_assets::physics::original_vehicle::driver::collide_player;
 use nfs_assets::physics::original_vehicle::step::Phase;
+use nfs_assets::physics::original_vehicle::driver::START_SCHED_STEP;
 use nfs_assets::physics::original_vehicle::{
     input_word, FlatGround, OriginalCar, OriginalVehicle, StepQueue,
 };
@@ -30,6 +31,8 @@ const WHEELS: [[f32; 3]; 4] = [
     [-0.75, -0.6, -1.2],
     [0.75, -0.6, -1.2],
 ];
+/// The 7 s start (0x1c0 steps) plus a little.
+const START_S: f32 = 7.5;
 const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
 fn boxster() -> OriginalVehicle {
@@ -108,7 +111,7 @@ fn spawns_on_the_road_and_selects_first_at_the_start() {
     );
     assert_eq!(v.car.gear_d82, 1, "neutral before the start");
     let mut q = Queue::new(&v, vec![]);
-    drive(&mut v, &mut q, 0.5, 0);
+    drive(&mut v, &mut q, START_S, 0);
     assert_eq!(
         v.car.gear_d82, 2,
         "the automatic box takes 1st at the start"
@@ -122,7 +125,7 @@ fn full_throttle_accelerates_on_the_ground() {
     skip_without_local_fixtures!(fixture::CARS);
     let mut v = boxster();
     let mut q = Queue::new(&v, vec![]);
-    drive(&mut v, &mut q, 0.5, 0);
+    drive(&mut v, &mut q, START_S, 0);
     drive(&mut v, &mut q, 6.0, input_word(1.0, 0.0, 0.0, false));
     let c = &v.car;
     assert!(c.vel_fwd_d60() > 20.0, "d60 {}", c.vel_fwd_d60());
@@ -141,8 +144,8 @@ fn full_throttle_accelerates_on_the_ground() {
     );
     assert!(c.position_330[0].abs() < 1e-3, "{:?}", c.position_330);
     assert!(c.position_330[2] > 30.0);
-    // 6.5 s at 64 Hz, the camera on every step.
-    assert!((415..=416).contains(&q.camera_steps), "{}", q.camera_steps);
+    // 7.5 s start + 6 s at 64 Hz, the camera on every step.
+    assert!((863..=864).contains(&q.camera_steps), "{}", q.camera_steps);
 }
 
 #[test]
@@ -150,7 +153,7 @@ fn steering_right_turns_toward_r() {
     skip_without_local_fixtures!(fixture::CARS);
     let mut v = boxster();
     let mut q = Queue::new(&v, vec![]);
-    drive(&mut v, &mut q, 0.5, 0);
+    drive(&mut v, &mut q, START_S, 0);
     drive(&mut v, &mut q, 3.0, input_word(1.0, 0.0, 0.0, false));
     drive(&mut v, &mut q, 1.0, input_word(0.3, 0.0, 1.0, false));
     assert!(v.car.angular_388[1] > 0.0, "yaw {:?}", v.car.angular_388);
@@ -165,7 +168,7 @@ fn collision_runs_in_the_32_hz_queue_after_the_ground() {
     let mut wall = nfs_assets::physics::original_vehicle::driver::pair_car(&parked.car, HALF);
     wall.position_330 = [0.0, 0.6, 20.0];
     let mut q = Queue::new(&v, vec![wall]);
-    drive(&mut v, &mut q, 0.5, 0);
+    drive(&mut v, &mut q, START_S, 0);
     drive(&mut v, &mut q, 4.0, input_word(1.0, 0.0, 0.0, false));
     assert!(q.contacts > 0, "no contact");
     // The player never passes through the parked car (which is not
@@ -193,7 +196,7 @@ fn drawn_wheels_follow_the_road_in_a_roll() {
     skip_without_local_fixtures!(fixture::CARS);
     let mut v = boxster();
     let mut q = Queue::new(&v, vec![]);
-    drive(&mut v, &mut q, 0.5, 0);
+    drive(&mut v, &mut q, START_S, 0);
     drive(&mut v, &mut q, 4.0, input_word(1.0, 0.0, 0.0, false));
     drive(&mut v, &mut q, 1.5, input_word(0.6, 0.0, 1.0, false));
     let c = &v.car;
@@ -210,4 +213,75 @@ fn drawn_wheels_follow_the_road_in_a_roll() {
     }
     // Outside of a right turn is the left (wheels 0, 2): compressed.
     assert!(v.draw_wheel_pose(2).0 > 0.0 && v.draw_wheel_pose(3).0 < 0.0);
+}
+
+/// 10 % downhill along +z.
+struct Slope;
+impl nfs_assets::physics::original_vehicle::GroundQuery for Slope {
+    fn wheel_ground(
+        &mut self,
+        _wheel: usize,
+        p: [f32; 3],
+    ) -> Option<nfs_assets::physics::original_vehicle::GroundHit> {
+        let n = glam::Vec3::new(0.0, 1.0, 0.1).normalize().to_array();
+        Some(nfs_assets::physics::original_vehicle::GroundHit::at(
+            p,
+            -0.1 * p[2],
+            n,
+            1,
+        ))
+    }
+}
+
+struct SlopeQueue(nfs_assets::physics::original_vehicle::GroundAdapter);
+impl StepQueue for SlopeQueue {
+    fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
+        self.0.ground_step(car, &mut Slope, lcg);
+    }
+}
+
+/// Race start on a slope: through the 7 s start the original gating
+/// (`+0xdb0` from 1, brake 0xff until step 0x1c0) holds the car on the grid,
+/// also with the gas held; after the green light it rolls.
+#[test]
+fn holds_on_a_slope_until_the_green_light() {
+    skip_without_local_fixtures!(fixture::CARS);
+    let specs = fixture::cars().remove("Boxster").unwrap();
+    let mut v = OriginalVehicle::from_specs(specs, HALF, WHEELS);
+    let n = glam::Vec3::new(0.0, 1.0, 0.1).normalize();
+    let f = glam::Vec3::X.cross(n).normalize();
+    let axes = [glam::Vec3::X.to_array(), n.to_array(), f.to_array()];
+    v.set_pose([0.0, 1.0, 0.0], axes, [0.0; 3], [0.0; 3], &mut Slope);
+    let mut q = SlopeQueue(v.ground.clone());
+    let start = v.car.position_330;
+    let mut steps = 0;
+    while v.car.globals.sched_step_606ac4 < START_SCHED_STEP {
+        let word = if steps < 200 { 0 } else { input_word(1.0, 0.0, 0.0, false) };
+        v.advance(1.0 / 64.0, word, &mut q);
+        steps += 1;
+    }
+    let moved = glam::Vec3::from(v.car.position_330).distance(glam::Vec3::from(start));
+    assert!(moved < 0.05, "moved {moved} m during the start: {:?}", v.car.position_330);
+    assert_eq!(v.car.gear_d82, 1, "neutral until the green light");
+    for _ in 0..64 * 3 {
+        v.advance(1.0 / 64.0, 0, &mut q);
+    }
+    let rolled = glam::Vec3::from(v.car.position_330).distance(glam::Vec3::from(start));
+    assert!(rolled > 0.5, "rolled {rolled} m after the green light");
+}
+
+/// Switching the original model on mid-countdown puts the car on the race
+/// clock in neutral (the reset gear); after the green light the gear is kept.
+#[test]
+fn race_clock_puts_the_car_in_neutral_before_the_green_light() {
+    skip_without_local_fixtures!(fixture::CARS);
+    let mut v = boxster();
+    v.set_gear(2, 1500.0);
+    v.set_race_clock(START_SCHED_STEP - 64 * 3);
+    assert_eq!(v.car.gear_d82, 1);
+    assert_eq!(v.car.globals.sched_step_606ac4, START_SCHED_STEP - 192);
+    assert_eq!(v.car.start_db0, 1 + (START_SCHED_STEP - 192) / 2);
+    v.set_gear(3, 3000.0);
+    v.set_race_clock(START_SCHED_STEP + 640);
+    assert_eq!(v.car.gear_d82, 3);
 }

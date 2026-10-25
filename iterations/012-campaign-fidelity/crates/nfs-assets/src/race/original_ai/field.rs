@@ -171,6 +171,9 @@ impl OriginalAiField {
         ground: &mut impl GroundQuery,
     ) {
         vehicle.restart();
+        // The AI cars are not stepped before the race runs, so their start
+        // counter `+0xdb0` is taken as past the 0x40 brake hold.
+        vehicle.car.start_db0 = 0x40;
         vehicle.car.flags_52c = 1;
         vehicle.car.ai_da8 = 1;
         vehicle.set_pose(position, axes, [0.0; 3], [0.0; 3], ground);
