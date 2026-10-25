@@ -1,0 +1,116 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <type_traits>
+#include "tapi_lazy_wrappers.hpp"
+#include "modem_callback.hpp"
+#include "modem_caps_open.hpp"
+using U=std::uint32_t;using I=std::int32_t;using B=std::uint8_t;
+static_assert(sizeof(void*)==4);
+using GetId=I(__stdcall*)(U,U,U,U,void*,const char*);
+static_assert(std::is_same_v<decltype(&porsche::modem_line_get_id_00584c4c),GetId>);
+static const B raw0[]={@DROP@},raw1[]={@DEVCAPS@},raw2[]={@GETID@},raw3[]={@OPEN@},raw4[]={@SETSTATUS@};
+static const B names_raw[]={@NAMES@};
+static U* cells[]={&porsche::tapi_drop_cache_006ad0b8,&porsche::tapi_devcaps_cache_006ad15c,&porsche::tapi_getid_cache_006ad188,&porsche::tapi_open_cache_006ad20c,&porsche::tapi_status_cache_006ad2bc};
+static const char* names[]={"lineDrop","lineGetDevCaps","lineGetID","lineOpen","lineSetStatusMessages"};
+static U name_va[]={0x5c1234,0x5c1240,0x5c1264,0x5c12c0,0x5c12e0},cache_va[]={0x6ad0b8,0x6ad15c,0x6ad188,0x6ad20c,0x6ad2bc};
+static U arity[]={3,5,6,9,3},current,mode,return_bits,write_mode,cases,checks;static B memory[64];static B* oracle[5];
+template<class T> static U address(T p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static void die(const char* why){std::printf("fixture %s\n",why);ExitProcess(98);}
+struct State{U cache[5];B memory[64];};
+static State state(){State s{};for(U i=0;i<5;++i)s.cache[i]=*cells[i];std::memcpy(s.memory,memory,64);return s;}
+struct Event{U kind,index,args[9];State before;};static Event events[8];static U event_count;
+static void record(U kind,U index,const U* args,U count){if(event_count==8)die("event-overflow");Event& e=events[event_count++];e={};e.kind=kind;e.index=index;e.before=state();for(U i=0;i<count;++i)e.args[i]=args[i];}
+static I endpoint(U variant,const U* args,U count){record(2,variant,args,count);
+    if(write_mode){for(U a=0;a<count;++a)if(args[a]==address(memory+8))for(U i=0;i<(write_mode==1?3u:16u);++i)memory[8+i]^=static_cast<B>(0x31+variant+13*i);}
+    if(mode==8)*cells[current]=0; // A target can invalidate its own cache.
+    if(mode==9)*cells[current]=0xffffffffu;
+    return static_cast<I>(return_bits^(variant?0x12736485u:0));
+}
+extern "C" I __stdcall three_a(U a,U b,U c){U x[]={a,b,c};return endpoint(0,x,3);}
+extern "C" I __stdcall three_b(U a,U b,U c){U x[]={a,b,c};return endpoint(1,x,3);}
+extern "C" I __stdcall five_a(U a,U b,U c,U d,U e){U x[]={a,b,c,d,e};return endpoint(0,x,5);}
+extern "C" I __stdcall five_b(U a,U b,U c,U d,U e){U x[]={a,b,c,d,e};return endpoint(1,x,5);}
+extern "C" I __stdcall six_a(U a,U b,U c,U d,void* e,const char* f){U x[]={a,b,c,d,address(e),address(f)};return endpoint(0,x,6);}
+extern "C" I __stdcall six_b(U a,U b,U c,U d,void* e,const char* f){U x[]={a,b,c,d,address(e),address(f)};return endpoint(1,x,6);}
+extern "C" I __stdcall nine_a(U a,U b,U c,U d,U e,U f,U g,U h,U i){U x[]={a,b,c,d,e,f,g,h,i};return endpoint(0,x,9);}
+extern "C" I __stdcall nine_b(U a,U b,U c,U d,U e,U f,U g,U h,U i){U x[]={a,b,c,d,e,f,g,h,i};return endpoint(1,x,9);}
+static U target(U kind,U variant){U fn[2][5]={{address(&three_a),address(&five_a),address(&six_a),address(&nine_a),address(&three_a)},{address(&three_b),address(&five_b),address(&six_b),address(&nine_b),address(&three_b)}};return fn[variant][kind];}
+namespace porsche {
+I __stdcall tapi_resolve_00584a60(const char* name,U* cache){
+    U index=5;for(U i=0;i<5;++i)if(!std::strcmp(name,names[i]))index=i;
+    if(index==5||cache!=cells[index])die("resolver-name-or-cell");
+    U args[]={index,static_cast<U>(cache-cells[index])};record(1,index,args,2);
+    // The unknown real child is controlled here, including exact nonzero bits,
+    // cross-cell writes and valid host function-pointer transport.
+    *cells[(index+1)%5]=target((index+1)%5,1);
+    if(mode>=3&&mode<=6){*cache=mode==3?0:mode==4?target(index,1):0xffffffffu;return static_cast<I>(mode==6?0x80000049u:mode==5?1u:0xf137953bu);}
+    *cache=mode==2?0xffffffffu:target(index,mode==1?1:0);return 0;
+}
+}
+static void install(){
+    const B* raws[]={raw0,raw1,raw2,raw3,raw4};U lengths[]={sizeof raw0,sizeof raw1,sizeof raw2,sizeof raw3,sizeof raw4};U vas[]={0x584b70,0x584bb7,0x584c4c,0x584dcd,0x584e72};
+    B* block=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!block)die("allocation");
+    for(U k=0;k<5;++k){if(std::strcmp(reinterpret_cast<const char*>(names_raw+name_va[k]-0x5c1214),names[k]))die("raw-name");oracle[k]=block+256*k;std::memcpy(oracle[k],raws[k],lengths[k]);U cache_n=0,name_n=0,call_n=0;
+        for(U i=0;i+4<=lengths[k];++i){if(word(raws[k]+i)==cache_va[k]){put(oracle[k]+i,address(cells[k]));++cache_n;}if(word(raws[k]+i)==name_va[k]){put(oracle[k]+i,address(names[k]));++name_n;}
+            if(i+5<=lengths[k]&&raws[k][i]==0xe8&&vas[k]+i+5+word(raws[k]+i+1)==0x584a60){put(oracle[k]+i+1,address(reinterpret_cast<const void*>(&porsche::tapi_resolve_00584a60))-address(oracle[k]+i+5));++call_n;}}
+        if(cache_n!=4||name_n!=1||call_n!=1)die("relocation-count");
+    }DWORD old;if(!VirtualProtect(block,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),block,4096);
+}
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static Capture invoke(const void* fn,U argc,bool callee_pop,const U* args){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,argc
+        mov edx,args
+    nextarg:
+        test ecx,ecx
+        jz callit
+        push dword ptr [edx+ecx*4-4]
+        dec ecx
+        jmp nextarg
+    callit:
+        call fn
+        cmp callee_pop,0
+        jne capture
+        mov ecx,argc
+        lea esp,[esp+ecx*4]
+    capture:
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }return r;}
+static bool abi(const Capture& r){++checks;return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1;}
+
+struct Step{Event events[8];U event_count,eax,abi;State after;};struct Result{Step steps[3];};
+static void reset(U initial){for(U i=0;i<5;++i)*cells[i]=0;*cells[current]=initial;for(U i=0;i<64;++i)memory[i]=static_cast<B>(0x37+i*19);}
+static Result execute(const void* fn,U initial,const U* args){reset(initial);Result r{};for(U i=0;i<3;++i){event_count=0;std::memset(events,0,sizeof events);auto c=invoke(fn,arity[current],true,args);auto& s=r.steps[i];std::memcpy(s.events,events,sizeof events);s.event_count=event_count;s.eax=c.eax;s.abi=abi(c);s.after=state();}return r;}
+static bool test(U initial,const U* args){U funcs[]={address(&porsche::modem_line_drop_00584b70),address(&porsche::modem_line_get_capabilities_00584bb7),address(&porsche::modem_line_get_id_00584c4c),address(&porsche::modem_tapi_line_open_00584dcd),address(&porsche::modem_line_set_status_00584e72)};
+    auto original=execute(oracle[current],initial,args);auto recovered=execute(reinterpret_cast<const void*>(funcs[current]),initial,args);bool valid=true;for(auto& s:original.steps)valid&=s.abi!=0;for(auto& s:recovered.steps)valid&=s.abi!=0;
+    if(!valid||std::memcmp(&original,&recovered,sizeof original)){std::printf("divergence kind=%u mode=%u initial=%08x result=%08x writes=%u\n",current,mode,initial,return_bits,write_mode);return false;}++cases;checks+=6;return true;
+}
+int main(){for(U i=0;i<5;++i)if(*cells[i])die("production-initial-state");install();
+    const U values[]={0,1,0x7fffffffu,0x80000000u,0x80000049u,0xffffffffu,0x12345678u};
+    for(current=0;current<5;++current)for(mode=0;mode<10;++mode)for(U initial_kind=0;initial_kind<4;++initial_kind)for(U result:values)for(U pattern=0;pattern<4;++pattern){
+        U args[9];for(U i=0;i<9;++i)args[i]=pattern==0?0:pattern==1?0xffffffffu:(0x81234567u+0x1a2b3c4u*i)^(pattern*0x18764325u);
+        if(pattern==3){args[0]=address(memory+8);args[arity[current]-1]=address(memory+8);if(current==2)args[4]=address(memory+8);}
+        U initial=initial_kind==0?0:initial_kind==1?0xffffffffu:target(current,initial_kind-2);return_bits=result;write_mode=pattern==3?2:pattern%3;if(!test(initial,args))return 1;
+    }
+    std::printf("tapi_lazy_wrappers_original_x86_vs_cpp=PASS cases=%u calls=%u checks=%u\n",cases,cases*3,checks);return 0;
+}

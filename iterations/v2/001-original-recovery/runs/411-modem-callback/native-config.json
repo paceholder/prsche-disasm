@@ -1,0 +1,170 @@
+{
+  "run": 411,
+  "experiment": "local/experiments/v2-modem-callback-native-411",
+  "timeout_seconds": 120,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/411-modem-callback/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/411-modem-callback",
+    "iterations/v2/001-original-recovery/runs/408-tapi-wrappers",
+    "iterations/v2/001-original-recovery/runs/403-modem-enumeration",
+    "iterations/v2/001-original-recovery/runs/401-device-table",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor",
+    "iterations/v2/001-original-recovery/source/include"
+  ],
+  "extra_libraries": [
+    "user32.lib"
+  ],
+  "headers": [
+    "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp",
+    "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+    "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+    "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/heap.cpp"
+  ],
+  "original_bodies": [
+    {
+      "token": "@CALLBACK@",
+      "va": "0055df80",
+      "bytes": 629,
+      "sha256": "725d07a58aaf004562a9bc0039ff3767577a1916f6fdd6603e9a5901e12e55bd"
+    },
+    {
+      "token": "@RESOLVER@",
+      "va": "00584a60",
+      "bytes": 75,
+      "sha256": "c75008edfc9aae50d793eb7c2bbf8af5f027c979ba78406c6784619898818e40"
+    },
+    {
+      "token": "@ANSWER@",
+      "va": "00584aab",
+      "bytes": 71,
+      "sha256": "d22e017229fb945ef27fc45c2ed564dfb38f1e0c7491cacc8aa7d121c8bdfa3a"
+    },
+    {
+      "token": "@DEALLOC@",
+      "va": "00584b31",
+      "bytes": 63,
+      "sha256": "4168f9d21eebf8cb4998e3f19bce4a3d595a4fc345c51e82712e089f4ce0f165"
+    },
+    {
+      "token": "@FETCH@",
+      "va": "0055e8c0",
+      "bytes": 167,
+      "sha256": "b2a9dacaf5ccc340783d78fe430859a7bcbc2395fa4e47b69408714bd8d10e8d"
+    },
+    {
+      "token": "@TABLES@",
+      "va": "0055e1f8",
+      "bytes": 116,
+      "sha256": "1c6d4060673c33a6f3ea8cb294f6a34e103d71e9b53b0a0a5ca7f3da6338cd25"
+    },
+    {
+      "token": "@STRINGS@",
+      "va": "005bca34",
+      "bytes": 398,
+      "sha256": "e9b8177ca334b6c988170686fe00259c7017330f84ebc8f6b450ed2831b6febc"
+    },
+    {
+      "token": "@NAMES@",
+      "va": "005c11fc",
+      "bytes": 55,
+      "sha256": "1342f30573de41752f7ce36e858f79a4786d536e2b8d39a2662030155483ede5"
+    }
+  ],
+  "pass_marker": "modem_callback_original_x86_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "callstate-constant",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "if(param1==0x40u){modem_state_code_006a57b0=0xcu;modem_state_flag_006a57ac=1u;return;}",
+      "new": "if(param1==0x40u){modem_state_code_006a57b0=0xbu;modem_state_flag_006a57ac=1u;return;}",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "message-index",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "const unsigned char message_index_0055e20c[12]={0,1,4,4,4,4,4,2,4,4,4,3};",
+      "new": "const unsigned char message_index_0055e20c[12]={0,1,4,4,4,4,4,4,2,4,4,3};",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "media-index",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "{0,0,4,4,4,4,4,1,4,4,4,4,4,4,4,4,",
+      "new": "{0,0,4,4,4,4,4,4,4,4,4,4,4,4,4,4,",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "answer-argument-order",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "modem_line_answer_00584aab(device,0u,0u);",
+      "new": "modem_line_answer_00584aab(0u,0u,device);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "missing-message-store",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "modem_message_006ad43c=modem_log_buffer_006a5674;modem_line_status_00584c9d(modem_line_006a4668,status);",
+      "new": "modem_line_status_00584c9d(modem_line_006a4668,status);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "reply-state-constant",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "modem_state_code_006a57b0=0xfu;modem_state_flag_006a57ac=1u;",
+      "new": "modem_state_code_006a57b0=0xeu;modem_state_flag_006a57ac=1u;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "call-handle-store",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "modem_call_handle_006a5778=device;",
+      "new": "modem_call_handle_006a5778=0u;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "wrapper-failure-cache",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "if(result!=0){cache=0xffffffffu;return result;}",
+      "new": "if(result!=0){cache=0u;return result;}",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "resolver-fail-cache-write",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "if(module==0xffffffffu)return static_cast<I>(0x80000049u);",
+      "new": "if(module==0xffffffffu){*cache=0u;return static_cast<I>(0x80000049u);}",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "fetch-size-boundary",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "if(total<needed){",
+      "new": "if(total<=needed){",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "fetch-skip-free",
+      "source": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+      "old": "if(result!=0){free_00531f90(buffer);return -1;}",
+      "new": "if(result!=0){return -1;}",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

@@ -1,5 +1,20 @@
 # v2 / 001 - original source recovery plan
 
+Current413,2026-10-25: pending411/412 closeout complete. Tenoriginalbodies1396B,
+19936nativecases/sequences,19mutations and560-pin audit PASS.225TUs/8projects
+compile;190names198refs,noEXE. Fiveoldnamesclose, no newdependency. Corrected
+getIDtypedABI matchesactual411consumer; rawchildcomposition and canonicalowners
+proved. Callback0055df80 staysPARTIAL foropaque uninitializedstatus local;403
+partialdomains also remainopen. Workersfinished, no remainingassignment.
+Open-Unleashed notes/index finalized as14868 exactspan-verified references with
+address/offset/file/line/hash metadata only. Code/comments are not imported.
+Nextuserrequested: readyPR25 review, authorattribution inLICENSING and useful
+original-code evidence reuse; then review https://github.com/xerj-org/xerj.
+No further recovery batch was started during closeout. Remaining original work
+includes0055e340 and actual platform/full-game composition under the existing roadmap.
+
+Historical409/maintenance handoff follows.
+
 Repository maintenance2026-10-25: Open-Unleashed v0.1.4 trial completed in
 local/experiments/open-unleashed-trial/v0.1.4 (three smoke runs exit0; screenshots
 inspected, no interactive/native UI acceptance). PR25 reviewed at36be231 then

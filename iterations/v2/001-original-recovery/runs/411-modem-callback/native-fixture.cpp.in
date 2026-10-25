@@ -1,0 +1,449 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cstdarg>
+#include <initializer_list>
+#include "modem_callback.hpp"
+#include "porsche/fe_stream.hpp"
+using U=std::uint32_t;using I=std::int32_t;using B=unsigned char;
+static_assert(sizeof(void*)==4);
+// Raw pinned original spans; the runner substitutes and hash-checks each.
+static const B callback_raw[629]={@CALLBACK@},resolver_raw[75]={@RESOLVER@},
+    answer_raw[71]={@ANSWER@},dealloc_raw[63]={@DEALLOC@},fetch_raw[167]={@FETCH@},
+    tables_raw[116]={@TABLES@},strings_raw[398]={@STRINGS@},names_raw[55]={@NAMES@};
+static B *callback_code,*resolver_code,*answer_code,*dealloc_code,*fetch_code;
+static U jt1[5],jt2[5];
+// Fixture-only storage for cells owned by accepted runs (canonical owners are
+// checked by the integration COFF audit, Run403-fixture precedent).
+namespace porsche {
+const char* modem_message_006ad43c=nullptr;      // canonical owner run403
+std::uint32_t modem_line_006a4668=0;             // canonical owner run403
+std::uint32_t render_descriptor_flags_005deb60=0; // canonical owner run374
+}
+static U ptr(const void* p){return static_cast<U>(reinterpret_cast<std::uintptr_t>(p));}
+static U word(const void* p){U v;std::memcpy(&v,p,4);return v;}
+static void put(void* p,U v){std::memcpy(p,&v,4);}
+static I srel(const B* p){I v;std::memcpy(&v,p,4);return v;}
+static void die(const char* why,U detail=0){std::printf("fixture %s %08x\n",why,detail);std::fflush(stdout);ExitProcess(98);}
+struct Event{U kind,a,b,c,d,e;};
+static Event events[24];static U event_count;
+static void record(U kind,U a=0,U b=0,U c=0,U d=0,U e=0){
+    if(event_count>=24)die("event-overflow");
+    Event& v=events[event_count++];v={};v.kind=kind;v.a=a;v.b=b;v.c=c;v.d=d;v.e=e;
+}
+// Case configuration: every endpoint below is driven only by this state.
+struct Config{
+    U line,call;
+    U module_initial,answer_cache_initial,dealloc_cache_initial;
+    U load_result,proc_answer,proc_dealloc;
+    U status_result,target_result,target_effect;
+    U getid_mode,getid_offset,getid_fail_bits,config_value;
+};
+static Config cfg;
+static B arena[512];
+static U resolver_probe,alloc_index,live_size,getid_call_index,allocated_call_handle;static void* live_block;
+static DWORD* import_cells[3];static DWORD old_imports[3];
+static U wsprintf_iat_cell,load_library_iat_cell,get_proc_address_iat_cell;
+// --- controlled import endpoints (production reaches them through the host
+// exe IAT, patched in install(); the oracles reach them through fixture cells
+// patched over the original 005b22ac/005b2050/005b205c displacements). ---
+extern "C" int __cdecl wsprintf_endpoint(char* buffer,const char* format,...){
+    if(buffer!=porsche::modem_log_buffer_006a5674)die("log-buffer divergence");
+    static const U offsets[5]={0,0x3c,0x70,0xa4,0xd4}; // unhandled/callstate/callinfo/reply/devstate
+    U id=5;for(U i=0;i<5;++i)if(!std::strcmp(format,reinterpret_cast<const char*>(strings_raw+offsets[i])))id=i;
+    if(id==5)die("format divergence");
+    U count=0;for(const char* p=format;*p;++p)if(p[0]=='%'&&p[1]=='d'){++count;++p;}
+    if(count<3||count>4)die("format-arity divergence");
+    U v[4]={};va_list ap;va_start(ap,format);
+    for(U i=0;i<count;++i)v[i]=va_arg(ap,U);
+    va_end(ap);
+    record(1,id,v[0],v[1],v[2],v[3]);
+    for(U i=0;i<8;++i)buffer[i]=static_cast<char>(0x40u+id*7u+i*13u+(v[0]&0xffu));
+    buffer[8]=0;
+    if(cfg.target_effect&4u){porsche::modem_line_006a4668^=0x12340000u;porsche::modem_message_006ad43c=reinterpret_cast<const char*>(0xabcdef00u);}
+    return 12;
+}
+extern "C" void* __stdcall load_library_endpoint(const char* name){
+    if(std::strcmp(name,reinterpret_cast<const char*>(names_raw)))die("module-name divergence");
+    record(2,1);
+    return reinterpret_cast<void*>(cfg.load_result);
+}
+extern "C" void* __stdcall get_proc_address_endpoint(void* module,const char* name){
+    U id=2;
+    if(!std::strcmp(name,reinterpret_cast<const char*>(names_raw+0xc)))id=0;
+    else if(!std::strcmp(name,reinterpret_cast<const char*>(names_raw+0x24)))id=1;
+    record(3,ptr(module),id);
+    if(id==2)return nullptr; // Explicit missing export; never dereference opaque module.
+    return reinterpret_cast<void*>(id==0?cfg.proc_answer:cfg.proc_dealloc);
+}
+// --- controlled TAPI targets reached through the recovered lazy wrappers ---
+extern "C" I __stdcall answer_target(U a,U b,U c){
+    record(4,a,b,c,ptr(porsche::modem_message_006ad43c));
+    if(cfg.target_effect&1u)porsche::tapi_answer_cache_006ad068=0;
+    if(cfg.target_effect&8u){porsche::modem_call_handle_006a5778=0xabcdef01u;porsche::modem_state_flag_006a57ac=0x778899aau;}
+    return static_cast<I>(cfg.target_result^(a&7u));
+}
+extern "C" I __stdcall answer_target_b(U a,U b,U c){
+    record(4,a,b,c,ptr(porsche::modem_message_006ad43c),1u);
+    return static_cast<I>(cfg.target_result^(b&7u));
+}
+extern "C" I __stdcall dealloc_target(U a){
+    record(5,a,ptr(porsche::modem_message_006ad43c));
+    if(cfg.target_effect&2u)porsche::tapi_deallocate_cache_006ad0a0=0xffffffffu;
+    if(cfg.target_effect&16u){porsche::modem_call_handle_006a5778=0xabcdef02u;porsche::modem_state_code_006a57b0=0x88776655u;}
+    return static_cast<I>(cfg.target_result^(a>>2));
+}
+// --- controlled extern providers (Run403-fixture precedent) ---
+namespace porsche {
+I __stdcall modem_line_status_00584c9d(U line,void* status){
+    const U address=ptr(status);U stack_low,stack_high;
+    __asm {
+        mov eax, fs:[8]
+        mov stack_low, eax
+        mov eax, fs:[4]
+        mov stack_high, eax
+    }
+    if(address<stack_low||address>=stack_high||(address&3u)!=0)die("status-pointer divergence");
+    record(6,line,ptr(porsche::modem_message_006ad43c));
+    auto* p=static_cast<B*>(status);
+    for(U i=0;i<0x40;++i)p[i]=static_cast<B>(0x80u+i+line); // fits the original 0x4c frame
+    return static_cast<I>(cfg.status_result^(line&3u));
+}
+I __stdcall modem_line_get_id_00584c4c(U h_line,U address,U handle,U select,void* buffer,const char* device_class){
+    if(h_line!=0||address!=0||select!=4u)die("getid-args divergence");
+    if(std::strcmp(device_class,reinterpret_cast<const char*>(strings_raw+0x108)))die("device-class divergence");
+    if(handle!=(cfg.getid_mode==5u?allocated_call_handle:porsche::modem_call_handle_006a5778))die("getid-handle divergence");
+    if(buffer!=live_block)die("getid-buffer divergence");
+    const U total=word(buffer);
+    if(total!=live_size)die("varstring-total divergence");
+    record(7,handle,total);
+    const U call=getid_call_index++;
+    if(cfg.getid_mode==5u)return static_cast<I>(cfg.getid_fail_bits); // Bounded global-header alias, no output writes.
+    U ok=0,report_total=0,needed=0;
+    if(cfg.getid_mode==2u||cfg.getid_mode==3u){
+        if(call==0){ok=1;report_total=0x18;needed=0x30;}
+        else if(call==1&&cfg.getid_mode==2u){ok=1;report_total=0x30;needed=0x30;}
+    }else if(cfg.getid_mode==1u&&call==0){ok=1;report_total=0x18;needed=0x10;}
+    else if(cfg.getid_mode==4u&&call==0){ok=1;report_total=0x18;needed=0x18;}
+    if(!ok)return static_cast<I>(cfg.getid_fail_bits);
+    auto* p=static_cast<B*>(buffer);
+    put(p,report_total);put(p+4,needed);put(p+0x14,cfg.getid_offset);put(p+cfg.getid_offset,cfg.config_value);
+    return 0;
+}
+void* __cdecl allocate_00531ca0(const char* name,std::int32_t bytes,U selector){
+    if(std::strcmp(name,reinterpret_cast<const char*>(strings_raw+0x180)))die("allocator-name divergence");
+    if(selector!=render_descriptor_flags_005deb60)die("allocator-token divergence");
+    if(alloc_index>=3)die("alloc-overflow"); // One extra mapped slot for retry mutations.
+    live_block=cfg.getid_mode==5u?static_cast<void*>(&modem_call_handle_006a5778):static_cast<void*>(arena+64+alloc_index*128);live_size=static_cast<U>(bytes);++alloc_index;
+    record(8,static_cast<U>(bytes),selector);
+    if(cfg.target_effect&32u){modem_call_handle_006a5778^=0x56780000u;render_descriptor_flags_005deb60^=0x12340000u;}
+    allocated_call_handle=modem_call_handle_006a5778;
+    return live_block;
+}
+std::uint32_t __cdecl free_00531f90(void* block){
+    if(block!=live_block)die("free-block divergence");
+    live_block=nullptr;live_size=0;
+    record(9,ptr(block),modem_device_config_006a466c);
+    if(cfg.target_effect&64u){modem_call_handle_006a5778^=0x12340000u;render_descriptor_flags_005deb60^=0x56780000u;modem_device_config_006a466c=0xabcdef03u;}
+    return 0xffffffffu;
+}
+}
+// --- oracle installation and relocation ---
+static B* install_body(const B* raw,U count){
+    auto* p=static_cast<B*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+    if(!p)die("allocation");std::memcpy(p,raw,count);return p;
+}
+static void protect(B* p){DWORD old;if(!VirtualProtect(p,4096,PAGE_EXECUTE_READ,&old))die("protect");FlushInstructionCache(GetCurrentProcess(),p,4096);}
+static void patch_abs(B* code,U count,U before,U after,U expected){
+    U n=0;for(U i=0;i+4<=count;++i)if(word(code+i)==before){put(code+i,after);++n;i+=3;}
+    if(n!=expected)die("absolute-relocation",before);
+}
+static void patch_call(B* code,U base,U count,U target,const void* replacement,U expected){
+    U n=0;for(U i=0;i+5<=count;++i)if(code[i]==0xe8&&base+i+5+srel(code+i+1)==target){put(code+i+1,ptr(replacement)-ptr(code+i+5));++n;i+=4;}
+    if(n!=expected)die("call-relocation",target);
+}
+static void patch_import(){
+    auto* base=reinterpret_cast<B*>(GetModuleHandleW(nullptr));
+    auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
+    if(dos->e_magic!=IMAGE_DOS_SIGNATURE||nt->Signature!=IMAGE_NT_SIGNATURE||nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR32_MAGIC)die("pe");
+    auto* desc=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+    U seen_w=0,seen_l=0,seen_g=0;
+    for(;desc->Name;++desc){
+        if(!desc->OriginalFirstThunk)die("thunks");
+        auto* name=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->OriginalFirstThunk);
+        auto* iat=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+desc->FirstThunk);
+        const bool user=!_stricmp(reinterpret_cast<const char*>(base+desc->Name),"USER32.dll");
+        const bool kernel=!_stricmp(reinterpret_cast<const char*>(base+desc->Name),"KERNEL32.dll");
+        for(;name->u1.AddressOfData;++name,++iat){
+            if(IMAGE_SNAP_BY_ORDINAL32(name->u1.Ordinal))continue;
+            auto* item=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+name->u1.AddressOfData);
+            const char* proc=reinterpret_cast<const char*>(item->Name);
+            void** cell=reinterpret_cast<void**>(&iat->u1.Function);
+            DWORD old,ignored;
+            if(user&&!std::strcmp(proc,"wsprintfA")){
+                if(seen_w++)die("duplicate-import");
+                import_cells[0]=&iat->u1.Function;old_imports[0]=iat->u1.Function;
+                if(!VirtualProtect(cell,4,PAGE_READWRITE,&old))die("protect");
+                *cell=reinterpret_cast<void*>(&wsprintf_endpoint);
+                if(!VirtualProtect(cell,4,old,&ignored))die("protect-mode");
+            }else if(kernel&&!std::strcmp(proc,"LoadLibraryA")){
+                if(seen_l++)die("duplicate-import");
+                import_cells[1]=&iat->u1.Function;old_imports[1]=iat->u1.Function;
+                if(!VirtualProtect(cell,4,PAGE_READWRITE,&old))die("protect");
+                *cell=reinterpret_cast<void*>(&load_library_endpoint);
+                if(!VirtualProtect(cell,4,old,&ignored))die("protect-mode");
+            }else if(kernel&&!std::strcmp(proc,"GetProcAddress")){
+                if(seen_g++)die("duplicate-import");
+                import_cells[2]=&iat->u1.Function;old_imports[2]=iat->u1.Function;
+                if(!VirtualProtect(cell,4,PAGE_READWRITE,&old))die("protect");
+                *cell=reinterpret_cast<void*>(&get_proc_address_endpoint);
+                if(!VirtualProtect(cell,4,old,&ignored))die("protect-mode");
+            }
+        }
+    }
+    if(!seen_w||!seen_l||!seen_g)die("missing-import",(seen_w?0u:1u)|(seen_l?0u:2u)|(seen_g?0u:4u));
+}
+static void install(){
+    using namespace porsche;
+    callback_code=install_body(callback_raw,629);
+    resolver_code=install_body(resolver_raw,75);
+    answer_code=install_body(answer_raw,71);
+    dealloc_code=install_body(dealloc_raw,63);
+    fetch_code=install_body(fetch_raw,167);
+    // Callback 0055df80: state cells, strings, both dispatch byte tables and
+    // both jump tables, and the wsprintfA import cell.
+    patch_abs(callback_code,629,0x5b22ac,ptr(&wsprintf_iat_cell),5);
+    patch_abs(callback_code,629,0x6a5674,ptr(modem_log_buffer_006a5674),10);
+    patch_abs(callback_code,629,0x6ad43c,ptr(&modem_message_006ad43c),5);
+    patch_abs(callback_code,629,0x6a57b0,ptr(&modem_state_code_006a57b0),7);
+    patch_abs(callback_code,629,0x6a57ac,ptr(&modem_state_flag_006a57ac),8);
+    patch_abs(callback_code,629,0x6a4668,ptr(&modem_line_006a4668),1);
+    patch_abs(callback_code,629,0x6a5778,ptr(&modem_call_handle_006a5778),2);
+    patch_abs(callback_code,629,0x5bcb08,ptr(strings_raw+0xd4),1);
+    patch_abs(callback_code,629,0x5bcad8,ptr(strings_raw+0xa4),1);
+    patch_abs(callback_code,629,0x5bcaa4,ptr(strings_raw+0x70),1);
+    patch_abs(callback_code,629,0x5bca70,ptr(strings_raw+0x3c),1);
+    patch_abs(callback_code,629,0x5bca34,ptr(strings_raw+0),1);
+    for(U i=0;i<5;++i){
+        const U t1=word(tables_raw+i*4),t2=word(tables_raw+32+i*4);
+        if(t1<0x55df80||t1>=0x55df80+629||t2<0x55df80||t2>=0x55df80+629)die("jump-table",i);
+        jt1[i]=ptr(callback_code+t1-0x55df80);jt2[i]=ptr(callback_code+t2-0x55df80);
+    }
+    patch_abs(callback_code,629,0x55e1f8,ptr(jt1),1);
+    patch_abs(callback_code,629,0x55e20c,ptr(tables_raw+20),1);
+    patch_abs(callback_code,629,0x55e218,ptr(jt2),1);
+    patch_abs(callback_code,629,0x55e22c,ptr(tables_raw+52),1);
+    patch_call(callback_code,0x55df80,629,0x584c9d,reinterpret_cast<const void*>(&modem_line_status_00584c9d),1);
+    patch_call(callback_code,0x55df80,629,0x584b31,dealloc_code,1);
+    patch_call(callback_code,0x55df80,629,0x584aab,answer_code,1);
+    patch_call(callback_code,0x55df80,629,0x55e8c0,fetch_code,1);
+    // Resolver 00584a60: module cache, module name, LoadLibraryA/GetProcAddress cells.
+    patch_abs(resolver_code,75,0x6ad048,ptr(&tapi_module_cache_006ad048),3);
+    patch_abs(resolver_code,75,0x5c11fc,ptr(names_raw+0),1);
+    patch_abs(resolver_code,75,0x5b2050,ptr(&load_library_iat_cell),1);
+    patch_abs(resolver_code,75,0x5b205c,ptr(&get_proc_address_iat_cell),1);
+    // Lazy wrappers: cache cells, proc names, resolver.
+    patch_abs(answer_code,71,0x6ad068,ptr(&tapi_answer_cache_006ad068),4);
+    patch_abs(answer_code,71,0x5c1208,ptr(names_raw+0xc),1);
+    patch_call(answer_code,0x584aab,71,0x584a60,resolver_code,1);
+    patch_abs(dealloc_code,63,0x6ad0a0,ptr(&tapi_deallocate_cache_006ad0a0),4);
+    patch_abs(dealloc_code,63,0x5c1220,ptr(names_raw+0x24),1);
+    patch_call(dealloc_code,0x584b31,63,0x584a60,resolver_code,1);
+    // Config fetch 0055e8c0: allocator token, strings, call handle, config cell,
+    // allocator pair and the unresolved lineGetID child.
+    patch_abs(fetch_code,167,0x5deb60,ptr(&render_descriptor_flags_005deb60),2);
+    patch_abs(fetch_code,167,0x5bcbb4,ptr(strings_raw+0x180),2);
+    patch_abs(fetch_code,167,0x5bcb3c,ptr(strings_raw+0x108),2);
+    patch_abs(fetch_code,167,0x6a5778,ptr(&modem_call_handle_006a5778),2);
+    patch_abs(fetch_code,167,0x6a466c,ptr(&modem_device_config_006a466c),1);
+    patch_call(fetch_code,0x55e8c0,167,0x531ca0,reinterpret_cast<const void*>(&allocate_00531ca0),2);
+    patch_call(fetch_code,0x55e8c0,167,0x531f90,reinterpret_cast<const void*>(&free_00531f90),3);
+    patch_call(fetch_code,0x55e8c0,167,0x584c4c,reinterpret_cast<const void*>(&modem_line_get_id_00584c4c),2);
+    for(B* p:{callback_code,resolver_code,answer_code,dealloc_code,fetch_code})protect(p);
+    wsprintf_iat_cell=ptr(&wsprintf_endpoint);
+    load_library_iat_cell=ptr(&load_library_endpoint);
+    get_proc_address_iat_cell=ptr(&get_proc_address_endpoint);
+    patch_import();
+}
+// --- compare machinery ---
+struct Capture{U sp0,sp1,bp0,bp1,bx0,bx1,si0,si1,di0,di1,eax;};
+static U cases,checks,invokes;
+static Capture invoke(const void* fn,U argc,bool callee_pop,const U* args){Capture r{};
+    __asm {
+        mov ebx,13579bdfh
+        mov esi,2468ace0h
+        mov edi,6a31c5e7h
+        lea edx,r
+        mov [edx],esp
+        mov [edx+8],ebp
+        mov [edx+16],ebx
+        mov [edx+24],esi
+        mov [edx+32],edi
+        mov ecx,argc
+        mov edx,args
+    nextarg:
+        test ecx,ecx
+        jz callit
+        push dword ptr [edx+ecx*4-4]
+        dec ecx
+        jmp nextarg
+    callit:
+        call fn
+        cmp callee_pop,0
+        jne capture
+        mov ecx,argc
+        lea esp,[esp+ecx*4]
+    capture:
+        lea edx,r
+        mov [edx+40],eax
+        mov [edx+4],esp
+        mov [edx+12],ebp
+        mov [edx+20],ebx
+        mov [edx+28],esi
+        mov [edx+36],edi
+    }
+    ++invokes;return r;
+}
+static bool abi(const Capture& r){return r.sp0==r.sp1&&r.bp0==r.bp1&&r.bx0==r.bx1&&r.si0==r.si1&&r.di0==r.di1&&
+    r.bx0==0x13579bdfu&&r.si0==0x2468ace0u&&r.di0==0x6a31c5e7u;}
+struct State{U code,flag,handle,config,message,line,module,answer,dealloc,render,probe;B log[0x100];B arena[512];U event_count;Event events[24];};
+static State snapshot(){State s{};using namespace porsche;
+    s.code=modem_state_code_006a57b0;s.flag=modem_state_flag_006a57ac;s.handle=modem_call_handle_006a5778;
+    s.config=modem_device_config_006a466c;s.message=ptr(modem_message_006ad43c);s.line=modem_line_006a4668;
+    s.module=tapi_module_cache_006ad048;s.answer=tapi_answer_cache_006ad068;s.dealloc=tapi_deallocate_cache_006ad0a0;
+    s.render=render_descriptor_flags_005deb60;s.probe=resolver_probe;
+    std::memcpy(s.log,modem_log_buffer_006a5674,0x100);std::memcpy(s.arena,arena,512);
+    s.event_count=event_count;std::memcpy(s.events,events,sizeof events);
+    return s;
+}
+static void base_reset(){using namespace porsche;
+    modem_message_006ad43c=reinterpret_cast<const char*>(0x96969696u);
+    modem_line_006a4668=cfg.line;
+    modem_call_handle_006a5778=cfg.call;
+    modem_state_code_006a57b0=0x5a5a5a5au;
+    modem_state_flag_006a57ac=0xa5a5a5a5u;
+    modem_device_config_006a466c=0xc3c3c3c3u;
+    render_descriptor_flags_005deb60=0x87654321u;
+    tapi_module_cache_006ad048=cfg.module_initial;
+    tapi_answer_cache_006ad068=cfg.answer_cache_initial;
+    tapi_deallocate_cache_006ad0a0=cfg.dealloc_cache_initial;
+    resolver_probe=0xfeedbeefu;
+    for(U i=0;i<0x100;++i)modem_log_buffer_006a5674[i]=static_cast<B>(0x37u+i*19u);
+    for(U i=0;i<512;++i)arena[i]=static_cast<B>(0x51u+i*7u);
+    alloc_index=0;live_block=nullptr;live_size=0;getid_call_index=0;allocated_call_handle=0;
+    event_count=0;std::memset(events,0,sizeof events);
+}
+static void report(const char* label,const Capture& a,const Capture& b,const State& sa,const State& sb){
+    std::printf("divergence %s case=%u abi=%u/%u eax=%08x/%08x events=%u/%u\n",label,cases,abi(a)?1u:0u,abi(b)?1u:0u,a.eax,b.eax,sa.event_count,sb.event_count);
+    std::fflush(stdout);ExitProcess(1);
+}
+static void compare_single(const char* label,const void* oracle,const void* native,U argc,bool pop,bool eax,const U* args){
+    base_reset();
+    const Capture a=invoke(oracle,argc,pop,args);
+    const State sa=snapshot();
+    base_reset();
+    const Capture b=invoke(native,argc,pop,args);
+    const State sb=snapshot();
+    ++cases;checks+=13;
+    if(!abi(a)||!abi(b)||(eax&&a.eax!=b.eax)||std::memcmp(&sa,&sb,sizeof sa))report(label,a,b,sa,sb);
+}
+struct Step{Capture cap;State after;};
+static void compare_wrapper(const char* label,const void* oracle,const void* native,U argc,const U* args){
+    Step a[3],b[3];
+    base_reset();
+    for(U i=0;i<3;++i){a[i].cap=invoke(oracle,argc,true,args);a[i].after=snapshot();}
+    base_reset();
+    for(U i=0;i<3;++i){b[i].cap=invoke(native,argc,true,args);b[i].after=snapshot();}
+    ++cases;checks+=13;
+    for(U i=0;i<3;++i)if(!abi(a[i].cap)||!abi(b[i].cap)||a[i].cap.eax!=b[i].cap.eax||std::memcmp(&a[i].after,&b[i].after,sizeof(State)))report(label,a[i].cap,b[i].cap,a[i].after,b[i].after);
+}
+int main(){
+    using namespace porsche;
+    // Assert production definitions before any fixture reset or boundary setup.
+    if(modem_call_handle_006a5778||modem_state_code_006a57b0||modem_state_flag_006a57ac||modem_device_config_006a466c||
+       tapi_module_cache_006ad048||tapi_answer_cache_006ad068||tapi_deallocate_cache_006ad0a0)die("production-initial-state");
+    for(U i=0;i<0x100;++i)if(modem_log_buffer_006a5674[i])die("production-initial-state");
+    if(modem_message_006ad43c||modem_line_006a4668||render_descriptor_flags_005deb60)die("production-initial-state");
+    install();
+    cfg={};
+    cfg.status_result=0x77u;cfg.target_result=0xf00d0000u;cfg.getid_fail_bits=0x80000048u;
+    cfg.getid_mode=2u;cfg.getid_offset=8u;cfg.config_value=0x13572468u;
+    // A. Resolver 00584a60: module cache hit/miss/fail, load ok/fail, proc
+    // found per name/missing, cache-pointer write, exact 0x80000049 bits.
+    for(U module_kind=0;module_kind<3;++module_kind)for(U load_kind=0;load_kind<2;++load_kind)
+        for(U answer_kind=0;answer_kind<2;++answer_kind)for(U dealloc_kind=0;dealloc_kind<2;++dealloc_kind)
+        for(U name_kind=0;name_kind<3;++name_kind){
+            cfg.module_initial=module_kind==0?0:module_kind==1?ptr(arena+16):0xffffffffu;
+            cfg.load_result=load_kind?ptr(arena+16):0;
+            cfg.proc_answer=answer_kind?ptr(&answer_target):0;
+            cfg.proc_dealloc=dealloc_kind?ptr(&dealloc_target):0;
+            cfg.line=0x31415926u;cfg.call=0x27182818u;cfg.answer_cache_initial=0;cfg.dealloc_cache_initial=0;
+            const U args[2]={ptr(names_raw+(name_kind==0?0xcu:name_kind==1?0x24u:0u)),ptr(&resolver_probe)};
+            compare_single("resolver",resolver_code,reinterpret_cast<const void*>(&tapi_resolve_00584a60),2,true,true,args);
+        }
+    // B. lineAnswer 00584aab: empty/sentinel/both cached targets, resolver
+    // driven modes, argument forwarding, target-side cache invalidation.
+    for(U cache_kind=0;cache_kind<4;++cache_kind)for(U module_kind=0;module_kind<2;++module_kind)
+        for(U load_kind=0;load_kind<2;++load_kind)for(U proc_kind=0;proc_kind<3;++proc_kind)
+        for(U effect=0;effect<2;++effect)for(U pattern=0;pattern<2;++pattern){
+            cfg.module_initial=module_kind?ptr(arena+16):0;
+            cfg.load_result=load_kind?ptr(arena+16):0;
+            cfg.answer_cache_initial=cache_kind==0?0:cache_kind==1?ptr(&answer_target):cache_kind==2?ptr(&answer_target_b):0xffffffffu;
+            cfg.dealloc_cache_initial=0;
+            cfg.proc_answer=proc_kind==0?ptr(&answer_target):proc_kind==1?ptr(&answer_target_b):0;
+            cfg.proc_dealloc=ptr(&dealloc_target);
+            cfg.target_effect=effect?1u:0u;
+            cfg.line=0x31415926u;cfg.call=0x27182818u;
+            U args[3];
+            for(U i=0;i<3;++i)args[i]=pattern==0?0x81234567u+0x1a2b3c4u*i:0xffffffffu-i*0x13579bd9u;
+            compare_wrapper("answer",answer_code,reinterpret_cast<const void*>(&modem_line_answer_00584aab),3,args);
+        }
+    // C. lineDeallocateCall 00584b31: same family, single argument.
+    for(U cache_kind=0;cache_kind<3;++cache_kind)for(U module_kind=0;module_kind<2;++module_kind)
+        for(U load_kind=0;load_kind<2;++load_kind)for(U proc_kind=0;proc_kind<2;++proc_kind)
+        for(U effect=0;effect<2;++effect)for(U pattern=0;pattern<2;++pattern){
+            cfg.module_initial=module_kind?ptr(arena+16):0;
+            cfg.load_result=load_kind?ptr(arena+16):0;
+            cfg.answer_cache_initial=0;
+            cfg.dealloc_cache_initial=cache_kind==0?0:cache_kind==1?ptr(&dealloc_target):0xffffffffu;
+            cfg.proc_dealloc=proc_kind?ptr(&dealloc_target):0;
+            cfg.proc_answer=ptr(&answer_target);
+            cfg.target_effect=effect?2u:0u;
+            cfg.line=0x31415926u;cfg.call=0x27182818u;
+            const U args[1]={pattern==0?0x81234567u:0x7fffffffu};
+            compare_wrapper("dealloc",dealloc_code,reinterpret_cast<const void*>(&modem_line_deallocate_00584b31),1,args);
+        }
+    // D. Config fetch 0055e8c0: lineGetID failure, small success, grown
+    // success, grow-then-fail, needed==total, offsets, handle reuse and an API-error
+    // allocation alias proving call-handle capture before the totalSize store.
+    for(U mode=0;mode<6;++mode)for(U offset_kind=0;offset_kind<2;++offset_kind)
+        for(U call_kind=0;call_kind<2;++call_kind)for(U value_kind=0;value_kind<2;++value_kind){
+            cfg.getid_mode=mode;cfg.getid_offset=offset_kind?0x10u:8u;
+            cfg.call=call_kind?0x55aa00ffu:0;
+            cfg.config_value=value_kind?0xabcdef90u:0x13572468u;
+            cfg.module_initial=0;cfg.answer_cache_initial=0;cfg.dealloc_cache_initial=0;
+            cfg.line=0x31415926u;
+            cfg.target_effect=call_kind?(32u|64u):0u;
+            compare_single("fetch",fetch_code,reinterpret_cast<const void*>(&modem_device_config_fetch_0055e8c0),0,false,true,nullptr);
+        }
+    // E. Callback 0055df80: all messages 0..13 and beyond, full param1/param2
+    // grids, call state machine, media sub-dispatch, defaults.
+    const U messages[15]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,0xffffffffu};
+    const U p1s[11]={0,1,2,3,0x3f,0x40,0x41,0x100,0x101,0x4000,0x4001};
+    const U p2s[12]={0,1,2,3,8,31,32,33,63,64,65,0x41};
+    for(U device_kind=0;device_kind<2;++device_kind)for(U m=0;m<15;++m)for(U i=0;i<11;++i)for(U j=0;j<12;++j){
+        cfg.line=0x31415926u^m;cfg.call=0x27182818u^j;
+        cfg.module_initial=0;cfg.answer_cache_initial=0;cfg.dealloc_cache_initial=0;
+        cfg.load_result=ptr(arena+16);cfg.proc_answer=ptr(&answer_target);cfg.proc_dealloc=ptr(&dealloc_target);
+        cfg.target_effect=device_kind?(4u|8u|16u|32u|64u):0u;cfg.getid_mode=2u;cfg.getid_offset=8u;cfg.config_value=0x13572468u;
+        const U device=device_kind?0x12345678u:0;
+        const U args[6]={device,messages[m],0x87654321u^messages[m],p1s[i],p2s[j],0xdeadf00du^p1s[i]};
+        compare_single("callback",callback_code,reinterpret_cast<const void*>(&modem_callback_0055df80),6,true,false,args);
+    }
+    for(U i=0;i<3;++i){DWORD old,ignored;if(!VirtualProtect(import_cells[i],4,PAGE_READWRITE,&old))die("restore-protect");*import_cells[i]=old_imports[i];if(!VirtualProtect(import_cells[i],4,old,&ignored))die("restore-mode");}
+    std::printf("modem_callback_original_x86_vs_cpp=PASS cases=%u invokes=%u checks=%u\n",cases,invokes,checks);
+    return 0;
+}

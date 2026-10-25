@@ -11,10 +11,11 @@ Its PLAN owns detailed scope, owners, evidence, commands and handoffs. Current m
 results are in [STATUS.md](STATUS.md); historical checkpoints remain in iteration runs
 and Git history.
 
-The current maintenance pass finishes the isolated Open-Unleashed trial, reviews
-[PR #25](https://github.com/xfynx/prsche-disasm/pull/25), and improves repository navigation
-and discoverability. The PR author asked for polishing time; merge waits for their ready
-signal. Useful original-code findings can be indexed independently of Rust integration.
+The presentation cleanup, external-port trial and pending recovery batches are
+closed out. Next is the ready [PR #25](https://github.com/xfynx/prsche-disasm/pull/25):
+refresh its head, review its changes and author attribution, and reuse useful
+original-code evidence for C++. Then evaluate [xerj](https://github.com/xerj-org/xerj).
+These follow-ups do not silently change recovery acceptance or licensing.
 
 ## Recovery milestones
 

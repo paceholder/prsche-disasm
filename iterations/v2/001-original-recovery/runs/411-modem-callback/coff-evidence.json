@@ -1,0 +1,69 @@
+{
+  "objects": [
+    {
+      "path": "local/experiments/v2-modem-callback-native-411/002/od-0.obj",
+      "sha256": "349bd42f945bca82b1ba2199670ca66bf4d2977cabc7d498bd112ffbb6dbb5be",
+      "defined": [
+        "?modem_call_handle_006a5778@porsche@@3IA",
+        "?modem_callback_0055df80@porsche@@YGXIIIIII@Z",
+        "?modem_device_config_006a466c@porsche@@3IA",
+        "?modem_device_config_fetch_0055e8c0@porsche@@YAHXZ",
+        "?modem_line_answer_00584aab@porsche@@YGHIII@Z",
+        "?modem_line_deallocate_00584b31@porsche@@YGHI@Z",
+        "?modem_log_buffer_006a5674@porsche@@3PADA",
+        "?modem_state_code_006a57b0@porsche@@3IA",
+        "?modem_state_flag_006a57ac@porsche@@3IA",
+        "?tapi_answer_cache_006ad068@porsche@@3IA",
+        "?tapi_deallocate_cache_006ad0a0@porsche@@3IA",
+        "?tapi_module_cache_006ad048@porsche@@3IA",
+        "?tapi_resolve_00584a60@porsche@@YGHPBDPAI@Z"
+      ],
+      "undefined": [
+        "?allocate_00531ca0@porsche@@YAPAXPBDHI@Z",
+        "?free_00531f90@porsche@@YAIPAX@Z",
+        "?modem_line_006a4668@porsche@@3IA",
+        "?modem_line_get_id_00584c4c@porsche@@YGHIIIIPAXPBD@Z",
+        "?modem_line_status_00584c9d@porsche@@YGHIPAX@Z",
+        "?modem_message_006ad43c@porsche@@3PBDB",
+        "?render_descriptor_flags_005deb60@porsche@@3IA",
+        "__imp__GetProcAddress@8",
+        "__imp__LoadLibraryA@4",
+        "__imp__wsprintfA"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-callback-native-411/002/o2-0.obj",
+      "sha256": "a916601d8496f1a8910af811e8ff1750e79fda18a7360977988e95d2acb2ccc0",
+      "defined": [
+        "?modem_call_handle_006a5778@porsche@@3IA",
+        "?modem_callback_0055df80@porsche@@YGXIIIIII@Z",
+        "?modem_device_config_006a466c@porsche@@3IA",
+        "?modem_device_config_fetch_0055e8c0@porsche@@YAHXZ",
+        "?modem_line_answer_00584aab@porsche@@YGHIII@Z",
+        "?modem_line_deallocate_00584b31@porsche@@YGHI@Z",
+        "?modem_log_buffer_006a5674@porsche@@3PADA",
+        "?modem_state_code_006a57b0@porsche@@3IA",
+        "?modem_state_flag_006a57ac@porsche@@3IA",
+        "?tapi_answer_cache_006ad068@porsche@@3IA",
+        "?tapi_deallocate_cache_006ad0a0@porsche@@3IA",
+        "?tapi_module_cache_006ad048@porsche@@3IA",
+        "?tapi_resolve_00584a60@porsche@@YGHPBDPAI@Z"
+      ],
+      "undefined": [
+        "?allocate_00531ca0@porsche@@YAPAXPBDHI@Z",
+        "?free_00531f90@porsche@@YAIPAX@Z",
+        "?modem_line_006a4668@porsche@@3IA",
+        "?modem_line_get_id_00584c4c@porsche@@YGHIIIIPAXPBD@Z",
+        "?modem_line_status_00584c9d@porsche@@YGHIPAX@Z",
+        "?modem_message_006ad43c@porsche@@3PBDB",
+        "?render_descriptor_flags_005deb60@porsche@@3IA",
+        "@__security_check_cookie@4",
+        "___security_cookie",
+        "__imp__GetProcAddress@8",
+        "__imp__LoadLibraryA@4",
+        "__imp__wsprintfA"
+      ]
+    }
+  ],
+  "role": "Source symbols/import transport; actual game canonical ownership is required at Run413 intake."
+}

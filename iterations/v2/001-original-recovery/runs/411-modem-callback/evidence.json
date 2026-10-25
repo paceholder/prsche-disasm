@@ -1,0 +1,73 @@
+{
+  "module": "Porsche.exe",
+  "sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "queries": [
+    "0055df80",
+    "00584a60",
+    "00584aab",
+    "00584b31",
+    "0055e8c0",
+    "0055e20c",
+    "0055e22c",
+    "006a5674",
+    "006ad048"
+  ],
+  "original_bodies": [
+    {
+      "token": "@CALLBACK@",
+      "va": "0055df80",
+      "bytes": 629,
+      "sha256": "725d07a58aaf004562a9bc0039ff3767577a1916f6fdd6603e9a5901e12e55bd"
+    },
+    {
+      "token": "@RESOLVER@",
+      "va": "00584a60",
+      "bytes": 75,
+      "sha256": "c75008edfc9aae50d793eb7c2bbf8af5f027c979ba78406c6784619898818e40"
+    },
+    {
+      "token": "@ANSWER@",
+      "va": "00584aab",
+      "bytes": 71,
+      "sha256": "d22e017229fb945ef27fc45c2ed564dfb38f1e0c7491cacc8aa7d121c8bdfa3a"
+    },
+    {
+      "token": "@DEALLOC@",
+      "va": "00584b31",
+      "bytes": 63,
+      "sha256": "4168f9d21eebf8cb4998e3f19bce4a3d595a4fc345c51e82712e089f4ce0f165"
+    },
+    {
+      "token": "@FETCH@",
+      "va": "0055e8c0",
+      "bytes": 167,
+      "sha256": "b2a9dacaf5ccc340783d78fe430859a7bcbc2395fa4e47b69408714bd8d10e8d"
+    }
+  ],
+  "original_index": {
+    "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/original-index.json",
+    "sha256": "a9e5bfedf51fd81be93758983ba17d7a85e78b7223856f1d1b657caf9b0918a1"
+  },
+  "ownership": {
+    "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/ownership.json",
+    "sha256": "6a1f18e47fde860519d0176f75ec95c63a6e3550e1b32776436323ba4d9a1960",
+    "new_cells": 8,
+    "compiled_roots": 223
+  },
+  "native": {
+    "receipt": "local/experiments/v2-modem-callback-native-411/002/receipt.json",
+    "receipt_sha256": "ad2d302d6d49cda86a421eed27ffb32e3b4b9917359eb8050b613757f228b1f0",
+    "cases_per_variant": 4368,
+    "total_cases": 8736,
+    "invokes_per_variant": 9888,
+    "checks_per_variant": 56784,
+    "mutations": 11,
+    "pins": 189,
+    "unchanged_input_pins": true,
+    "composition": "Raw callback calls raw answer/deallocate/fetch; raw lazy wrappers call raw resolver. Production runs actual C++ counterparts; kernel/user32 imports and unresolved GetID endpoint are controlled."
+  },
+  "scratch": "Physical256B host span006a5674..006a5773 is not a recovered original capacity. Five fixed formats are raw-verified and bounded at94B includingNUL; arbitrary writes/overlap beyond the accepted bound remain open.",
+  "fetch": "Original call handle is captured before writing VARSTRING.totalSize, including the tested write alias. Bounded valid VARSTRING spans/initialized outputs, retry resizing/error cleanup and selected state reloads are compared.",
+  "attempts": "Precheck helper truncated wrapper RET spans and used invalid/fake API inputs; not acceptance.001passedbaseline but Windowsinstallerheuristic rejected a mutation name containing dispatch.002renamed controls, added fetch alias/order coverage and passed all variants/controls.",
+  "boundary": "Real TAPI/device behavior, DLL availability, callback concurrency/reentrancy, allocator failure, malformed/unwritten VARSTRING outputs and arbitrary buffer overlap remain HOLD. No live modem or whole-game acceptance."
+}

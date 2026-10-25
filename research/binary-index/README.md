@@ -1,5 +1,10 @@
 # Индекс оригинальных бинарников
 
+Run411: [modem callback original index](../../iterations/v2/001-original-recovery/runs/411-modem-callback/original-index.json)
+records omitted0055df80 through completeRET24, original629B, dispatch tables and
+four related bodies. [Run413](../../iterations/v2/001-original-recovery/runs/413-modem-completion-integration/README.md)
+integrates the bounded proof; opaque callback status remains PARTIAL.
+
 Open-Unleashed: [metadata cross-reference](supplemental/open-unleashed-crossref.jsonl)
 and [source validation](supplemental/open-unleashed-crossref-validation.json) provide
 14,868 pinned file/line/address references. This is external navigation, not original

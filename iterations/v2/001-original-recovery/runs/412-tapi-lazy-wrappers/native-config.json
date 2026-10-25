@@ -1,0 +1,126 @@
+{
+  "run": 412,
+  "experiment": "local/experiments/v2-tapi-lazy-wrappers-native-412",
+  "timeout_seconds": 120,
+  "original_pe": "local/game/Porsche.exe",
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "sources": [
+    "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp"
+  ],
+  "fixture": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/native-fixture.cpp.in",
+  "include_dirs": [
+    "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers",
+    "iterations/v2/001-original-recovery/runs/411-modem-callback",
+    "iterations/v2/001-original-recovery/runs/410-modem-caps-open",
+    "iterations/v2/001-original-recovery/runs/408-tapi-wrappers",
+    "iterations/v2/001-original-recovery/runs/403-modem-enumeration",
+    "iterations/v2/001-original-recovery/runs/401-device-table",
+    "iterations/v2/001-original-recovery/runs/374-render-descriptor"
+  ],
+  "headers": [],
+  "original_bodies": [
+    {
+      "token": "@DROP@",
+      "va": "00584b70",
+      "bytes": 71,
+      "sha256": "7e224315b53bc82aefb4f2739eaf3096a7bd694f4dc900ae323aa3947cfe7c8e"
+    },
+    {
+      "token": "@DEVCAPS@",
+      "va": "00584bb7",
+      "bytes": 78,
+      "sha256": "3f5af1c3f1954e3ca03076ea2be53b19dba960e7d68068ec5a4bbe5742adeea4"
+    },
+    {
+      "token": "@GETID@",
+      "va": "00584c4c",
+      "bytes": 81,
+      "sha256": "06a6fbba63671b7938e511bb4d8dd826b95041d20e378d5424a83c863930d240"
+    },
+    {
+      "token": "@OPEN@",
+      "va": "00584dcd",
+      "bytes": 90,
+      "sha256": "629fcdeb8b8d12ac2f970ffdf7aeed3c580c88f39ccc3354a5a4285269881567"
+    },
+    {
+      "token": "@SETSTATUS@",
+      "va": "00584e72",
+      "bytes": 71,
+      "sha256": "2fb7a86aa8cb0671ddbf370bcdb5546a78b11b9dccb27f54647703a92af16c05"
+    },
+    {
+      "token": "@NAMES@",
+      "va": "005c1214",
+      "bytes": 241,
+      "sha256": "5cec875091b316879f7285e8fdddb98ded1f0562a7dcab14a9fe408968d9fbde"
+    }
+  ],
+  "pass_marker": "tapi_lazy_wrappers_original_x86_vs_cpp=PASS",
+  "mutations": [
+    {
+      "name": "first-error-bits",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "return result;",
+      "new": "return static_cast<I>(0x80000049u);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "failure-cache",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "cache=0xffffffffu;",
+      "new": "cache=0;",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "sentinel-error-bits",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "return static_cast<I>(0x80000049u);",
+      "new": "return static_cast<I>(0x80000048u);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "drop-arg-order",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "drop_name_005c1234,line,user_info,size);",
+      "new": "drop_name_005c1234,size,user_info,line);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "devcaps-arg-order",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "devcaps_name_005c1240,application,device,version,extension,buffer);",
+      "new": "devcaps_name_005c1240,device,application,version,extension,buffer);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "getid-arg-order",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "getid_name_005c1264,line,address,call_handle,select,device_id,device_class);",
+      "new": "getid_name_005c1264,address,line,call_handle,select,device_id,device_class);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "open-arg-order",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "open_name_005c12c0,application,device,line,version,extension,instance,privilege,media,params);",
+      "new": "open_name_005c12c0,device,application,line,version,extension,instance,privilege,media,params);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    },
+    {
+      "name": "status-arg-order",
+      "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+      "old": "status_name_005c12e0,line,flags,zero);",
+      "new": "status_name_005c12e0,flags,line,zero);",
+      "expected_exit": 1,
+      "failure_marker": "divergence"
+    }
+  ]
+}

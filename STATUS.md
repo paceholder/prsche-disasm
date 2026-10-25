@@ -4,18 +4,18 @@ Updated 2026-10-25. Active work: [v2 / 001-original-recovery](iterations/v2/001-
 
 ## Recovered C/C++ game
 
-[Run409](iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/README.md)
-compiles 223 C++ translation units across 8 projects. The game link still has 195 unresolved
-names / 203 references. **There is no recovered playable C++ game executable yet.**
+[Run413](iterations/v2/001-original-recovery/runs/413-modem-completion-integration/README.md)
+compiles 225 C++ translation units across 8 projects. The game link still has 190 unresolved
+names / 198 references. **There is no recovered playable C++ game executable yet.**
 
-The latest batch integrates eight original TAPI/modem bodies after 21,580 native
-cases/sequences, 14 detected mutations and a 555-pin audit. These are this batch's
-results, not a project-wide completion percentage. Partial and unsupported domains,
-including the modem enumerator's sparse/unwritten data, remain explicit.
+The latest batch integrates ten original callback/TAPI bodies after 19,936 native
+cases/sequences, 19 detected mutations and a 560-pin audit. These are this batch's
+results, not a project-wide completion percentage. The modem enumerator and callback
+retain explicit partial/opaque domains; full live platform behavior is unverified.
 
-Next original dependencies include callback0055df80, resolver00584a60, TAPI wrappers
-00584bb7/00584dcd/00584e72 and configuration0055e340. Detailed evidence and the actual
-next work order live in the [iteration PLAN](iterations/v2/001-original-recovery/PLAN.md).
+The modem configuration 0055e340 and real DLL/TAPI/device/allocator composition remain
+open. Detailed evidence and the actual next work order live in the
+[iteration PLAN](iterations/v2/001-original-recovery/PLAN.md).
 Full startup, display, menus, careers and gameplay still need integration/acceptance.
 
 ## Other workstreams

@@ -1,0 +1,103 @@
+{
+  "tool": {
+    "path": "local/tools/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x86/dumpbin.exe",
+    "sha256": "364840933ceaf8e5d9b62c3a2b1fb66aef2f59fba854146e816751bc2f622ee5"
+  },
+  "objects": [
+    {
+      "path": "local/experiments/v2-tapi-lazy-wrappers-native-412/005/od-0.obj",
+      "sha256": "d0c3843541c8be1dc584fc15b236ef7ed5e67020f1870cb95f9b221a4390259b",
+      "symbols_path": "local/experiments/v2-tapi-lazy-wrappers-native-412/coff-005/0-od-0.obj-symbols.txt",
+      "symbols_sha256": "ed9f353b0b92040b095ebc8238b0fd333394b006a3a1b5559cf5719b3d8246f0",
+      "relevant_symbols": [
+        "010 00000000 SECT4  notype       External     | ?tapi_drop_cache_006ad0b8@porsche@@3IA (unsigned int porsche::tapi_drop_cache_006ad0b8)",
+        "011 00000004 SECT4  notype       External     | ?tapi_devcaps_cache_006ad15c@porsche@@3IA (unsigned int porsche::tapi_devcaps_cache_006ad15c)",
+        "012 00000008 SECT4  notype       External     | ?tapi_getid_cache_006ad188@porsche@@3IA (unsigned int porsche::tapi_getid_cache_006ad188)",
+        "013 0000000C SECT4  notype       External     | ?tapi_open_cache_006ad20c@porsche@@3IA (unsigned int porsche::tapi_open_cache_006ad20c)",
+        "014 00000010 SECT4  notype       External     | ?tapi_status_cache_006ad2bc@porsche@@3IA (unsigned int porsche::tapi_status_cache_006ad2bc)",
+        "029 00000000 SECTA  notype ()    External     | ?modem_line_drop_00584b70@porsche@@YGHIPBXI@Z (int __stdcall porsche::modem_line_drop_00584b70(unsigned int,void const *,unsigned int))",
+        "02A 00000000 SECTB  notype ()    External     | ?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z (int __stdcall porsche::modem_line_get_capabilities_00584bb7(unsigned int,unsigned int,unsigned int,unsigned int,void *))",
+        "02B 00000000 SECTC  notype ()    External     | ?modem_line_get_id_00584c4c@porsche@@YGHIIIIPAXPBD@Z (int __stdcall porsche::modem_line_get_id_00584c4c(unsigned int,unsigned int,unsigned int,unsigned int,void *,char const *))",
+        "02C 00000000 SECTE  notype ()    External     | ?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z (int __stdcall porsche::modem_tapi_line_open_00584dcd(unsigned int,unsigned int,unsigned int *,unsigned int,unsigned int,unsigned int,unsigned int,unsigned int,void const *))",
+        "02D 00000000 SECTD  notype ()    External     | ?modem_line_set_status_00584e72@porsche@@YGHIII@Z (int __stdcall porsche::modem_line_set_status_00584e72(unsigned int,unsigned int,unsigned int))",
+        "02E 00000000 UNDEF  notype ()    External     | ?tapi_resolve_00584a60@porsche@@YGHPBDPAI@Z (int __stdcall porsche::tapi_resolve_00584a60(char const *,unsigned int *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-tapi-lazy-wrappers-native-412/005/o2-0.obj",
+      "sha256": "a57f5178f94aa42ff3400cb8eb64897b65b3f3cdc679f39ba91d97c3f839841c",
+      "symbols_path": "local/experiments/v2-tapi-lazy-wrappers-native-412/coff-005/1-o2-0.obj-symbols.txt",
+      "symbols_sha256": "85fc02a00cdf4e6fd994746bd95c9264bc0b5de7cec5762059945bba64537187",
+      "relevant_symbols": [
+        "010 00000000 SECT4  notype       External     | ?tapi_drop_cache_006ad0b8@porsche@@3IA (unsigned int porsche::tapi_drop_cache_006ad0b8)",
+        "011 00000004 SECT4  notype       External     | ?tapi_devcaps_cache_006ad15c@porsche@@3IA (unsigned int porsche::tapi_devcaps_cache_006ad15c)",
+        "012 00000008 SECT4  notype       External     | ?tapi_getid_cache_006ad188@porsche@@3IA (unsigned int porsche::tapi_getid_cache_006ad188)",
+        "013 0000000C SECT4  notype       External     | ?tapi_open_cache_006ad20c@porsche@@3IA (unsigned int porsche::tapi_open_cache_006ad20c)",
+        "014 00000010 SECT4  notype       External     | ?tapi_status_cache_006ad2bc@porsche@@3IA (unsigned int porsche::tapi_status_cache_006ad2bc)",
+        "03D 00000000 SECTF  notype ()    External     | ?modem_line_drop_00584b70@porsche@@YGHIPBXI@Z (int __stdcall porsche::modem_line_drop_00584b70(unsigned int,void const *,unsigned int))",
+        "03E 00000000 SECT11 notype ()    External     | ?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z (int __stdcall porsche::modem_line_get_capabilities_00584bb7(unsigned int,unsigned int,unsigned int,unsigned int,void *))",
+        "03F 00000000 SECT13 notype ()    External     | ?modem_line_get_id_00584c4c@porsche@@YGHIIIIPAXPBD@Z (int __stdcall porsche::modem_line_get_id_00584c4c(unsigned int,unsigned int,unsigned int,unsigned int,void *,char const *))",
+        "040 00000000 SECT17 notype ()    External     | ?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z (int __stdcall porsche::modem_tapi_line_open_00584dcd(unsigned int,unsigned int,unsigned int *,unsigned int,unsigned int,unsigned int,unsigned int,unsigned int,void const *))",
+        "041 00000000 SECT15 notype ()    External     | ?modem_line_set_status_00584e72@porsche@@YGHIII@Z (int __stdcall porsche::modem_line_set_status_00584e72(unsigned int,unsigned int,unsigned int))",
+        "042 00000000 UNDEF  notype ()    External     | ?tapi_resolve_00584a60@porsche@@YGHPBDPAI@Z (int __stdcall porsche::tapi_resolve_00584a60(char const *,unsigned int *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-tapi-lazy-wrappers-native-412/003/od-0.obj",
+      "sha256": "a53d2a54412a2d603eeadb4012fd7a444d69ee6f64fe27da5dc0866eed7ffa9a",
+      "symbols_path": "local/experiments/v2-tapi-lazy-wrappers-native-412/coff-005/2-od-0.obj-symbols.txt",
+      "symbols_sha256": "53321d1b137a964f47a24e6271bf4929dedd32645c9bcc3588d9256ca3f3383e",
+      "relevant_symbols": [
+        "010 00000000 SECT4  notype       External     | ?tapi_drop_cache_006ad0b8@porsche@@3IA (unsigned int porsche::tapi_drop_cache_006ad0b8)",
+        "011 00000004 SECT4  notype       External     | ?tapi_devcaps_cache_006ad15c@porsche@@3IA (unsigned int porsche::tapi_devcaps_cache_006ad15c)",
+        "012 00000008 SECT4  notype       External     | ?tapi_getid_cache_006ad188@porsche@@3IA (unsigned int porsche::tapi_getid_cache_006ad188)",
+        "013 0000000C SECT4  notype       External     | ?tapi_open_cache_006ad20c@porsche@@3IA (unsigned int porsche::tapi_open_cache_006ad20c)",
+        "014 00000010 SECT4  notype       External     | ?tapi_status_cache_006ad2bc@porsche@@3IA (unsigned int porsche::tapi_status_cache_006ad2bc)",
+        "029 00000000 SECTA  notype ()    External     | ?modem_line_drop_00584b70@porsche@@YGHIPBXI@Z (int __stdcall porsche::modem_line_drop_00584b70(unsigned int,void const *,unsigned int))",
+        "02A 00000000 SECTB  notype ()    External     | ?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z (int __stdcall porsche::modem_line_get_capabilities_00584bb7(unsigned int,unsigned int,unsigned int,unsigned int,void *))",
+        "02B 00000000 SECTC  notype ()    External     | ?modem_line_get_id_00584c4c@porsche@@YGHIIIIPBDPAX@Z (int __stdcall porsche::modem_line_get_id_00584c4c(unsigned int,unsigned int,unsigned int,unsigned int,char const *,void *))",
+        "02C 00000000 SECTE  notype ()    External     | ?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z (int __stdcall porsche::modem_tapi_line_open_00584dcd(unsigned int,unsigned int,unsigned int *,unsigned int,unsigned int,unsigned int,unsigned int,unsigned int,void const *))",
+        "02D 00000000 SECTD  notype ()    External     | ?modem_line_set_status_00584e72@porsche@@YGHIII@Z (int __stdcall porsche::modem_line_set_status_00584e72(unsigned int,unsigned int,unsigned int))",
+        "02E 00000000 UNDEF  notype ()    External     | ?tapi_resolve_00584a60@porsche@@YGHPBDPAI@Z (int __stdcall porsche::tapi_resolve_00584a60(char const *,unsigned int *))"
+      ]
+    },
+    {
+      "path": "local/experiments/v2-modem-caps-open-native-410/001/od-0.obj",
+      "sha256": "0c327ef739a6a83b49b66935173cb30e5146759893d5c5a2d1f336a8b9cc2d51",
+      "symbols_path": "local/experiments/v2-tapi-lazy-wrappers-native-412/coff-005/3-od-0.obj-symbols.txt",
+      "symbols_sha256": "21d8a972422a579bdc711bdee637b56fffc1f04cd7d1605041ba6f97e76b7da2",
+      "relevant_symbols": [
+        "01B 00000000 UNDEF  notype ()    External     | ?modem_line_negotiate_00584d7c@porsche@@YGHIIIIPAIPAX@Z (int __stdcall porsche::modem_line_negotiate_00584d7c(unsigned int,unsigned int,unsigned int,unsigned int,unsigned int *,void *))",
+        "01D 00000000 SECT8  notype ()    External     | ?modem_line_open_0055e270@porsche@@YAHXZ (int __cdecl porsche::modem_line_open_0055e270(void))",
+        "01F 00000000 UNDEF  notype ()    External     | ?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z (int __stdcall porsche::modem_line_get_capabilities_00584bb7(unsigned int,unsigned int,unsigned int,unsigned int,void *))",
+        "020 00000000 UNDEF  notype ()    External     | ?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z (int __stdcall porsche::modem_tapi_line_open_00584dcd(unsigned int,unsigned int,unsigned int *,unsigned int,unsigned int,unsigned int,unsigned int,unsigned int,void const *))",
+        "021 00000000 UNDEF  notype ()    External     | ?modem_line_set_status_00584e72@porsche@@YGHIII@Z (int __stdcall porsche::modem_line_set_status_00584e72(unsigned int,unsigned int,unsigned int))",
+        "022 00000000 UNDEF  notype ()    External     | ?modem_line_configure_0055e340@porsche@@YAII@Z (unsigned int __cdecl porsche::modem_line_configure_0055e340(unsigned int))",
+        "02B 00000000 UNDEF  notype       External     | ?modem_line_006a4668@porsche@@3IA (unsigned int porsche::modem_line_006a4668)"
+      ]
+    }
+  ],
+  "matched_410_caller_symbols": [
+    "?modem_line_get_capabilities_00584bb7@porsche@@YGHIIIIPAX@Z",
+    "?modem_line_set_status_00584e72@porsche@@YGHIII@Z",
+    "?modem_tapi_line_open_00584dcd@porsche@@YGHIIPAIIIIIIPBX@Z"
+  ],
+  "getid_symbol": "?modem_line_get_id_00584c4c@porsche@@YGHIIIIPAXPBD@Z",
+  "getid_contract": "stdcall6(U,U,U,U,void* output,const char* class); fifth output buffer and sixth class are also compiled jointly with candidate411header.",
+  "original_getid_caller": {
+    "va": "0055e8c0",
+    "call": "0055e8f2",
+    "stack_right_to_left": [
+      "005bcb3c comm/datamodem",
+      "ESI allocated0x18-byte buffer",
+      "4",
+      "[006a5778]",
+      "0",
+      "0"
+    ]
+  },
+  "remaining_external": [
+    "02E 00000000 UNDEF  notype ()    External     | ?tapi_resolve_00584a60@porsche@@YGHPBDPAI@Z (int __stdcall porsche::tapi_resolve_00584a60(char const *,unsigned int *))"
+  ],
+  "integration_boundary": "Actual candidate411 game COFF and shared links are coordinator413 responsibility. No fixture resolver provider belongs in the game graph."
+}

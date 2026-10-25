@@ -1,0 +1,1030 @@
+{
+  "build": {
+    "path": "iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/build-001.json",
+    "sha256": "ced9cffd3e43e5379c719977d6637886f6c3a92a8d412cf208165023c478be61"
+  },
+  "manifest": {
+    "path": "research/v2/proof-manifests/sha256/03c3ce6ed44531087f65a15e8bf17502cd5375e1b8e9be714fff37aa840c4ef6.json",
+    "sha256": "03c3ce6ed44531087f65a15e8bf17502cd5375e1b8e9be714fff37aa840c4ef6"
+  },
+  "compiled_roots": 223,
+  "closure_source_header_files": 347,
+  "all_active_files": 616,
+  "new_storage": [
+    {
+      "va": "006a5778",
+      "symbol": "modem_call_handle_006a5778",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 894840,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 10,
+              "text": "U modem_call_handle_006a5778=0;"
+            },
+            {
+              "line": 80,
+              "text": "// allocator token 005deb60 and call handle 006a5778 are re-read per original"
+            },
+            {
+              "line": 86,
+              "text": "        const U call_handle=modem_call_handle_006a5778;"
+            },
+            {
+              "line": 125,
+              "text": "                    if(param1==1u){modem_line_deallocate_00584b31(modem_call_handle_006a5778);modem_state_flag_006a57ac=1u;return;}"
+            },
+            {
+              "line": 128,
+              "text": "                    modem_call_handle_006a5778=device;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 7,
+              "text": "extern std::uint32_t modem_call_handle_006a5778;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "0055dd4a",
+          "to_va": "006a5778",
+          "from_function": "0055dd40",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055df55",
+          "to_va": "006a5778",
+          "from_function": "0055df30",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055e0b8",
+          "to_va": "006a5778",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055e0c6",
+          "to_va": "006a5778",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055e86e",
+          "to_va": "006a5778",
+          "from_function": "0055e790",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055e8d4",
+          "to_va": "006a5778",
+          "from_function": "0055e8c0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055e921",
+          "to_va": "006a5778",
+          "from_function": "0055e8c0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        },
+        {
+          "from_va": "0055e970",
+          "to_va": "006a5778",
+          "from_function": "0055e970",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a5778"
+        }
+      ]
+    },
+    {
+      "va": "006a57b0",
+      "symbol": "modem_state_code_006a57b0",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 894896,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 11,
+              "text": "U modem_state_code_006a57b0=0;"
+            },
+            {
+              "line": 123,
+              "text": "                if(param1==0x40u){modem_state_code_006a57b0=0xcu;modem_state_flag_006a57ac=1u;return;}"
+            },
+            {
+              "line": 131,
+              "text": "                if(param1==0x100u){(void)modem_device_config_fetch_0055e8c0();modem_state_code_006a57b0=9u;modem_state_flag_006a57ac=1u;return;}"
+            },
+            {
+              "line": 134,
+              "text": "                if(media>0x3fu){modem_state_code_006a57b0=0xbu;modem_state_flag_006a57ac=1u;return;} // 0055e183"
+            },
+            {
+              "line": 136,
+              "text": "                case 0u:modem_state_code_006a57b0=0xbu;break; // 0055e12f"
+            },
+            {
+              "line": 137,
+              "text": "                case 1u:modem_state_code_006a57b0=0xeu;break; // 0055e14b"
+            },
+            {
+              "line": 138,
+              "text": "                case 2u:modem_state_code_006a57b0=0xcu;break; // 0055e0e4"
+            },
+            {
+              "line": 139,
+              "text": "                case 3u:modem_state_code_006a57b0=0xdu;break; // 0055e167"
+            },
+            {
+              "line": 140,
+              "text": "                default:modem_state_code_006a57b0=0xbu;break; // 0055e183"
+            },
+            {
+              "line": 155,
+              "text": "            modem_state_code_006a57b0=0xfu;modem_state_flag_006a57ac=1u;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 8,
+              "text": "extern std::uint32_t modem_state_code_006a57b0;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2792,
+              "text": "/* 006a57b0:4 */ extern undefined4 DAT_006a57b0;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "0055da84",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dba6",
+          "to_va": "006a57b0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dbc1",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dbd2",
+          "to_va": "006a57b0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dc55",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dc5a",
+          "to_va": "006a57b0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dc67",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055dd1b",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055de72",
+          "to_va": "006a57b0",
+          "from_function": "0055de70",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e01d",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e0e4",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e12f",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e14b",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e167",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e183",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e1a4",
+          "to_va": "006a57b0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055e89c",
+          "to_va": "006a57b0",
+          "from_function": "0055e790",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        },
+        {
+          "from_va": "0055ea21",
+          "to_va": "006a57b0",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57b0"
+        }
+      ]
+    },
+    {
+      "va": "006a57ac",
+      "symbol": "modem_state_flag_006a57ac",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 894892,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 12,
+              "text": "U modem_state_flag_006a57ac=0;"
+            },
+            {
+              "line": 123,
+              "text": "                if(param1==0x40u){modem_state_code_006a57b0=0xcu;modem_state_flag_006a57ac=1u;return;}"
+            },
+            {
+              "line": 125,
+              "text": "                    if(param1==1u){modem_line_deallocate_00584b31(modem_call_handle_006a5778);modem_state_flag_006a57ac=1u;return;}"
+            },
+            {
+              "line": 131,
+              "text": "                if(param1==0x100u){(void)modem_device_config_fetch_0055e8c0();modem_state_code_006a57b0=9u;modem_state_flag_006a57ac=1u;return;}"
+            },
+            {
+              "line": 134,
+              "text": "                if(media>0x3fu){modem_state_code_006a57b0=0xbu;modem_state_flag_006a57ac=1u;return;} // 0055e183"
+            },
+            {
+              "line": 142,
+              "text": "                modem_state_flag_006a57ac=1u;"
+            },
+            {
+              "line": 155,
+              "text": "            modem_state_code_006a57b0=0xfu;modem_state_flag_006a57ac=1u;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 9,
+              "text": "extern std::uint32_t modem_state_flag_006a57ac;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "0055da9c",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055db49",
+          "to_va": "006a57ac",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055db94",
+          "to_va": "006a57ac",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055db9d",
+          "to_va": "006a57ac",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055dc99",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e027",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e0d2",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e0ee",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e139",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e155",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e171",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e18d",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        },
+        {
+          "from_va": "0055e1ae",
+          "to_va": "006a57ac",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a57ac"
+        }
+      ]
+    },
+    {
+      "va": "006a466c",
+      "symbol": "modem_device_config_006a466c",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 890476,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 13,
+              "text": "U modem_device_config_006a466c=0;"
+            },
+            {
+              "line": 77,
+              "text": "// 0055e8c0: fetch the comm/datamodem device config into 006a466c, cdecl0 /"
+            },
+            {
+              "line": 100,
+              "text": "            modem_device_config_006a466c=load(static_cast<const unsigned char*>(buffer)+offset);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 10,
+              "text": "extern std::uint32_t modem_device_config_006a466c;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "0055dbdc",
+          "to_va": "006a466c",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a466c"
+        },
+        {
+          "from_va": "0055dd9f",
+          "to_va": "006a466c",
+          "from_function": "0055dd40",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a466c"
+        },
+        {
+          "from_va": "0055df50",
+          "to_va": "006a466c",
+          "from_function": "0055df30",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a466c"
+        },
+        {
+          "from_va": "0055e954",
+          "to_va": "006a466c",
+          "from_function": "0055e8c0",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006a466c"
+        }
+      ]
+    },
+    {
+      "va": "006ad048",
+      "symbol": "tapi_module_cache_006ad048",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 925768,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 14,
+              "text": "U tapi_module_cache_006ad048=0;"
+            },
+            {
+              "line": 55,
+              "text": "    U module=tapi_module_cache_006ad048;"
+            },
+            {
+              "line": 58,
+              "text": "        tapi_module_cache_006ad048=module;"
+            },
+            {
+              "line": 59,
+              "text": "        if(module==0){module=0xffffffffu;tapi_module_cache_006ad048=0xffffffffu;}"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 11,
+              "text": "extern std::uint32_t tapi_module_cache_006ad048;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2981,
+              "text": "/* 006ad048:4 */ extern HMODULE DAT_006ad048;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "00584a60",
+          "to_va": "006ad048",
+          "from_function": "00584a60",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad048"
+        },
+        {
+          "from_va": "00584a76",
+          "to_va": "006ad048",
+          "from_function": "00584a60",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad048"
+        },
+        {
+          "from_va": "00584a80",
+          "to_va": "006ad048",
+          "from_function": "00584a60",
+          "type": "WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad048"
+        }
+      ]
+    },
+    {
+      "va": "006ad068",
+      "symbol": "tapi_answer_cache_006ad068",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 925800,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 15,
+              "text": "U tapi_answer_cache_006ad068=0;"
+            },
+            {
+              "line": 67,
+              "text": "// 00584aab: lineAnswer lazy wrapper, stdcall3 / RET 0xC, cache 006ad068."
+            },
+            {
+              "line": 70,
+              "text": "    return dispatch<F>(tapi_answer_cache_006ad068,line_answer_name_005c1208,call_handle,second,third);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 12,
+              "text": "extern std::uint32_t tapi_answer_cache_006ad068;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2982,
+              "text": "/* 006ad068:4 */ extern undefined4 DAT_006ad068;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "00584aab",
+          "to_va": "006ad068",
+          "from_function": "00584aab",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad068"
+        },
+        {
+          "from_va": "00584ab4",
+          "to_va": "006ad068",
+          "from_function": "00584aab",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006ad068"
+        },
+        {
+          "from_va": "00584ac7",
+          "to_va": "006ad068",
+          "from_function": "00584aab",
+          "type": "READ_WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad068"
+        },
+        {
+          "from_va": "00584ad0",
+          "to_va": "006ad068",
+          "from_function": "00584aab",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad068"
+        }
+      ]
+    },
+    {
+      "va": "006ad0a0",
+      "symbol": "tapi_deallocate_cache_006ad0a0",
+      "host_storage_bytes": 4,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 925856,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 16,
+              "text": "U tapi_deallocate_cache_006ad0a0=0;"
+            },
+            {
+              "line": 72,
+              "text": "// 00584b31: lineDeallocateCall lazy wrapper, stdcall1 / RET 4, cache 006ad0a0."
+            },
+            {
+              "line": 75,
+              "text": "    return dispatch<F>(tapi_deallocate_cache_006ad0a0,line_deallocate_name_005c1220,call_handle);"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 13,
+              "text": "extern std::uint32_t tapi_deallocate_cache_006ad0a0;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/179-ghidra-declarations/export/globals.h",
+          "sha256": "592454acd1b4d767f65e8a6e0e3f637663fc8c5697abce65bc4d2d128a1f7580",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 2984,
+              "text": "/* 006ad0a0:4 */ extern undefined4 DAT_006ad0a0;"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "00584b31",
+          "to_va": "006ad0a0",
+          "from_function": "00584b31",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad0a0"
+        },
+        {
+          "from_va": "00584b3a",
+          "to_va": "006ad0a0",
+          "from_function": "00584b31",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006ad0a0"
+        },
+        {
+          "from_va": "00584b4d",
+          "to_va": "006ad0a0",
+          "from_function": "00584b31",
+          "type": "READ_WRITE",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad0a0"
+        },
+        {
+          "from_va": "00584b56",
+          "to_va": "006ad0a0",
+          "from_function": "00584b31",
+          "type": "READ",
+          "source": "DEFAULT",
+          "target_symbol": "DAT_006ad0a0"
+        }
+      ]
+    },
+    {
+      "va": "006a5674",
+      "symbol": "modem_log_buffer_006a5674",
+      "host_storage_bytes": 256,
+      "initial": "PE loader zero-fill",
+      "section": {
+        "name": ".data",
+        "virtual_size": 1008952,
+        "rva": 1880064,
+        "raw_size": 114688,
+        "raw": 1880064
+      },
+      "offset_in_section": 894580,
+      "source_header_hits": [
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.cpp",
+          "sha256": "aab34c8970acc241b553cb5b3698b67f81bd44f1f44e7b563a0c269511c6e070",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 17,
+              "text": "char modem_log_buffer_006a5674[0x100]={};"
+            },
+            {
+              "line": 116,
+              "text": "                ::wsprintfA(modem_log_buffer_006a5674,callinfo_format_005bcaa4,static_cast<int>(param1),static_cast<int>(param2),static_cast<int>(param3));"
+            },
+            {
+              "line": 117,
+              "text": "                modem_message_006ad43c=modem_log_buffer_006a5674;"
+            },
+            {
+              "line": 121,
+              "text": "                ::wsprintfA(modem_log_buffer_006a5674,callstate_format_005bca70,static_cast<int>(param1),static_cast<int>(param2),static_cast<int>(param3));"
+            },
+            {
+              "line": 122,
+              "text": "                modem_message_006ad43c=modem_log_buffer_006a5674;"
+            },
+            {
+              "line": 146,
+              "text": "                ::wsprintfA(modem_log_buffer_006a5674,devstate_format_005bcb08,static_cast<int>(param1),static_cast<int>(param2),static_cast<int>(param3));"
+            },
+            {
+              "line": 148,
+              "text": "                modem_message_006ad43c=modem_log_buffer_006a5674;modem_line_status_00584c9d(modem_line_006a4668,status);"
+            },
+            {
+              "line": 152,
+              "text": "            ::wsprintfA(modem_log_buffer_006a5674,reply_format_005bcad8,static_cast<int>(param1),static_cast<int>(param2),static_cast<int>(param3));"
+            },
+            {
+              "line": 153,
+              "text": "            modem_message_006ad43c=modem_log_buffer_006a5674;"
+            },
+            {
+              "line": 160,
+              "text": "    ::wsprintfA(modem_log_buffer_006a5674,unhandled_format_005bca34,static_cast<int>(message),static_cast<int>(param1),static_cast<int>(param2),static_cast<int>(param3));"
+            },
+            {
+              "line": 161,
+              "text": "    modem_message_006ad43c=modem_log_buffer_006a5674;"
+            }
+          ]
+        },
+        {
+          "path": "iterations/v2/001-original-recovery/runs/411-modem-callback/modem_callback.hpp",
+          "sha256": "e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca",
+          "compiled_closure": false,
+          "lines": [
+            {
+              "line": 14,
+              "text": "// Host storage models the physical006a5674..006a5773 span before the existing"
+            },
+            {
+              "line": 18,
+              "text": "extern char modem_log_buffer_006a5674[0x100];"
+            }
+          ]
+        }
+      ],
+      "direct_references": [
+        {
+          "from_va": "0055dfb8",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055dfd0",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055dffd",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e00b",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e04d",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e05b",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e081",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e092",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e1d5",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        },
+        {
+          "from_va": "0055e1e3",
+          "to_va": "006a5674",
+          "type": "DATA",
+          "source": "ANALYSIS",
+          "target_symbol": "DAT_006a5674"
+        }
+      ]
+    }
+  ],
+  "scratch_boundary": "256B host storage models physical006a5674..006a5773, not a recovered capacity. Fixed known formats max94B includingNUL. Arbitrary writes/overlap beyond that bound remainHOLD.",
+  "interior_scratch_references": [],
+  "canonical_owners": [
+    {
+      "path": "iterations/v2/001-original-recovery/runs/403-modem-enumeration/modem_enumeration.cpp",
+      "sha256": "88a488a7d162f488a55df2c8d72d355bc0dafaa8ba932fc41a3904c0026a9386"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/374-render-descriptor/render_descriptor.cpp",
+      "sha256": "6df03666b1746c00020d473be445f91b601973f2863c6e8821d87f6a4fb2fc65"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/408-tapi-wrappers/tapi_wrappers.cpp",
+      "sha256": "04a1eddbe3720ea4869cc40b97871049b689a816ab92627338c355ff5200a843"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/runs/410-modem-caps-open/modem_caps_open.cpp",
+      "sha256": "f5e15c8ce8ae4976dd20fe0b346707b148949d4efa6fa1160b2920734ca17121"
+    },
+    {
+      "path": "iterations/v2/001-original-recovery/source/recovered/Porsche.exe/heap.cpp",
+      "sha256": "3a84557a6443a13712ea7aef0747a1cdf5da0d55f24b8b166271cb361fe607ca"
+    }
+  ],
+  "fixture": "Three preexisting canonical cells have private controlled fixture storage only; source411 has extern references and game413 must verify actual canonical COFF owners."
+}

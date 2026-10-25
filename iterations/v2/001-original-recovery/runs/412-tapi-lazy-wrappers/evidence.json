@@ -1,0 +1,207 @@
+{
+  "run": 412,
+  "original_sha256": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39",
+  "family": "TAPI lazy-resolution wrappers sharing resolver00584a60; Run411 candidate source contains the real resolver body, outside412 proof.",
+  "bodies": [
+    {
+      "token": "DROP",
+      "va": "00584b70",
+      "bytes": 71,
+      "sha256": "7e224315b53bc82aefb4f2739eaf3096a7bd694f4dc900ae323aa3947cfe7c8e",
+      "abi": "stdcall3 / RET 0xC, no frame",
+      "proc_name": "lineDrop@005c1234",
+      "cache": "006ad0b8",
+      "forwards": "[ESP+0xC] x3 via PUSH dword ptr [ESP+0xC]"
+    },
+    {
+      "token": "DEVCAPS",
+      "va": "00584bb7",
+      "bytes": 78,
+      "sha256": "3f5af1c3f1954e3ca03076ea2be53b19dba960e7d68068ec5a4bbe5742adeea4",
+      "abi": "stdcall5 / RET 0x14, PUSH EBP frame",
+      "proc_name": "lineGetDevCaps@005c1240",
+      "cache": "006ad15c",
+      "forwards": "[EBP+0x18],[EBP+0x14],[EBP+0x10],[EBP+0xC],[EBP+0x8]"
+    },
+    {
+      "token": "GETID",
+      "va": "00584c4c",
+      "bytes": 81,
+      "sha256": "06a6fbba63671b7938e511bb4d8dd826b95041d20e378d5424a83c863930d240",
+      "abi": "stdcall6 / RET 0x18, PUSH EBP frame",
+      "proc_name": "lineGetID@005c1264",
+      "cache": "006ad188",
+      "forwards": "[EBP+0x1C],[EBP+0x18],[EBP+0x14],[EBP+0x10],[EBP+0xC],[EBP+0x8]"
+    },
+    {
+      "token": "OPEN",
+      "va": "00584dcd",
+      "bytes": 90,
+      "sha256": "629fcdeb8b8d12ac2f970ffdf7aeed3c580c88f39ccc3354a5a4285269881567",
+      "abi": "stdcall9 / RET 0x24, PUSH EBP frame",
+      "proc_name": "lineOpen@005c12c0",
+      "cache": "006ad20c",
+      "forwards": "[EBP+0x28],[EBP+0x24],[EBP+0x20],[EBP+0x1C],[EBP+0x18],[EBP+0x14],[EBP+0x10],[EBP+0xC],[EBP+0x8]"
+    },
+    {
+      "token": "SETSTATUS",
+      "va": "00584e72",
+      "bytes": 71,
+      "sha256": "2fb7a86aa8cb0671ddbf370bcdb5546a78b11b9dccb27f54647703a92af16c05",
+      "abi": "stdcall3 / RET 0xC, no frame",
+      "proc_name": "lineSetStatusMessages@005c12e0",
+      "cache": "006ad2bc",
+      "forwards": "[ESP+0xC] x3 via PUSH dword ptr [ESP+0xC]"
+    }
+  ],
+  "names_span": {
+    "va": "005c1214",
+    "bytes": 241,
+    "sha256": "5cec875091b316879f7285e8fdddb98ded1f0562a7dcab14a9fe408968d9fbde",
+    "verified_strings": [
+      {
+        "va": "005c1234",
+        "value": "lineDrop"
+      },
+      {
+        "va": "005c1240",
+        "value": "lineGetDevCaps"
+      },
+      {
+        "va": "005c1264",
+        "value": "lineGetID"
+      },
+      {
+        "va": "005c12c0",
+        "value": "lineOpen"
+      },
+      {
+        "va": "005c12e0",
+        "value": "lineSetStatusMessages"
+      }
+    ]
+  },
+  "body_byte_checks": "Each pinned body verified byte-exact against research/v2/binaries/Porsche.exe-ddd748fdbe6d/disassembly.asm: exactly 4 cache-VA dwords (CMP/PUSH/OR/MOV EAX), 1 proc-name dword, 1 rel32 CALL to 00584a60, and the expected RET imm tail (0xC/0x14/0x18/0x24). Extraction script: local/experiments/v2-tapi-lazy-wrappers-native-412/extract-bodies.py",
+  "index_queries": {
+    "functions": "research/binary-index/ghidra/Porsche.exe-ddd748fdbe6d/functions.jsonl entries 00584b70(71B),00584bb7(78B),00584c4c(81B),00584dcd(90B),00584e72(71B); ranges end at the next function entry",
+    "resolver_calls": [
+      "00584b83->00584a60",
+      "00584bcd->00584a60",
+      "00584c62->00584a60",
+      "00584de3->00584a60",
+      "00584e85->00584a60"
+    ],
+    "original_consumers": [
+      "0055e97e->00584b70 (hangup, s_Hangup_-_lineDrop_processed_005bcbc4)",
+      "0055e721,0055e76c->00584bb7",
+      "0055e407,0055e8f2,0055e935->00584c4c",
+      "0055e2eb->00584dcd",
+      "0055e322->00584e72"
+    ],
+    "unresolved_indirect": [
+      "00584bb2",
+      "00584bff",
+      "00584c97",
+      "00584e21",
+      "00584eb4 CALL EAX"
+    ]
+  },
+  "cache_cell_ownership": {
+    "cells": [
+      "006ad0b8",
+      "006ad15c",
+      "006ad188",
+      "006ad20c",
+      "006ad2bc"
+    ],
+    "prior_owner_search": "Current409 full base+delta manifest:223compiled roots,394code/header files,555total files; zero prior cache/name hits. Candidate411 owns006ad048/068/0a0, disjoint from412. Full inventory and navigation snapshot in ownership.json; no whole-registry native pin.",
+    "image_state": "All five cells lie in the loader-zero-filled tail of the last section (virtual_size 0xf6538 > raw_size 0x1c000): no file bytes back them; production zero initialization matches the original. No surrounding array, capacity or module-cache storage is invented."
+  },
+  "extern_children": [
+    "tapi_resolve_00584a60(const char*,uint32_t*) -> int32_t __stdcall; real candidate provider runs/411-modem-callback/modem_callback.cpp:54; controlled resolver only in412 native fixture. Shared413 intake must bind real provider."
+  ],
+  "task_size_note": "The batch prompt quoted sizes 0x2E/0x4C/0x4F/0x58/0x46; the pinned original bodies are 71/78/81/90/71 bytes per the binary index and byte extraction. Proof uses the pinned originals.",
+  "getid_typed_contract": {
+    "signature": "int32_t __stdcall(U,U,U,U,void* output,const char* device_class)",
+    "proof": "Original0055e8c0 caller pushes005bcb3c class first then ESI allocated output buffer at0055e8df/0055e8e4 before0055e8f2 CALL. Candidate411 declaration/caller matches; fixture includes both411and412headers and static_asserts exact function-pointer type.",
+    "correction": "Attempt003 raw U-only transport passed but source declared fifth/sixth pointer types reversed; actual C++ provider could not satisfy411. Corrected source/header and typed getID fixture endpoints for004/005, with known-backed memory writes enabled."
+  },
+  "native": {
+    "receipt": "local/experiments/v2-tapi-lazy-wrappers-native-412/005/receipt.json",
+    "sha256": "86d36fc5ea59856883ba6f013bd02b6e7075b3a1e75ec4e1c98b0a75f38c7c38",
+    "status": "PASS",
+    "pins": 173,
+    "sequences_per_variant": 5600,
+    "calls_per_variant": 16800,
+    "checks_per_variant": 67200,
+    "mutation_controls": [
+      {
+        "name": "first-error-bits",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "2fd5b4c346bf57acb41cd8ae34ee8125dc52f98e5a2e55c0b6dfee3e3c9fe6b5"
+      },
+      {
+        "name": "failure-cache",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "2fd5b4c346bf57acb41cd8ae34ee8125dc52f98e5a2e55c0b6dfee3e3c9fe6b5"
+      },
+      {
+        "name": "sentinel-error-bits",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "01602b800be51f95678b33fae9c9902aa686ce872659758e1b4718cacae451a4"
+      },
+      {
+        "name": "drop-arg-order",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "508d9dac076daaa425a9166fe915f00afb6e0c3a259d71c156e49f2cdc31e231"
+      },
+      {
+        "name": "devcaps-arg-order",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "f3ede60f0c71a757ba1eff20d900139abb89311db9b084447691dc477da91cc7"
+      },
+      {
+        "name": "getid-arg-order",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "cce4662898a193cd354959d9c05d4541c5981e4a8feeb178aaf4118dc2ebe81b"
+      },
+      {
+        "name": "open-arg-order",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "730f2701a6814f5e8d84f986dc70e3b93077d47b111a1c881ac145e262e466ca"
+      },
+      {
+        "name": "status-arg-order",
+        "source": "iterations/v2/001-original-recovery/runs/412-tapi-lazy-wrappers/tapi_lazy_wrappers.cpp",
+        "detected": true,
+        "exit_code": 1,
+        "log_sha256": "f1e18c26d421329d8428a1efa977c579eb1d14626eabe1c952bedd80b2d491cf"
+      }
+    ],
+    "variants": [
+      "/Od",
+      "/O2"
+    ],
+    "historical": "001/002 compile-invalid mutation candidates preserved;003 exact six inputs archived historical-003-inputs;004corrected source PASS used previous411header comment, exactoldheader hash-verified in historical-004-headers.005 pins frozen411header e5b695d5ffb91a118f55ff9eee58c7f5dddf916eacaef48e761733da534030ca;412 source/config/fixture unchanged after004."
+  },
+  "coff_evidence": "coff-evidence.json",
+  "current_boundaries": [
+    "No live TAPI/modem or concurrency proof.",
+    "Successful resolver result0 with NULL cache is excluded because original calls NULL.",
+    "Fixture resolver is not in production sources; actual411 provider and accepted410caller connections require shared413integration."
+  ]
+}

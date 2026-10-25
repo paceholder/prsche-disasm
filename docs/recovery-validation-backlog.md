@@ -1,5 +1,12 @@
 # Отложенные проверки восстановления v2
 
+Run413: tenoriginalbodies1396B integrated after19936cases/sequences/19mutations,
+560pins;225TUs190names198refs,noEXE. getIDtypedcontract corrected. CallbackPARTIAL:
+76B uninitializedstatus isopaque; actualAPI consumption, arbitraryscratch overlap,
+VARSTRING malformed/unwritten data, allocationfailure, TAPI/devices/concurrency
+remainHOLD.403partialstatus unchanged. Externalreference matches are navigation,
+not native/semantic acceptance. Currentpending source/research changes are closed.
+
 Run409:741B TAPI/modem bodies accepted after21580cases/sequences/14mutations,
 555pins;223TUs195names203refs,noEXE. Live resolver/DLL/TAPI, callback/config,
 allocator/concurrency/malformed or unwrittenoutputs remainopen.403PARTIAL status
