@@ -13,7 +13,8 @@
   That data is not committed: `scripts/research/record-local-fixtures.sh` regenerates it from
   your own game into the gitignored `local/fixtures/` (`--check` compares it with the recorded
   SHA-256 sums in `scripts/research/local-fixtures.sha256`). Without it these tests skip and
-  print a `SKIPPED` line.
+  print a `SKIPPED` line. See [LOCAL-FIXTURES.md](LOCAL-FIXTURES.md) for the steps and a
+  list of what is recorded.
 
 2026-10-06, [Run 019](runs/019-original-contact-runtime/README.md): EDG и
 type-1 опоры в одном игровом дереве, 15 трасс проверены. Первая body selection,
