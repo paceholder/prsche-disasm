@@ -2707,6 +2707,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.car.as_ref().map(|c| c.rpm).unwrap_or(0.0)
     }
 
+    /// Engine RPM (not normalised). Without the SIM model the arcade RPM fraction is scaled by 7000.
+    pub fn get_car_engine_rpm(&self) -> f32 {
+        if let (true, Some(tel)) = (self.sim_mode, &self.sim_telemetry) {
+            return tel.engine_rpm.max(0.0);
+        }
+        self.car.as_ref().map(|c| c.rpm * 7000.0).unwrap_or(0.0)
+    }
+
+    /// SIM redline RPM of the loaded car (7000 when the arcade car is driven).
+    pub fn get_car_redline_rpm(&self) -> f32 {
+        if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
+            return sim.powertrain.redline_rpm;
+        }
+        7000.0
+    }
+
+    /// Current drive camera: 0 Chase, 1 Bumper, 2 Free.
+    pub fn get_car_view(&self) -> u32 {
+        match self.car.as_ref().map(|c| c.view_mode) {
+            Some(crate::arcade::DriveViewMode::Bumper) => 1,
+            Some(crate::arcade::DriveViewMode::Free) => 2,
+            _ => 0,
+        }
+    }
+
     pub fn get_car_wheel_render_state(&self) -> Vec<f32> {
         let (Some(sim), Some(car_render)) = (&self.sim_car, &self.car_render) else {
             return Vec::new();

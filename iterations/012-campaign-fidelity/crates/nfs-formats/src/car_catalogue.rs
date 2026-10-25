@@ -245,7 +245,10 @@ mod tests {
         let p = playable(&e, &models, &sims);
         assert_eq!(p.len(), 92);
         assert_eq!(p[0].display_name, "'50 356 1100 Cabriolet");
-        assert!(e.iter().any(|c| c.display_name.len() > FIELD_LEN), "long names are kept whole");
+        assert!(
+            e.iter().any(|c| c.display_name.len() > FIELD_LEN),
+            "long names are kept whole"
+        );
         for n in ["Eden2", "EAS6"] {
             assert!(p.iter().all(|c| c.display_name != n));
         }

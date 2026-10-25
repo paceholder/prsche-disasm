@@ -1,4 +1,4 @@
-import init, { create_viewer, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission } from "./package/viewer_impl.js";
+import init, { create_viewer, EngineAudio, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission } from "./package/viewer_impl.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -140,13 +140,174 @@ if (raceRestartBtn) {
 }
 
 // --- WebAudio Synthesizer (009 Sound) ---
+// Original engine sound: the wasm `EngineAudio` runs the recovered mixer at 100 Hz and returns
+// voice commands; this class plays them with Web Audio (docs/re/audio.md, docs/formats/bnk.md).
+// Approximations (docs/approximations.md): gain = volume / 127, pan = pan / 0x8000.
+const ENGINE_CMD_STRIDE = 7;
+const ENGINE_SMOOTH_S = 0.005;
+
+class EngineVoices {
+  constructor() {
+    this.files = null; // { names, bytes, simName, bank } of the loaded race car
+    this.audio = null; // wasm EngineAudio
+    this.slots = new Map(); // slot id -> { rate, detune, loopStart, loopEnd, channels: Float32Array[] }
+    this.buffers = new Map(); // slot id -> AudioBuffer (per AudioContext)
+    this.voices = new Map(); // voice id -> { src, gain, panner }
+    this.active = false;
+    this.bus = null;
+    this.busCtx = null;
+  }
+
+  free() {
+    if (this.audio) { try { this.audio.free(); } catch {} }
+    this.audio = null;
+    this.slots.clear();
+    this.buffers.clear();
+  }
+
+  // Parses the bank and .spl now; throws with a readable reason on failure.
+  load(names, bytes, simName, bank) {
+    this.deactivate();
+    this.free();
+    this.files = null;
+    const audio = EngineAudio.load(names, bytes, simName, bank);
+    for (let i = 0; i < audio.slot_count(); i++) {
+      const channels = [];
+      for (let c = 0; c < audio.slot_channels(i); c++) channels.push(audio.slot_pcm(i, c));
+      const ls = audio.slot_loop_start(i);
+      const le = audio.slot_loop_end(i);
+      this.slots.set(audio.slot_id(i), {
+        rate: audio.slot_sample_rate(i),
+        detune: audio.slot_detune_cents(i),
+        loopStart: ls >= 0 && le > ls ? ls : -1,
+        loopEnd: le,
+        channels,
+      });
+    }
+    this.audio = audio;
+    this.files = { names, bytes, simName, bank };
+  }
+
+  unload() {
+    this.deactivate();
+    this.free();
+    this.files = null;
+  }
+
+  get loaded() {
+    return this.audio !== null;
+  }
+
+  buffer(slot, ctx) {
+    let buf = this.buffers.get(slot);
+    if (buf && buf.__ctx === ctx) return buf;
+    const s = this.slots.get(slot);
+    if (!s || !s.channels.length || !s.channels[0].length) return null;
+    buf = ctx.createBuffer(s.channels.length, s.channels[0].length, s.rate);
+    s.channels.forEach((pcm, c) => buf.copyToChannel(pcm, c));
+    buf.__ctx = ctx;
+    this.buffers.set(slot, buf);
+    return buf;
+  }
+
+  // Fresh mixer state: replays the start sample, like the original after EngineAudio_Load.
+  activate() {
+    if (!this.files) return;
+    this.deactivate();
+    this.audio.free();
+    const f = this.files;
+    this.audio = EngineAudio.load(f.names, f.bytes, f.simName, f.bank);
+    this.active = true;
+  }
+
+  deactivate() {
+    for (const v of this.voices.values()) this.disposeVoice(v);
+    this.voices.clear();
+    this.active = false;
+  }
+
+  disposeVoice(v) {
+    try { v.src.onended = null; v.src.stop(); } catch {}
+    try { v.src.disconnect(); v.gain.disconnect(); v.panner.disconnect(); } catch {}
+  }
+
+  update(dt, rpm, redline, throttle, view, gear) {
+    const ctx = soundManager.ctx;
+    if (!this.audio || !ctx || !soundManager.enabled) return;
+    if (!this.active) this.activate();
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const out = this.audio.update(dt, rpm, redline, throttle, view, gear);
+    for (let i = 0; i + ENGINE_CMD_STRIDE <= out.length; i += ENGINE_CMD_STRIDE) {
+      this.execute(ctx, out[i], out[i + 1], out[i + 2], out[i + 3], out[i + 4], out[i + 5], out[i + 6]);
+    }
+  }
+
+  execute(ctx, kind, voice, slot, volume, pitch, pan, looped) {
+    const now = ctx.currentTime;
+    const v = this.voices.get(voice);
+    switch (kind) {
+      case 0: { // Start
+        const s = this.slots.get(slot);
+        const buffer = this.buffer(slot, ctx);
+        if (!s || !buffer) return;
+        if (this.busCtx !== ctx) {
+          this.bus = ctx.createGain();
+          this.bus.connect(ctx.destination);
+          this.busCtx = ctx;
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        if (looped) {
+          src.loop = true;
+          if (s.loopStart >= 0) {
+            src.loopStart = s.loopStart / s.rate;
+            src.loopEnd = s.loopEnd / s.rate;
+          }
+        }
+        src.playbackRate.value = (2 ** (s.detune / 1200)) * (pitch / 4096);
+        const gain = ctx.createGain();
+        gain.gain.value = volume / 127;
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, pan / 0x8000));
+        src.connect(gain);
+        gain.connect(panner);
+        panner.connect(this.bus);
+        const entry = { src, gain, panner, detune: s.detune };
+        src.onended = () => {
+          if (this.voices.get(voice) === entry) this.voices.delete(voice);
+          try { src.disconnect(); gain.disconnect(); panner.disconnect(); } catch {}
+        };
+        const old = this.voices.get(voice);
+        if (old) this.disposeVoice(old);
+        this.voices.set(voice, entry);
+        src.start();
+        return;
+      }
+      case 1: // SetVolume
+        if (v) v.gain.gain.setTargetAtTime(volume / 127, now, ENGINE_SMOOTH_S);
+        return;
+      case 2: // SetPan
+        if (v) v.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan / 0x8000)), now, ENGINE_SMOOTH_S);
+        return;
+      case 3: // SetPitch
+        if (v) v.src.playbackRate.setTargetAtTime((2 ** (v.detune / 1200)) * (pitch / 4096), now, ENGINE_SMOOTH_S);
+        return;
+      case 4: // Stop
+        if (v) {
+          this.disposeVoice(v);
+          this.voices.delete(voice);
+        }
+        return;
+    }
+  }
+}
+
+const engineSound = new EngineVoices();
+
 class SoundManager {
   constructor() {
     this.ctx = null;
     this.enabled = false;
-    this.engineOsc = null;
-    this.engineFilter = null;
-    this.engineGain = null;
     this.skidNoise = null;
     this.skidFilter = null;
     this.skidGain = null;
@@ -172,24 +333,8 @@ class SoundManager {
     if (this.ctx && this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
     }
-    if (this.ctx && !this.engineOsc) {
+    if (this.ctx && !this.skidNoise) {
       try {
-        this.engineOsc = this.ctx.createOscillator();
-        this.engineOsc.type = "sawtooth";
-        this.engineOsc.frequency.setValueAtTime(65, this.ctx.currentTime);
-
-        this.engineFilter = this.ctx.createBiquadFilter();
-        this.engineFilter.type = "lowpass";
-        this.engineFilter.frequency.setValueAtTime(450, this.ctx.currentTime);
-
-        this.engineGain = this.ctx.createGain();
-        this.engineGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-
-        this.engineOsc.connect(this.engineFilter);
-        this.engineFilter.connect(this.engineGain);
-        this.engineGain.connect(this.ctx.destination);
-        this.engineOsc.start();
-
         const bufferSize = this.ctx.sampleRate * 2;
         const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
@@ -217,23 +362,15 @@ class SoundManager {
   }
 
   stop() {
-    if (this.engineGain && this.ctx) {
-      try { this.engineGain.gain.setValueAtTime(0.0, this.ctx.currentTime); } catch {}
-    }
+    engineSound.deactivate();
     if (this.skidGain && this.ctx) {
       try { this.skidGain.gain.setValueAtTime(0.0, this.ctx.currentTime); } catch {}
     }
   }
 
   update(rpm, speed, handbrake) {
-    if (!this.enabled || !this.ctx || !this.engineOsc) return;
+    if (!this.enabled || !this.ctx || !this.skidNoise) return;
     try {
-      const targetFreq = 55 + rpm * 225;
-      this.engineOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.05);
-      if (this.engineGain) {
-        const gainVal = 0.02 + rpm * 0.05;
-        this.engineGain.gain.setTargetAtTime(gainVal, this.ctx.currentTime, 0.05);
-      }
       if (this.skidGain) {
         const isSkidding = handbrake || (Math.abs(speed) > 20 && rpm > 0.85);
         this.skidGain.gain.setTargetAtTime(isSkidding ? 0.08 : 0.0, this.ctx.currentTime, 0.05);
@@ -1733,7 +1870,8 @@ async function loadCarSim(simName) {
   viewer.set_car_sim(data);
 }
 
-async function loadRaceCar(model, simName) {
+// `bank` is the catalogue record's engine bank; without it the first record with this SIM is used.
+async function loadRaceCar(model, simName, bank = "") {
   const target = model.toLowerCase();
   let files;
   if (useCustomFiles && selectedFiles.length > 0) {
@@ -1750,6 +1888,46 @@ async function loadRaceCar(model, simName) {
   }
   viewer.set_car_model(files.names, files.bytes, target);
   await loadCarSim(simName);
+  lastEngineSoundError = await loadEngineSound(simName, bank);
+}
+
+// Bytes of one game file found by base name (preferring a path that contains `hint`).
+async function readGameFileByName(basename, hint = "") {
+  const want = basename.toLowerCase();
+  const base = value => value.split(/[\\/]/).pop().toLowerCase();
+  if (useCustomFiles && selectedFiles.length > 0) {
+    const matches = selectedFiles.filter(file => base(selectedName(file)) === want);
+    const file = matches.find(f => selectedName(f).toLowerCase().includes(hint)) || matches[0];
+    if (!file) throw new Error(`нет файла ${basename}`);
+    return { name: selectedName(file), data: new Uint8Array(await file.arrayBuffer()) };
+  }
+  const matches = localGameFiles.filter(path => base(path) === want);
+  const path = matches.find(p => p.toLowerCase().includes(hint)) || matches[0];
+  if (!path) throw new Error(`нет файла ${basename}`);
+  const fetched = await fetchGameFiles([path]);
+  return { name: fetched.names[0], data: fetched.bytes[0] };
+}
+
+// Loads the original engine sound of the race car (nfs5.car -> bank, <sim>.spl, <bank>.viv).
+// Never throws: returns "" on success or the reason, and the race goes on without engine sound.
+let lastEngineSoundError = "";
+async function loadEngineSound(simName, recordBank = "") {
+  engineSound.unload();
+  try {
+    const sim = String(simName || "").trim().replace(/\.sim$/i, "");
+    if (!sim) throw new Error("не указан SIM автомобиля");
+    const car = await readGameFileByName("nfs5.car", "fedata");
+    const bank = recordBank || engine_bank_for_sim(car.data, sim);
+    const spl = await readGameFileByName(`${sim}.spl`, "sounds");
+    const viv = await readGameFileByName(`${bank}.viv`, "sounds");
+    engineSound.load([spl.name, viv.name], [spl.data, viv.data], sim, bank);
+    return "";
+  } catch (error) {
+    engineSound.unload();
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn("Engine sound unavailable:", reason);
+    return `Звук двигателя недоступен: ${reason}`;
+  }
 }
 
 const quickRaceModal = document.querySelector('#quickRaceModal');
@@ -1847,14 +2025,14 @@ quickRaceStartBtn.addEventListener('click', async () => {
     updateOptions();
     targetSelect.value = track;
     if (!await loadTarget()) throw new Error(statusLine.textContent);
-    await loadRaceCar(car.model_name, car.sim_name);
+    await loadRaceCar(car.model_name, car.sim_name, car.bank || "");
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     viewer.configure_quick_race(laps, opponents);
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
     quickRaceModal.hidden = true;
     setMenuVisible(false);
     syncTourButton();
-    setStatus(`Quick Race: ${car.display_name} · ${track}`);
+    setStatus(`Quick Race: ${car.display_name} · ${track}${lastEngineSoundError ? ` · ${lastEngineSoundError}` : ""}`);
   } catch (error) {
     quickRaceStatus.textContent = error instanceof Error ? error.message : String(error);
   } finally {
@@ -2374,6 +2552,8 @@ function updateNavigation(dt) {
     const rpm = Math.max(0, Math.min(1, viewer.get_car_rpm()));
 
     soundManager.update(rpm, speed, handbrake);
+    engineSound.update(dt, viewer.get_car_engine_rpm(), viewer.get_car_redline_rpm(),
+      Math.max(0, throttle), viewer.get_car_view(), gear);
 
     if (speedValue) speedValue.textContent = String(speed);
     if (gearValue) {
@@ -2623,6 +2803,7 @@ function updateNavigation(dt) {
     return;
   }
 
+  engineSound.deactivate(); // not driving: silence the engine
   let inForward = 0;
   let inRight = 0;
   let inZoom = 0;

@@ -222,10 +222,19 @@ pub use career::{
     FACTORY_MISSION_REC_SIZE, TRACK_CATALOG_COUNT, TRACK_CATALOG_REC_SIZE,
 };
 
+pub mod bnk;
+pub use bnk::{decode_patch, parse_bnk, wav_bytes, Bnk, BnkCodec, BnkPatch, BNK_MAGIC};
+
+pub mod engine_sound;
+pub use engine_sound::{parse_crd, parse_spl, CrdLayer, CrdTable, EngineSpl, ENGINE_TABLE_EXTS};
+
 pub mod car_catalogue;
 pub use car_catalogue::{
     catalogue_json, find_car, parse_car_catalogue, playable, CarEntry, CAR_RECORD_SIZE,
 };
+
+pub mod viv;
+pub use viv::{parse_viv, viv_file, VivEntry, VIV_MAGIC};
 
 pub mod replay;
 pub use replay::{
@@ -502,7 +511,7 @@ fn fsh_entry(d: &[u8], i: usize) -> Result<Image> {
                 rgba.extend_from_slice(&unpack16(fmt, v));
             }
         }
-        0x60 | 0x61 | 0x62 => {
+        0x60..=0x62 => {
             rgba = decode_dxt(
                 [1, 3, 5][(fmt - 0x60) as usize],
                 width as usize,

@@ -1,6 +1,7 @@
 //! GPU-independent scene contract shared by native and browser frontends.
 use std::collections::BTreeMap;
 
+pub mod audio;
 pub mod collision_box;
 pub mod physics;
 pub mod race;

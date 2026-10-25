@@ -380,6 +380,30 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Real engine RPM (`get_car_rpm` is rpm / 7000, clamped).
+    pub fn get_car_engine_rpm(&self) -> f32 {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_engine_rpm())
+            .unwrap_or(0.0)
+    }
+
+    /// SIM redline RPM of the loaded car.
+    pub fn get_car_redline_rpm(&self) -> f32 {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_redline_rpm())
+            .unwrap_or(7000.0)
+    }
+
+    /// Current drive camera: 0 Chase, 1 Bumper, 2 Free (same numbering as `cycle_car_view`).
+    pub fn get_car_view(&self) -> u32 {
+        self.renderer
+            .as_ref()
+            .map(|r| r.get_car_view())
+            .unwrap_or(0)
+    }
+
     pub fn has_car(&self) -> bool {
         self.renderer.as_ref().map(|r| r.has_car()).unwrap_or(false)
     }
@@ -639,6 +663,91 @@ impl BrowserViewer {
         .map_err(|e| JsValue::from_str(&e))?;
         self.renderer = Some(renderer);
         Ok(summary)
+    }
+}
+
+/// Engine bank name for a SIM name from the bytes of `FEData/Data/nfs5.car` (first record wins).
+#[wasm_bindgen]
+pub fn engine_bank_for_sim(car_file: Uint8Array, sim_name: String) -> Result<String, JsValue> {
+    crate::engine_audio::bank_for_sim(&car_file.to_vec(), &sim_name)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
+/// Original engine sound: decoded bank slots plus the mixer, stepped at a fixed 100 Hz.
+/// One-shot (start/stop sample) finish state is tracked inside, in mixer-step time, so JS
+/// only executes the returned commands.
+#[wasm_bindgen]
+pub struct EngineAudio {
+    core: crate::engine_audio::EngineAudioCore,
+}
+
+#[wasm_bindgen]
+impl EngineAudio {
+    /// `names`/`bytes`: files including `<sim>.spl` and `<bank>.viv` (paths are matched by
+    /// base name, case-insensitively).
+    pub fn load(
+        names: Array,
+        bytes: Array,
+        sim_name: String,
+        bank: String,
+    ) -> Result<EngineAudio, JsValue> {
+        let files = files_from_js(names, bytes).map_err(|e| JsValue::from_str(&e))?;
+        let core = crate::engine_audio::EngineAudioCore::load(&files, &sim_name, &bank)
+            .map_err(|e| JsValue::from_str(&e))?;
+        Ok(EngineAudio { core })
+    }
+
+    pub fn slot_count(&self) -> usize {
+        self.core.slots().len()
+    }
+    /// Bank slot id of the `index`-th decoded slot.
+    pub fn slot_id(&self, index: usize) -> u32 {
+        self.core.slots()[index].id as u32
+    }
+    pub fn slot_sample_rate(&self, index: usize) -> u32 {
+        self.core.slots()[index].sample_rate
+    }
+    pub fn slot_channels(&self, index: usize) -> u32 {
+        self.core.slots()[index].channels.len() as u32
+    }
+    /// `(60 - root) * 100 + fine` cents; playbackRate = pitch/4096 * 2^(detune/1200).
+    pub fn slot_detune_cents(&self, index: usize) -> i32 {
+        self.core.slots()[index].detune_cents
+    }
+    /// Loop start in sample frames, or -1 when the slot doesn't loop.
+    pub fn slot_loop_start(&self, index: usize) -> i64 {
+        self.core.slots()[index]
+            .loop_range
+            .map_or(-1, |r| r.0 as i64)
+    }
+    /// Loop end in sample frames, or -1.
+    pub fn slot_loop_end(&self, index: usize) -> i64 {
+        self.core.slots()[index]
+            .loop_range
+            .map_or(-1, |r| r.1 as i64)
+    }
+    /// One channel of the slot's PCM, -1..1.
+    pub fn slot_pcm(&self, index: usize, channel: usize) -> Vec<f32> {
+        self.core.slots()[index].channels[channel].clone()
+    }
+
+    /// Steps the mixer in 1/100 s units for `dt` seconds. Returns commands, 7 ints each:
+    /// `[kind, voice, slot, volume, pitch, pan, looped]` with kind 0 Start, 1 SetVolume,
+    /// 2 SetPan, 3 SetPitch, 4 Stop. `view`: 0 Chase, 1 Bumper, 2 Free.
+    pub fn update(
+        &mut self,
+        dt: f32,
+        rpm: f32,
+        redline: f32,
+        throttle: f32,
+        view: u8,
+        gear: i32,
+    ) -> Vec<i32> {
+        self.core.update(dt, rpm, redline, throttle, view, gear)
+    }
+
+    pub fn set_running(&mut self, running: bool) {
+        self.core.set_running(running);
     }
 }
 
