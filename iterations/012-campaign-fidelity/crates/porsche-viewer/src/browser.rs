@@ -157,14 +157,19 @@ impl BrowserViewer {
         self.renderer.as_ref().is_some_and(|r| r.fe_room.is_some())
     }
 
-    /// Install the selected car's original 328-byte physics profile.
-    pub fn set_car_sim(&mut self, bytes: Uint8Array) -> Result<(), JsValue> {
+    /// Install the selected car's original 328-byte physics profile. `sim_name` (the `.sim`
+    /// file name) selects the original model's model name; optional.
+    pub fn set_car_sim(
+        &mut self,
+        bytes: Uint8Array,
+        sim_name: Option<String>,
+    ) -> Result<(), JsValue> {
         let renderer = self
             .renderer
             .as_mut()
             .ok_or_else(|| JsValue::from_str("Renderer not initialized"))?;
         renderer
-            .set_car_sim(&bytes.to_vec())
+            .set_car_sim(&bytes.to_vec(), sim_name.as_deref())
             .map_err(|e| JsValue::from_str(&e))
     }
 
@@ -494,6 +499,26 @@ impl BrowserViewer {
                     == nfs_assets::race::original_collision::CollisionModel::Original
             })
             .unwrap_or(false)
+    }
+
+    /// Switch the player car between the prototype and the original vehicle model (O).
+    /// Returns true when the original model is selected (it drives while 6 DOF physics is on).
+    pub fn toggle_vehicle_model(&mut self) -> bool {
+        self.renderer
+            .as_mut()
+            .map(|r| {
+                r.toggle_vehicle_model()
+                    == nfs_assets::physics::original_vehicle::VehicleModel::Original
+            })
+            .unwrap_or(false)
+    }
+
+    /// Whether the original vehicle model can be selected (an original car was built from
+    /// the loaded `.sim`).
+    pub fn has_original_vehicle(&self) -> bool {
+        self.renderer
+            .as_ref()
+            .is_some_and(|r| r.original_vehicle.is_some())
     }
 
     /// Show or hide the collision-box wireframes. Returns the new state.

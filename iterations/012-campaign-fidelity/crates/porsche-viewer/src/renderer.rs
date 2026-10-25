@@ -519,6 +519,15 @@ pub struct Renderer {
     pub sim_mode: bool,
     /// Collision response: upstream prototype or the recovered original.
     pub collision_model: nfs_assets::race::original_collision::CollisionModel,
+    /// Vehicle model of the player car (O): upstream's 6 DOF prototype or the
+    /// original (`nfs_assets::physics::original_vehicle`).
+    pub vehicle_model: nfs_assets::physics::original_vehicle::VehicleModel,
+    /// The player car on the original model, built from the car's `.sim`.
+    /// While it drives, the 6 DOF body mirrors its pose.
+    pub original_vehicle: Option<nfs_assets::physics::original_vehicle::OriginalVehicle>,
+    /// The loaded `.sim` bytes and model name (`res+0x2a8`), to rebuild the
+    /// original car when the car model changes.
+    original_sim: Option<(Vec<u8>, String)>,
     collision_clock: nfs_assets::race::original_collision::CollisionClock,
     pair_globals: nfs_assets::physics::original_pair::PairGlobals,
     /// Persistent body support owner (original car+8) for the barrier pass.
@@ -638,6 +647,81 @@ fn car_chassis_adapter_body(
         adapter.y.clamp(-1.0, 1.0),
         adapter.z.clamp(-0.25, 0.25),
     )
+}
+
+/// Original pose of a 6 DOF body whose collision box centre is `box_body` (body space): box
+/// centre `+0x330`, axes R/U/F, centre velocity, angular velocity (turns/s), all in original
+/// axes (`original_adapter`).
+fn original_pose_from_body(
+    body: &nfs_assets::physics::RigidBody,
+    box_body: Vec3,
+) -> ([f32; 3], [[f32; 3]; 3], [f32; 3], [f32; 3]) {
+    use nfs_assets::physics::original_adapter::{angular_to_original, to_original};
+    let centre = body.to_world_pos(box_body);
+    (
+        to_original(centre),
+        [
+            to_original(body.right()),
+            to_original(body.up()),
+            to_original(body.forward()),
+        ],
+        to_original(body.point_velocity(centre)),
+        angular_to_original(body.orientation * body.angular_velocity),
+    )
+}
+
+/// The inverse of `original_pose_from_body`: puts the body at the original car's pose.
+fn set_body_from_original(
+    body: &mut nfs_assets::physics::RigidBody,
+    car: &nfs_assets::physics::original_vehicle::OriginalCar,
+    box_body: Vec3,
+) {
+    use nfs_assets::physics::original_adapter::{angular_from_original, from_original};
+    let [r, u, f] = car.axes_364.map(from_original);
+    let q = Quat::from_mat3(&glam::Mat3::from_cols(r, u, -f)).normalize();
+    body.orientation = q;
+    body.position = from_original(car.position_330) - q * box_body;
+    let omega = angular_from_original(car.angular_388);
+    body.angular_velocity = q.inverse() * omega;
+    // The original velocity is the box centre's.
+    let r = from_original(car.position_330) - body.world_com();
+    body.linear_velocity = from_original(car.velocity_33c) - omega.cross(r);
+}
+
+/// Model matrix of the original car: scene axes from the original R, U, F (`+0x364`), at
+/// the box centre `+0x330` (Z mirrored, `original_adapter`). Body −z is forward.
+fn original_body_matrix(car: &nfs_assets::physics::original_vehicle::OriginalCar) -> Mat4 {
+    use nfs_assets::physics::original_adapter::from_original;
+    let [r, u, f] = car.axes_364.map(from_original);
+    Mat4::from_cols(
+        r.extend(0.0),
+        u.extend(0.0),
+        (-f).extend(0.0),
+        from_original(car.position_330).extend(1.0),
+    )
+}
+
+/// Wheel mesh transform in mesh space for the original car: steer of the front wheels from
+/// the smoothed steer `+0xac8/+0xacc`, spin from `w+0x88` (turns). The wheel record is
+/// picked by the wheel's position (FR, FL, RR, RL); no suspension travel until V6.
+fn original_wheel_matrix(
+    v: &nfs_assets::physics::original_vehicle::OriginalVehicle,
+    wheel: &CarWheelRender,
+    center: Vec3,
+) -> Mat4 {
+    use std::f32::consts::TAU;
+    let p = wheel.source_center - center;
+    let index = if p.z < 0.0 { 0 } else { 2 } + usize::from(p.x < 0.0);
+    let steer = if index < 2 {
+        v.draw_steer_turns(index) * TAU
+    } else {
+        0.0
+    };
+    let spin = v.car.wheels[index].spin_88 * TAU;
+    Mat4::from_translation(wheel.source_center)
+        * Mat4::from_rotation_y(-steer)
+        * Mat4::from_rotation_x(-spin)
+        * Mat4::from_translation(-wheel.source_center)
 }
 
 impl Renderer {
@@ -1394,6 +1478,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             vehicle_contact_count: 0,
             sim_mode: true,
             collision_model: Default::default(),
+            vehicle_model: Default::default(),
+            original_vehicle: None,
+            original_sim: None,
             collision_clock: Default::default(),
             pair_globals: Default::default(),
             body_support_owner: Default::default(),
@@ -1762,6 +1849,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 };
             if bumper_view && self.sim_mode {
                 // nothing to draw for the player car
+            } else if let Some(v) = self
+                .original_vehicle
+                .as_ref()
+                .filter(|_| self.original_active())
+            {
+                let (center, _) = self.collision_box_or_fallback();
+                let body_matrix = original_body_matrix(&v.car) * Mat4::from_translation(-center);
+                self.draw_car_meshes(
+                    target,
+                    "original car chassis",
+                    car_render,
+                    body_matrix,
+                    &car_render.chassis_mesh_indices,
+                );
+                for wheel in &car_render.wheels {
+                    let matrix = body_matrix * original_wheel_matrix(v, wheel, center);
+                    self.draw_car_meshes(
+                        target,
+                        "original car wheel",
+                        car_render,
+                        matrix,
+                        &wheel.mesh_indices,
+                    );
+                }
             } else if let (Some(sim), true) = (&self.sim_car, self.sim_mode) {
                 let body_matrix = sim.body.transform_matrix()
                     * Mat4::from_translation(car_chassis_adapter_body(sim, car_render));
@@ -2290,6 +2401,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     pub fn update_car(&mut self, dt: f32, mut throttle: f32, steer: f32, handbrake: bool) {
         let previous_contacts = self.vehicle_contact_proxies();
+        let original = self.original_active();
         let edges = &self.road_edges;
 
         // Check race session state and restrict inputs during countdown
@@ -2312,7 +2424,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ..Default::default()
         };
 
-        if let (true, Some(sim)) = (self.sim_mode, &mut self.sim_car) {
+        if original {
+            // Stepped below with the collision pass (scheduler order).
+        } else if let (true, Some(sim)) = (self.sim_mode, &mut self.sim_car) {
             let controls = sim.controls_from_signed_pedal(throttle, steer, handbrake);
             let tel = sim.step(self.road_surface.as_ref(), &controls, dt);
             player_light_inputs.brake = brake_byte(controls.brake);
@@ -2392,7 +2506,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 ai.update_road_up(dt, normal.get());
             }
         }
-        if self.collision_model == nfs_assets::race::original_collision::CollisionModel::Original
+        if original {
+            // The original model always runs the original collision pass, in its queue.
+            self.run_original_vehicle(dt, throttle, steer, handbrake);
+        } else if self.collision_model
+            == nfs_assets::race::original_collision::CollisionModel::Original
             && self.sim_mode
         {
             self.run_original_collision(dt);
@@ -2650,6 +2768,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 ai.distance_along_course = 0.0;
                 ai.laps_completed = 0;
             }
+            self.restart_original_vehicle();
             return;
         }
 
@@ -2674,6 +2793,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 self.camera.drive_target = car.camera_target;
             }
         }
+        self.restart_original_vehicle();
     }
 
     pub fn get_race_phase(&self) -> u32 {
@@ -2970,6 +3090,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     /// collisions (`camera_car_from_sim`).
     fn camera_car(&self) -> Option<nfs_assets::camera::CarView> {
         use nfs_assets::physics::original_adapter::camera_car_from_sim;
+        if let (true, Some(v)) = (self.original_active(), &self.original_vehicle) {
+            return Some(nfs_assets::physics::original_vehicle::driver::camera_car(
+                &v.car,
+                v.half_extents,
+            ));
+        }
         let (true, Some(sim)) = (self.sim_mode, self.sim_car.as_ref()) else {
             return None;
         };
@@ -2990,9 +3116,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let Some(car) = self.camera_car() else {
             return;
         };
-        // No track nodes or ceilings yet: flat slope, no clamp (approximation).
-        self.player_camera
-            .advance(dt, &car, &mut nfs_assets::camera::FlatWorld);
+        // No track nodes or ceilings yet: flat slope, no clamp (approximation). The
+        // original vehicle model steps the camera in its scheduler.
+        if !self.original_active() {
+            self.player_camera
+                .advance(dt, &car, &mut nfs_assets::camera::FlatWorld);
+        }
         if self.camera.mode != CameraMode::Drive {
             return;
         }
@@ -3076,6 +3205,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn get_car_speed_kmh(&self) -> f32 {
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            return Self::original_speed_kmh(&v.car);
+        }
         if let (true, Some(tel)) = (self.sim_mode, &self.sim_telemetry) {
             return tel.speed_kmh;
         }
@@ -3083,6 +3219,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn get_car_gear(&self) -> i32 {
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            return v.hud_gear();
+        }
         if let (true, Some(tel)) = (self.sim_mode, &self.sim_telemetry) {
             return tel.current_gear;
         }
@@ -3090,6 +3233,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     pub fn get_car_rpm(&self) -> f32 {
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            return (v.car.rpm_db4 / 7000.0).clamp(0.0, 1.0);
+        }
         if let (true, Some(tel)) = (self.sim_mode, &self.sim_telemetry) {
             return (tel.engine_rpm / 7000.0).clamp(0.0, 1.0);
         }
@@ -3098,6 +3248,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     /// Engine RPM (not normalised). Without the SIM model the arcade RPM fraction is scaled by 7000.
     pub fn get_car_engine_rpm(&self) -> f32 {
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            return v.car.rpm_db4.max(0.0);
+        }
         if let (true, Some(tel)) = (self.sim_mode, &self.sim_telemetry) {
             return tel.engine_rpm.max(0.0);
         }
@@ -3106,6 +3263,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     /// SIM redline RPM of the loaded car (7000 when the arcade car is driven).
     pub fn get_car_redline_rpm(&self) -> f32 {
+        if let Some(v) = self
+            .original_vehicle
+            .as_ref()
+            .filter(|_| self.original_active())
+        {
+            return v.car.specs.redline_94;
+        }
         if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
             return sim.powertrain.redline_rpm;
         }
@@ -3247,6 +3411,275 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
+    /// Whether the original vehicle model drives the player car now (6 DOF driving, `O`
+    /// switched on, and an original car built from the car's `.sim`).
+    pub fn original_active(&self) -> bool {
+        self.sim_mode
+            && self.vehicle_model == nfs_assets::physics::original_vehicle::VehicleModel::Original
+            && self.original_vehicle.is_some()
+            && self.sim_car.is_some()
+    }
+
+    fn collision_box_or_fallback(&self) -> (Vec3, [f32; 3]) {
+        self.car_collision_box
+            .unwrap_or((Vec3::ZERO, FALLBACK_HALF_EXTENTS))
+    }
+
+    /// Ground points of the drawn car's wheels (wheel centre minus radius) relative to the
+    /// collision box centre, in the original car axes (R, U, F) and wheel order FR, FL, RR, RL
+    /// (picked by position: forward is mesh −z, right is +x). Without wheel meshes: points
+    /// inside the box at its bottom.
+    fn original_wheel_points(&self) -> [[f32; 3]; 4] {
+        let (center, half) = self.collision_box_or_fallback();
+        let (x, z) = (half[0] - 0.1, half[2] * 0.6);
+        let mut points = [
+            [x, -half[1], z],
+            [-x, -half[1], z],
+            [x, -half[1], -z],
+            [-x, -half[1], -z],
+        ];
+        if let Some(render) = &self.car_render {
+            for w in &render.wheels {
+                let p = w.source_center - Vec3::Y * w.radius - center;
+                let index = if p.z < 0.0 { 0 } else { 2 } + usize::from(p.x < 0.0);
+                points[index] = [p.x, p.y, -p.z];
+            }
+        }
+        points
+    }
+
+    /// Rebuilds the original car from the loaded `.sim` and the drawn car (box, wheels).
+    fn rebuild_original_vehicle(&mut self) {
+        use nfs_assets::physics::original_vehicle::OriginalVehicle;
+        let Some((bytes, model)) = &self.original_sim else {
+            self.original_vehicle = None;
+            return;
+        };
+        let (_, half) = self.collision_box_or_fallback();
+        self.original_vehicle =
+            OriginalVehicle::from_sim(bytes, model, half, self.original_wheel_points()).ok();
+        self.sync_original_from_sim(false);
+    }
+
+    /// Chassis adapter offset of the 6 DOF body (see `car_chassis_adapter_body`).
+    fn sim_adapter(&self) -> Vec3 {
+        match (&self.sim_car, &self.car_render) {
+            (Some(sim), Some(render)) => car_chassis_adapter_body(sim, render),
+            _ => Vec3::ZERO,
+        }
+    }
+
+    /// Puts the original car where the 6 DOF body is (box centre, axes, velocity, angular
+    /// velocity; with `with_gear` also gear and rpm) and on the ground there.
+    fn sync_original_from_sim(&mut self, with_gear: bool) {
+        use nfs_assets::physics::original_vehicle::{FlatGround, RoadGround};
+        let (center, _) = self.collision_box_or_fallback();
+        let adapter = self.sim_adapter();
+        let (Some(sim), Some(v)) = (self.sim_car.as_ref(), self.original_vehicle.as_mut()) else {
+            return;
+        };
+        let (centre, axes, velocity, angular) =
+            original_pose_from_body(&sim.body, center + adapter);
+        let mut owners = Default::default();
+        match self.road_surface.as_ref() {
+            Some(surface) => v.set_pose(
+                centre,
+                axes,
+                velocity,
+                angular,
+                &mut RoadGround {
+                    surface,
+                    owners: &mut owners,
+                },
+            ),
+            None => v.set_pose(
+                centre,
+                axes,
+                velocity,
+                angular,
+                &mut FlatGround {
+                    height: 0.0,
+                    surface: nfs_assets::physics::original_vehicle::ground::LEGACY_SURFACE,
+                },
+            ),
+        }
+        v.owners = owners;
+        if with_gear {
+            v.set_gear(
+                (sim.powertrain.current_gear + 1).clamp(0, i8::MAX as i32) as i8,
+                sim.powertrain.current_rpm,
+            );
+        }
+    }
+
+    /// Mirrors the original car into the 6 DOF body (pose, velocity, angular velocity, gear,
+    /// rpm), so the code reading the body (camera fallback, triggers, course progress, pose
+    /// telemetry) follows it and the prototype continues from there after a switch. HUD
+    /// telemetry comes from the original car.
+    fn sync_sim_from_original(&mut self, switching: bool) {
+        use nfs_assets::physics::original_adapter::angular_from_original;
+        let (center, _) = self.collision_box_or_fallback();
+        let adapter = self.sim_adapter();
+        let (Some(sim), Some(v)) = (self.sim_car.as_mut(), self.original_vehicle.as_ref()) else {
+            return;
+        };
+        let car = &v.car;
+        set_body_from_original(&mut sim.body, car, center + adapter);
+        sim.powertrain.current_gear = v.hud_gear();
+        sim.powertrain.current_rpm = car.rpm_db4.max(sim.powertrain.idle_rpm);
+        if switching {
+            sim.prev_linear_velocity = sim.body.linear_velocity;
+            sim.sync_wheel_spin_to_body();
+        }
+        let mut tel = sim.telemetry(&nfs_assets::physics::VehicleControls::default());
+        tel.speed_mps = car.vel_fwd_d60();
+        tel.speed_kmh = Self::original_speed_kmh(car);
+        tel.engine_rpm = car.rpm_db4;
+        tel.current_gear = v.hud_gear();
+        tel.yaw_rate_rad_s = angular_from_original(car.angular_388).y;
+        self.sim_telemetry = Some(tel);
+    }
+
+    /// HUD speed of the original car: `+0x35c` (the original's speed field; the
+    /// speedometer's source is not located).
+    fn original_speed_kmh(car: &nfs_assets::physics::original_vehicle::OriginalCar) -> f32 {
+        car.speed_35c * 3.6
+    }
+
+    /// Race (re)start of the original car at the 6 DOF body's spawn pose.
+    fn restart_original_vehicle(&mut self) {
+        if let Some(v) = &mut self.original_vehicle {
+            v.restart();
+            self.sync_original_from_sim(false);
+        }
+    }
+
+    /// O key: switch the player car between the prototype and the original vehicle model.
+    /// The car continues from its current pose and speed. Without an original car (no
+    /// `.sim` loaded) the prototype stays.
+    pub fn toggle_vehicle_model(&mut self) -> nfs_assets::physics::original_vehicle::VehicleModel {
+        use nfs_assets::physics::original_vehicle::VehicleModel;
+        match self.vehicle_model {
+            VehicleModel::Prototype if self.original_vehicle.is_some() => {
+                self.sync_original_from_sim(true);
+                self.vehicle_model = VehicleModel::Original;
+            }
+            VehicleModel::Prototype => {}
+            VehicleModel::Original => {
+                self.sync_sim_from_original(true);
+                self.sim_telemetry = None;
+                self.vehicle_model = VehicleModel::Prototype;
+            }
+        }
+        self.vehicle_model
+    }
+
+    /// One frame of the original model: the 64 Hz scheduler steps due after `dt`, with the
+    /// ground adapter, the original collision pass (player barrier and AI pairs) in the 32 Hz
+    /// queue and the player camera on every step. Signed `throttle`: gas forward, brake
+    /// backward (the automatic box reverses when stopped).
+    fn run_original_vehicle(&mut self, dt: f32, throttle: f32, steer: f32, handbrake: bool) {
+        use nfs_assets::physics::original_lcg::OriginalLcg;
+        use nfs_assets::physics::original_vehicle::{
+            OriginalCar, OriginalVehicle, RoadGround, StepQueue,
+            driver::{camera_car, collide_player},
+            input_word, scheduler_step,
+        };
+        use nfs_assets::race::original_collision::{apply_pair_car_to_ai, pair_car_from_ai};
+        let (center, half) = self.collision_box_or_fallback();
+        let word = input_word(throttle.max(0.0), (-throttle).max(0.0), steer, handbrake);
+        let Some(v) = self.original_vehicle.as_mut() else {
+            return;
+        };
+        let OriginalVehicle {
+            car,
+            lcg,
+            ground,
+            owners,
+            clock,
+            half_extents,
+        } = v;
+
+        struct Queue<'a> {
+            surface: Option<&'a nfs_assets::RoadSurface>,
+            ground: &'a mut nfs_assets::physics::original_vehicle::GroundAdapter,
+            owners: &'a mut [nfs_assets::physics::original_support_owner::OriginalSupportOwner; 4],
+            body_owner: &'a mut nfs_assets::physics::original_support_owner::OriginalSupportOwner,
+            pair_globals: &'a mut nfs_assets::physics::original_pair::PairGlobals,
+            ai: &'a mut [nfs_assets::AiOpponent],
+            ai_box: (Vec3, [f32; 3]),
+            half: [f32; 3],
+            camera: &'a mut nfs_assets::camera::PlayerCamera,
+        }
+        impl StepQueue for Queue<'_> {
+            fn ground(&mut self, car: &mut OriginalCar) {
+                match self.surface {
+                    Some(surface) => self.ground.ground_step(
+                        car,
+                        &mut RoadGround {
+                            surface,
+                            owners: self.owners,
+                        },
+                    ),
+                    None => self.ground.ground_step(
+                        car,
+                        &mut nfs_assets::physics::original_vehicle::FlatGround {
+                            height: 0.0,
+                            surface: nfs_assets::physics::original_vehicle::ground::LEGACY_SURFACE,
+                        },
+                    ),
+                }
+            }
+            fn collide(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
+                // AI cars are kinematic (approximation A6): no barrier pass, the player's box.
+                let mut ai: Vec<_> = self
+                    .ai
+                    .iter()
+                    .map(|a| pair_car_from_ai(a, self.ai_box.0, self.ai_box.1))
+                    .collect();
+                let before = ai.clone();
+                let barrier = self.surface.filter(|s| s.uses_original_support());
+                let (half, owner) = (self.half, &mut *self.body_owner);
+                collide_player(car, half, &mut ai, self.pair_globals, lcg, |state| {
+                    barrier.is_some_and(|s| {
+                        matches!(s.original_barrier_response(state, half, owner), Ok(Some(_)))
+                    })
+                });
+                for (a, (b, c)) in self.ai.iter_mut().zip(before.iter().zip(&ai)) {
+                    apply_pair_car_to_ai(a, b, c);
+                }
+            }
+            fn camera(&mut self, car: &OriginalCar) {
+                self.camera.step(
+                    &camera_car(car, self.half),
+                    &mut nfs_assets::camera::FlatWorld,
+                );
+            }
+        }
+
+        let mut queue = Queue {
+            surface: self.road_surface.as_ref(),
+            ground,
+            owners,
+            body_owner: &mut self.body_support_owner,
+            pair_globals: &mut self.pair_globals,
+            ai: &mut self.ai_opponents,
+            ai_box: (center, half),
+            half: *half_extents,
+            camera: &mut self.player_camera,
+        };
+        // Starts the camera (end of the race intro) on the first call; no steps.
+        queue.camera.advance(
+            0.0,
+            &camera_car(car, *half_extents),
+            &mut nfs_assets::camera::FlatWorld,
+        );
+        for _ in 0..clock.advance(dt) {
+            scheduler_step(car, word, lcg, &mut queue);
+        }
+        self.sync_sim_from_original(false);
+    }
+
     /// Cycle the debug AI speed cap: none -> 30 km/h -> parked -> none.
     /// Returns the cap in km/h, or a negative value for none.
     pub fn cycle_ai_speed_limit(&mut self) -> f32 {
@@ -3288,12 +3721,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     /// Replace the active physics profile with a parsed original .sim file.
     /// Parse and validate first so malformed input cannot discard the current car.
-    pub fn set_car_sim(&mut self, bytes: &[u8]) -> Result<(), String> {
+    /// `sim_name` (the `.sim` file stem) selects the model name `res+0x2a8` of the original
+    /// model's SIM derivation (`model_for_sim`); without it the defaults apply.
+    pub fn set_car_sim(&mut self, bytes: &[u8], sim_name: Option<&str>) -> Result<(), String> {
         let car = self.car.as_ref().ok_or("No car on the current track")?;
         let mut sim = simulation_from_bytes_at_pose(bytes, car.pos, car.yaw)?;
         self.apply_car_render_wheels_to_sim(&mut sim)?;
         self.sim_car = Some(sim);
         self.sim_telemetry = None;
+        let stem = sim_name
+            .map(|n| n.rsplit(['/', '\\']).next().unwrap_or(n))
+            .map(|n| {
+                n.strip_suffix(".sim")
+                    .or(n.strip_suffix(".SIM"))
+                    .unwrap_or(n)
+            })
+            .unwrap_or("default");
+        let model = nfs_assets::physics::original_vehicle::driver::model_for_sim(stem);
+        self.original_sim = Some((bytes.to_vec(), model.to_string()));
+        self.rebuild_original_vehicle();
         self.ai_performance = nfs_formats::parse_sim(bytes)
             .ok()
             .and_then(|spec| nfs_assets::AiPerformance::from_sim(&spec));
@@ -3589,6 +4035,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.sim_car = Some(sim);
             self.sim_telemetry = None;
         }
+        // A new car: its `.sim` follows (`set_car_sim`).
+        self.original_sim = None;
+        self.original_vehicle = None;
         Ok(())
     }
 
@@ -4225,6 +4674,38 @@ mod original_camera_tests {
         }
         data[0x50..0x54].copy_from_slice(&1i32.to_le_bytes());
         simulation_from_bytes_at_pose(&data, Vec3::new(20.0, 0.0, -50.0), yaw).unwrap()
+    }
+
+    #[test]
+    fn original_pose_round_trips_through_the_6dof_body() {
+        let mut sim = sim(0.7);
+        sim.body.linear_velocity = Vec3::new(3.0, -0.5, -18.0);
+        sim.body.angular_velocity = Vec3::new(0.1, 0.8, -0.05);
+        let box_body = Vec3::new(0.02, 0.45, 0.1);
+        let (pos, axes, vel, ang) = original_pose_from_body(&sim.body, box_body);
+        let mut car = nfs_assets::physics::original_vehicle::OriginalCar::new(
+            nfs_assets::physics::original_vehicle::CarSpecs::from_bytes(&[0u8; 0x1c4]),
+        );
+        car.position_330 = pos;
+        car.axes_364 = axes;
+        car.velocity_33c = vel;
+        car.angular_388 = ang;
+        let mut body = sim.body.clone();
+        body.position = Vec3::ZERO;
+        body.orientation = Quat::IDENTITY;
+        set_body_from_original(&mut body, &car, box_body);
+        let close = |a: Vec3, b: Vec3| (a - b).length() < 1e-4;
+        assert!(close(body.position, sim.body.position));
+        assert!(close(body.forward(), sim.body.forward()));
+        assert!(close(body.up(), sim.body.up()));
+        assert!(close(body.linear_velocity, sim.body.linear_velocity));
+        assert!(close(body.angular_velocity, sim.body.angular_velocity));
+        // The drawn original car uses the same frame as the body.
+        let m = original_body_matrix(&car) * Mat4::from_translation(-box_body);
+        let b = sim.body.transform_matrix();
+        for p in [Vec3::ZERO, Vec3::X, Vec3::Y, Vec3::NEG_Z] {
+            assert!(close(m.transform_point3(p), b.transform_point3(p)), "{p:?}");
+        }
     }
 
     #[test]

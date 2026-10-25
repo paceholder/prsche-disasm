@@ -122,8 +122,8 @@ impl Default for PairGlobals {
             damage_on_657a2c: false,
             damage_boost_657400: false,
             mode_6573e8: 0,
-            rand_state_5d1028: 0xf874af01,
-            rand_mul_5d102c: 1,
+            rand_state_5d1028: super::original_lcg::SHIPPED_STATE,
+            rand_mul_5d102c: super::original_lcg::SHIPPED_MULTIPLIER,
         }
     }
 }
@@ -132,9 +132,10 @@ impl PairGlobals {
     /// LCG step at `0x494977`/`0x494a83`: `r = mul*state`, `state = r & 0xffff`,
     /// result `(r >> 8) & 0xffff`.
     fn next_random(&mut self) -> u32 {
-        let r = self.rand_mul_5d102c.wrapping_mul(self.rand_state_5d1028);
-        self.rand_state_5d1028 = r & 0xffff;
-        (r >> 8) & 0xffff
+        super::original_lcg::word(super::original_lcg::step(
+            &mut self.rand_state_5d1028,
+            self.rand_mul_5d102c,
+        ))
     }
 }
 

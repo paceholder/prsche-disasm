@@ -38,6 +38,7 @@ const element = (id) => {
 const document = new Element();
 document.body = new Element();
 document.querySelector = element;
+document.getElementById = (id) => element(`#${id}`);
 document.querySelectorAll = () => [];
 document.createElement = () => new Element();
 const window = new Element();
@@ -60,7 +61,10 @@ let lastControls;
 const cameraCycle = ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"];
 let cameraIndex = 3;
 let freeCamera = false;
+let originalModel = false;
 context.testApi.setViewer({
+  toggle_vehicle_model: () => originalModel = !originalModel,
+  has_original_vehicle: () => true,
   cycle_car_view: () => { freeCamera = false; cameraIndex = (cameraIndex + 1) % 4; return cameraCycle[cameraIndex]; },
   get_camera_name: () => freeCamera ? "Free" : cameraCycle[cameraIndex],
   toggle_free_camera: () => freeCamera = !freeCamera,
@@ -118,6 +122,11 @@ for (let i = 0; i < 4; i++) {
   shownCameras.push(element("#cameraBadge").textContent);
 }
 assert.deepEqual(shownCameras, ["C: HeliCam2", "C: BumperCam2", "C: BumperCam", "C: TailCam0"]);
+key("keydown", "KeyO");
+assert.equal(originalModel, true, "O selects the original vehicle model");
+assert.equal(element("#vehicleModelBadge").textContent, "O: original car");
+key("keydown", "KeyO");
+assert.equal(element("#vehicleModelBadge").textContent, "O: prototype car");
 key("keydown", "KeyV");
 assert.equal(element("#cameraBadge").textContent, "C: Free", "V toggles the free camera");
 key("keydown", "KeyV");

@@ -43,6 +43,10 @@ pub struct SurfaceHit {
     pub height: f32,
     pub normal: [f32; 3],
     pub identity: RoadTriangleIdentity,
+    /// Original support polygon flags word (polygon+0xa) for the original
+    /// backend; the wheel copies it as its surface `w+0x8c` [VA 0x499a70].
+    /// `None` for the legacy triangle grid.
+    pub flags_word_a: Option<u16>,
 }
 
 /// Counts accepted geometry and every input class deliberately rejected by the index.
@@ -267,6 +271,7 @@ impl RoadSurface {
             height: hit.height,
             normal: crate::track_loader::to_scene_coordinates(hit.normal),
             identity: original.identities[hit.polygon].clone(),
+            flags_word_a: Some(original.polygons[hit.polygon].flags_word_a),
         })
     }
 
@@ -347,6 +352,7 @@ impl RoadSurface {
             height,
             normal: triangle.normal,
             identity: triangle.source.identity.clone(),
+            flags_word_a: None,
         })
     }
 
@@ -421,6 +427,7 @@ impl RoadSurface {
                     height,
                     normal: triangle.normal,
                     identity: triangle.source.identity.clone(),
+                    flags_word_a: None,
                 },
             )
         })

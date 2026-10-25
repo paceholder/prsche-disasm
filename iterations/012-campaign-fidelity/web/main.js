@@ -1908,7 +1908,7 @@ async function loadCarSim(simName) {
     const path = findSimResource(localGameFiles, simName);
     data = (await fetchGameFiles([path])).bytes[0];
   }
-  viewer.set_car_sim(data);
+  viewer.set_car_sim(data, simName);
 }
 
 // `bank` is the catalogue record's engine bank; without it the first record with this SIM is used.
@@ -2521,6 +2521,22 @@ window.addEventListener("keydown", (event) => {
         original
           ? "Collisions: original NFS5 response (K)"
           : "Collisions: prototype response (K)"
+      );
+      queueFrame();
+    }
+    return;
+  }
+  if (event.code === "KeyO" && !event.repeat) {
+    if (viewer) {
+      const original = viewer.toggle_vehicle_model();
+      const badge = document.getElementById("vehicleModelBadge");
+      if (badge) badge.textContent = original ? "O: original car" : "O: prototype car";
+      setStatus(
+        original
+          ? "Vehicle model: original NFS5 (O)"
+          : viewer.has_original_vehicle()
+            ? "Vehicle model: prototype 6 DOF (O)"
+            : "Vehicle model: original needs the car's .sim (O)"
       );
       queueFrame();
     }

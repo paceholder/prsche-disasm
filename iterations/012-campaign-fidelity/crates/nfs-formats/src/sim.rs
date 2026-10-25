@@ -5,17 +5,28 @@ pub const SIM_FILE_SIZE: usize = 328;
 pub const AIS_FILE_SIZE: usize = 304;
 
 /// Vehicle simulation parameters parsed from a 328-byte `.sim` file.
+///
+/// Field meanings follow the original consumers (`docs/re/vehicle.md`
+/// section 5 in the workspace root; `Sim_Load` `0x49c6c0`,
+/// `Sim_DeriveFields` `0x49cb50`). Several public field names predate that
+/// mapping and are kept so callers don't break; their doc comments give the
+/// original meaning and mark the name as misleading ("Naming note"). The
+/// original-model port reads the raw bytes instead
+/// (`nfs_assets::physics::original_vehicle::sim`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimCar {
     /// Car display name (ASCII string up to 64 bytes).
     pub name: String,
     /// Vehicle curb mass in kilograms.
     pub mass_kg: f32,
-    /// Dimension or wheelbase in meters (stored in mm, scaled by 0.001).
+    /// Wheelbase in meters (`0x44`, stored in mm, scaled by 0.001 at load).
     pub wheelbase_m: f32,
-    /// Number of forward gears.
+    /// Number of forward gears (`0x50`; the original adds 2 for R and N at load).
     pub gear_count: i32,
-    /// Drivetrain / layout flags.
+    /// Shift time in 32 Hz steps (`0x54`; 8 / 6, GT1 4) [VA 0x49dd20, 0x49e440].
+    ///
+    /// Naming note: not drivetrain flags. The front torque share is the f32
+    /// at `0x5c`, the engine type (0 NA, 1 turbo, 2 supercharged) `0x4c`.
     pub drive_flags: i32,
     /// Reverse gear ratio.
     pub reverse_gear: f32,
@@ -23,31 +34,65 @@ pub struct SimCar {
     pub forward_gears: Vec<f32>,
     /// Final drive differential ratio.
     pub final_drive: f32,
-    /// Engine redline RPM.
+    /// Engine redline RPM (`0x94`).
     pub redline_rpm: f32,
-    /// Engine idle or RPM curve step.
+    /// Engine-braking fraction in percent (`0x98`, x0.01 at load) [VA 0x49e440].
+    ///
+    /// Naming note: not an idle rpm or curve step; the torque curve is
+    /// sampled every 500 rpm.
     pub idle_or_step_rpm: f32,
     /// Torque curve sample points (21 entries).
     pub torque_curve: [f32; 21],
-    /// Brake bias / proportioning factor.
+    /// Front weight share in percent (`0xf0`, x0.01 at load) [VA 0x4a1900].
+    ///
+    /// Naming note: not the brake bias; the front brake share is `0x108`
+    /// (field `suspension_stiffness`).
     pub brake_bias: f32,
-    /// Aerodynamic drag / resistance coefficient.
+    /// Tyre friction coefficient mu (`0xf4`; 1.15..2.75) [VA 0x4a1900, 0x4a20d0].
+    ///
+    /// Naming note: not a drag coefficient; the original derives its cubic
+    /// drag from the top speed `0x90` and the torque curve.
     pub drag_coeff: f32,
-    /// Anti-roll / swaybar stiffness factor.
+    /// Centre-of-gravity height for load transfer (`0xf8`, x0.01 at load) [VA 0x4a1900].
+    ///
+    /// Naming note: not a swaybar stiffness.
     pub swaybar_stiffness: f32,
-    /// Suspension spring rate / stiffness.
+    /// Front brake share in percent (`0x108`, x0.01 at load) [VA 0x49f160].
+    ///
+    /// Naming note: not the suspension stiffness, which is `0x11c` (field
+    /// `tire_grip`).
     pub suspension_stiffness: f32,
-    /// Front track width in meters (stored in mm, scaled by 0.001).
+    /// Front downforce per m/s (`0x10c`, x0.001 at load, times the fe.txt
+    /// `frontdownforce` factor): each front wheel's grip gains
+    /// `0x10c * speed` above 5 m/s [VA 0x4a1be7].
+    ///
+    /// Naming note: not the front track width, despite the name and the
+    /// 0.001 scale.
     pub front_track_m: f32,
-    /// Rear track width in meters (stored in mm, scaled by 0.001).
+    /// Rear downforce per m/s (`0x110`, x0.001 at load, times the fe.txt
+    /// `reardownforce` factor) [VA 0x4a1c0d].
+    ///
+    /// Naming note: not the rear track width, despite the name and the
+    /// 0.001 scale.
     pub rear_track_m: f32,
-    /// Shock absorber compression damping.
+    /// Pitch rate retention per step (`0x114`, x0.01 at load) [VA 0x499a70 tail].
+    ///
+    /// Naming note: not a compression damping coefficient.
     pub damping_compression: f32,
-    /// Shock absorber rebound damping.
+    /// Roll rate retention per step (`0x118`, x0.01 at load) [VA 0x499a70 tail].
+    ///
+    /// Naming note: not a rebound damping coefficient.
     pub damping_rebound: f32,
-    /// Tire grip coefficient.
+    /// Suspension stiffness (`0x11c`; divides the load transfer) [VA 0x4a1900].
+    ///
+    /// Naming note: not the tyre grip, which is mu at `0xf4` (field
+    /// `drag_coeff`).
     pub tire_grip: f32,
-    /// Center of gravity offset [X, Y, Z] in meters (stored in mm, scaled by 0.001).
+    /// `0x120`, `0x124`, `0x128`, each x0.001 at load: ride height (mm; the
+    /// original replaces it with the fe.txt `rideheight`), suspension travel
+    /// (mm) and pitch gain from acceleration [VA 0x499a70, 0x49cb50].
+    ///
+    /// Naming note: not a centre-of-gravity offset.
     pub cg_offset_m: [f32; 3],
     /// Raw unscaled 328-byte data.
     pub raw: [u8; SIM_FILE_SIZE],
@@ -97,6 +142,7 @@ pub fn parse_sim(data: &[u8]) -> Result<SimCar> {
     let swaybar_stiffness = f32le(data, 0xf8)?;
     let suspension_stiffness = f32le(data, 0x108)?;
 
+    // 0x10c/0x110: front/rear downforce per m/s (VA 0x4a1be7, 0x4a1c0d), not track width.
     let front_track_m = f32le(data, 0x10c)? * 0.001;
     let rear_track_m = f32le(data, 0x110)? * 0.001;
 

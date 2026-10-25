@@ -86,10 +86,9 @@ pub(super) fn advance_material_height_unrounded(
     if unrounded_phase > period as f64 || amplitude < f32::from_bits(0x3c23d70a) {
         state.phase = 0.0;
         state.previous = state.current;
-        let product = rng.seed_5d1028.wrapping_mul(rng.multiplier_5d102c);
+        let product = super::original_lcg::step(&mut rng.seed_5d1028, rng.multiplier_5d102c);
         rng.product_655a0c = product;
-        rng.seed_5d1028 = product & 0xffff;
-        let random_word = (product >> 8) & 0xffff;
+        let random_word = super::original_lcg::word(product);
         state.current = (amplitude as f64 * f32::from_bits(0x3e2aaaab) as f64
             - random_word as f64 * amplitude as f64 * (1.0 / 65536.0))
             as f32;
