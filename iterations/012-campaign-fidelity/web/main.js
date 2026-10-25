@@ -454,7 +454,9 @@ class MusicStream {
   get playing() {
     return this.loading || this.track !== null || this.sources.length > 0;
   }
-  now() { return soundManager.ctx ? soundManager.ctx.currentTime : performance.now() / 1000; }
+  // One clock for the volume ramp: the AudioContext only exists after the first gesture, and
+  // switching from page time to its clock would read the ramp before its start (silence).
+  now() { return performance.now() / 1000; }
   volume() { return this.ramp ? this.ramp.value(this.now()) : 0; }
   node(ctx) {
     if (this.gainCtx !== ctx) {
@@ -3412,6 +3414,7 @@ window.__nfs = {
           state: gameAudio.director.state(), index: gameAudio.director.index(),
           file: gameAudio.director.current_file(), level: gameAudio.level,
           playing: gameAudio.stream.playing, volume: gameAudio.stream.volume(),
+          gain: gameAudio.stream.gain?.gain.value ?? null,
         } : null,
         speech: gameAudio.speechReady,
         context: soundManager.ctx?.state ?? "none",

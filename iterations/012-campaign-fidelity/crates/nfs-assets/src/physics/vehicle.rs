@@ -6,7 +6,7 @@
 use glam::{Mat4, Quat, Vec3};
 use nfs_formats::SimCar;
 
-use super::chassis::{resolve_chassis_ground, ChassisBounds};
+use super::chassis::{ChassisBounds, resolve_chassis_ground};
 use super::powertrain::Powertrain;
 use super::rigid_body::RigidBody;
 use super::suspension::{SuspensionSystem, WHEEL_FL, WHEEL_FR, WHEEL_RL, WHEEL_RR};
@@ -15,6 +15,8 @@ use crate::surface::RoadSurface;
 const AIR_DENSITY: f32 = 1.225; // kg / m^3
 const MAX_SUB_STEP_DT: f32 = 1.0 / 240.0; // 240 Hz max sub-step
 const GRAVITY: f32 = 9.80665;
+/// Time after an automatic upshift before the next one (approximation A80).
+pub const UPSHIFT_HOLD_S: f32 = 0.5;
 
 /// Driver input controls for vehicle simulation.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -126,6 +128,9 @@ pub struct VehicleSimulation {
     pub longitudinal_accel: f32,
     /// Stored vehicle specification.
     pub spec_name: String,
+    /// Seconds left before the automatic box may upshift again
+    /// (approximation A80).
+    pub shift_hold: f32,
 }
 
 impl VehicleSimulation {
@@ -202,6 +207,7 @@ impl VehicleSimulation {
             lateral_accel: 0.0,
             longitudinal_accel: 0.0,
             spec_name: sim.name.clone(),
+            shift_hold: 0.0,
         }
     }
 
@@ -212,6 +218,7 @@ impl VehicleSimulation {
         self.body.linear_velocity = Vec3::ZERO;
         self.body.angular_velocity = Vec3::ZERO;
         self.current_steer_angle = 0.0;
+        self.shift_hold = 0.0;
         self.powertrain.current_rpm = self.powertrain.idle_rpm;
         self.powertrain.current_gear = 1;
         self.prev_linear_velocity = Vec3::ZERO;
@@ -315,7 +322,7 @@ impl VehicleSimulation {
         if let Some(target_gear) = controls.manual_gear {
             self.powertrain.shift_to(target_gear);
         } else if controls.auto_gear {
-            self.update_automatic_transmission();
+            self.update_automatic_transmission(safe_dt);
         }
 
         // Speed-sensitive steering angle limit to prevent violent spinouts at high velocity
@@ -373,11 +380,7 @@ impl VehicleSimulation {
                     count += 1.0;
                 }
             }
-            if count > 0.0 {
-                sum / count
-            } else {
-                0.0
-            }
+            if count > 0.0 { sum / count } else { 0.0 }
         };
         let drive_torque = self.powertrain.step(throttle, avg_wheel_omega, dt);
 
@@ -512,22 +515,57 @@ impl VehicleSimulation {
         }
     }
 
-    /// Automatic transmission shift schedule logic.
-    fn update_automatic_transmission(&mut self) {
+    /// Automatic transmission shift schedule logic (approximation A80, the
+    /// prototype's own box, not the original `Car_AutoGearbox` 0x49daf0).
+    ///
+    /// Shift points come from the road rpm (body forward speed over the
+    /// driven wheel radius), not from the driven wheels' spin alone: a
+    /// spinning or locked axle in a slide must not move the box. Upshift one
+    /// gear above 92 % redline (engine rpm while it is below 1.2 × road rpm,
+    /// else road rpm), then hold [`UPSHIFT_HOLD_S`]; downshift to the lowest
+    /// gear in which the next lower one would stay under 75 % redline (road
+    /// rpm). Only with a driven wheel on the ground.
+    fn update_automatic_transmission(&mut self, dt: f32) {
+        self.shift_hold = (self.shift_hold - dt).max(0.0);
         if self.powertrain.current_gear <= 0 {
             return;
         }
-
-        let rpm = self.powertrain.current_rpm;
-        let gear = self.powertrain.current_gear as u32;
-
-        // Upshift near redline (92% of redline)
-        if rpm > self.powertrain.redline_rpm * 0.92 && gear < self.powertrain.forward_gears {
-            self.powertrain.shift_up();
+        let driven = || self.suspension.wheels.iter().filter(|w| w.is_driven);
+        let count = driven().count();
+        if count == 0 || !driven().any(|w| w.in_contact) {
+            return;
         }
-        // Downshift when bogged down (below 2400 RPM for higher gears)
-        else if rpm < 2400.0 && gear > 1 {
-            self.powertrain.shift_down();
+        let radius = driven().map(|w| w.tire.radius).sum::<f32>() / count as f32;
+        if radius <= 0.0 {
+            return;
+        }
+        let pt = &self.powertrain;
+        let wheel_rpm =
+            self.body.forward_speed().max(0.0) / radius * 60.0 / (2.0 * std::f32::consts::PI);
+        let road_rpm = |gear: i32| wheel_rpm * pt.gear_ratios[(gear - 1) as usize] * pt.final_drive;
+        let gear = pt.current_gear;
+        let top = pt.forward_gears as i32;
+        // As the original box (V3): engine rpm while it is below 1.2 × road
+        // rpm, so ordinary tyre slip does not delay the upshift; road rpm
+        // once a driven wheel spins.
+        let shift_rpm = if pt.current_rpm < 1.2 * road_rpm(gear) {
+            pt.current_rpm
+        } else {
+            road_rpm(gear)
+        };
+        if gear < top && shift_rpm > pt.redline_rpm * 0.92 {
+            if self.shift_hold == 0.0 {
+                self.powertrain.shift_up();
+                self.shift_hold = UPSHIFT_HOLD_S;
+            }
+            return;
+        }
+        let mut target = gear.min(top);
+        while target > 1 && road_rpm(target - 1) < pt.redline_rpm * 0.75 {
+            target -= 1;
+        }
+        if target != gear {
+            self.powertrain.set_gear(target);
         }
     }
 
@@ -660,6 +698,108 @@ pub(crate) mod tests {
         assert_eq!(vehicle.suspension.wheels.len(), 4);
     }
 
+    /// Boxster test car on flat ground at `speed` m/s forward in `gear`,
+    /// driven wheels on the ground.
+    fn rolling(speed: f32, gear: i32) -> VehicleSimulation {
+        let mut v = VehicleSimulation::from_sim(&test_boxster_sim());
+        v.reset(Vec3::new(0.0, 0.35, 0.0), 0.0);
+        v.body.linear_velocity = v.body.forward() * speed;
+        v.sync_wheel_spin_to_body();
+        for w in &mut v.suspension.wheels {
+            w.in_contact = true;
+        }
+        v.powertrain.set_gear(gear);
+        v
+    }
+
+    /// Engine rpm at the road speed in `gear` (no wheel slip).
+    fn road_rpm(v: &VehicleSimulation, gear: i32) -> f32 {
+        let r = v.suspension.wheels[2].tire.radius;
+        let pt = &v.powertrain;
+        v.body.forward_speed().max(0.0) / r
+            * pt.gear_ratios[(gear - 1) as usize]
+            * pt.final_drive
+            * 60.0
+            / (2.0 * std::f32::consts::PI)
+    }
+
+    #[test]
+    fn auto_box_ignores_a_spinning_or_free_revving_engine() {
+        // Rear wheels spinning (or locked with the engine free-revving): the
+        // engine is at redline while the road speed is low. The old box
+        // upshifted on engine rpm every frame and ran up to top gear.
+        let mut v = rolling(12.0, 2);
+        assert!(road_rpm(&v, 2) < 0.6 * v.powertrain.redline_rpm);
+        for _ in 0..60 {
+            v.powertrain.current_rpm = v.powertrain.redline_rpm;
+            v.update_automatic_transmission(1.0 / 60.0);
+        }
+        assert_eq!(v.powertrain.current_gear, 2);
+    }
+
+    #[test]
+    fn auto_box_upshifts_one_gear_per_hold() {
+        let mut v = rolling(25.0, 1);
+        let r = v.powertrain.redline_rpm;
+        assert!(road_rpm(&v, 2) > 0.92 * r && road_rpm(&v, 3) < 0.92 * r);
+        v.powertrain.current_rpm = r;
+        v.update_automatic_transmission(1.0 / 60.0);
+        assert_eq!(v.powertrain.current_gear, 2);
+        for _ in 0..(UPSHIFT_HOLD_S * 60.0) as usize - 2 {
+            v.powertrain.current_rpm = r;
+            v.update_automatic_transmission(1.0 / 60.0);
+        }
+        assert_eq!(v.powertrain.current_gear, 2, "held after the upshift");
+        for _ in 0..30 {
+            v.powertrain.current_rpm = r;
+            v.update_automatic_transmission(1.0 / 60.0);
+        }
+        assert_eq!(v.powertrain.current_gear, 3);
+    }
+
+    #[test]
+    fn auto_box_drops_out_of_top_gear_when_slow() {
+        // After a spin or a wall the car rolls slowly in a tall gear: the
+        // box must pick a gear that pulls (the old one only went down below
+        // 2400 rpm of driven-wheel spin, one gear per frame).
+        let mut v = rolling(6.0, 5);
+        v.powertrain.current_rpm = v.powertrain.redline_rpm;
+        v.update_automatic_transmission(1.0 / 60.0);
+        let g = v.powertrain.current_gear;
+        assert!(g <= 2, "gear {g}");
+        assert!(g == 1 || road_rpm(&v, g - 1) >= 0.75 * v.powertrain.redline_rpm);
+        // Rolling backwards in a forward gear: 1st.
+        let mut v = rolling(-4.0, 4);
+        v.update_automatic_transmission(1.0 / 60.0);
+        assert_eq!(v.powertrain.current_gear, 1);
+    }
+
+    #[test]
+    fn auto_box_holds_its_gear_through_power_oversteer() {
+        // Full throttle, then full lock at full throttle (inside rear wheel
+        // spinning): every upshift must come from the road speed.
+        let mut v = VehicleSimulation::from_sim(&test_boxster_sim());
+        v.reset(Vec3::Y * v.resting_height(), 0.0);
+        let r = v.powertrain.redline_rpm;
+        let mut spun = false;
+        for frame in 0..(9 * 60) {
+            let steer = if frame < 4 * 60 { 0.0 } else { 1.0 };
+            let before = v.powertrain.current_gear;
+            let rpm = road_rpm(&v, before.max(1));
+            let c = v.controls_from_signed_pedal(1.0, steer, false);
+            let t = v.step(None, &c, 1.0 / 60.0);
+            spun |= t.wheel_omegas[2].max(t.wheel_omegas[3]) > 1.5 * t.wheel_omegas[0];
+            let after = v.powertrain.current_gear;
+            if after > before && before >= 1 {
+                assert!(
+                    rpm > 0.8 * r,
+                    "frame {frame}: upshift {before}->{after} at road rpm {rpm}"
+                );
+            }
+        }
+        assert!(spun, "the scenario must spin a rear wheel");
+    }
+
     #[test]
     fn vehicle_accelerates_on_throttle() {
         let sim = test_boxster_sim();
@@ -775,16 +915,20 @@ pub(crate) mod tests {
             vehicle
                 .suspension
                 .update_surface_contact(&mut vehicle.body, Some(&surface), dt);
-            assert!(vehicle
-                .suspension
-                .wheels
-                .iter()
-                .all(|w| w.in_contact && w.compression_velocity == 0.0));
-            assert!(vehicle
-                .suspension
-                .wheels
-                .iter()
-                .all(|w| w.tire.normal_load <= w.spring_k * w.max_compression + 0.01));
+            assert!(
+                vehicle
+                    .suspension
+                    .wheels
+                    .iter()
+                    .all(|w| w.in_contact && w.compression_velocity == 0.0)
+            );
+            assert!(
+                vehicle
+                    .suspension
+                    .wheels
+                    .iter()
+                    .all(|w| w.tire.normal_load <= w.spring_k * w.max_compression + 0.01)
+            );
         }
         let controls = VehicleControls::default();
         vehicle.step(Some(&surface), &controls, 1.0 / 240.0);
