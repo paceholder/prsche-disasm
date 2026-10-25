@@ -29,7 +29,7 @@ GAME_DIR=/path/to/game PYTHON=.venv/bin/python \
   scripts/research/record-local-fixtures.sh --check
 ```
 
-This writes 33 TSV files (about 35 MB) to the gitignored `local/fixtures/` and takes
+This writes 37 TSV files (about 35 MB) to the gitignored `local/fixtures/` and takes
 several minutes. With `--check` the script then compares every file with
 `scripts/research/local-fixtures.sha256`, the hashes of the data the tests were verified
 with. A mismatch means a different game build, modified game files or a changed
@@ -49,6 +49,7 @@ All recorders are in `scripts/research/`. The tests are in `crates/nfs-assets/te
 | `vehicle-controls-*.tsv` | `replay-vehicle-controls.py` | driver controls | `.sim` files | `original_vehicle_controls.rs` |
 | `vehicle-step-*.tsv` | `replay-vehicle-step.py` | planar step in `Sched_Step` 0x414ff0 order | `.sim` files | `vehicle_step.rs`, `original_vehicle_driver.rs` |
 | `vehicle-ground-*.tsv` | `replay-vehicle-ground.py` | `Car_GroundContactTick` 0x49bd40, `Car_WheelGroundAndAttitude` 0x499a70 | `.sim` files | `vehicle_ground.rs` |
+| `vehicle-keyboard-*.tsv` | `replay-vehicle-keyboard.py` | keyboard chain: 128 Hz timer 0x4a45d0 → `Input_PollControllers` 0x412e70 → input queue 0x415e80/0x415ef0 → `Car_ReadInputs` 0x4991e0 → planar step | `.sim` files | `original_vehicle_keyboard.rs` |
 | `camera-*.tsv` | `replay-camera.py` | chase, heli, bumper and cockpit cameras (0x461a30–0x464bf0) | `GameData/CarModel/*.tpg` | `original_camera.rs` |
 | `engine-audio-*.tsv` | `replay-engine-audio.py` | `EngineAudio_PushState` 0x4ac780, `EngineAudio_Mix` 0x4ac290 | engine banks in `GameData/Sounds` | `original_engine_audio.rs` |
 | `ai-track-graph.tsv`, `ai-track-query.tsv` | `replay-ai-track.py`, `replay-ai-query.py` | track node graph (`TrackNodes_Build` 0x480140, `.jnc` loader 0x481080) and queries | `GameData/Track/*.crp`, `*.jnc` | `original_ai_track.rs` |

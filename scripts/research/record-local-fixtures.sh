@@ -28,7 +28,7 @@ mkdir -p "$OUT"
 run() { echo "== $1"; "$PYTHON" "$R/$1" --game-dir "$GAME_DIR" "${@:2}"; }
 
 run replay-vehicle-sim.py --out "$OUT/vehicle-sim.tsv"
-for s in tyre engine controls step ground; do run "replay-vehicle-$s.py" --out-dir "$OUT"; done
+for s in tyre engine controls step ground keyboard; do run "replay-vehicle-$s.py" --out-dir "$OUT"; done
 run replay-camera.py --out-dir "$OUT"
 run replay-engine-audio.py --out-dir "$OUT"
 run replay-ai-track.py --out "$OUT/ai-track-graph.tsv"

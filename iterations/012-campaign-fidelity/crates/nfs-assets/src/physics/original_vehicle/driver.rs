@@ -60,14 +60,19 @@ impl StepClock {
 
 /// Input word `[0x5e9664]` from the engine's controls (`Input_PollControllers`
 /// `0x412e70` packing, `docs/re/vehicle.md` section 2): byte 0 bit 0
-/// handbrake, byte 1 steer (`(right − left)/2`, ±127, positive = right),
-/// byte 2 gas/2, byte 3 brake/2 (0..127). Pedals and steer are clamped to
-/// 0..1 and −1..1; a digital key gives full scale. No gear events (the box
-/// is automatic).
+/// handbrake, byte 1 steer `(right − left)/4` signed (positive = right),
+/// byte 2 gas/2 and byte 3 brake/2 (both clamped to 0x7e). Pedals and steer
+/// are clamped to 0..1 and −1..1 and scaled to the 0..255 axis a keyboard
+/// key reports (device type 3 "Key", getter `0x411c20`: 0xff while the
+/// scancode byte `0x5de028[sc]` is set), so a held key gives steer byte 63
+/// (`d90` = ±126), not 127, and gas/brake 126. Truncation is the C division.
+/// No horn bit, no gear events (the box is automatic). Verified against the
+/// original chain from key state to wheel angle (`original_vehicle_keyboard.rs`).
 pub fn input_word(gas: f32, brake: f32, steer: f32, handbrake: bool) -> u32 {
-    let byte = |v: f32| (v.clamp(0.0, 1.0) * 127.0).round() as u32;
-    let steer = ((steer.clamp(-1.0, 1.0) * 127.0).round() as i32 as i8) as u8 as u32;
-    handbrake as u32 | steer << 8 | byte(gas) << 16 | byte(brake) << 24
+    let axis = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as i32;
+    let pedal = |v: f32| ((axis(v) / 2).min(0x7e)) as u32;
+    let steer = (((steer.clamp(-1.0, 1.0) * 255.0).round() as i32) / 4) as i8 as u8 as u32;
+    handbrake as u32 | steer << 8 | pedal(gas) << 16 | pedal(brake) << 24
 }
 
 /// Collision view of the car (`Car_CollideTick` `0x498ff0` works on the car
@@ -589,10 +594,11 @@ mod tests {
 
     #[test]
     fn input_word_packs_full_scale_keys() {
-        assert_eq!(input_word(1.0, 0.0, 0.0, false), 127 << 16);
-        assert_eq!(input_word(0.0, 1.0, 0.0, true), 127 << 24 | 1);
-        assert_eq!(input_word(0.0, 0.0, 1.0, false), 127 << 8);
-        assert_eq!(input_word(0.0, 0.0, -1.0, false), 0x81 << 8);
+        // A key reports 255: steer 255/4 = 63, pedals 255/2 clamped to 0x7e.
+        assert_eq!(input_word(1.0, 0.0, 0.0, false), 126 << 16);
+        assert_eq!(input_word(0.0, 1.0, 0.0, true), 126 << 24 | 1);
+        assert_eq!(input_word(0.0, 0.0, 1.0, false), 63 << 8);
+        assert_eq!(input_word(0.0, 0.0, -1.0, false), 0xc1 << 8);
     }
 
     #[test]

@@ -300,3 +300,51 @@ fn car_setup_reaches_the_car_globals() {
     assert_eq!(v.car.globals.auto_box_658098, 0);
     assert_eq!(v.car.globals.flip_events_657a2c, 1);
 }
+
+/// Keyboard steering response. A held key reports axis 255, which
+/// `Input_PollControllers` packs as steer byte 63, so `d90 = ±126` and the
+/// 12-per-32 Hz-call ramp of `Car_ApplyControls` needs 11 calls (0.33 s) to
+/// reach full lock and 11 to centre again. With the byte at 127 (`d90 = ±254`)
+/// the ramp ran 10 calls past the clamp: a release or reversal waited 0.33 s
+/// longer before the wheels moved (a left-right flick took about 1 s).
+#[test]
+fn keyboard_steering_reaches_lock_in_a_third_of_a_second() {
+    skip_without_local_fixtures!(fixture::CARS);
+    let mut v = boxster();
+    let mut q = Queue::new(&v, vec![]);
+    drive(&mut v, &mut q, START_S, 0);
+    // Steps (64 Hz) until `done` holds, at most 2 s.
+    fn until(
+        v: &mut OriginalVehicle,
+        q: &mut Queue,
+        word: u32,
+        done: impl Fn(&OriginalCar) -> bool,
+    ) -> u32 {
+        for n in 1..=128 {
+            v.advance(1.0 / 64.0, word, q);
+            if done(&v.car) {
+                return n;
+            }
+        }
+        panic!("not reached: d94 {}", v.car.steer_d94);
+    }
+    let right = input_word(0.0, 0.0, 1.0, false);
+    let left = input_word(0.0, 0.0, -1.0, false);
+    assert_eq!(v.car.steer_in_d90, 0);
+    until(&mut v, &mut q, right, |c| c.steer_in_d90 == 126);
+    // Centre to full lock: d94 at 126 (the steering target clamps at 127).
+    let lock = until(&mut v, &mut q, right, |c| c.steer_d94 >= 126);
+    assert!(lock <= 24, "full lock after {lock} steps");
+    assert_eq!(v.car.steer_d94, 126);
+    // Hold: no creep past the key's scale.
+    drive(&mut v, &mut q, 0.5, right);
+    assert_eq!(v.car.steer_d94, 126);
+    // Reversal to full left lock: 252 / 12 = 21 calls = 42 steps.
+    let flick = until(&mut v, &mut q, left, |c| c.steer_d94 <= -126);
+    assert!((40..=44).contains(&flick), "reversal after {flick} steps");
+    // Release: centred again within 0.4 s.
+    let centre = until(&mut v, &mut q, input_word(0.0, 0.0, 0.0, false), |c| {
+        c.steer_d94 == 0
+    });
+    assert!(centre <= 26, "centred after {centre} steps");
+}
