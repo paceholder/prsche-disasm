@@ -1,5 +1,17 @@
 # v2 / 001 - original source recovery plan
 
+Repository maintenance2026-10-25: Open-Unleashed v0.1.4 trial completed in
+local/experiments/open-unleashed-trial/v0.1.4 (three smoke runs exit0; screenshots
+inspected, no interactive/native UI acceptance). PR25 reviewed at36be231 then
+refreshed for2bc9c865: original-AI mass units now agree; fallback-only mismatch
+reported in issuecomment-6396767808. Author readiness/merge hold respected.
+Recorders/VAs mapped in research/binary-index/pr25-evidence.json for C++ use.
+Root README/roadmap/status/build/docs navigation cleaned; GitHub About/topics
+updated and re-read successfully after user refreshed token permissions.
+Public non-fork repository confirmed; search-engine crawl/ranking is not guaranteed.
+Existing recovery/cross-reference work from other sessions is preserved below;
+this maintenance does not change accepted game code or proof inputs.
+
 Current409,2026-10-25: fiveTAPIwrappers408(352B) andthreecomposedmodem410(389B)
 integrated.21580nativecases/sequences,14mutations,555pins PASS.223TUs/8projects
 compile;195names203refs,noEXE. Sevenoldnamesclose/five realchildrenexposed;

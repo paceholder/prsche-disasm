@@ -1,3 +1,33 @@
+# Building the project
+
+## Active C/C++ recovery
+
+Requirements: Windows x64, Visual Studio 2022 Build Tools with the x86/x64 C++ workload,
+a Windows SDK, CMake and Python 3. [scripts/tool-env.ps1](../scripts/tool-env.ps1) locates
+installed tools and project-local tool directories. The compiler target is Win32/x86.
+
+From the repository root:
+
+```powershell
+./scripts/build-v2.ps1
+```
+
+This builds recovered modules and verification programs under
+`local/builds/v2/001-original-recovery`; `recovery_probe.exe` is a verification tool,
+not the game. Original binaries/resources belong in read-only `local/game/`.
+[game-build.md](game-build.md) documents the reference installation.
+
+The latest full game-link build is documented by [STATUS.md](../STATUS.md) and its
+linked run README. That run's build-config drives a fresh configure/build and a
+shared acceptance audit. The game currently has unresolved providers; a successful
+module build does not imply a playable game executable. Generated builds and proof
+caches are local artifacts, not files to commit.
+
+## Rust prototype instructions
+
+The instructions below describe the unfinished, paused 012 prototype. They do not
+build the active C++ game. Snapshots 001?011 remain preserved.
+
 # Сборка активной итерации
 
 Из корня репозитория выполните одну команду:

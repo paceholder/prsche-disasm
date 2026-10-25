@@ -1,5 +1,10 @@
 # Индекс оригинальных бинарников
 
+PR #25: [original-function evidence map](pr25-evidence.json) links SIM/collision
+recorders and fixed-snapshot source addresses useful for C++ recovery. These are
+reviewed external Unicorn fixtures, not accepted game implementations; module hashes,
+asset differences and excluded domains must remain explicit.
+
 Run399: [transport callback navigation](../../iterations/v2/001-original-recovery/runs/399-network-descriptor-ownership/README.md)
 records five original callback tables and46 raw closed-RET navigation candidates,
 including omitted registry enumeration00580140. Evidence-only: no accepted callback

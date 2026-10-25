@@ -1,9 +1,8 @@
 # Текущий этап: v2/001-original-recovery
 
-Current v2 work is tracked in [the active PLAN](../iterations/v2/001-original-recovery/PLAN.md).
-Run339 compiles174 TUs with258 names/283 refs,noEXE. Next: canonical heap/context
-state unification from REA initialization/shutdown evidence; see active PLAN.
-The older iteration proposal below is historical, not the active assignment.
+Current v2 work is tracked in [the active PLAN](../iterations/v2/001-original-recovery/PLAN.md),
+with measured results in [STATUS.md](../STATUS.md). The older iteration proposal below
+is historical, not the active assignment.
 
 2026-10-14: compilation-first192/190:1054 разных Porsche.exe VA дали реальные
 x86 COFF:924 общего корпуса +130 thiscall leaves, пересечений0. У27 leaf bodies

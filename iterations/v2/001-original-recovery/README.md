@@ -1,9 +1,9 @@
 # v2 / 001 — восстановление исходного кода оригинала
 
-Current [Run339](runs/339-startup-context-batch/README.md):174 C++ TUs/8 projects
-compile;258 names/283 refs,noEXE. Shared audit and584 transport cases pass.
-REA confirms the manager publication/layout gap; no guessed provider is added.
-[PLAN.md](PLAN.md) owns the next subsystem batch. Older checkpoints below are historical.
+Current build and acceptance boundaries are in [STATUS.md](../../../STATUS.md).
+[PLAN.md](PLAN.md) owns the active subsystem work and its exact proof commands.
+The full recovered game is not yet linked or running. All checkpoints below are
+historical; they must not be read as the current build result.
 
 Отдельный compile-corpus checkpoint — [Run274](runs/274-shared-heap-union/README.md):1125candidate
 function VAs+19supportobjects,414linknames remain, EXE/DLL отсутствует.

@@ -1,112 +1,97 @@
-# Need for Speed: Porsche Unleashed — восстановление оригинала
+# Need for Speed: Porsche Unleashed / Porsche 2000 ? source recovery
 
-Цель проекта — восстановить игру из оригинальных бинарников в C/C++, собрать
-рабочую Windows/x86 версию, затем описать устройство кода и перенести его на Rust
-для современных native и web платформ. В объём входят обе карьеры, физика,
-повреждения, ИИ, экономика, сохранения, интерфейс и звук.
+Reverse engineering and C/C++ reconstruction of **Need for Speed: Porsche Unleashed**
+(PC, 2000), also released as **Need for Speed: Porsche 2000** and commonly called
+**NFS5**. The goal is to recover the original game's behavior from its Windows x86
+binaries, build a working game, document its architecture, then use that foundation
+for a Rust port to modern native and web platforms.
 
-Алгоритмы восстанавливаются по дизассемблеру и исходным ресурсам. Поведение
-проверяется сравнением входов, состояния и выходов с оригиналом.
-Правила работы: [AGENTS.md](AGENTS.md).
+**Work in progress: the recovered C++ game does not yet link into a playable executable.**
+The repository contains verified subsystems, experimental compilation tools and an
+older Rust/WebGPU prototype. These have separate acceptance criteria.
 
-## Текущий результат
+[Current status](STATUS.md) ? [Roadmap](PLAN.md) ? [Binary index](research/binary-index/README.md) ?
+[Build instructions](docs/building.md) ? [Contributing](CONTRIBUTING.md)
 
-Current2026-10-25: [Run409](iterations/v2/001-original-recovery/runs/409-tapi-modem-integration/README.md)
-compiles223TUs;195 unresolved names/203refs,no gameEXE.
-[PR24/Run431](iterations/v2/001-original-recovery/runs/431-x86-backend-exact/README.md)
-adds reviewed research lowering, outside the game graph. Older checkpoints below
-are historical; active work is tracked in the iteration PLAN.
+## What is being recovered
 
-[PR20 research tooling](docs/research/pr20-acceptance-2026-10-20.md) adds an
-experimental x86 lowering/oracle tool after review corrections.107 supported
-fragments/109568 native cases pass; unsupported x87 boundaries are explicit.
-It is outside the production game graph and does not replace original recovery.
+The target is the original driving and game experience: vehicle physics and damage,
+AI opponents and traffic, Quick Race, Evolution and Factory Driver careers, used-car
+purchases, progression, saves, menus, rendering and audio.
 
-[Очередь PR #2–#19 разобрана](docs/research/pr-triage-2026-10-19.md): #3 слит,
-остальные17 закрыты с объяснениями; открытых PR нет. Непринятый полезный код
-сохранён как кандидаты в очереди восстановления. Продолжаем основной путь с REA.
+Algorithms come from disassembly, decompiler analysis and original resource consumers.
+Recovered functions are checked against original x86 behavior using recorded inputs,
+intermediate state, outputs and ABI checks. Compilation alone is not fidelity proof.
+Unresolved algorithms and unsupported domains remain explicit; a plausible substitute
+is not accepted as original behavior.
 
-Активна [v2 / 001 — восстановление исходного кода](iterations/v2/001-original-recovery/README.md).
-**Полная игра из восстановленных исходников пока не запускается.**
+## Project tracks
 
-На 2026-10-19:
+- **Active C/C++ recovery:** [v2 / 001-original-recovery](iterations/v2/001-original-recovery/README.md).
+  The [active plan](iterations/v2/001-original-recovery/PLAN.md) owns subsystem scope,
+  proof artifacts and the next dependency work. [STATUS.md](STATUS.md) records the latest
+  measured build and its limitations.
+- **Experimental Rust/WebGPU prototype:** [012-campaign-fidelity](iterations/012-campaign-fidelity/README.md).
+  This earlier native/browser implementation is unfinished and its integration is paused.
+  Its viewer is not the recovered C++ game. Snapshots 001?011 are preserved.
 
-- [Compile candidates, Run274](iterations/v2/001-original-recovery/runs/274-shared-heap-union/README.md):
-  1125 разных адресов функций скомпилированы в x86 COFF и объединены в библиотеку.
-  Принудительная линковка всего архива оставляет 414 неразрешённых имён; EXE/DLL не получен.
-  Успешная компиляция этих кандидатов ещё не подтверждает точность поведения.
-- [Проверенная интеграция, Run173](iterations/v2/001-original-recovery/runs/173-float-transport-integration/README.md):
-  476 полностью восстановленных функций и 6 частичных consumers;
-  24 560 сравнений с оригиналом и 12 native/link проверок прошли.
-  Это отдельный проверенный набор, а не ещё 482 функции поверх 1125 кандидатов.
+The plan after a functional recovered baseline is an architecture map of the game,
+followed by the Rust native/web port. There is no completion-date estimate.
 
-[Статический перевод x86→C++, Run258](iterations/v2/001-original-recovery/runs/258-x86-call-chain/README.md):
-три оригинальные цепочки CALL/RET, 36 864 сравнения регистров, флагов, памяти и стека
-прошли. Это проверка экспериментального backend, а не запуск полной игры.
+## Build the recovered modules
 
-[Latest game build, Run388](iterations/v2/001-original-recovery/runs/388-startup-integration/README.md):
-211 C++ TUs compile;194 names/201 refs,noEXE. Startupcallback/heap handoff passed
-1504 native comparisons/15 mutations;528-input audit PASS. Next: newPRreview.
-Full iteration/startup/menu criteria remain open.
-
-Общий layout и инициализация корневого объекта остаются открытыми. Срок полной игры
-не установлен.
-
-[REA CLI и постоянная MCP-сессия](iterations/v2/001-original-recovery/runs/316-rea-fill-session/README.md)
-проверены на Windows/x86 без отдельного API: scalar/MMX/SSE в одном соединении.
-Холодный анализ91.38с; повтор39мс, соседние функции73/138мс. Результаты анализа
-проверяются по оригинальному коду; сама декомпиляция не доказывает точность C++.
-Точная граница и результаты: [STATUS.md](STATUS.md).
-
-## Сборка текущих C++ целей
-
-Нужны Windows x64, Visual Studio 2022 Build Tools с C++ x86/x64 workload,
-Windows SDK и CMake. Для исследовательских скриптов также нужен Python 3.
-Настройка окружения: [docs/building.md](docs/building.md) и
-[scripts/tool-env.ps1](scripts/tool-env.ps1).
-
-Из корня репозитория:
+Use Windows x64 with **Visual Studio 2022 Build Tools**, the C++ x86/x64 workload,
+a Windows SDK, CMake and Python 3. From the repository root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-v2.ps1
+./scripts/build-v2.ps1
 ```
 
-Скрипт собирает существующие CMake цели MSVC Win32 в конфигурации Release.
-Результаты: `local/builds/v2/001-original-recovery/`.
-Это сборка восстановленных модулей и проверочных программ; она пока не создаёт
-полностью рабочую игру. Экспериментальный корпус кандидатов собирается отдельно;
-команда последнего объединения приведена в [Run274](iterations/v2/001-original-recovery/runs/274-shared-heap-union/README.md).
+This builds Win32 recovery modules and verification programs under
+`local/builds/v2/001-original-recovery/`; it does not produce a complete playable game.
+See [building.md](docs/building.md) for setup and the current full game-link check.
 
-Оригинальные бинарники и ресурсы располагаются в `local/game/` и используются
-только для чтения. Локальные эксперименты и сборки хранятся вне Git.
+Supply your own original game files under `local/game/`. They are read-only inputs
+and are not distributed with this project. [Original installation provenance](docs/game-build.md)
+explains the reference copy and known patch boundaries. Generated builds, caches and
+local experiments stay outside Git.
 
-## Навигация
+## Find code and evidence
 
-- [План проекта](PLAN.md) и [план активной итерации](iterations/v2/001-original-recovery/PLAN.md).
-- [Индекс бинарников](research/binary-index/README.md) — первая точка поиска оригинального кода.
-- [Дополнительные диапазоны](research/binary-index/supplemental/README.md) — навигация по пропускам, с явным статусом доказательств.
-- [Отложенные проверки](docs/recovery-validation-backlog.md) — обязательная очередь до итоговой приёмки.
-- [Общие манифесты входов](research/v2/proof-manifests/README.md) — повторяющиеся SHA хранятся один раз, результаты прогонов отдельно.
-- [Автоматизация восстановления](docs/recovery-automation.md) — сборка, обратная связь и очередь зависимостей.
-- [Сохранённая незавершённая работа](docs/recovery-wip.md).
-- [Документация](docs/README.md) и [правила исполнителей](docs/agents.md).
+- [Binary index](research/binary-index/README.md): start here for original modules,
+  addresses, strings, imports, function references and coverage gaps.
+- [Recovered source registry](iterations/v2/001-original-recovery/source/recovered/functions.json):
+  accepted function owners and explicit partial/unresolved boundaries.
+- [Recovery runs](iterations/v2/001-original-recovery/runs/): immutable per-batch sources,
+  manifests, validation receipts and concise handoffs.
+- [Shared proof manifests](research/v2/proof-manifests/README.md): reusable input hashes.
+- [Validation backlog](docs/recovery-validation-backlog.md): outstanding original,
+  integration, platform and visual checks.
+- [Documentation index](docs/README.md): formats, tools, build setup and recovery notes.
 
-## Предыдущий прототип v1
+Experimental x86-to-C++ lowering and compile candidates are research tools. Their
+coverage counts are separate from accepted game functions and playable-game progress.
 
-Rust/WebGPU прототипы сохранены в `iterations/`. Снимки 001–011 заморожены.
-[012 — campaign fidelity](iterations/012-campaign-fidelity/README.md) осталась
-незавершённой; её интеграция остановлена после перехода на восстановление v2.
-Инструкции запуска и управление прототипом находятся в README этой итерации.
+## Contributing
 
-## License
+Original-code findings, reproducible fixtures, resource-format research and focused
+fixes are welcome. Include the binary/resource identity, relevant addresses and the
+comparison that supports a behavior change. Keep approximations and unverified claims
+clearly identified. See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
-Project-owned original code and documentation use the [MIT License](LICENSE),
-subject to the [licensing scope](LICENSING.md). Original game material and
-third-party contributions are not automatically relicensed by this notice.
+## License and game assets
 
-## Acknowledgements
+Project-owned original contributions use the [MIT License](LICENSE), subject to
+[LICENSING.md](LICENSING.md). Original game binaries, resources, reproduced game
+material and third-party contributions are not automatically relicensed. You need
+your own copy of the game. This is an unofficial project, unaffiliated with Electronic
+Arts, Eden Games or Porsche AG.
 
-При исследовании CRP и FSH использовались открытые описания и реализации:
-[CrpLib / FSHTool, Denis Auroux](https://auroux.free.fr/),
-[OpenNFS / LibOpenNFS](https://github.com/OpenNFS/LibOpenNFS) и
+## Related work and acknowledgements
+
+Resource research has benefited from [Denis Auroux's CRP/FSH tools](https://auroux.free.fr/),
+[OpenNFS / LibOpenNFS](https://github.com/OpenNFS/LibOpenNFS) and
 [dima424658 / LibOpenNFS](https://github.com/dima424658/LibOpenNFS).
+[Open-Unleashed](https://github.com/Second-Boot/Open-Unleashed) is a separate Rust
+reimplementation; evaluating it does not establish original-game fidelity or change
+this project's licensing scope.

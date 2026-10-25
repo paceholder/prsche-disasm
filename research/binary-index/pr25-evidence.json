@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "status": "external PR review only; not C++ or Rust game acceptance",
+  "pull_request": "https://github.com/xfynx/prsche-disasm/pull/25",
+  "reviewed_head": "36be231b3bbc65dd027658057f44099e815b5e01",
+  "merge_state": "author polishing; await readiness as agreed in PR comments",
+  "modules": {
+    "nfs5.exe": "c318af393d4c2b7071a820ca3d69e956bbd94769b6e5c2e3e49f498ecbc94906",
+    "Porsche.exe": "ddd748fdbe6d2030e31f9257a4e01852749460b6b58560a6b4a8559d3799ff39"
+  },
+  "module_boundary": "Different whole-file hashes; six text bytes differ outside00490000..004a5000. Verify each actual body before reuse.",
+  "evidence": [
+    {
+      "area": "SIM derivation",
+      "addresses": [
+        "0049c82f",
+        "0049cb50"
+      ],
+      "recorder": "https://github.com/xfynx/prsche-disasm/blob/36be231b3bbc65dd027658057f44099e815b5e01/scripts/research/replay-vehicle-sim.py",
+      "harness": "https://github.com/xfynx/prsche-disasm/blob/36be231b3bbc65dd027658057f44099e815b5e01/scripts/research/vehicle_harness.py",
+      "reproduced": "86 cases regenerated deterministically;85 match.928coupeGTS54.sim differs in input asset hash, not established algorithm failure.",
+      "boundary": "Default tuning/no parts; caller/consumer composition remains separate."
+    },
+    {
+      "area": "car-pair collision",
+      "addresses": [
+        "00496fd0",
+        "00497b10",
+        "00496860",
+        "004964d0"
+      ],
+      "recorder": "https://github.com/xfynx/prsche-disasm/blob/36be231b3bbc65dd027658057f44099e815b5e01/scripts/research/replay-car-pair.py",
+      "reproduced": "424 contact/separation cases and420 impulse rows reproduce at f32 precision.",
+      "boundary": "Synthetic Unicorn/x87 control word0x027f; not native-host, full-world or game acceptance."
+    },
+    {
+      "area": "tyre, engine, controls and ground",
+      "recorder_directory": "https://github.com/xfynx/prsche-disasm/tree/36be231b3bbc65dd027658057f44099e815b5e01/scripts/research",
+      "use": "Original fields, intermediate stores and ordered sequence fixtures can guide bounded C++ recovery.",
+      "boundary": "Review each recorder; ground fixtures fake support-owner methods, returnzero for roof queries and exclude rollover paths. Missing external RE notes/symbol exports remain a traceability limit."
+    }
+  ],
+  "known_integration_issue": "At36be231 broad O-mode kg/128 vs tonnes mismatch. At2bc9c865 normal original-AI path uses consistent pair_car scaling; mismatch remains only when missing graph/AIS leaves original_ai=None and the kinematic fallback pairs enter collide_player. No current merge acceptance.",
+  "review_artifact": "local/reports/pr25-review-20261025/physics/review-evidence.json",
+  "latest_reviewed_head": "2bc9c865b3e4a5d97b4ddd7a22069106d8ee81e2",
+  "review_comment": "https://github.com/xfynx/prsche-disasm/pull/25#issuecomment-6396767808"
+}
