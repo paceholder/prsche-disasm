@@ -906,6 +906,9 @@ dependencies = [
 [[package]]
 name = "nfs-formats"
 version = "0.1.0"
+dependencies = [
+ "png",
+]
 
 [[package]]
 name = "nfs-game"

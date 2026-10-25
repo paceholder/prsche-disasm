@@ -242,17 +242,21 @@ pub struct Image {
     pub y: u32,
     pub rgba: Vec<u8>,
 }
-fn decode_dxt1(width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>> {
+/// `kind`: 1 = DXT1, 3 = DXT3 (explicit alpha), 5 = DXT5 (interpolated alpha).
+fn decode_dxt(kind: u8, width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>> {
     let mut rgba = vec![0u8; width * height * 4];
     let blocks_x = width.div_ceil(4);
     let blocks_y = height.div_ceil(4);
-    let expected_len = blocks_x * blocks_y * 8;
+    let bsize = if kind == 1 { 8 } else { 16 };
+    let expected_len = blocks_x * blocks_y * bsize;
     if data.len() < expected_len {
-        return Err("DXT1 data truncated".into());
+        return Err("DXT data truncated".into());
     }
     for by in 0..blocks_y {
         for bx in 0..blocks_x {
-            let offset = (by * blocks_x + bx) * 8;
+            let blk = (by * blocks_x + bx) * bsize;
+            let alpha = &data[blk..blk + bsize - 8];
+            let offset = blk + bsize - 8;
             let c0_raw = u16::from_le_bytes([data[offset], data[offset + 1]]);
             let c1_raw = u16::from_le_bytes([data[offset + 2], data[offset + 3]]);
             let bits = u32::from_le_bytes([
@@ -271,7 +275,7 @@ fn decode_dxt1(width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>> {
 
             let col0 = unpack565(c0_raw);
             let col1 = unpack565(c1_raw);
-            let (col2, col3) = if c0_raw > c1_raw {
+            let (col2, col3) = if c0_raw > c1_raw || kind != 1 {
                 (
                     [
                         ((2 * col0[0] as u16 + col1[0] as u16) / 3) as u8,
@@ -311,7 +315,28 @@ fn decode_dxt1(width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>> {
                     }
                     let code_idx = (py * 4 + px) * 2;
                     let code = ((bits >> code_idx) & 3) as usize;
-                    let p = palette[code];
+                    let mut p = palette[code];
+                    let i = py * 4 + px;
+                    match kind {
+                        3 => p[3] = (alpha[i / 2] >> ((i & 1) * 4) & 15) * 17,
+                        5 => {
+                            let (a0, a1) = (alpha[0] as u16, alpha[1] as u16);
+                            let bits = alpha[2..8]
+                                .iter()
+                                .enumerate()
+                                .fold(0u64, |acc, (k, &b)| acc | (b as u64) << (8 * k));
+                            let c = ((bits >> (3 * i)) & 7) as u16;
+                            p[3] = match (c, a0 > a1) {
+                                (0, _) => a0,
+                                (1, _) => a1,
+                                (6, false) => 0,
+                                (7, false) => 255,
+                                (c, true) => ((8 - c) * a0 + (c - 1) * a1) / 7,
+                                (c, false) => ((6 - c) * a0 + (c - 1) * a1) / 5,
+                            } as u8;
+                        }
+                        _ => {}
+                    }
                     let dst = (y * width + x) * 4;
                     rgba[dst..dst + 4].copy_from_slice(&p);
                 }
@@ -321,7 +346,42 @@ fn decode_dxt1(width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>> {
     Ok(rgba)
 }
 
-pub fn parse_fsh(input: &[u8]) -> Result<Vec<Image>> {
+/// Expand an n-bit channel value to 8 bits.
+fn expand(v: u16, bits: u32) -> u8 {
+    let max = (1u32 << bits) - 1;
+    ((v as u32 & max) * 255 / max) as u8
+}
+
+/// Decode one little-endian 16-bit pixel: 0x78 = R5G6B5, 0x7e = A1R5G5B5, 0x6d = A4R4G4B4.
+fn unpack16(fmt: u8, v: u16) -> [u8; 4] {
+    match fmt {
+        0x78 => [expand(v >> 11, 5), expand(v >> 5, 6), expand(v, 5), 255],
+        0x7e => [
+            expand(v >> 10, 5),
+            expand(v >> 5, 5),
+            expand(v, 5),
+            if v & 0x8000 != 0 { 255 } else { 0 },
+        ],
+        _ => [
+            expand(v >> 8, 4),
+            expand(v >> 4, 4),
+            expand(v, 4),
+            expand(v >> 12, 4),
+        ],
+    }
+}
+
+/// One FSH directory entry; `image` is `Err` when this entry alone cannot be decoded.
+pub struct FshEntry {
+    pub index: usize,
+    pub name: String,
+    pub format: u32,
+    pub width: u32,
+    pub height: u32,
+    pub image: Result<Image>,
+}
+
+fn fsh_directory(input: &[u8]) -> Result<(Vec<u8>, usize)> {
     let decoded = decompress(input)?;
     if bytes(&decoded, 0, 4)? != b"SHPI" {
         return Err("offset 0x0: expected SHPI FSH".into());
@@ -329,136 +389,171 @@ pub fn parse_fsh(input: &[u8]) -> Result<Vec<Image>> {
     // The directory offsets are relative to the FSH, not to trailing data in a
     // surrounding container.  Restrict every read to the declared archive.
     let length = u32le(&decoded, 4)? as usize;
-    let d = bytes(&decoded, 0, length)?;
-    let n = u32le(d, 8)? as usize;
-    bytes(d, 16, n.checked_mul(8).ok_or("FSH count overflow")?)?;
-    let mut images = Vec::new();
-    for i in 0..n {
-        let name = String::from_utf8_lossy(bytes(d, 16 + i * 8, 4)?)
-            .trim()
-            .to_ascii_lowercase();
-        let o = u32le(d, 20 + i * 8)? as usize;
-        let code = u32le(d, o)?;
-        let width = u16le(d, o + 4)? as u32;
-        let height = u16le(d, o + 6)? as u32;
-        if width == 0 || height == 0 || width > 4096 || height > 4096 {
-            return Err(format!("offset 0x{o:x}: invalid image dimensions"));
-        }
-        let x = u16le(d, o + 12)? as u32;
-        let y = u16le(d, o + 14)? as u32;
-        let count = width
-            .checked_mul(height)
-            .ok_or_else(|| format!("offset 0x{o:x}: image pixel count overflow"))?
-            as usize;
-        let rgba_len = count
-            .checked_mul(4)
-            .ok_or_else(|| format!("offset 0x{o:x}: image byte count overflow"))?;
-        let mut rgba = Vec::with_capacity(rgba_len);
-        match code & 255 {
-            0x7d => {
-                for p in bytes(d, o + 16, rgba_len)?.as_chunks::<4>().0 {
-                    rgba.extend_from_slice(&[p[2], p[1], p[0], p[3]]);
-                }
+    let d = bytes(&decoded, 0, length)?.to_vec();
+    let n = u32le(&d, 8)? as usize;
+    bytes(&d, 16, n.checked_mul(8).ok_or("FSH count overflow")?)?;
+    Ok((d, n))
+}
+
+fn fsh_entry(d: &[u8], i: usize) -> Result<Image> {
+    let name = String::from_utf8_lossy(bytes(d, 16 + i * 8, 4)?)
+        .trim()
+        .to_ascii_lowercase();
+    let o = u32le(d, 20 + i * 8)? as usize;
+    let code = u32le(d, o)?;
+    let width = u16le(d, o + 4)? as u32;
+    let height = u16le(d, o + 6)? as u32;
+    if width == 0 || height == 0 || width > 4096 || height > 4096 {
+        return Err(format!("offset 0x{o:x}: invalid image dimensions"));
+    }
+    let x = u16le(d, o + 12)? as u32;
+    let y = u16le(d, o + 14)? as u32;
+    let count = width
+        .checked_mul(height)
+        .ok_or_else(|| format!("offset 0x{o:x}: image pixel count overflow"))?
+        as usize;
+    let rgba_len = count
+        .checked_mul(4)
+        .ok_or_else(|| format!("offset 0x{o:x}: image byte count overflow"))?;
+    // Bit 0x80 marks RefPack-compressed pixel data; the base format is the low 7 bits.
+    let fmt = (code & 0x7f) as u8;
+    let packed;
+    let raw: &[u8] = if code & 0x80 != 0 {
+        packed = decompress(bytes(d, o + 16, d.len().saturating_sub(o + 16))?)
+            .map_err(|e| format!("offset 0x{o:x}: {e}"))?;
+        &packed
+    } else {
+        bytes(d, o + 16, d.len().saturating_sub(o + 16))?
+    };
+    let need = |n: usize| -> Result<&[u8]> {
+        bytes(raw, 0, n).map_err(|_| format!("offset 0x{o:x}: FSH pixel data truncated"))
+    };
+    let mut rgba = Vec::with_capacity(rgba_len);
+    match fmt {
+        0x7d => {
+            for p in need(rgba_len)?.as_chunks::<4>().0 {
+                rgba.extend_from_slice(&[p[2], p[1], p[0], p[3]]);
             }
-            0x7f => {
-                for p in bytes(
-                    d,
-                    o + 16,
-                    count.checked_mul(3).ok_or("FSH RGB byte count overflow")?,
-                )?
+        }
+        0x7f => {
+            for p in need(count.checked_mul(3).ok_or("FSH RGB byte count overflow")?)?
                 .as_chunks::<3>()
                 .0
-                {
-                    rgba.extend_from_slice(&[p[2], p[1], p[0], 255]);
-                }
-            }
-            0x7b => {
-                let pixels = bytes(d, o + 16, count)?;
-                let pal = o
-                    .checked_add((code >> 8) as usize)
-                    .ok_or("FSH palette offset overflow")?;
-                if pal == o {
-                    return Err(format!("offset 0x{o:x}: missing palette"));
-                }
-                let pc = u32le(d, pal)? & 255;
-                let pn = u16le(d, pal + 4)? as usize;
-                let stride = match pc {
-                    0x2a => 4,
-                    0x24 => 3,
-                    0x29 | 0x2d => 2,
-                    _ => return Err(format!("offset 0x{pal:x}: unsupported palette {pc:x}")),
-                };
-                let palette = bytes(
-                    d,
-                    pal + 16,
-                    pn.checked_mul(stride).ok_or("FSH palette size overflow")?,
-                )?;
-                for &idx in pixels {
-                    let p = bytes(palette, idx as usize * stride, stride)?;
-                    let pixel = match pc {
-                        0x2a => [p[2], p[1], p[0], p[3]],
-                        0x24 => [p[2], p[1], p[0], 255],
-                        _ => {
-                            let v = u16::from_le_bytes([p[0], p[1]]);
-                            if pc == 0x29 {
-                                [
-                                    (((v >> 11) & 31) * 255 / 31) as u8,
-                                    (((v >> 5) & 63) * 255 / 63) as u8,
-                                    ((v & 31) * 255 / 31) as u8,
-                                    255,
-                                ]
-                            } else {
-                                [
-                                    (((v >> 10) & 31) * 255 / 31) as u8,
-                                    (((v >> 5) & 31) * 255 / 31) as u8,
-                                    ((v & 31) * 255 / 31) as u8,
-                                    if v & 0x8000 != 0 { 255 } else { 0 },
-                                ]
-                            }
-                        }
-                    };
-                    rgba.extend_from_slice(&pixel);
-                }
-            }
-            0x78 | 0x7e => {
-                for p in bytes(
-                    d,
-                    o + 16,
-                    count
-                        .checked_mul(2)
-                        .ok_or("FSH 16bpp byte count overflow")?,
-                )?
-                .as_chunks::<2>()
-                .0
-                {
-                    let v = u16::from_le_bytes([p[0], p[1]]);
-                    let r = (((v >> 10) & 31) * 255 / 31) as u8;
-                    let g = (((v >> 5) & 31) * 255 / 31) as u8;
-                    let b = ((v & 31) * 255 / 31) as u8;
-                    let a = if v & 0x8000 != 0 { 255 } else { 0 };
-                    rgba.extend_from_slice(&[r, g, b, a]);
-                }
-            }
-            0x6d | 0xed => {
-                let raw_data = bytes(d, o + 16, d.len() - (o + 16))?;
-                rgba = decode_dxt1(width as usize, height as usize, raw_data)?;
-            }
-            f => {
-                return Err(format!(
-                    "offset 0x{o:x}: unsupported FSH pixel format 0x{f:x}"
-                ))
+            {
+                rgba.extend_from_slice(&[p[2], p[1], p[0], 255]);
             }
         }
-        images.push(Image {
-            name,
-            width,
-            height,
-            x,
-            y,
-            rgba,
-        });
+        0x7b => {
+            let pixels = need(count)?;
+            let pal = o
+                .checked_add((code >> 8) as usize)
+                .ok_or("FSH palette offset overflow")?;
+            if pal == o {
+                return Err(format!("offset 0x{o:x}: missing palette"));
+            }
+            let pc = u32le(d, pal)? & 255;
+            let pn = u16le(d, pal + 4)? as usize;
+            let stride = match pc {
+                0x2a => 4,
+                0x24 => 3,
+                0x29 | 0x2d => 2,
+                _ => return Err(format!("offset 0x{pal:x}: unsupported palette {pc:x}")),
+            };
+            let palette = bytes(
+                d,
+                pal + 16,
+                pn.checked_mul(stride).ok_or("FSH palette size overflow")?,
+            )?;
+            for &idx in pixels {
+                let p = bytes(palette, idx as usize * stride, stride)?;
+                let pixel = match pc {
+                    0x2a => [p[2], p[1], p[0], p[3]],
+                    0x24 => [p[2], p[1], p[0], 255],
+                    _ => {
+                        let v = u16::from_le_bytes([p[0], p[1]]);
+                        if pc == 0x29 {
+                            [
+                                (((v >> 11) & 31) * 255 / 31) as u8,
+                                (((v >> 5) & 63) * 255 / 63) as u8,
+                                ((v & 31) * 255 / 31) as u8,
+                                255,
+                            ]
+                        } else {
+                            [
+                                (((v >> 10) & 31) * 255 / 31) as u8,
+                                (((v >> 5) & 31) * 255 / 31) as u8,
+                                ((v & 31) * 255 / 31) as u8,
+                                if v & 0x8000 != 0 { 255 } else { 0 },
+                            ]
+                        }
+                    }
+                };
+                rgba.extend_from_slice(&pixel);
+            }
+        }
+        0x78 | 0x7e | 0x6d => {
+            let px = need(
+                count
+                    .checked_mul(2)
+                    .ok_or("FSH 16bpp byte count overflow")?,
+            )?;
+            for p in px.as_chunks::<2>().0 {
+                let v = u16::from_le_bytes([p[0], p[1]]);
+                rgba.extend_from_slice(&unpack16(fmt, v));
+            }
+        }
+        0x60 | 0x61 | 0x62 => {
+            rgba = decode_dxt(
+                [1, 3, 5][(fmt - 0x60) as usize],
+                width as usize,
+                height as usize,
+                raw,
+            )?;
+        }
+        _ => {
+            return Err(format!(
+                "offset 0x{o:x}: unsupported FSH pixel format 0x{:x}",
+                code & 255
+            ))
+        }
     }
-    Ok(images)
+    Ok(Image {
+        name,
+        width,
+        height,
+        x,
+        y,
+        rgba,
+    })
+}
+
+pub fn parse_fsh(input: &[u8]) -> Result<Vec<Image>> {
+    let (d, n) = fsh_directory(input)?;
+    (0..n).map(|i| fsh_entry(&d, i)).collect()
+}
+
+/// Like `parse_fsh`, but a bad or unsupported image does not fail the whole pack.
+pub fn parse_fsh_entries(input: &[u8]) -> Result<Vec<FshEntry>> {
+    let (d, n) = fsh_directory(input)?;
+    Ok((0..n)
+        .map(|i| {
+            let name = String::from_utf8_lossy(&d[16 + i * 8..20 + i * 8])
+                .trim()
+                .to_ascii_lowercase();
+            let o = u32le(&d, 20 + i * 8).unwrap_or(0) as usize;
+            let format = u32le(&d, o).map_or(0, |c| c & 255);
+            let width = u16le(&d, o + 4).unwrap_or(0) as u32;
+            let height = u16le(&d, o + 6).unwrap_or(0) as u32;
+            FshEntry {
+                index: i,
+                name,
+                format,
+                width,
+                height,
+                image: fsh_entry(&d, i),
+            }
+        })
+        .collect())
 }
 
 pub type Ini = BTreeMap<String, BTreeMap<String, String>>;
@@ -545,6 +640,85 @@ mod tests {
         let i = parse_ini(b"[x]\na=1\nb=2\n[x]\na=3\n").unwrap();
         assert_eq!(i["x"]["a"], "3");
         assert_eq!(i["x"]["b"], "2");
+    }
+    fn one_image_fsh(code: u32, w: u16, h: u16, pixels: &[u8]) -> Vec<u8> {
+        let mut d = b"SHPI".to_vec();
+        d.extend_from_slice(&[0; 4]);
+        d.extend_from_slice(&1u32.to_le_bytes());
+        d.extend_from_slice(b"GIMX");
+        d.extend_from_slice(b"test");
+        d.extend_from_slice(&24u32.to_le_bytes());
+        d.extend_from_slice(&code.to_le_bytes());
+        d.extend_from_slice(&w.to_le_bytes());
+        d.extend_from_slice(&h.to_le_bytes());
+        d.extend_from_slice(&[0; 8]);
+        d.extend_from_slice(pixels);
+        let n = d.len() as u32;
+        d[4..8].copy_from_slice(&n.to_le_bytes());
+        d
+    }
+    fn first_pixel(code: u32, pixels: &[u8]) -> Vec<u8> {
+        let img = parse_fsh(&one_image_fsh(code, 1, 1, pixels)).unwrap();
+        img[0].rgba.clone()
+    }
+    #[test]
+    fn fsh_16bit_formats() {
+        // R5G6B5: pure red, green, blue, white
+        assert_eq!(
+            first_pixel(0x78, &0xf800u16.to_le_bytes()),
+            [255, 0, 0, 255]
+        );
+        assert_eq!(
+            first_pixel(0x78, &0x07e0u16.to_le_bytes()),
+            [0, 255, 0, 255]
+        );
+        assert_eq!(
+            first_pixel(0x78, &0x001fu16.to_le_bytes()),
+            [0, 0, 255, 255]
+        );
+        assert_eq!(first_pixel(0x78, &0xffffu16.to_le_bytes()), [255; 4]);
+        // A1R5G5B5
+        assert_eq!(
+            first_pixel(0x7e, &0xfc00u16.to_le_bytes()),
+            [255, 0, 0, 255]
+        );
+        assert_eq!(first_pixel(0x7e, &0x03e0u16.to_le_bytes()), [0, 255, 0, 0]);
+        assert_eq!(
+            first_pixel(0x7e, &0x801fu16.to_le_bytes()),
+            [0, 0, 255, 255]
+        );
+        // A4R4G4B4
+        assert_eq!(
+            first_pixel(0x6d, &0xff00u16.to_le_bytes()),
+            [255, 0, 0, 255]
+        );
+        assert_eq!(
+            first_pixel(0x6d, &0x80f0u16.to_le_bytes()),
+            [0, 255, 0, 136]
+        );
+        assert_eq!(first_pixel(0x6d, &0x000fu16.to_le_bytes()), [0, 0, 255, 0]);
+    }
+    #[test]
+    fn fsh_32_and_24bit() {
+        assert_eq!(first_pixel(0x7d, &[3, 2, 1, 4]), [1, 2, 3, 4]);
+        assert_eq!(first_pixel(0x7f, &[3, 2, 1]), [1, 2, 3, 255]);
+    }
+    #[test]
+    fn fsh_compressed_variant_matches_base() {
+        // RefPack stream: 10 fb, size 2, one literal run of 2 bytes then stop code 0xfc.
+        let packed = [0x10, 0xfb, 0, 0, 2, 0xfc | 2, 0x00, 0xf8];
+        assert_eq!(first_pixel(0xf8, &packed), [255, 0, 0, 255]);
+    }
+    #[test]
+    fn fsh_dxt_formats() {
+        let color = [0x00, 0xf8, 0x00, 0xf8, 0, 0, 0, 0]; // all red
+        assert_eq!(first_pixel(0x60, &color), [255, 0, 0, 255]);
+        let mut dxt3 = vec![0xff; 8];
+        dxt3.extend_from_slice(&color);
+        assert_eq!(first_pixel(0x61, &dxt3), [255, 0, 0, 255]);
+        let mut dxt5 = vec![0x80, 0x00, 0, 0, 0, 0, 0, 0];
+        dxt5.extend_from_slice(&color);
+        assert_eq!(first_pixel(0x62, &dxt5), [255, 0, 0, 128]);
     }
     #[test]
     fn fsh_truncated() {
