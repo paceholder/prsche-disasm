@@ -315,6 +315,64 @@ impl OriginalVehicle {
         self.clock = StepClock::default();
     }
 
+    /// Mid-race reset of the drive state, before a track reset moves the car
+    /// (`Car_ResetToTrack 0x40f540`): `Car_ResetDriveState 0x49e220` (inputs,
+    /// gear N, wheel records, rpm, force sums, `+0x540`) and `0x40f400`
+    /// (angular velocity, `+0x418`, `+0x420`, `+0x40c`, speed). The velocity
+    /// is cleared by `0x40f540` itself. Unlike [`Self::restart`], the
+    /// scheduler step, the random generator and the race fields (`+0xb50`,
+    /// damage, flags, light switches) stay. `+0xdb0` becomes 0x3c (a short
+    /// brake hold) or, if a roll had cut the controls, 1 (a full one).
+    /// Gear: `0x49e220` selects 1st when `res+0xc == 1`, else N. `res+0xc`
+    /// is not ported; it is taken as the automatic box flag (approximation
+    /// A98), so the automatic car gets 1st (in N it would wait for the
+    /// race-start request, which comes only before step 0x1c4).
+    pub fn reset_drive_state(&mut self) {
+        let old = &self.car;
+        let mut car = OriginalCar::new(old.specs.clone());
+        car.res_14 = old.res_14;
+        car.res_20 = old.res_20;
+        car.res_24 = old.res_24;
+        car.res_518 = old.res_518;
+        car.damage = old.damage;
+        car.body_surface_2c = old.body_surface_2c;
+        car.remote_steer_38 = old.remote_steer_38;
+        car.remote_brake_3a = old.remote_brake_3a;
+        car.remote_bits_3b = old.remote_bits_3b;
+        car.ground_on_7c = old.ground_on_7c;
+        car.frozen_7d = old.frozen_7d;
+        car.active_7f = old.active_7f;
+        car.reortho_80 = old.reortho_80;
+        car.body_points_8c = old.body_points_8c.clone();
+        car.position_330 = old.position_330;
+        car.axes_364 = old.axes_364;
+        car.half_extents_3a8 = old.half_extents_3a8;
+        car.alt_normal_3e8 = old.alt_normal_3e8;
+        car.alt_base_400 = old.alt_base_400;
+        car.damage_4e4 = old.damage_4e4;
+        car.player_520 = old.player_520;
+        car.flags_52c = old.flags_52c;
+        car.flags_52d = old.flags_52d;
+        car.field_544 = old.field_544;
+        car.field_b50 = old.field_b50;
+        car.toggles_d87 = old.toggles_d87;
+        car.ai_da8 = old.ai_da8;
+        car.remote_dac = old.remote_dac;
+        car.events_1110 = old.events_1110.clone();
+        car.lights_1230 = old.lights_1230;
+        car.lights_1232 = old.lights_1232;
+        car.globals = old.globals;
+        car.start_db0 = if old.start_db0 != 0 { 0x3c } else { 1 };
+        if car.globals.auto_box_658098 == 1 {
+            car.gear_d82 = 2;
+            car.gear_req_d7e = 2;
+        }
+        update_world_points(&mut car);
+        self.car = car;
+        self.ground = GroundAdapter::default();
+        self.owners = Default::default();
+    }
+
     /// Moves the car to a pose (box centre, axes R/U/F, velocity, angular
     /// velocity in turns/s), keeping the model state, and places it on the
     /// ground there. Used at spawn and when switching from the prototype;

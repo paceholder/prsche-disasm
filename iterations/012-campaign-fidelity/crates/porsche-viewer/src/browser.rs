@@ -293,6 +293,19 @@ impl BrowserViewer {
         }
     }
 
+    /// R key: the original track reset (the car back on the road at its track node, the race
+    /// goes on). Taken by the next 32 Hz reset tick, which may refuse it as the original does.
+    pub fn request_car_reset(&mut self) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.request_car_reset();
+        }
+    }
+
+    /// Number of track resets done since the page loaded (debug).
+    pub fn get_car_resets(&self) -> u32 {
+        self.renderer.as_ref().map_or(0, |r| r.car_resets)
+    }
+
     /// C key: next drive camera; returns its name (original camera names in 6 DOF driving).
     pub fn cycle_car_view(&mut self) -> String {
         self.renderer

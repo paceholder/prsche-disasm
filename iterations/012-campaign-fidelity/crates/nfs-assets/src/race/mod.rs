@@ -4,6 +4,7 @@ pub mod ai;
 pub mod collision;
 pub mod course;
 pub mod original_collision;
+pub mod reset;
 pub mod state;
 
 pub use ai::{calculate_grid_slot, AiOpponent, AiPerformance, AiProfile};

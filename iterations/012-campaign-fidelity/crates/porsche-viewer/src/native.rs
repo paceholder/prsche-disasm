@@ -1480,10 +1480,15 @@ impl ApplicationHandler for App {
                         }
                     }
                     KeyCode::KeyR if !event.repeat => {
-                        self.race_finished_handled = false;
                         if let Some(renderer) = &mut self.renderer {
                             if renderer.is_drive_mode() && renderer.has_car() {
-                                renderer.reset_car();
+                                // R: original track reset; Shift+R: restart the race.
+                                if self.shift_pressed {
+                                    self.race_finished_handled = false;
+                                    renderer.restart_race();
+                                } else {
+                                    renderer.request_car_reset();
+                                }
                             } else {
                                 renderer.camera.reset();
                             }

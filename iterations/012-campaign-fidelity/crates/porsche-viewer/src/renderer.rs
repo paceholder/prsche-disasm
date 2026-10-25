@@ -564,6 +564,12 @@ pub struct Renderer {
     ai_speed_limit: Option<f32>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
+    /// Track reset (R, `Car_ResetWatch 0x40f740`): its timers, the pending key event, the
+    /// 32 Hz tick clock, and the number of resets done (debug).
+    reset_watch: nfs_assets::race::reset::ResetWatch,
+    reset_request: bool,
+    reset_clock: f32,
+    pub car_resets: u32,
     car_render: Option<CarRenderState>,
     /// Front-end 3D room shown behind the menus (`crate::fe_room`); the scene is its model.
     pub fe_room: Option<crate::fe_room::RoomView>,
@@ -1554,6 +1560,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ai_speed_limit: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
+            reset_watch: Default::default(),
+            reset_request: false,
+            reset_clock: 0.0,
+            car_resets: 0,
             car_render,
             fe_room: None,
             fe_room_car: false,
@@ -2710,6 +2720,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // The camera runs after the car callbacks (scheduler priority 100).
         self.update_original_camera(dt);
 
+        // `Car_ResetWatch 0x40f740` runs in `Car_ContactEffectsTick` (32 Hz, prio 0x32).
+        if self.tick_car_reset(dt) {
+            if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
+                player_pos = sim.body.position.to_array();
+                player_fwd = sim.body.forward().to_array();
+            } else if let Some(car) = &self.car {
+                player_pos = car.pos.to_array();
+                player_fwd = car.forward().to_array();
+            }
+        }
+
         // Progress tracking along course
         if let (Some(course), Some(tracker), Some(session)) = (
             &self.track_course,
@@ -3030,6 +3051,190 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         self.restart_original_vehicle();
+    }
+
+    /// R: the reset key (`C1_RESET`, event 5 of the input word). The next 32 Hz reset tick
+    /// takes it and drops it when the original gates refuse (cooldown, speed, race start,
+    /// finished), as the original drops the event.
+    pub fn request_car_reset(&mut self) {
+        self.reset_request = true;
+    }
+
+    /// Player position and up axis, from the model that drives.
+    fn player_pose(&self) -> Option<(Vec3, Vec3)> {
+        if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
+            return Some((sim.body.position, sim.body.up()));
+        }
+        self.car.as_ref().map(|c| (c.pos, Vec3::Y))
+    }
+
+    /// `g_SchedStep [0x606ac4]` and `+0xb50 != 0` for the reset gates. The scheduler step
+    /// counts from the race start: [`START_SCHED_STEP`] at the green light (approximation
+    /// A97). Free driving has no race gate.
+    ///
+    /// [`START_SCHED_STEP`]: nfs_assets::physics::original_vehicle::driver::START_SCHED_STEP
+    fn reset_race_clock(&self) -> (i32, bool) {
+        use nfs_assets::RacePhase;
+        use nfs_assets::physics::original_vehicle::driver::START_SCHED_STEP;
+        let Some(session) = self.race_session.as_ref().filter(|_| !self.is_mission_mode) else {
+            return (i32::MAX, false);
+        };
+        match &session.phase {
+            RacePhase::Racing { elapsed_secs } => {
+                (START_SCHED_STEP + (elapsed_secs * 64.0) as i32, false)
+            }
+            RacePhase::Finished { .. } | RacePhase::Results => (i32::MAX, true),
+            _ => (0, false),
+        }
+    }
+
+    /// Car state for one tick of the reset watch. The original model gives its own fields;
+    /// the 6 DOF prototype and the arcade car give equivalents (approximation A96).
+    fn reset_watch_inputs(
+        &self,
+        course: &nfs_assets::TrackCourse,
+    ) -> Option<nfs_assets::race::reset::WatchInputs> {
+        use nfs_assets::physics::original_adapter::{
+            angular_to_original, from_original, speed_estimate, to_original,
+        };
+        let (pos, up) = self.player_pose()?;
+        let (sched_step, out_b50) = self.reset_race_clock();
+        let surface = self.road_surface.as_ref();
+        let (node, _) = course.find_closest_waypoint(pos.to_array());
+        let wp = course.waypoints[node].position;
+        let node_up = surface
+            .and_then(|s| s.query(wp[0], wp[2], wp[1], 25.0, 50.0))
+            .map_or(Vec3::Y, |h| Vec3::from(h.normal));
+        let ground = surface.and_then(|s| s.query(pos.x, pos.z, pos.y, 2.0, 6.0));
+        // `+0x464 = +0x2c & 0xf` of the support polygon under the car; the legacy grid
+        // has no flags (surface 1).
+        let surface_464 = match (&ground, surface) {
+            (Some(h), _) => h.flags_word_a.map_or(1, |f| (f & 0xf) as i32),
+            (None, Some(_)) => 0,
+            (None, None) => 1,
+        };
+        let mut inputs = nfs_assets::race::reset::WatchInputs {
+            request: self.reset_request,
+            sched_step,
+            out_b50,
+            speed_35c: 0.0,
+            node_up_dot: node_up.dot(up),
+            ground_up_3a0: ground
+                .as_ref()
+                .map_or(up.y, |h| Vec3::from(h.normal).dot(up)),
+            controls_db0: true,
+            surface_464,
+            angular_388: [0.0; 3],
+            wheels_off_418: 0,
+            height_424: 0.0,
+            locator_12: true,
+        };
+        if let (true, Some(v)) = (self.original_active(), &self.original_vehicle) {
+            let car = &v.car;
+            inputs.speed_35c = car.speed_35c;
+            inputs.node_up_dot = node_up.dot(from_original(car.axes_364[1]));
+            inputs.ground_up_3a0 = car.ground_up_3a0;
+            inputs.controls_db0 = car.start_db0 != 0;
+            inputs.angular_388 = car.angular_388;
+            inputs.wheels_off_418 = car.wheels_off_418;
+            inputs.height_424 = car.height_424;
+        } else if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
+            let body = &sim.body;
+            inputs.speed_35c = speed_estimate(to_original(body.linear_velocity));
+            inputs.angular_388 = angular_to_original(body.orientation * body.angular_velocity);
+            inputs.height_424 = ground
+                .as_ref()
+                .map_or(2.0, |h| (pos.y - sim.resting_height() - h.height).max(0.0));
+        } else if let Some(car) = &self.car {
+            inputs.speed_35c = car.speed.abs();
+        }
+        Some(inputs)
+    }
+
+    /// Runs the 32 Hz reset ticks due after `dt`; true if the car was moved.
+    fn tick_car_reset(&mut self, dt: f32) -> bool {
+        const TICK: f32 = 1.0 / 32.0;
+        let Some(course) = self.track_course.take() else {
+            self.reset_request = false;
+            return false;
+        };
+        let mut moved = false;
+        if !course.waypoints.is_empty() {
+            self.reset_clock += dt.clamp(0.0, 0.25);
+            while self.reset_clock >= TICK {
+                self.reset_clock -= TICK;
+                let Some(inputs) = self.reset_watch_inputs(&course) else {
+                    break;
+                };
+                self.reset_request = false;
+                if self.reset_watch.tick(&inputs).is_some() {
+                    moved |= self.reset_car_to_track(&course);
+                }
+            }
+        }
+        self.track_course = Some(course);
+        moved
+    }
+
+    /// `Car_ResetToTrack 0x40f540` for the player: the car's track node (the nearest course
+    /// waypoint), else the next free one, on the road there facing along the track, at rest.
+    /// Lap, checkpoint and race state stay. Works for both vehicle models.
+    fn reset_car_to_track(&mut self, course: &nfs_assets::TrackCourse) -> bool {
+        use nfs_assets::race::reset::{reset_node, reset_pose};
+        let Some((pos, _)) = self.player_pose() else {
+            return false;
+        };
+        let surface = self.road_surface.as_ref();
+        let query = |p: [f32; 3]| surface.and_then(|s| s.query(p[0], p[2], p[1], 25.0, 50.0));
+        // `0x40f480`: a road surface at the node and no other active car on it.
+        let ai_nodes: Vec<usize> = self
+            .ai_opponents
+            .iter()
+            .map(|a| course.find_closest_waypoint(a.position).0)
+            .collect();
+        let (start, _) = course.find_closest_waypoint(pos.to_array());
+        let node = reset_node(course, start, |k| {
+            !ai_nodes.contains(&k)
+                && (surface.is_none()
+                    || query(course.waypoints[k].position)
+                        .is_some_and(|h| h.flags_word_a.is_none_or(|f| f & 0xf != 0)))
+        });
+        let hit = query(course.waypoints[node].position);
+        let pose = reset_pose(
+            course,
+            node,
+            hit.as_ref().map(|h| Vec3::from(h.normal)),
+            hit.as_ref().map(|h| h.height),
+        );
+        if let Some(car) = &mut self.car {
+            car.set_pose(pose.position, pose.yaw);
+            if self.camera.mode == CameraMode::Drive && !self.sim_mode {
+                self.camera.drive_pos = car.camera_eye;
+                self.camera.drive_target = car.camera_target;
+            }
+        }
+        if let Some(sim) = &mut self.sim_car {
+            let lift = sim.resting_height();
+            sim.reset(pose.position + pose.up * lift, pose.yaw);
+            sim.body.orientation = Quat::from_mat3(&pose.basis()).normalize();
+        }
+        self.body_support_owner = Default::default();
+        if self.original_active() {
+            // `0x49e220` + `0x40f400`, then `Car_PlaceOnNode 0x49b090`: the probe placement of
+            // approximation A39 lowers the car onto the road.
+            if let Some(v) = &mut self.original_vehicle {
+                v.reset_drive_state();
+            }
+            self.sync_original_from_sim(false);
+            self.sync_sim_from_original(false);
+        }
+        // `0x4618b0(0)`: the player camera snaps to the car.
+        if let Some(view) = self.camera_car() {
+            self.player_camera
+                .snap_to_car(&view, &mut nfs_assets::camera::FlatWorld);
+        }
+        self.car_resets += 1;
+        true
     }
 
     pub fn get_race_phase(&self) -> u32 {

@@ -2815,9 +2815,15 @@ window.addEventListener("keydown", (event) => {
   }
 
   // Single-shot keys (ignore auto-repeat)
+  // R: the original track reset (back on the road at the car's track node, the race goes
+  // on). Shift+R: restart the race from the grid.
   if (event.code === "KeyR" && !event.repeat) {
     if (viewer) {
-      if (viewer.is_drive_mode() && viewer.has_car()) {
+      if (viewer.is_drive_mode() && viewer.has_car() && !event.shiftKey
+          && typeof viewer.request_car_reset === "function") {
+        viewer.request_car_reset();
+        setStatus("Сброс на трассу (R). Shift+R: перезапуск гонки.");
+      } else if (viewer.is_drive_mode() && viewer.has_car()) {
         viewer.restart_race();
         if (raceResultsModal) raceResultsModal.hidden = true;
         setStatus("Гонка перезапущена / старт на решётке.");
@@ -3409,6 +3415,9 @@ window.__nfs = {
       model: debugVehicleModel,
       phase: viewer.get_race_phase(),
       position: viewer.get_player_position(),
+      lap: viewer.get_current_lap(),
+      lapTime: viewer.get_current_lap_time(),
+      resets: viewer.get_car_resets?.() ?? 0,
       audio: {
         music: gameAudio.director ? {
           state: gameAudio.director.state(), index: gameAudio.director.index(),

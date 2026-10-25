@@ -145,6 +145,14 @@ impl PlayerCamera {
         self.record.matrix_7c = [[-r[0], -r[1], -r[2]], u, [-f[0], -f[1], -f[2]]];
     }
 
+    /// `0x4618b0(player)` called by `Car_ResetToTrack 0x40f540` after it moves the player car:
+    /// the camera snaps to the car at the current id. Nothing to do before the intro ends.
+    pub fn snap_to_car(&mut self, car: &CarView, world: &mut impl CameraWorld) {
+        if self.started && self.record.id_bc != ANIM_CAM {
+            self.snap(car, world);
+        }
+    }
+
     /// Common tail of `Camera_Set`/`Camera_Cycle` after the id is chosen.
     fn changed(&mut self, car: &CarView, world: &mut impl CameraWorld) {
         if self.record.id_bc > 20 {

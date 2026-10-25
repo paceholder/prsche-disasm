@@ -87,8 +87,8 @@ assert.equal(document.body.classes.has("menu-hidden"), true);
 assert.equal(element("#hud").hidden, false);
 assert.equal(focused, element("#viewport"));
 // Exercise actual keyboard listeners and navigation, including both key layouts.
-const key = (type, code) => window.dispatch(type, {
-  code, target: new Element(), repeat: false, preventDefault() {},
+const key = (type, code, extra = {}) => window.dispatch(type, {
+  code, target: new Element(), repeat: false, preventDefault() {}, ...extra,
 });
 for (const [gas, left, right] of [["KeyW", "KeyA", "KeyD"], ["ArrowUp", "ArrowLeft", "ArrowRight"]]) {
   for (const [turn, sign] of [[left, -1], [right, 1]]) {
@@ -255,7 +255,9 @@ const customSim = { path: "Chosen\\GameData\\boxster25.sim" };
 assert.equal(findSim([customSim], "boxster25", file => file.path), customSim);
 // Exercise the actual frame loop and Continue handler with terminal race telemetry.
 let phase = 2;
+let resetRequests = 0;
 context.testApi.setViewer({
+  request_car_reset: () => { resetRequests++; },
   is_drive_mode: () => true, has_car: () => true, update_car() {},
   get_car_speed: () => 0, get_car_gear: () => 0, get_car_rpm: () => 0,
   get_car_engine_rpm: () => 0, get_car_redline_rpm: () => 6000, get_car_view: () => 0,
@@ -280,8 +282,13 @@ for (const terminalPhase of [4, 5]) {
   tick();
   assert.equal(resultModal.hidden, true, "next briefing must not consume the previous finish");
   element("#briefingCancelBtn").dispatch("click");
+  // R is the original track reset: the race goes on.
+  const before = resetRequests;
+  key("keydown", "KeyR");
+  assert.equal(resetRequests, before + 1, "R requests a track reset");
+  assert.equal(phase, terminalPhase, "R must not restart the race");
   for (const restart of [
-    () => key("keydown", "KeyR"),
+    () => key("keydown", "KeyR", { shiftKey: true }),
     () => element("#resetButton").dispatch("click"),
     () => element("#raceRestartBtn").dispatch("click"),
   ]) {
