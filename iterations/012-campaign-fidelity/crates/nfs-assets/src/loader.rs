@@ -791,6 +791,9 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             missing.join(", ")
         ));
     }
+    // Tile filters see the driver types set after the style (`R3DCar_SelectStyle` 0x43ae50), so
+    // styles that list no GeomIndex 9 still select a suit/helmet tile.
+    let tile_style = with_driver(&style, DRIVER_INDEX);
     for f in 1..=filecount {
         let section = format!("file{f}.details");
         let page = num(&ini, &section, "tpage", 0)?;
@@ -814,7 +817,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             if num(&ini, &filter, "frontend", 1)? == 0 || num(&ini, &filter, "racedecal", 0)? != 0 {
                 continue;
             }
-            if !tile_selected(&ini, &style, &filter)? {
+            if !tile_selected(&ini, &tile_style, &filter)? {
                 continue;
             }
             let rotate = num(&ini, &filter, "rotate", 0)? != 0;
@@ -1876,6 +1879,58 @@ mod tests {
                 println!("mesh {} center z: {:.3}", m.name, z);
             }
             assert!(scene.bounds.into_iter().flatten().all(f32::is_finite));
+        }
+    }
+
+    #[test]
+    fn driver_tiles_are_selected_even_when_the_style_lists_no_driver_geometry() {
+        let ini = nfs_formats::parse_ini(
+            b"[f.cas1]\ncount=1\ngeometry1=9\ntype1=2\n[f.cas2]\ncount=1\ngeometry1=9\ntype1=3\n",
+        )
+        .unwrap();
+        // A style such as the 993 "turbocoupe" lists no GeomIndex 9: the raw style selects none.
+        let style = StyleSelection::default();
+        assert!(!tile_selected(&ini, &style, "f.cas1").unwrap());
+        // With the driver types of `R3DCar_SelectStyle` (driver 0: body type 2) the tile is found.
+        let driven = with_driver(&style, DRIVER_INDEX);
+        assert!(tile_selected(&ini, &driven, "f.cas1").unwrap());
+        assert!(!tile_selected(&ini, &driven, "f.cas2").unwrap());
+    }
+
+    #[test]
+    fn local_driver_hands_are_textured_in_every_style() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        let Ok(dir) = std::fs::read_dir(&root) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        for entry in dir {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            files.insert(name, std::fs::read(&path).unwrap());
+        }
+        for (car, styles) in [("993", 10u32), ("356a", 3)] {
+            for style in 0..styles {
+                let Ok(scene) = load(&files, car, style) else {
+                    continue;
+                };
+                for part in scene.car_in_car.iter().filter(|p| p.pass == InCarPass::Driver) {
+                    let mesh = &part.meshes[0].mesh;
+                    let page = &scene.textures[scene.materials[mesh.material].texture.unwrap()];
+                    let opaque = mesh
+                        .vertices
+                        .iter()
+                        .filter(|v| {
+                            let x = ((v.uv[0] * page.width as f32) as usize).min(page.width as usize - 1);
+                            let y = ((v.uv[1] * page.height as f32) as usize).min(page.height as usize - 1);
+                            page.rgba[(y * page.width as usize + x) * 4 + 3] != 0
+                        })
+                        .count();
+                    assert!(opaque > 0, "{car} style {style}: {} is untextured", part.name);
+                }
+            }
         }
     }
 }
