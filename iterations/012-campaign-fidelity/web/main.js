@@ -3731,6 +3731,7 @@ function updateDebugPanel() {
     `Shift+V side ${side === 0 ? "off" : `${side > 0 ? "R" : "L"} ${Math.abs(Math.round(side))}\u00b0`}`,
     `B boxes ${onOff(viewer.is_collision_boxes?.())}`,
     `H HUD ${onOff(hudVisible)}`,
+    `hit: ${viewer.object_hit_report?.() || "-"}`,
     "R reset", "Shift+R restart", "Esc menu", "` panel",
   ];
   const text = items.map((item) => item.replace(/ /g, "\u00a0")).join(" \u00b7 ");

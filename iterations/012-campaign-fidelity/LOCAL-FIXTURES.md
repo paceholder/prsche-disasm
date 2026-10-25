@@ -67,3 +67,13 @@ A recorder that reads game files writes to `local/fixtures/`. Add it to
 `record-local-fixtures.sh`, put its hash in `local-fixtures.sha256` and its name in
 `.gitignore`. Load it in tests with `tests/support/local_fixtures.rs` and
 `skip_without_local_fixtures!`.
+
+## Recordings that stay in the repository
+
+`crates/nfs-assets/tests/fixtures/track-objects.tsv` is recorded by `scripts/research/replay-track-objects.py`
+(`--game-dir` points at the game directory; it reads `nfs5.exe`, SHA-256 in `docs/binary-identity` of the
+research notes: `c318af393d4c2b7071a820ca3d69e956bbd94769b6e5c2e3e49f498ecbc94906`). Its inputs are synthetic
+cars and objects only, so the output is committed like the car-pair recordings (780 rows: `Car_ObjectNearTest`
+0x498280, the cylinder response 0x498aa0 with 0x498380, the box response 0x498690 with 0x486d70, 0x496610 and
+0x495f30; test `original_track_objects.rs`). The comparison tolerance is 2e-6 relative; input 0x558 is ignored
+and 0x434 is compared as a boolean. The `Car_ObjectDynamicsTick` 0x4a1030 recording is also synthetic.

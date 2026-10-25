@@ -59,11 +59,31 @@ fn angular_response(state: &mut PreparedContactState, normal: [f32; 3], strength
     // 0x493f1f clears this field even when the following gate preserves +0x38c.
     state.field_434 = 0.0;
     // The test uses the OLD +0xd60 projection: refresh at 0x493e40 is later.
-    if strength >= 15.0 && state.local_velocity_d58[2] >= 20.0 {
-        return;
+    if let Some(yaw) = yaw_kick(
+        strength,
+        state.local_velocity_d58[2],
+        normal,
+        state.basis_4a8,
+        state.basis_490,
+    ) {
+        state.field_38c = yaw;
     }
-    let a = dot(normal, state.basis_4a8);
-    let b = dot(normal, state.basis_490);
+}
+
+/// The `+0x38c` write of `0x493f10`: `None` when the gate (`strength >= 15`
+/// and the old `+0xd60 >= 20`) keeps the field.
+pub(crate) fn yaw_kick(
+    strength: f32,
+    local_forward_d60: f32,
+    normal: [f32; 3],
+    basis_4a8: [f32; 3],
+    basis_490: [f32; 3],
+) -> Option<f32> {
+    if strength >= 15.0 && local_forward_d60 >= 20.0 {
+        return None;
+    }
+    let a = dot(normal, basis_4a8);
+    let b = dot(normal, basis_490);
     let mut value = (a.abs().min(b.abs()) as f64 * 0.25) as f32;
     if a < 0.0 {
         if b < 0.0 {
@@ -75,7 +95,17 @@ fn angular_response(state: &mut PreparedContactState, normal: [f32; 3], strength
         }
         value = (value as f64 * 0.5) as f32;
     }
-    state.field_38c = value;
+    Some(value)
+}
+
+/// `0x493e40` without the `+0x52c & 4` branch: velocity x0.998, the local
+/// velocity `+0xd58..` and the speed estimate `+0x35c`.
+pub(crate) fn damp_velocity(velocity: &mut [f32; 3], basis: [[f32; 3]; 3]) -> ([f32; 3], f32) {
+    for component in velocity.iter_mut() {
+        *component = (*component as f64 * f32::from_bits(0x3f7f7cee) as f64) as f32;
+    }
+    let local = basis.map(|axis| dot(*velocity, axis));
+    (local, speed_xz(*velocity))
 }
 
 /// Apply only the response after the original caller's geometry preparation.
@@ -112,15 +142,10 @@ pub fn respond_prepared_contact(state: &mut PreparedContactState, contact: Prepa
     if contact.angular_callback {
         angular_response(state, contact.normal, strength);
     }
-    for component in &mut state.velocity_33c {
-        *component = (*component as f64 * f32::from_bits(0x3f7f7cee) as f64) as f32;
-    }
-    state.local_velocity_d58 = [
-        dot(state.velocity_33c, state.basis_364),
-        dot(state.velocity_33c, state.basis_370),
-        dot(state.velocity_33c, state.basis_37c),
-    ];
-    state.speed_35c = speed_xz(state.velocity_33c);
+    (state.local_velocity_d58, state.speed_35c) = damp_velocity(
+        &mut state.velocity_33c,
+        [state.basis_364, state.basis_370, state.basis_37c],
+    );
     if contact.alternate_52c_mask_04 {
         state.local_velocity_d58[0] = dot(state.velocity_33c, state.basis_490);
         state.local_velocity_d58[2] = dot(state.velocity_33c, state.basis_4a8);

@@ -12,9 +12,9 @@
 //!   (zone damage, hard-hit kick and lift, random and zone spin),
 //! - `Car_ClampAngularVelocity` `0x4964d0`.
 //!
-//! Not ported: the `+0x434 == 0` branch of `0x494500` (height change from
-//! `+0xd6c`; unreachable from the pair call, which sets `+0x434` first) and the
-//! `0x49bba0` callback (only for sources other than 2, car contact). The
+//! The `+0x434 == 0` branch of `0x494500` (roll-angle lift) and the modes 0
+//! (damage only) and 1 (`0x49bba0` clamp) are exercised by the track-object
+//! fixtures (`original_track_objects.rs`), not by the pair call. The
 //! flag-0x80 (track-object vehicle), `+0x518`, `[0x657408]`/`[0x6573e8]`,
 //! damage boost `[0x657400]` and zone-8 (`dir·U < -0.5`) branches are ported
 //! from the instructions but not covered by the recorded fixtures.
@@ -159,26 +159,26 @@ pub struct PairContact {
 
 /// `Vec3_Dot` `0x532910` (`0x56e8d1`): `(x*x' + y*y') + z*z'` left on the x87
 /// stack.
-fn dot_ext(a: [f32; 3], b: [f32; 3]) -> f64 {
+pub(crate) fn dot_ext(a: [f32; 3], b: [f32; 3]) -> f64 {
     (a[0] as f64 * b[0] as f64 + a[1] as f64 * b[1] as f64) + a[2] as f64 * b[2] as f64
 }
 
-fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+pub(crate) fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
     dot_ext(a, b) as f32
 }
 
 /// `Vec3_Sub` `0x532330`: `a - b`, stored f32.
-fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+pub(crate) fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [0, 1, 2].map(|i| (a[i] as f64 - b[i] as f64) as f32)
 }
 
 /// `Vec3_Add` `0x532300`: `a + b`, stored f32.
-fn add(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+pub(crate) fn add(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [0, 1, 2].map(|i| (a[i] as f64 + b[i] as f64) as f32)
 }
 
 /// `Vec3_Cross` `0x532880` (`0x56e8f5`): `a × b`, stored f32.
-fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+pub(crate) fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     let [ax, ay, az] = a.map(|c| c as f64);
     let [bx, by, bz] = b.map(|c| c as f64);
     [
@@ -189,18 +189,18 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 }
 
 /// `Vec3_Scale` `0x532360`: `v * s`, stored f32.
-fn scale(v: [f32; 3], s: f32) -> [f32; 3] {
+pub(crate) fn scale(v: [f32; 3], s: f32) -> [f32; 3] {
     v.map(|c| (s as f64 * c as f64) as f32)
 }
 
 /// `Vec3_Length` `0x532b20`: `sqrt((z² + y²) + x²)`, extended.
-fn length_ext(v: [f32; 3]) -> f64 {
+pub(crate) fn length_ext(v: [f32; 3]) -> f64 {
     let [x, y, z] = v.map(|c| c as f64);
     ((z * z + y * y) + x * x).sqrt()
 }
 
 /// `Vec3_Normalize` `0x5328d0`: `inv = 1/length` (no zero check), stored f32.
-fn normalize(v: [f32; 3]) -> [f32; 3] {
+pub(crate) fn normalize(v: [f32; 3]) -> [f32; 3] {
     let inv = 1.0 / length_ext(v);
     v.map(|c| (inv * c as f64) as f32)
 }
@@ -606,16 +606,22 @@ pub fn apply_impulse(
         [0, 1, 2].map(|i| ((b.position_330[i] as f64 + a.position_330[i] as f64) * 0.5) as f32);
     a.contact_pos_440 = mid;
     b.contact_pos_440 = mid;
-    impact_by_direction(a, direction, globals);
-    impact_by_direction(b, direction.map(|c| -c), globals);
+    impact_by_direction(a, direction, 2, globals);
+    impact_by_direction(b, direction.map(|c| -c), 2, globals);
     true
 }
 
-/// `Car_ImpactByDirection` `0x494df0` with source 2 (car contact): for impact
-/// strength above 10, picks the damage zone from the direction's R/F
-/// components (±0.1) and calls `Car_ApplyImpact`; zone 8 (`dir·U < -0.5`,
-/// non-flag-0x80 cars) is applied first and then ends the call.
-fn impact_by_direction(car: &mut PairCar, direction: [f32; 3], globals: &mut PairGlobals) {
+/// `Car_ImpactByDirection` `0x494df0` (`mode` is its third argument: 2 = car
+/// contact, 1 = block, 0 = damage only): for impact strength above 10, picks
+/// the damage zone from the direction's R/F components (±0.1) and calls
+/// `Car_ApplyImpact`; zone 8 (`dir·U < -0.5`, non-flag-0x80 cars) is applied
+/// first and then ends the call.
+pub(crate) fn impact_by_direction(
+    car: &mut PairCar,
+    direction: [f32; 3],
+    mode: u8,
+    globals: &mut PairGlobals,
+) {
     let r = dot(direction, car.axis_r_364);
     let u = dot(direction, car.axis_u_370);
     let f = dot(direction, car.axis_f_37c);
@@ -624,7 +630,7 @@ fn impact_by_direction(car: &mut PairCar, direction: [f32; 3], globals: &mut Pai
         return;
     }
     if u < -0.5 && !car.object_vehicle() {
-        apply_impact(car, strength, 8, globals);
+        apply_impact(car, strength, 8, mode, globals);
     }
     let tenth = f32::from_bits(0x3dcccccd);
     let zone = if r.abs() < tenth && f < -tenth {
@@ -647,14 +653,25 @@ fn impact_by_direction(car: &mut PairCar, direction: [f32; 3], globals: &mut Pai
         // 0x495002: the zone is still 8 or 9 here, so nothing more happens.
         return;
     };
-    apply_impact(car, strength, zone, globals);
+    apply_impact(car, strength, zone, mode, globals);
 }
 
-/// `Car_ApplyImpact` `0x494500` for source 2 (car contact), as reached from
-/// the pair impulse (`+0x434` already set).
-fn apply_impact(car: &mut PairCar, strength: f32, zone: usize, globals: &mut PairGlobals) {
+/// `Car_ApplyImpact` `0x494500`. `mode` (its fourth argument): 0 = zone damage
+/// only, 1 = block/box response (hard hits without the random spin, ends with
+/// the `0x49bba0` angular clamp), 2 = car contact (as reached from the pair
+/// impulse, `+0x434` already set).
+pub(crate) fn apply_impact(
+    car: &mut PairCar,
+    strength: f32,
+    zone: usize,
+    mode: u8,
+    globals: &mut PairGlobals,
+) {
     if globals.damage_on_657a2c && car.field_b50 == 0 {
         apply_zone_damage(car, strength, zone, globals.damage_boost_657400);
+    }
+    if mode == 0 {
+        return;
     }
 
     let mut strength = strength;
@@ -699,7 +716,7 @@ fn apply_impact(car: &mut PairCar, strength: f32, zone: usize, globals: &mut Pai
             hit as f64 * f32::from_bits(0x3eaaaaab) as f64
         };
         car.velocity_33c[1] = (kick + car.velocity_33c[1] as f64) as f32;
-        if car.angular_388[0].abs() < 0.5 && car.angular_388[2].abs() < 0.5 {
+        if mode == 2 && car.angular_388[0].abs() < 0.5 && car.angular_388[2].abs() < 0.5 {
             random_spin(car, globals);
         }
     } else {
@@ -731,8 +748,27 @@ fn apply_impact(car: &mut PairCar, strength: f32, zone: usize, globals: &mut Pai
     }
     car.local_angular_d64 = local;
     let axes = car.axes();
+    if car.other_434.is_none() {
+        // 0x494d0f: no other car, so the roll angle `d6c` (turns) lifts or
+        // sinks the car: y += 1/32 * (-sin*hw, -cos*hh, 0) . (R.y, U.y, F.y).
+        let angle = local[2] as f64 * f64::from_bits(TWO_PI);
+        let lift = [
+            (-(angle.sin() * car.extents_3a8[0] as f64)) as f32,
+            (-(angle.cos() * car.extents_3a8[1] as f64)) as f32,
+            0.0,
+        ];
+        let column_y = [axes[0][1], axes[1][1], axes[2][1]];
+        car.position_330[1] =
+            (dot_ext(lift, column_y) * 0.03125 + car.position_330[1] as f64) as f32;
+    }
     car.angular_388 = [0, 1, 2].map(|k| dot(local, [axes[0][k], axes[1][k], axes[2][k]]));
+    if mode != 2 {
+        clamp_angular_velocity(car);
+    }
 }
+
+/// `SinTurns`/`CosTurns` multiplier `0x5bb2c0` (f64, 2π rounded to f32).
+const TWO_PI: u64 = 0x4019_21fb_2000_0000;
 
 /// Random spin of `0x494a62..0x494c14` (hard car hit with small roll/pitch).
 fn random_spin(car: &mut PairCar, globals: &mut PairGlobals) {

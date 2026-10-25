@@ -119,6 +119,24 @@ pub fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
     [v[0], v[1], -v[2]]
 }
 
+/// `Anqt` frames of a library article: 52 bytes each, quaternion (x, y, z, w),
+/// position, four floats and two words (`docs/re/track-objects.md` section 6).
+fn anqt_frames(article: &nfs_formats::Entry) -> Vec<PropFrame> {
+    let Some(anqt) = article.children.iter().find(|c| c.tag == "Anqt") else {
+        return Vec::new();
+    };
+    anqt.data
+        .chunks_exact(52)
+        .map(|f| {
+            let g = |i: usize| f32::from_le_bytes(f[i * 4..i * 4 + 4].try_into().unwrap());
+            PropFrame {
+                rotation: [g(0), g(1), g(2), g(3)],
+                position: [g(4), g(5), g(6)],
+            }
+        })
+        .collect()
+}
+
 pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     load_direction(files, track, false)
 }
@@ -170,6 +188,9 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         )],
         prop_articles: Vec::new(),
         prop_instances: Vec::new(),
+        track_objects: Vec::new(),
+        smashables: Vec::new(),
+        smack_props: Vec::new(),
         scenario_start: None,
         scenario_end: None,
         scenario_name: None,
@@ -259,10 +280,36 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         });
     }
 
+    let anim = nfs_formats::animdefs::parse_animdefs(&String::from_utf8_lossy(find(
+        files,
+        "animdefs.txt",
+    )?))?;
+    // Collision objects (cylinders, boxes) with their smash definitions. Articles of
+    // a smashable object (a definition with pieces) keep their meshes out of the
+    // static scene so that the renderer can hide them.
+    let track_objects = physics::original_track_object_build::build_initial_track_objects(&crp, &anim)?;
+    let smash_article: BTreeMap<usize, usize> = track_objects
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| {
+            anim.find_tag_or_first(o.tag)
+                .is_some_and(|d| d.tiers.iter().any(|t| !t.pieces.is_empty()))
+        })
+        .map(|(i, o)| (o.article_index, i))
+        .collect();
+    let mut smash_meshes: BTreeMap<usize, Vec<Mesh>> = BTreeMap::new();
+    // Smackable articles (signs, cones, posts) run as object cars in the original.
+    let smack_records = physics::original_smackable::build_initial_smack_records(&crp, &anim)?;
+    let smack_article: BTreeMap<usize, usize> = smack_records
+        .iter()
+        .enumerate()
+        .map(|(i, r)| (r.article_index, i))
+        .collect();
+    let mut smack_meshes: BTreeMap<usize, Vec<Mesh>> = BTreeMap::new();
     let mut raw_meshes = Vec::new();
     let mut single_sided = std::collections::BTreeSet::new();
     // Rendering and source collision resources are assembled separately.
-    let mut prop_templates: Vec<(u32, Vec<Mesh>)> = Vec::new();
+    let mut prop_templates: Vec<(u32, Vec<Mesh>, Vec<PropFrame>)> = Vec::new();
     let mut total_tris = 0;
     for (ai, a) in crp.articles.iter().enumerate() {
         let article_name = a
@@ -320,7 +367,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                     }
                 }
                 if !prop_meshes.is_empty() {
-                    prop_templates.push((fourcc, prop_meshes));
+                    prop_templates.push((fourcc, prop_meshes, anqt_frames(a)));
                 }
             }
             continue;
@@ -391,7 +438,13 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                         scene.bounds[1][k] = scene.bounds[1][k].max(v.position[k]);
                     }
                 }
-                raw_meshes.push(m);
+                if smash_article.contains_key(&ai) {
+                    smash_meshes.entry(ai).or_default().push(m);
+                } else if smack_article.contains_key(&ai) {
+                    smack_meshes.entry(ai).or_default().push(m);
+                } else {
+                    raw_meshes.push(m);
+                }
             }
         }
         // Signs carry a front and a back plate: two coplanar primitives with opposite
@@ -416,10 +469,6 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         single_sided.len()
     ));
 
-    let anim = nfs_formats::animdefs::parse_animdefs(&String::from_utf8_lossy(find(
-        files,
-        "animdefs.txt",
-    )?))?;
     let support = physics::original_support_loader::assemble_initial_track_support(&crp, &anim)?;
     let skipped_special = support.skipped_special_articles;
     let skipped_disabled = support.skipped_disabled_articles;
@@ -484,7 +533,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
     ));
 
     // Append prop template meshes to scene.meshes after static geometry
-    for (fourcc, meshes) in prop_templates {
+    for (fourcc, meshes, frames) in prop_templates {
         let prop_mesh_start = scene.meshes.len();
         scene.meshes.extend(meshes);
         let prop_mesh_end = scene.meshes.len();
@@ -492,8 +541,51 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             scene.prop_articles.push(PropArticle {
                 fourcc,
                 mesh_range: prop_mesh_start..prop_mesh_end,
+                frames,
             });
         }
+    }
+    // Smashable crates: intact meshes after the prop templates (the renderer draws
+    // them as hideable instances).
+    for (&article_index, &object_index) in &smash_article {
+        let Some(meshes) = smash_meshes.remove(&article_index) else {
+            continue;
+        };
+        let start = scene.meshes.len();
+        scene.meshes.extend(meshes);
+        let object = &track_objects[object_index];
+        let Some(definition) = anim.find_tag_or_first(object.tag).cloned() else {
+            continue;
+        };
+        let tr = crp.articles[article_index]
+            .children
+            .iter()
+            .find(|c| c.tag == "tr" && c.index == 0)
+            .filter(|t| t.data.len() >= 64);
+        let mut placement = [0.0f32; 16];
+        for (k, v) in placement.iter_mut().enumerate() {
+            *v = tr
+                .and_then(|t| f32le(&t.data, k * 4).ok())
+                .unwrap_or(if k % 5 == 0 { 1.0 } else { 0.0 });
+        }
+        scene.smashables.push(Smashable {
+            object_index,
+            definition,
+            intact_meshes: start..scene.meshes.len(),
+            placement,
+        });
+    }
+    scene.track_objects = track_objects;
+    for (&article_index, &record_index) in &smack_article {
+        let Some(meshes) = smack_meshes.remove(&article_index) else {
+            continue;
+        };
+        let start = scene.meshes.len();
+        scene.meshes.extend(meshes);
+        scene.smack_props.push(SmackProp {
+            record: smack_records[record_index].clone(),
+            meshes: start..scene.meshes.len(),
+        });
     }
 
     // --- Prop instancing from .scn files ---

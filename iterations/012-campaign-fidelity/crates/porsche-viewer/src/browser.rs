@@ -344,6 +344,30 @@ impl BrowserViewer {
         self.renderer.as_ref().map(|r| r.is_paused()).unwrap_or(false)
     }
 
+    /// Debug panel: the last solid object hit ("name [tag] size at x,y,z"), empty before a hit.
+    pub fn object_hit_report(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.object_hit_report())
+            .unwrap_or_default()
+    }
+
+    /// Debug (tools/browser-shot.mjs): `[smackables, awake, hit, smashed crates]`.
+    pub fn smack_stats(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| r.smack_stats().to_vec())
+            .unwrap_or_default()
+    }
+
+    /// Debug (tools/browser-shot.mjs): places the car here.
+    pub fn debug_start(&mut self, x: f32, y: f32, z: f32, yaw: f32) -> f32 {
+        match &mut self.renderer {
+            Some(renderer) => renderer.debug_start([x, y, z], yaw),
+            None => -1000.0,
+        }
+    }
+
     pub fn reset_car(&mut self) {
         if let Some(renderer) = &mut self.renderer {
             renderer.reset_car();

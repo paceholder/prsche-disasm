@@ -116,7 +116,7 @@ fn pair_collide(
     ia: usize,
     ib: usize,
     globals: &mut PairGlobals,
-    barrier: &mut impl FnMut(usize, &mut PairCar),
+    barrier: &mut impl FnMut(usize, &mut PairCar, &mut PairGlobals),
 ) -> bool {
     debug_assert!(ib < ia);
     let (head, tail) = cars.split_at_mut(ia);
@@ -125,8 +125,8 @@ fn pair_collide(
         return false;
     };
     apply_impulse(a, b, contact, globals);
-    barrier(ia, a);
-    barrier(ib, b);
+    barrier(ia, a, globals);
+    barrier(ib, b, globals);
     let mut retries = PAIR_RETRIES;
     // `while Separate(...) && retries > 0`: separation runs once more after
     // the last retry, before the loop exits.
@@ -138,8 +138,8 @@ fn pair_collide(
         if !apply_impulse(a, b, contact, globals) {
             return true;
         }
-        barrier(ia, a);
-        barrier(ib, b);
+        barrier(ia, a, globals);
+        barrier(ib, b, globals);
     }
     true
 }
@@ -152,9 +152,20 @@ pub fn collide_pass(
     globals: &mut PairGlobals,
     mut barrier: impl FnMut(usize, &mut PairCar),
 ) -> usize {
+    collide_pass_with(cars, globals, |index, car, _| barrier(index, car))
+}
+
+/// [`collide_pass`] whose per-car hook (the edge pass and the track-object
+/// pass) also gets the globals, which the object responses need
+/// (`Car_ApplyImpact` draws from the shared random generator).
+pub fn collide_pass_with(
+    cars: &mut [PairCar],
+    globals: &mut PairGlobals,
+    mut barrier: impl FnMut(usize, &mut PairCar, &mut PairGlobals),
+) -> usize {
     let mut pairs = 0;
     for i in 0..cars.len() {
-        barrier(i, &mut cars[i]);
+        barrier(i, &mut cars[i], globals);
         for j in 0..i {
             let (a, b) = (&cars[i], &cars[j]);
             let r = a.radius_3b4 + b.radius_3b4;

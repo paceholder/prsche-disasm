@@ -19,6 +19,11 @@ struct Queue<'a> {
     body_owner: &'a mut OriginalSupportOwner,
     camera: &'a mut nfs_assets::camera::PlayerCamera,
     half: [f32; 3],
+    /// Track objects and smackable object cars of the scene.
+    world: Option<&'a mut nfs_assets::physics::original_track_pass::TrackObjectWorld>,
+    smack: &'a mut nfs_assets::physics::original_smackable::SmackWorld,
+    events: &'a mut Vec<nfs_assets::physics::original_track_pass::SmashEvent>,
+    awake: Vec<usize>,
 }
 
 impl FieldQueue for Queue<'_> {
@@ -58,6 +63,40 @@ impl FieldQueue for Queue<'_> {
             None => &mut *self.body_owner,
         };
         matches!(surface.original_barrier_response(state, half, owner), Ok(Some(_)))
+    }
+
+    fn objects(
+        &mut self,
+        index: usize,
+        car: &mut OriginalCar,
+        pair: &mut nfs_assets::physics::original_pair::PairCar,
+        globals: &mut nfs_assets::physics::original_pair::PairGlobals,
+    ) {
+        use nfs_assets::physics::original_vehicle::driver::{object_car, store_object_car};
+        if index != 0 {
+            return;
+        }
+        if let Some(world) = self.world.as_deref_mut() {
+            let mut o = object_car(car, pair);
+            world.pass(&mut o, globals, self.events);
+            store_object_car(car, pair, &o);
+        }
+    }
+
+    fn smack_cars(&mut self) -> Vec<nfs_assets::physics::original_pair::PairCar> {
+        self.awake = self.smack.awake();
+        self.awake
+            .iter()
+            .map(|&i| self.smack.bodies[i].car.pair.clone())
+            .collect()
+    }
+
+    fn store_smack_cars(&mut self, cars: &[nfs_assets::physics::original_pair::PairCar]) {
+        for (&i, pair) in self.awake.iter().zip(cars) {
+            let body = &mut self.smack.bodies[i];
+            body.car.pair = pair.clone();
+            body.update_world_points();
+        }
     }
 
     fn camera(&mut self, player: &OriginalCar) {
@@ -165,6 +204,10 @@ impl Renderer {
             body_owner: &mut self.body_support_owner,
             camera: &mut self.player_camera,
             half: player.half_extents,
+            world: self.track_world.as_mut(),
+            smack: &mut self.smack_world,
+            events: &mut self.smash_events,
+            awake: Vec::new(),
         };
         queue.camera.advance(
             0.0,

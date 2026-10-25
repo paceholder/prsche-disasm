@@ -593,6 +593,17 @@ pub struct Renderer {
     original_ais: Option<Vec<u8>>,
     pub original_ai: Option<nfs_assets::race::original_ai::field::OriginalAiField>,
     collision_clock: nfs_assets::race::original_collision::CollisionClock,
+    /// Track collision objects (trees, pillars, crates) and their smash state.
+    track_world: Option<nfs_assets::physics::original_track_pass::TrackObjectWorld>,
+    smash_events: Vec<nfs_assets::physics::original_track_pass::SmashEvent>,
+    crate_smash: crate::crate_smash::CrateSmash,
+    smashables: Vec<nfs_assets::Smashable>,
+    smash_props: Vec<nfs_assets::PropArticle>,
+    smash_clock: f32,
+    /// Smackable objects (signs, cones, posts) as flag-0x80 object cars.
+    smack_world: nfs_assets::physics::original_smackable::SmackWorld,
+    smack_props: Vec<nfs_assets::SmackProp>,
+    smack_owners: [nfs_assets::physics::original_support_owner::OriginalSupportOwner; 4],
     pair_globals: nfs_assets::physics::original_pair::PairGlobals,
     /// Car setup screen choices (transmission, damage) for the original vehicle.
     car_setup: nfs_assets::physics::original_vehicle::CarSetup,
@@ -1638,7 +1649,32 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
 
         let effects = crate::effects::Effects::new(&device, format);
+        let mut smash_definitions = vec![None; scene.track_objects.len()];
+        for s in &scene.smashables {
+            smash_definitions[s.object_index] = Some(s.definition.clone());
+        }
+        let track_world = (!scene.track_objects.is_empty()).then(|| {
+            nfs_assets::physics::original_track_pass::TrackObjectWorld::with_definitions(
+                scene.track_objects.clone(),
+                smash_definitions,
+            )
+        });
         Ok(Self {
+            track_world,
+            smash_events: Vec::new(),
+            crate_smash: crate::crate_smash::CrateSmash::new(scene.smashables.len()),
+            smashables: scene.smashables.clone(),
+            smash_props: scene.prop_articles.clone(),
+            smash_clock: 0.0,
+            smack_world: nfs_assets::physics::original_smackable::SmackWorld::new(
+                &scene
+                    .smack_props
+                    .iter()
+                    .map(|p| p.record.clone())
+                    .collect::<Vec<_>>(),
+            ),
+            smack_props: scene.smack_props.clone(),
+            smack_owners: Default::default(),
             device,
             queue,
             camera,
@@ -2096,8 +2132,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.queue.submit([encoder.finish()]);
 
         // 3. Draw prop instances (one encoder per instance to update model matrix)
-        if !self.prop_draws.is_empty() {
-            for prop_draw in &self.prop_draws {
+        let crate_draws: Vec<PropDraw> = self
+            .crate_smash
+            .draws(self.smash_clock, &self.smashables, &self.smash_props)
+            .into_iter()
+            .map(|d| PropDraw {
+                model: d.model,
+                mesh_range: d.mesh_range,
+            })
+            .chain(self.smack_draws())
+            .collect();
+        if !self.prop_draws.is_empty() || !crate_draws.is_empty() {
+            for prop_draw in self.prop_draws.iter().chain(crate_draws.iter()) {
                 let mut uniform = self.scene_uniform();
                 uniform.model = prop_draw.model.to_cols_array_2d();
                 self.queue
@@ -2920,6 +2966,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         } else {
             self.resolve_vehicle_contacts(&previous_contacts);
         }
+        self.smash_clock += dt;
+        self.process_smash_events();
+        self.advance_smackables(dt);
+        // Track-object contacts are `0x5xxxx` codes: the original's contact effects
+        // make no sparks for them (`docs/re/contact-effects.md`), only a sound
+        // (not wired); the hit list is dropped.
+        if let Some(world) = self.track_world.as_mut() {
+            world.hits.clear();
+        }
         if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
             player_pos = sim.body.position.to_array();
             player_fwd = sim.body.forward().to_array();
@@ -3139,12 +3194,72 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.light_switch
     }
 
+    /// Debug: the last solid track object the player hit ("name [tag] size at x,y,z").
+    pub fn object_hit_report(&self) -> String {
+        let Some(world) = &self.track_world else {
+            return String::new();
+        };
+        let Some(o) = world.last_hit.and_then(|i| world.objects().get(i)) else {
+            return String::new();
+        };
+        let size = [0, 1, 2].map(|i| o.bounds_max[i] - o.bounds_min[i]);
+        let c = o.centre();
+        format!(
+            "{} [{}] {:.1}x{:.1}x{:.1} at {:.0},{:.0},{:.0}",
+            o.name,
+            String::from_utf8_lossy(&o.tag.to_le_bytes()).trim_end_matches('\0'),
+            size[0], size[1], size[2], c[0], c[1], c[2]
+        )
+    }
+
+    /// Debug (headless checks): smackable objects as `[count, awake, hit, smashed crates]`.
+    pub fn smack_stats(&self) -> [f32; 4] {
+        let b = &self.smack_world.bodies;
+        [
+            b.len() as f32,
+            b.iter().filter(|x| !x.asleep).count() as f32,
+            b.iter().filter(|x| x.car.pair.active_7c).count() as f32,
+            self.track_world.as_ref().map_or(0.0, |w| {
+                (0..w.objects().len())
+                    .filter(|&i| w.state(i) == nfs_assets::physics::original_track_smash::SmashState::Smashed)
+                    .count() as f32
+            }),
+        ]
+    }
+
+    /// Debug: place the car at `pos` heading `yaw` (radians) and restart the original model.
+    pub fn debug_start(&mut self, pos: [f32; 3], yaw: f32) -> f32 {
+        let mut car_pos = Vec3::from(pos);
+        let hit = self
+            .road_surface
+            .as_ref()
+            .and_then(|s| s.query(car_pos.x, car_pos.z, car_pos.y, 200.0, 400.0));
+        if let Some(hit) = &hit {
+            car_pos.y = hit.height;
+        }
+        if let Some(car) = &mut self.car {
+            car.set_pose(car_pos, yaw);
+        }
+        if let Some(sim) = &mut self.sim_car {
+            sim.reset(car_pos + Vec3::Y * sim.resting_height(), yaw);
+        }
+        self.restart_original_vehicle();
+        hit.map_or(-1000.0, |h| h.height)
+    }
+
     pub fn reset_car(&mut self) {
         self.player_camera.restart();
         self.proto_view = None;
         self.body_support_owner = Default::default();
         self.collision_clock = Default::default();
         self.vehicle_contact_count = 0;
+        // Smashed objects come back [VA 0x476170].
+        if let Some(world) = &mut self.track_world {
+            world.reset();
+        }
+        self.crate_smash.reset();
+        let records: Vec<_> = self.smack_props.iter().map(|p| p.record.clone()).collect();
+        self.smack_world.reset(&records);
         self.reset_scenario_props();
         if let Some(course) = &self.track_course {
             let (pos, _, yaw) = nfs_assets::calculate_grid_slot(0, course);
@@ -4418,12 +4533,32 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     /// Original collision passes due this frame (32 Hz), on the player car
     /// and the AI cars. See nfs_assets::race::original_collision.
+    /// Starts the crate animations of the smashes the last collision passes found.
+    fn process_smash_events(&mut self) {
+        for event in std::mem::take(&mut self.smash_events) {
+            if let Some(i) = self
+                .smashables
+                .iter()
+                .position(|s| s.object_index == event.object_index)
+            {
+                self.crate_smash.smash(
+                    i,
+                    self.smash_clock,
+                    event.speed,
+                    &self.smashables,
+                    &self.smash_props,
+                );
+            }
+        }
+    }
+
     fn run_original_collision(&mut self, dt: f32) {
         use nfs_assets::physics::original_adapter::apply_pair_car_to_sim;
         use nfs_assets::race::original_collision::{
-            apply_barrier_state, apply_pair_car_to_ai, barrier_state, collide_pass,
+            apply_barrier_state, apply_pair_car_to_ai, barrier_state,
         };
         let passes = self.collision_clock.advance(dt);
+        let wheel_points_for_objects = self.original_wheel_points();
         let (Some(sim), Some((center, half))) = (self.sim_car.as_mut(), self.car_collision_box)
         else {
             return;
@@ -4437,28 +4572,49 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .road_surface
             .as_ref()
             .filter(|s| s.uses_original_support());
+        let wheel_points = wheel_points_for_objects;
         for _ in 0..passes {
             let mut cars =
                 build_collision_pair_cars(sim, &self.ai_opponents, center, adapter, half);
+            let n_cars = cars.len();
+            let awake = self.smack_world.awake();
+            cars.extend(
+                awake
+                    .iter()
+                    .map(|&i| self.smack_world.bodies[i].car.pair.clone()),
+            );
             let before = cars.clone();
             let owner = &mut self.body_support_owner;
             let contacts = &mut self.spark_contacts;
-            collide_pass(&mut cars, &mut self.pair_globals, |index, car| {
-                // AI cars are kinematic and follow the course: no barrier pass
-                // (approximation A6).
-                let (0, Some(surface)) = (index, surface) else {
+            let mut world = self.track_world.as_mut();
+            let events = &mut self.smash_events;
+            nfs_assets::race::original_collision::collide_pass_with(&mut cars, &mut self.pair_globals, |index, car, globals| {
+                // AI cars are kinematic and follow the course: no barrier or
+                // object pass (approximations A6, A173). The object pass
+                // follows the edge pass [VA 0x498ff0].
+                if index != 0 {
                     return;
-                };
-                let mut state = barrier_state(car);
-                if let Ok(Some(hit)) =
-                    surface.original_barrier_contact(&mut state, car.extents_3a8, owner)
-                {
-                    apply_barrier_state(car, &state);
-                    contacts.push(SparkContact {
-                        impact: hit.magnitude,
-                        point: hit.point,
-                        velocity: state.velocity_33c,
-                    });
+                }
+                if let Some(surface) = surface {
+                    let mut state = barrier_state(car);
+                    if let Ok(Some(hit)) =
+                        surface.original_barrier_contact(&mut state, car.extents_3a8, owner)
+                    {
+                        apply_barrier_state(car, &state);
+                        contacts.push(SparkContact {
+                            impact: hit.magnitude,
+                            point: hit.point,
+                            velocity: state.velocity_33c,
+                        });
+                    }
+                }
+                if let Some(world) = world.as_deref_mut() {
+                    let mut o = nfs_assets::physics::original_track_pass::object_car_from_pair(
+                        car,
+                        &wheel_points,
+                    );
+                    world.pass(&mut o, globals, events);
+                    *car = o.pair;
                 }
             });
             if cars[0] != before[0] {
@@ -4470,7 +4626,73 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             for (i, ai) in self.ai_opponents.iter_mut().enumerate() {
                 apply_pair_car_to_ai(ai, &before[i + 1], &cars[i + 1]);
             }
+            for (k, &i) in awake.iter().enumerate() {
+                let body = &mut self.smack_world.bodies[i];
+                body.car.pair = cars[n_cars + k].clone();
+                body.update_world_points();
+            }
         }
+    }
+
+    /// Runs the smackable objects' own steps and returns nothing; the
+    /// pair collisions with them happen in the collision passes.
+    fn advance_smackables(&mut self, dt: f32) {
+        use nfs_assets::physics::original_adapter::to_original;
+        if self.smack_world.bodies.is_empty() {
+            return;
+        }
+        let mut cars: Vec<[f32; 3]> = Vec::new();
+        if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
+            cars.push(v.car.position_330);
+        } else if let Some(sim) = &self.sim_car {
+            cars.push(to_original(sim.body.position));
+        }
+        cars.extend(
+            self.ai_opponents
+                .iter()
+                .map(|a| to_original(Vec3::from(a.position))),
+        );
+        let surface = self.road_surface.as_ref();
+        let owners = &mut self.smack_owners;
+        let mut ground = |p: [f32; 3]| {
+            surface.and_then(|surface| {
+                use nfs_assets::physics::original_vehicle::ground::{GroundQuery, RoadGround};
+                RoadGround { surface, owners }.wheel_ground(0, p)
+            })
+        };
+        self.smack_world
+            .advance(dt, &cars, &mut ground, &mut self.pair_globals);
+    }
+
+    /// Draw calls of the smackable objects at their poses.
+    fn smack_draws(&self) -> Vec<PropDraw> {
+        use glam::{Mat3, Mat4};
+        let flip = Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0));
+        self.smack_props
+            .iter()
+            .zip(&self.smack_world.bodies)
+            .map(|(prop, body)| {
+                let cols = |a: [[f32; 3]; 3]| {
+                    Mat3::from_cols(Vec3::from(a[0]), Vec3::from(a[1]), Vec3::from(a[2]))
+                };
+                let home = cols(prop.record.axes);
+                let pair = &body.car.pair;
+                let now = cols([pair.axis_r_364, pair.axis_u_370, pair.axis_f_37c]);
+                let model = if body.moved || pair.position_330 != prop.record.position {
+                    let rot = Mat4::from_mat3(now * home.transpose());
+                    flip * Mat4::from_translation(Vec3::from(pair.position_330))
+                        * rot
+                        * Mat4::from_translation(-Vec3::from(prop.record.position))
+                        * flip
+                } else {
+                    Mat4::IDENTITY
+                };
+                PropDraw {
+                    model,
+                    mesh_range: prop.meshes.clone(),
+                }
+            })
+            .collect()
     }
 
     /// Whether the original vehicle model drives the player car now (6 DOF driving, `O`
@@ -4707,7 +4929,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         use nfs_assets::physics::original_lcg::OriginalLcg;
         use nfs_assets::physics::original_vehicle::{
             OriginalCar, OriginalVehicle, RoadGround, StepQueue,
-            driver::{camera_car, collide_player},
+            driver::camera_car,
             input_word, scheduler_step,
         };
         use nfs_assets::race::original_collision::{apply_pair_car_to_ai, pair_car_from_ai_original};
@@ -4753,6 +4975,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             camera: &'a mut nfs_assets::camera::PlayerCamera,
             /// Barrier contacts of the player per collide tick (sparks).
             contacts: &'a mut Vec<SparkContact>,
+            /// Track objects and the smashes that start (`Car_CollideTrackObjects`).
+            world: Option<&'a mut nfs_assets::physics::original_track_pass::TrackObjectWorld>,
+            smack: &'a mut nfs_assets::physics::original_smackable::SmackWorld,
+            events: &'a mut Vec<nfs_assets::physics::original_track_pass::SmashEvent>,
         }
         impl StepQueue for Queue<'_> {
             fn track_locate(&mut self, car: &mut OriginalCar) {
@@ -4794,11 +5020,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     .iter()
                     .map(|a| pair_car_from_ai_original(a, self.ai_box.0, self.ai_box.1))
                     .collect();
+                // Awake smackable objects are cars in the pair test.
+                let n_ai = ai.len();
+                let awake = self.smack.awake();
+                ai.extend(awake.iter().map(|&i| self.smack.bodies[i].car.pair.clone()));
                 let before = ai.clone();
                 let barrier = self.surface.filter(|s| s.uses_original_support());
                 let (half, owner) = (self.half, &mut self.locator.owner);
                 let contacts = &mut *self.contacts;
-                collide_player(car, half, &mut ai, self.pair_globals, lcg, |state| {
+                let objects = self.world.as_deref_mut().map(|w| (w, &mut *self.events));
+                nfs_assets::physics::original_vehicle::driver::collide_player_objects(car, half, &mut ai, self.pair_globals, lcg, objects, |state| {
                     let Some(s) = barrier else { return false };
                     match s.original_barrier_contact(state, half, owner) {
                         Ok(Some(hit)) => {
@@ -4814,6 +5045,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 });
                 for (a, (b, c)) in self.ai.iter_mut().zip(before.iter().zip(&ai)) {
                     apply_pair_car_to_ai(a, b, c);
+                }
+                for (k, &i) in awake.iter().enumerate() {
+                    let body = &mut self.smack.bodies[i];
+                    body.car.pair = ai[n_ai + k].clone();
+                    body.update_world_points();
                 }
             }
             fn camera(&mut self, car: &OriginalCar) {
@@ -4836,6 +5072,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             half: *half_extents,
             camera: &mut self.player_camera,
             contacts: &mut self.spark_contacts,
+            world: self.track_world.as_mut(),
+            smack: &mut self.smack_world,
+            events: &mut self.smash_events,
         };
         // Starts the camera (end of the race intro) on the first call; no steps.
         queue.camera.advance(

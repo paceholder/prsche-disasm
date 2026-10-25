@@ -176,13 +176,13 @@ pub(crate) fn normalize(v: [f32; 3]) -> [f32; 3] {
 }
 
 /// `Mat3_Transpose` `0x532a00`.
-fn transpose(m: Axes) -> Axes {
+pub(crate) fn transpose(m: Axes) -> Axes {
     [0, 1, 2].map(|i| [0, 1, 2].map(|j| m[j][i]))
 }
 
 /// `Mat3_Mul` `0x532470`: `a·b` (rows of `a` times columns of `b`), with
 /// the original's summation order per element.
-fn mat_mul(a: Axes, b: Axes) -> Axes {
+pub(crate) fn mat_mul(a: Axes, b: Axes) -> Axes {
     let t = |i: usize, j: usize, k: usize| x(a[i][k]) * x(b[k][j]);
     let mut out = [[0.0f32; 3]; 3];
     for (i, row) in out.iter_mut().enumerate() {
@@ -204,19 +204,19 @@ fn sin_cos_turns(a: f32) -> (f32, f32) {
 }
 
 /// `0x5325a0`: rotation about x by `a` turns.
-fn rot_x(a: f32) -> Axes {
+pub(crate) fn rot_x(a: f32) -> Axes {
     let (s, co) = sin_cos_turns(a);
     [[1.0, 0.0, 0.0], [0.0, co, s], [0.0, -s, co]]
 }
 
 /// `0x532600`: rotation about y by `a` turns.
-fn rot_y(a: f32) -> Axes {
+pub(crate) fn rot_y(a: f32) -> Axes {
     let (s, co) = sin_cos_turns(a);
     [[co, 0.0, -s], [0.0, 1.0, 0.0], [s, 0.0, co]]
 }
 
 /// `0x532660`: rotation about z by `a` turns.
-fn rot_z(a: f32) -> Axes {
+pub(crate) fn rot_z(a: f32) -> Axes {
     let (s, co) = sin_cos_turns(a);
     [[co, s, 0.0], [-s, co, 0.0], [0.0, 0.0, 1.0]]
 }

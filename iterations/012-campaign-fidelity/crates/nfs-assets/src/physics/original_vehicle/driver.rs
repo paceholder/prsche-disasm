@@ -14,8 +14,10 @@ use super::step::{scheduler_step, update_world_points, StepQueue};
 use crate::physics::original_contact::PreparedContactState;
 use crate::physics::original_lcg::OriginalLcg;
 use crate::physics::original_pair::{PairCar, PairGlobals};
+use crate::physics::original_track_objects::ObjectCar;
+use crate::physics::original_track_pass::{SmashEvent, TrackObjectWorld};
 use crate::physics::original_support_owner::OriginalSupportOwner;
-use crate::race::original_collision::collide_pass;
+use crate::race::original_collision::collide_pass_with;
 
 /// Which vehicle model drives the player car.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -171,7 +173,36 @@ pub fn store_barrier_state(car: &mut OriginalCar, pair: &mut PairCar, s: &Prepar
     car.slip_ratio_dc0 = s.field_dc0;
 }
 
-/// One `Car_CollideTick` pass with the player first (`collide_pass`): the
+/// Track-object view of the car while its collision view is `pair`
+/// (`Car_CollideTrackObjects` `0x498de0`): body points `+0x1dc`, the wheel
+/// records' positions (`w+0x40`), the car-frame velocity and the ground frame
+/// come from the car.
+pub fn object_car(car: &OriginalCar, pair: &PairCar) -> ObjectCar {
+    ObjectCar {
+        pair: pair.clone(),
+        wheel_records_7f8: car.wheels.map(|w| w.point_40),
+        body_points_1dc: car.world_points_1dc.clone(),
+        local_velocity_d58: car.vel_ground_d58,
+        field_3a0: car.ground_up_3a0,
+        field_428: car.height_428,
+        code_464: 0,
+        ground_right_490: car.ground_490[0],
+        ground_forward_4a8: car.ground_490[2],
+    }
+}
+
+/// Writes a track-object response back: the collision view and the car fields
+/// the response changes (local velocity, wheel points, damage zones).
+pub fn store_object_car(car: &mut OriginalCar, pair: &mut PairCar, o: &ObjectCar) {
+    *pair = o.pair.clone();
+    car.vel_ground_d58 = o.local_velocity_d58;
+    for (w, p) in car.wheels.iter_mut().zip(o.wheel_records_7f8) {
+        w.point_40 = p;
+    }
+    car.damage_4e4[..9].copy_from_slice(&o.pair.damage_4e4);
+}
+
+/// One `Car_CollideTick` pass with the player first (`collide_pass_with`): the
 /// player's barrier response through `barrier` (return `false` for no
 /// contact), the other cars (`others`, kinematic AI, A6) without one. The
 /// pair response draws from the shared random generator.
@@ -181,6 +212,20 @@ pub fn collide_player(
     others: &mut [PairCar],
     globals: &mut PairGlobals,
     lcg: &mut OriginalLcg,
+    barrier: impl FnMut(&mut PreparedContactState) -> bool,
+) -> usize {
+    collide_player_objects(car, half_extents, others, globals, lcg, None, barrier)
+}
+
+/// [`collide_player`] with the track-object pass (`Car_CollideTrackObjects`)
+/// after the player's edge pass; smashes that start go into the event list.
+pub fn collide_player_objects(
+    car: &mut OriginalCar,
+    half_extents: [f32; 3],
+    others: &mut [PairCar],
+    globals: &mut PairGlobals,
+    lcg: &mut OriginalLcg,
+    mut objects: Option<(&mut TrackObjectWorld, &mut Vec<SmashEvent>)>,
     mut barrier: impl FnMut(&mut PreparedContactState) -> bool,
 ) -> usize {
     let mut cars = Vec::with_capacity(others.len() + 1);
@@ -188,13 +233,20 @@ pub fn collide_player(
     cars.extend_from_slice(others);
     globals.rand_state_5d1028 = lcg.state_5d1028;
     globals.rand_mul_5d102c = lcg.multiplier_5d102c;
-    let pairs = collide_pass(&mut cars, globals, |index, pair| {
+    let pairs = collide_pass_with(&mut cars, globals, |index, pair, globals| {
         if index != 0 {
             return;
         }
         let mut state = barrier_state(car, pair);
         if barrier(&mut state) {
             store_barrier_state(car, pair, &state);
+        }
+        // `Car_CollideTrackObjects` follows the edge pass at every call site
+        // [VA 0x498ff0, 0x4980d0]. The player only (approximation A173).
+        if let Some((world, events)) = objects.as_mut() {
+            let mut o = object_car(car, pair);
+            world.pass(&mut o, globals, events);
+            store_object_car(car, pair, &o);
         }
     });
     lcg.state_5d1028 = globals.rand_state_5d1028;

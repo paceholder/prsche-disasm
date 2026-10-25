@@ -18,7 +18,7 @@ use super::racing_line::RacingLine;
 use super::track::{sim_chunks, TrackNodes};
 use crate::physics::original_contact::PreparedContactState;
 use crate::physics::original_lcg::OriginalLcg;
-use crate::physics::original_pair::PairGlobals;
+use crate::physics::original_pair::{PairCar, PairGlobals};
 use crate::physics::original_support_owner::OriginalSupportOwner;
 use crate::physics::original_vehicle::car::Axes;
 use crate::physics::original_vehicle::controls::read_inputs;
@@ -31,7 +31,7 @@ use crate::physics::original_vehicle::step::{
     dynamics_tick, integrate_orientation, integrate_position,
 };
 use crate::physics::original_vehicle::{OriginalCar, OriginalVehicle};
-use crate::race::original_collision::collide_pass;
+use crate::race::original_collision::collide_pass_with;
 
 /// Track data the AI needs: the node graph and the racing line.
 #[derive(Clone, Debug, PartialEq)]
@@ -102,6 +102,22 @@ pub trait FieldQueue {
         half: [f32; 3],
         owner: Option<&mut OriginalSupportOwner>,
     ) -> bool;
+    /// `Car_CollideTrackObjects` 0x498de0 after the barrier response of car
+    /// `index` (the queue runs it for the player only, approximation A173).
+    fn objects(
+        &mut self,
+        _index: usize,
+        _car: &mut OriginalCar,
+        _pair: &mut PairCar,
+        _globals: &mut PairGlobals,
+    ) {
+    }
+    /// Awake smackable objects (object cars) for the pair test, appended after
+    /// the AI cars; [`Self::store_smack_cars`] gets them back.
+    fn smack_cars(&mut self) -> Vec<PairCar> {
+        Vec::new()
+    }
+    fn store_smack_cars(&mut self, _cars: &[PairCar]) {}
     /// `Camera_UpdateAll` (prio 100) after the integrations.
     fn camera(&mut self, _player: &OriginalCar) {}
     /// The retained support arena `Car_TrackLocate` queries; `None` on the
@@ -403,13 +419,18 @@ impl OriginalAiField {
         if with_ai {
             pairs.extend(self.cars.iter().map(|c| pair_car(&c.vehicle.car, c.vehicle.half_extents)));
         }
+        let n_cars = pairs.len();
+        pairs.extend(queue.smack_cars());
         globals.rand_state_5d1028 = lcg.state_5d1028;
         globals.rand_mul_5d102c = lcg.multiplier_5d102c;
         let cars = &mut self.cars;
         let pcar = &mut player.car;
         let ploc = &mut player.locator.owner;
         let phalf = player.half_extents;
-        collide_pass(&mut pairs, globals, |index, pair| {
+        collide_pass_with(&mut pairs, globals, |index, pair, globals| {
+            if index >= n_cars {
+                return; // smackable objects: no edge pass (approximation A176)
+            }
             let (car, half, owner): (
                 &mut OriginalCar,
                 [f32; 3],
@@ -425,11 +446,13 @@ impl OriginalAiField {
             if queue.barrier(index, &mut state, half, owner) {
                 store_barrier_state(car, pair, &state);
             }
+            queue.objects(index, car, pair, globals);
         });
         lcg.state_5d1028 = globals.rand_state_5d1028;
         store_pair_car(&mut player.car, &pairs[0]);
-        for (c, p) in self.cars.iter_mut().zip(&pairs[1..]) {
+        for (c, p) in self.cars.iter_mut().zip(&pairs[1..n_cars]) {
             store_pair_car(&mut c.vehicle.car, p);
         }
+        queue.store_smack_cars(&pairs[n_cars..]);
     }
 }

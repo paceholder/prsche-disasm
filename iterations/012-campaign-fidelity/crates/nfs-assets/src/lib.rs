@@ -171,6 +171,40 @@ pub struct PropArticle {
     pub fourcc: u32,
     /// Range of mesh indices in `Scene::meshes` belonging to this prop.
     pub mesh_range: std::ops::Range<usize>,
+    /// Baked keyframes of the article's `Anqt` entry (original coordinates),
+    /// empty when the article has none. Used by smashed crates.
+    pub frames: Vec<PropFrame>,
+}
+
+/// One 52-byte `Anqt` frame: quaternion (x, y, z, w) and position in the
+/// original coordinates (`docs/re/track-objects.md` section 6).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PropFrame {
+    pub rotation: [f32; 4],
+    pub position: [f32; 3],
+}
+
+/// A smackable article (sign, cone, post, bin): a flag-0x80 object car in the
+/// original (`physics::original_smackable`). Its meshes are kept out of the
+/// static scene; the renderer draws them at the car's pose.
+#[derive(Debug, Clone)]
+pub struct SmackProp {
+    pub record: physics::original_smackable::SmackRecord,
+    /// Meshes in `Scene::meshes` (vertices in scene coordinates at the start pose).
+    pub meshes: std::ops::Range<usize>,
+}
+
+/// A placed article that a car can smash (a definition with pieces, such as
+/// `BBOX`): its intact meshes are kept out of the static scene.
+#[derive(Debug, Clone)]
+pub struct Smashable {
+    /// Index into `Scene::track_objects` (collision object of the same article).
+    pub object_index: usize,
+    pub definition: nfs_formats::animdefs::AnimDefinition,
+    /// Intact meshes in `Scene::meshes` (vertices already in scene coordinates).
+    pub intact_meshes: std::ops::Range<usize>,
+    /// The article's `tr` matrix (row vectors, original coordinates).
+    pub placement: [f32; 16],
 }
 
 /// A placed prop instance from a `.scn` scenario file.
@@ -250,6 +284,12 @@ pub struct Scene {
     pub prop_articles: Vec<PropArticle>,
     /// Placed prop instances from `.scn` scenario files.
     pub prop_instances: Vec<PropInstance>,
+    /// Collision objects (cylinders and boxes) of the track, original coordinates.
+    pub track_objects: Vec<physics::original_track_object_build::TrackObject>,
+    /// Smashable crates, `Smashable::object_index` into `track_objects`.
+    pub smashables: Vec<Smashable>,
+    /// Smackable objects (signs, cones, posts).
+    pub smack_props: Vec<SmackProp>,
     /// Scenario Start trigger center and direction, when a selected `.scn` supplies one.
     /// The original vehicle staging offset has not been recovered.
     pub scenario_start: Option<ScenarioStart>,
@@ -299,6 +339,9 @@ impl Default for Scene {
             diagnostics: Vec::new(),
             prop_articles: Vec::new(),
             prop_instances: Vec::new(),
+            track_objects: Vec::new(),
+            smashables: Vec::new(),
+            smack_props: Vec::new(),
             scenario_start: None,
             scenario_end: None,
             scenario_name: None,
