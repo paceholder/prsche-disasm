@@ -137,6 +137,52 @@ fn anqt_frames(article: &nfs_formats::Entry) -> Vec<PropFrame> {
         .collect()
 }
 
+/// Scroll speed of a `UVAnimate` material: the first layer of the `mt` record whose parameters
+/// have mode 0 (`LayerUVAnimate::Apply` 0x448cc0). The record is `0x20` bytes of header, then
+/// `ntex` texture entries of `0x2c`, then `nlayers` headers `{type, offset, size, _}` of 16
+/// bytes, then the parameter blob (loader 0x44a770). Modes 1 (zero steps in every shipped
+/// track) and 2 (sway, shadows) are not animated (A191).
+fn uv_animate_speed(mt: &[u8]) -> Option<i32> {
+    let counts = u32le(mt, 8).ok()?;
+    let (ntex, nlayers) = ((counts & 0xffff) as usize, (counts >> 16) as usize);
+    let headers = 0x20 + ntex * 0x2c;
+    let blob = headers + nlayers * 16;
+    for i in 0..nlayers {
+        let h = headers + i * 16;
+        let (ty, off, size) = (u32le(mt, h).ok()?, u32le(mt, h + 4).ok()? as usize, u32le(mt, h + 8).ok()?);
+        if !(4..=6).contains(&ty) || size < 8 {
+            continue;
+        }
+        let p = blob + off;
+        if u32le(mt, p).ok()? == 0 {
+            return Some(u32le(mt, p + 4).ok()? as i32).filter(|s| *s != 0);
+        }
+    }
+    None
+}
+
+/// A texture whose pixels are (almost) all partly transparent: sea, river and waterfall
+/// surfaces (`wtr3`, `seaf`, `wfw2`, ...). Masking at alpha 0.5 discards all of them, so they
+/// are alpha blended instead. Approximation A190: the original picks blending per render
+/// method through its method registry (`FUN_0044a770`), which is not read; the 50 % / 15 %
+/// split of partly / fully transparent pixels is chosen from the shipped textures (foliage
+/// and decals have mostly 0/255 alpha or many transparent pixels).
+fn translucent_sheet(rgba: &[u8]) -> bool {
+    let n = rgba.len() / 4;
+    if n == 0 {
+        return false;
+    }
+    let (mut mid, mut clear) = (0usize, 0usize);
+    for p in rgba.as_chunks::<4>().0 {
+        match p[3] {
+            0..=8 => clear += 1,
+            9..=246 => mid += 1,
+            _ => {}
+        }
+    }
+    mid * 2 >= n && clear * 100 <= n * 15
+}
+
 pub fn load(files: &AssetFiles, track: &str) -> Result<Scene, String> {
     load_direction(files, track, false)
 }
@@ -249,7 +295,8 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                 .iter()
                 .any(|p| p[3] < 255);
             if has_transparency {
-                if render_method == "Transparency" {
+                if render_method == "Transparency" || translucent_sheet(&scene.textures[t_idx].rgba)
+                {
                     AlphaMode::Blend
                 } else {
                     AlphaMode::Mask
@@ -280,6 +327,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             depth_bias,
             // Track geometry carries prelit `df` vertex colours (approximation A22).
             prelit: true,
+            uv_scroll: uv_animate_speed(&e.data),
         });
     }
 
@@ -1199,6 +1247,155 @@ fn parse_mesh(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `mt` record of one texture and the given layers `(type, params)`.
+    fn mt_record(layers: &[(u32, Vec<u32>)]) -> Vec<u8> {
+        let mut w = vec![0u32; 8];
+        w[2] = 1 | ((layers.len() as u32) << 16);
+        w.extend(std::iter::repeat_n(0, 11)); // one 0x2c texture entry
+        let mut off = 0u32;
+        for (ty, p) in layers {
+            w.extend([*ty, off, p.len() as u32 * 4, 0]);
+            off += p.len() as u32 * 4;
+        }
+        for (_, p) in layers {
+            w.extend(p);
+        }
+        w.iter().flat_map(|x| x.to_le_bytes()).collect()
+    }
+
+    #[test]
+    fn uv_animate_speed_reads_the_mode_0_layer() {
+        // Plain UVAnimate: one layer {mode 0, speed 70}.
+        let plain = mt_record(&[(5, vec![0, 70, 0, 0, 0])]);
+        assert_eq!(uv_animate_speed(&plain), Some(70));
+        // Negative speed scrolls the other way.
+        let rev = mt_record(&[(5, vec![0, (-110i32) as u32, 0, 0, 0])]);
+        assert_eq!(uv_animate_speed(&rev), Some(-110));
+        // FA_UVAnim: mode 0 layer first, colour layer second.
+        let fa = mt_record(&[(5, vec![0, 70, 0, 0, 0]), (1, vec![0xff00_46ff])]);
+        assert_eq!(uv_animate_speed(&fa), Some(70));
+        // Mode 1 / 2 and non-UV layers are not scrolled.
+        assert_eq!(uv_animate_speed(&mt_record(&[(5, vec![1, 20, 4, 0, 0])])), None);
+        assert_eq!(uv_animate_speed(&mt_record(&[(4, vec![2, 10, 0, 0, 0])])), None);
+        assert_eq!(uv_animate_speed(&mt_record(&[(1, vec![0xffff_ffff])])), None);
+        assert_eq!(uv_animate_speed(&[0; 16]), None);
+    }
+
+    #[test]
+    fn local_canyon_waterfalls_scroll() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let (Ok(crp), Ok(fsh), Ok(anim)) = (
+            std::fs::read(root.join("canyon.crp")),
+            std::fs::read(root.join("canyon.fsh")),
+            std::fs::read(root.join("animdefs.txt")),
+        ) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        files.insert("canyon.crp".into(), crp);
+        files.insert("canyon.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        let scene = load(&files, "canyon").unwrap();
+        let speed = |tex: &str| {
+            scene
+                .materials
+                .iter()
+                .find(|m| m.texture.is_some_and(|t| scene.textures[t].name == tex))
+                .and_then(|m| m.uv_scroll)
+        };
+        assert_eq!(speed("wfw2"), Some(70));
+        assert_eq!(speed("wfw4"), Some(110));
+        assert_eq!(speed("ch07"), None);
+    }
+
+    #[test]
+    fn local_castle_and_forest_waterfalls_scroll_and_blend() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        for (track, expected) in [
+            ("castle", vec![("wfw1", -110), ("wfw2", 70), ("wfw2", -70), ("wfw4", 110)]),
+            ("forest", vec![("wfw2", 60), ("wfw4", 100)]),
+        ] {
+            let (Ok(crp), Ok(fsh), Ok(anim)) = (
+                std::fs::read(root.join(format!("{track}.crp"))),
+                std::fs::read(root.join(format!("{track}.fsh"))),
+                std::fs::read(root.join("animdefs.txt")),
+            ) else {
+                return;
+            };
+            let mut files = AssetFiles::new();
+            files.insert(format!("{track}.crp"), crp);
+            files.insert(format!("{track}.fsh"), fsh);
+            files.insert("animdefs.txt".into(), anim);
+            let scene = load(&files, track).unwrap();
+            for (tex, speed) in expected {
+                let m = scene
+                    .materials
+                    .iter()
+                    .find(|m| {
+                        m.uv_scroll == Some(speed)
+                            && m.texture.is_some_and(|t| scene.textures[t].name == tex)
+                    })
+                    .unwrap_or_else(|| panic!("{track} {tex} {speed}"));
+                assert_eq!(m.alpha_mode, AlphaMode::Blend, "{track} {tex}");
+            }
+        }
+    }
+
+    #[test]
+    fn local_coastal_sea_surfaces_are_blended() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let (Ok(crp), Ok(fsh), Ok(anim)) = (
+            std::fs::read(root.join("coastal.crp")),
+            std::fs::read(root.join("coastal.fsh")),
+            std::fs::read(root.join("animdefs.txt")),
+        ) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        files.insert("coastal.crp".into(), crp);
+        files.insert("coastal.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        let scene = load(&files, "coastal").unwrap();
+        for tex in ["wtr3", "wtr4", "seaf", "seag", "seah"] {
+            let mat = scene
+                .materials
+                .iter()
+                .find(|m| m.texture.is_some_and(|t| scene.textures[t].name == tex))
+                .unwrap_or_else(|| panic!("no material for {tex}"));
+            assert_eq!(mat.alpha_mode, AlphaMode::Blend, "{tex}");
+        }
+        // Cut-out foliage stays masked.
+        let fol = scene
+            .materials
+            .iter()
+            .find(|m| m.texture.is_some_and(|t| scene.textures[t].name == "ch07"))
+            .unwrap();
+        assert_eq!(fol.alpha_mode, AlphaMode::Mask);
+    }
+
+    #[test]
+    fn translucent_sheets_are_blended_not_masked() {
+        // Sea: every pixel partly transparent (wtr3 alpha 95, wtr4 3..95).
+        let sea: Vec<u8> = (0..64)
+            .flat_map(|i| [200, 170, 180, 3 + (i % 93) as u8])
+            .collect();
+        assert!(translucent_sheet(&sea));
+        // Foliage: only fully opaque or fully transparent pixels.
+        let leaf: Vec<u8> = (0..64)
+            .flat_map(|i| [10, 90, 20, if i % 2 == 0 { 255 } else { 0 }])
+            .collect();
+        assert!(!translucent_sheet(&leaf));
+        // Soft-edged cut-out (bush): half the pixels transparent.
+        let bush: Vec<u8> = (0..64)
+            .flat_map(|i| [10, 90, 20, [255, 0, 128, 255][i % 4]])
+            .collect();
+        assert!(!translucent_sheet(&bush));
+        assert!(!translucent_sheet(&[]));
+    }
 
     #[test]
     fn reverse_twin_quads_are_detected() {

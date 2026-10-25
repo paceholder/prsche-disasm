@@ -16,7 +16,7 @@ struct Camera {
 };
 @group(0) @binding(1) var specular_map: texture_2d<f32>;
 @group(0) @binding(2) var specular_sampler: sampler;
-struct Material { color: vec4<f32>, params: vec4<f32> };
+struct Material { color: vec4<f32>, params: vec4<f32>, anim: vec4<f32> };
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var color_texture: texture_2d<f32>;
 @group(1) @binding(1) var color_sampler: sampler;
@@ -51,7 +51,8 @@ fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
     return out;
 }
 @fragment fn fs_main(in: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    let texel = textureSample(color_texture, color_sampler, in.uv);
+    // anim.xy: UV offset of LayerUVAnimate mode 0 (0x448cc0).
+    let texel = textureSample(color_texture, color_sampler, in.uv + material.anim.xy);
     // Exterior alpha encodes paint regions, not opacity. Alpha 255 is fixed
     // artwork (lamps/chrome), 0 is unpainted background; intermediate values
     // select paint regions. Full CLR palette decoding is separate work.

@@ -414,6 +414,8 @@ pub(crate) struct GpuMesh {
 struct GpuMaterial {
     group: wgpu::BindGroup,
     color_buffer: wgpu::Buffer,
+    /// `LayerUVAnimate` mode 0 speed (`nfs_assets::uv_scroll_offset`).
+    uv_scroll: Option<i32>,
     paintable: bool,
     /// Last value of the material uniform (prelit flag / light slot), kept when repainting.
     tail: f32,
@@ -1133,6 +1135,7 @@ impl Renderer {
                 material.alpha_cutoff,
                 if material.paintable { 1.0 } else { 0.0 },
                 if material.prelit { 1.0 } else { 0.0 },
+                0.0, 0.0, 0.0, 0.0, // anim: uv offset
             ];
             let color = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&material.name),
@@ -1160,6 +1163,7 @@ impl Renderer {
             materials.push(GpuMaterial {
                 group,
                 color_buffer: color,
+                uv_scroll: material.uv_scroll,
                 paintable: material.paintable,
                 tail: if material.prelit { 1.0 } else { 0.0 },
                 alpha_mode: material.alpha_mode,
@@ -1574,6 +1578,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     0.0,
                     0.0,
                     0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
                 ];
                 let color_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("procedural car color"),
@@ -1601,6 +1609,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 car_materials.push(GpuMaterial {
                     group,
                     color_buffer: color_buf,
+                    uv_scroll: None,
                     paintable: color_idx == crate::car_mesh::MAT_BODY,
                     tail: 0.0,
                     alpha_mode,
@@ -2125,6 +2134,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     pub fn render(&mut self, target: &wgpu::TextureView) {
         if self.width == 0 || self.height == 0 {
             return;
+        }
+        // `LayerUVAnimate` mode 0 (waterfalls, rivers, sea): V offset from the clock [VA 0x448cc0].
+        let seconds = animation_seconds();
+        for material in &self.materials {
+            if let Some(speed) = material.uv_scroll {
+                let v = nfs_assets::uv_scroll_offset(speed, seconds);
+                self.queue.write_buffer(&material.color_buffer, 32, bytemuck::cast_slice(&[0.0f32, v, 0.0, 0.0]));
+            }
         }
         // Front-end room: fixed original camera, the room model turns [VA 0x4e9ff0].
         let mut static_model = Mat4::IDENTITY;
@@ -5552,6 +5569,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 } else {
                     0.0
                 },
+                0.0,
+                0.0,
+                0.0,
+                0.0,
             ];
             let color = self
                 .device
@@ -5581,6 +5602,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             car_materials.push(GpuMaterial {
                 group,
                 color_buffer: color,
+                uv_scroll: material.uv_scroll,
                 paintable: material.paintable,
                 tail: material_uniform[7],
                 alpha_mode: material.alpha_mode,
@@ -6064,6 +6086,22 @@ pub fn sample_road_elevation_from_edges(
         Some(best_y)
     } else {
         None
+    }
+}
+
+/// Wall clock for the texture animations (the original uses its 128 Hz game timer, which does
+/// not stop in menus either).
+fn animation_seconds() -> f64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() / 1000.0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
     }
 }
 

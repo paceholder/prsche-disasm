@@ -455,6 +455,7 @@ mod gpu_diagnostics {
                 double_sided: true,
                 depth_bias: 0,
                 prelit: false,
+                uv_scroll: None,
             }],
             bounds: [[-1., -1., 0.], [1., 1., 0.]],
             diagnostics: vec![],
@@ -566,6 +567,7 @@ mod gpu_diagnostics {
                     double_sided: true,
                     depth_bias: if i == 1 { -3 } else { 0 },
                     prelit: false,
+                    uv_scroll: None,
                 })
                 .collect(),
             bounds: [[-1., -1., 0.], [1., 1., 0.]],

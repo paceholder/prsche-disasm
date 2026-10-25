@@ -162,6 +162,18 @@ pub struct Material {
     pub depth_bias: i32,
     /// Shaded by its vertex colours only (prelit track geometry), not by the car lights.
     pub prelit: bool,
+    /// `LayerUVAnimate` mode 0: the texture V scrolls by `frac(t * speed * 0.0001)`, `t` in
+    /// 128 Hz ticks, `speed` signed (`FUN_00448cc0`, `docs/re/water.md` section 4).
+    pub uv_scroll: Option<i32>,
+}
+
+/// Game timer rate of `TIMER_init(0x80)` [VA 0x4a5410, 0x565030].
+pub const GAME_TIMER_HZ: f64 = 128.0;
+
+/// V offset of a `LayerUVAnimate` mode-0 material after `seconds` [VA 0x448cc0].
+pub fn uv_scroll_offset(speed: i32, seconds: f64) -> f32 {
+    let x = seconds * GAME_TIMER_HZ * f64::from(speed) * 0.0001;
+    (x - x.floor()) as f32
 }
 
 /// A library prop template extracted from the track CRP (articles with `Base & 0x8000`).
@@ -441,3 +453,18 @@ pub fn load_track_direction(files: &AssetFiles, track: &str, reverse: bool) -> R
 
 mod loader;
 pub mod track_loader;
+
+#[cfg(test)]
+mod uv_tests {
+    use super::*;
+
+    #[test]
+    fn uv_scroll_wraps_and_follows_the_sign() {
+        // 128 ticks/s * 70 * 0.0001 = 0.896 per second.
+        assert!((uv_scroll_offset(70, 1.0) - 0.896).abs() < 1e-6);
+        assert!((uv_scroll_offset(70, 2.0) - 0.792).abs() < 1e-6);
+        // Negative speed wraps into 0..1 the other way.
+        assert!((uv_scroll_offset(-70, 1.0) - 0.104).abs() < 1e-6);
+        assert_eq!(uv_scroll_offset(0, 5.0), 0.0);
+    }
+}

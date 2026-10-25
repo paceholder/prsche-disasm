@@ -106,6 +106,7 @@ mod tests {
                 double_sided: false,
                 depth_bias: 0,
                 prelit: true,
+                uv_scroll: None,
             }],
             ..Default::default()
         }

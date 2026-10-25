@@ -899,6 +899,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             double_sided,
             depth_bias: u32le(&e.data, 0x114)? as i32,
             prelit: false,
+            uv_scroll: None,
         });
     }
     scene.car_in_car = in_car_parts(&crp, &style, &matmap)?;
