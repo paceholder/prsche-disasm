@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import {
   anchorBox, parseHudFiles, selectConfig, carGauges, speedoUnits, tachUnits, needleAngle,
   needleQuad, dialCentre, SLOT, formatTicks, gearText, accentColor, mapZoom, markerScale,
-  resampleOutline, mapTransform, damageColor, DAMAGE_UNDAMAGED, gaugePacks,
+  resampleOutline, mapTransform, damageColor, DAMAGE_UNDAMAGED, DAMAGE_RAMP, damageLevel, damageDraws,
+  mirrorY, DAMAGE_PARTS, gaugePacks,
 } from "./race-hud-core.js";
 
 const gameDir = process.env.NFS5_GAME_DIR
@@ -62,7 +63,11 @@ test("texts: gear, 64 Hz time, accent colours", () => {
   assert.equal(accentColor(0), 0xccfab400);
   assert.equal(accentColor(2), 0xcc1ee605);
   assert.equal(damageColor(0), DAMAGE_UNDAMAGED);
-  assert.equal(damageColor(1), 0xaadc1905);
+  assert.equal(damageColor(1), DAMAGE_UNDAMAGED); // zone values are 0..100: below 10 is level 0
+  assert.equal(damageColor(9.9), DAMAGE_UNDAMAGED);
+  assert.equal(damageColor(10), 0xaa058228);
+  assert.equal(damageColor(35), DAMAGE_RAMP[2]);
+  assert.equal(damageColor(100), 0xaadc1905);
 });
 
 test("map zoom, markers, outline and view (VA 0x41e9c0, 0x433110, 0x432230, 0x433440)", () => {
@@ -118,4 +123,20 @@ test("car gauge settings from nfs5.car (VA 0x4eb710)", { skip: !hasGame }, () =>
   assert.equal(t930.speedo.style, 4);
   assert.equal(t930.speedo.total, 300);
   assert.equal(carGauges(rec(43), 1).speedo.total, 200);
+});
+
+test("damage silhouette: mirrored lower half and zone mapping (VA 0x4229d0, 0x422470, 0x423c70)", () => {
+  assert.equal(damageLevel(0), 0);
+  assert.equal(damageLevel(30), 3);
+  assert.equal(damageLevel(100), 10);
+  // Offsets stored by the ctor: (27 - y) * 2 - h = 37, 43, 32 [VA 0x421e00]; y' = y + offset - 1 [VA 0x423c70].
+  assert.deepEqual([0, 2, 3].map(i => mirrorY(DAMAGE_PARTS[i])), [38, 43, 35]);
+  const draws = damageDraws();
+  // Every zone 0..8 is shown exactly once; parts 0, 2, 3 have a flipped second copy.
+  const zones = draws.filter(d => d.zone >= 0).map(d => d.zone).sort((a, b) => a - b);
+  assert.deepEqual(zones, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(draws.filter(d => d.flip && d.zone >= 0).length, 3);
+  // Lower half: the mirrored outline and parts reach below the axis y = 27.
+  assert.ok(draws.filter(d => d.flip).every(d => d.y + (d.h ?? 27) > 27));
+  assert.ok(Math.max(...draws.map(d => d.y + (d.h ?? 27))) >= 50);
 });

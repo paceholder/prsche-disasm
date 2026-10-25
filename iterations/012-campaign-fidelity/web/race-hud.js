@@ -3,7 +3,7 @@
 import {
   parseHudFiles, selectConfig, SLOT, carGauges, gaugePacks, NEEDLE_SIZES, speedoUnits, tachUnits,
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
-  BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, DAMAGE_PARTS, damageColor, mapZoom, markerScale,
+  BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale,
   resampleOutline, mapTransform,
 } from "./race-hud-core.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
@@ -119,7 +119,9 @@ export class RaceHud {
     const [W, H] = this.size;
     ctx.clearRect(0, 0, W, H);
     const tel = viewer.get_hud_telemetry();
-    if (!tel || tel.length < 12) return;
+    if (!tel || tel.length < 13) return;
+    // Test hook: `__nfs.hud.debugDamage = [z0..z8]` replaces the car's zone damage in the panel.
+    if (this.debugDamage) for (let i = 0; i < 9; i++) tel[4 + i] = this.debugDamage[i] ?? 0;
     const phase = viewer.get_race_phase();
     if (phase === PHASE_RACING) this.raceTime += dt;
     else if (phase < PHASE_RACING) this.raceTime = 0;
@@ -263,16 +265,28 @@ export class RaceHud {
     const pack = this.packs.car;
     const ox = b.x + this.config.hud1.getInt32(0x104, true);
     const oy = b.y + this.config.hud1.getInt32(0x108, true);
-    const outline = pack?.[6];
-    if (outline?.canvas) ctx.drawImage(outline.canvas, ox, oy);
-    DAMAGE_PARTS.forEach((p, i) => {
-      const shape = pack?.[p.shape];
-      if (!shape?.canvas) return;
-      const color = damageColor(st.tel[4 + i]);
-      ctx.globalAlpha = ((color >>> 24) & 255) / 255;
-      ctx.drawImage(this.tint(shape, color), ox + p.at[0], oy + p.at[1]);
+    for (const d of damageDraws()) {
+      const shape = pack?.[d.shape];
+      if (!shape?.canvas) continue;
+      const w = d.w ?? shape.width;
+      const h = d.h ?? shape.height;
+      let img = shape.canvas;
+      if (d.zone >= 0) {
+        const color = damageColor(st.tel[4 + d.zone]);
+        ctx.globalAlpha = ((color >>> 24) & 255) / 255;
+        img = this.tint(shape, color);
+      }
+      if (d.flip) {
+        ctx.save();
+        ctx.translate(ox + d.x, oy + d.y + h);
+        ctx.scale(1, -1);
+        ctx.drawImage(img, 0, 0, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, ox + d.x, oy + d.y, w, h);
+      }
       ctx.globalAlpha = 1;
-    });
+    }
     const bx = b.x + 5;
     const bw = b.w - 10;
     const by = b.y + 72;

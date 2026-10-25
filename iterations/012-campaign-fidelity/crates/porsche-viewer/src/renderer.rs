@@ -3980,12 +3980,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// Original race HUD telemetry: `[speed_ec4 m/s, engine_rpm, gear_raw, redline_rpm,
-    /// damage x8]`. `speed_ec4` is the original car+0xec4 (VA 0x40eec0):
+    /// damage x9]`. `speed_ec4` is the original car+0xec4 (VA 0x40eec0):
     /// `max(|vx|,|vz|) + 0.25*min(|vx|,|vz|)` of the world velocity. `gear_raw` is the
-    /// car+0xd82 encoding (0 R, 1 N, 2.. 1st..). Damage is car+0x4e4..0x504 (VA 0x422470)
+    /// car+0xd82 encoding (0 R, 1 N, 2.. 1st..). Damage is car+0x4e4..0x504, 9 zones (VA 0x422470)
     /// for the original model, zeros otherwise.
     pub fn get_hud_telemetry(&self) -> Vec<f32> {
-        let mut damage = [0.0f32; 8];
+        let mut damage = [0.0f32; 9];
         let (vx, vz, gear_raw);
         if let Some(v) = self
             .original_vehicle
@@ -3995,7 +3995,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             vx = v.car.velocity_33c[0];
             vz = v.car.velocity_33c[2];
             gear_raw = v.car.gear_d82 as f32;
-            damage.copy_from_slice(&v.car.damage_4e4[..8]);
+            damage.copy_from_slice(&v.car.damage_4e4[..9]);
         } else if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
             vx = sim.body.linear_velocity.x;
             vz = sim.body.linear_velocity.z;

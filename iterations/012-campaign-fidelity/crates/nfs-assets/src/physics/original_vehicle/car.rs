@@ -104,7 +104,10 @@ pub struct OriginalGlobals {
     pub flip_events_657a2c: i32,
 }
 
-/// Results of the damage helpers (0 without parts, the only case covered).
+/// Results of the damage helpers for a car without installed parts (Quick Race, A30).
+/// `Car_DamageEngine` `0x4938a0` starts from zone 1 (`car+0x4e8`) and divides by
+/// 1 + the number of kind-1 parts, so with no parts it returns the zone 1 damage;
+/// the other helpers sum over parts only and return 0 (docs/re/damage.md).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DamageHelpers {
     /// `Car_DamageBrakes` `0x493a10`.
@@ -118,6 +121,13 @@ pub struct DamageHelpers {
     /// `Car_AlignmentNoise` `0x493bc0` (mean of the suspension parts'
     /// modifiers; scales the steering wobble).
     pub alignment: f64,
+}
+
+impl DamageHelpers {
+    /// The helpers of a car with no parts, from its zone damage `car+0x4e4`.
+    pub fn no_parts(zones: &[f32; 10]) -> Self {
+        Self { engine: f64::from(zones[1]), ..Self::default() }
+    }
 }
 
 /// The original car state used by the planar step and the integration.
@@ -640,5 +650,22 @@ impl OriginalCar {
     pub(crate) fn store_tyres(&mut self, car: &TyreCar, wheels: [WheelRecord; 4]) {
         self.field_84 = car.field_84;
         self.set_tyres(wheels);
+    }
+}
+
+#[cfg(test)]
+mod damage_tests {
+    use super::DamageHelpers;
+
+    #[test]
+    fn no_parts_engine_damage_is_zone_1() {
+        // Car_DamageEngine 0x4938a0: (zone1 + sum over kind-1 parts) / (1 + parts).
+        let mut zones = [0.0f32; 10];
+        assert_eq!(DamageHelpers::no_parts(&zones), DamageHelpers::default());
+        zones[1] = 40.0;
+        zones[0] = 90.0;
+        let d = DamageHelpers::no_parts(&zones);
+        assert_eq!(d.engine, 40.0);
+        assert_eq!((d.gearbox, d.brakes, d.tyres, d.aero, d.alignment), (0.0, 0.0, 0.0, 0.0, 0.0));
     }
 }

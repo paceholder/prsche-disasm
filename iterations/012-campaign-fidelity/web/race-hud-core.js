@@ -246,21 +246,53 @@ export const secondsToTicks = s => Math.trunc(s * 64);
 export const BOX_ALPHA_TOP = 63;
 export const BOX_ALPHA_BOTTOM = 255;
 
-// Damage ramp of HGraphicDamage [VA 0x421e00, 0x422470]: 10 colours, alpha 0xaa; undamaged
-// parts 0x55058228; a part's value v (0..1 of car+0x4e4..) picks ramp[trunc(v * 10)].
+// Damage ramp of HGraphicDamage [VA 0x421e00, 0x422470]: levels 1..10 (the table holds an 11th, equal
+// to the 10th); alpha 0xaa. Level 0 (zone damage below 10) is the undamaged colour 0x55058228.
 export const DAMAGE_RAMP = [0x058228, 0x02912d, 0x009b32, 0xffe100, 0xffcd05, 0xffb405, 0xffa005,
   0xdc6e05, 0xdc4605, 0xdc1905].map(c => (0xaa000000 | c) >>> 0);
 export const DAMAGE_UNDAMAGED = 0x55058228;
-export function damageColor(value) {
-  if (!(value > 0)) return DAMAGE_UNDAMAGED;
-  return DAMAGE_RAMP[Math.max(0, Math.min(DAMAGE_RAMP.length - 1, Math.trunc(value * 10)))];
+// Level of a zone value (car+0x4e4.., 0..100): ftol(zone * 10.0 [0x5b241c] * 0.01 [0x5b2bc0]) [VA 0x422470].
+export function damageLevel(zone) {
+  if (!(zone > 0)) return 0;
+  return Math.trunc(Math.fround(zone * 10) * 0.01);
 }
-// car.fsh parts (shape index, size, offset in the box + (5,4)) [VA 0x420a90..0x420b40, 0x420950].
+export function damageColor(zone) {
+  const level = damageLevel(zone);
+  if (level <= 0) return DAMAGE_UNDAMAGED;
+  return DAMAGE_RAMP[Math.min(level, DAMAGE_RAMP.length) - 1];
+}
+// car.fsh parts [VA 0x421e00 ctor, 0x420a90..0x420ae0 sizes, 0x420af0..0x420b40 offsets in the box + (5,4)
+// [VA 0x420950], 0x4229d0 placement, 0x422470 colours]. `shape` is the index in car.fsh (C1..C6),
+// `zones` the car+0x4e4 zones of the first copy and of the mirrored copy. The art holds one half of
+// the car: parts 0, 2, 3 are drawn a second time flipped vertically below the axis y = 27 (the outline
+// height [VA 0x420940]) at y' = y + (27 - y) * 2 - h - 1 [VA 0x422470, 0x423c70]; parts 1, 4, 5 are
+// symmetric and drawn once.
+export const DAMAGE_OUTLINE_SHAPE = 6;
+export const DAMAGE_OUTLINE_H = 27;
 export const DAMAGE_PARTS = [
-  { shape: 0, size: [52, 13], at: [2, 2] }, { shape: 1, size: [49, 44], at: [1, 5] },
-  { shape: 2, size: [41, 9], at: [54, 1] }, { shape: 3, size: [24, 14], at: [95, 4] },
-  { shape: 4, size: [9, 19], at: [110, 17] }, { shape: 5, size: [31, 35], at: [64, 9] },
+  { shape: 3, size: [52, 13], at: [2, 2], zones: [2, 0], mirror: true },
+  { shape: 0, size: [49, 44], at: [1, 5], zones: [1], mirror: false },
+  { shape: 4, size: [41, 9], at: [54, 1], zones: [3, 7], mirror: true },
+  { shape: 5, size: [24, 14], at: [95, 4], zones: [4, 6], mirror: true },
+  { shape: 2, size: [9, 19], at: [110, 17], zones: [5], mirror: false },
+  { shape: 1, size: [31, 35], at: [64, 9], zones: [8], mirror: false },
 ];
+// Top of the mirrored copy of a part, relative to the silhouette origin.
+export function mirrorY(part) {
+  return part.at[1] + (DAMAGE_OUTLINE_H - part.at[1]) * 2 - part.size[1] - 1;
+}
+// Draw list of the silhouette: {shape, x, y, w, h, flip, zone} relative to the silhouette origin.
+export function damageDraws() {
+  const out = [{ shape: DAMAGE_OUTLINE_SHAPE, x: 0, y: 0, flip: false, zone: -1 },
+    { shape: DAMAGE_OUTLINE_SHAPE, x: 0, y: DAMAGE_OUTLINE_H - 1, flip: true, zone: -1 }];
+  for (const p of DAMAGE_PARTS) {
+    out.push({ shape: p.shape, x: p.at[0], y: p.at[1], w: p.size[0], h: p.size[1], flip: false, zone: p.zones[0] });
+    if (p.mirror) {
+      out.push({ shape: p.shape, x: p.at[0], y: mirrorY(p), w: p.size[0], h: p.size[1], flip: true, zone: p.zones[1] });
+    }
+  }
+  return out;
+}
 
 // Map zoom Z (half width of the map box in metres) [VA 0x41e9c0]: MAPSCALE 0..4 -> s = 0, 0, 33,
 // 66, 100; Z = 185 + 4.15 s (radar mode MAP 3: 5 + 0.15 s); Z = 600 means the whole track

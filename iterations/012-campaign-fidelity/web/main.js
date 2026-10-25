@@ -3475,6 +3475,7 @@ window.__nfs = {
   get ready() { return debugReady && !debugPendingCamera; },
   get error() { return debugError; },
   get viewer() { return viewer; },
+  get hud() { return raceHud; },
   get frontEnd() { return frontEnd; },
   state() {
     if (!viewer) return { ready: false, error: debugError };

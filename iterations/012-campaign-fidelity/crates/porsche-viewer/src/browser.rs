@@ -556,7 +556,7 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
-    /// Original race HUD telemetry `[speed_ec4 m/s, rpm, gear_raw, redline, damage x8]`
+    /// Original race HUD telemetry `[speed_ec4 m/s, rpm, gear_raw, redline, damage x9]`
     /// (car+0xec4 VA 0x40eec0, car+0xd82, car+0xee0, car+0x4e4 VA 0x422470).
     pub fn get_hud_telemetry(&self) -> Vec<f32> {
         self.renderer

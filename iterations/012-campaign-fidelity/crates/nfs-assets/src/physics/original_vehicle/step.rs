@@ -337,6 +337,8 @@ pub fn dynamics_tick(car: &mut OriginalCar, lcg: &mut OriginalLcg) {
 
 /// `Car_PlanarDynamics` `0x49f160`.
 pub fn planar_dynamics(car: &mut OriginalCar, lcg: &mut OriginalLcg) {
+    // Part-damage helpers of a car without parts (they read the zones at each use).
+    car.damage = super::car::DamageHelpers::no_parts(&car.damage_4e4);
     let specs = car.specs.clone();
     // Axle contact.
     let airborne = |a: usize, b: usize, car: &OriginalCar| {
