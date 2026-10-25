@@ -255,13 +255,13 @@ fn replay_rows(text: &str, min_rows: usize) {
 
 #[test]
 fn controls_single_calls_match_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, STEP);
+    skip_without_local_fixtures!(STEP);
     replay_rows(&STEP, 5000);
 }
 
 #[test]
 fn controls_sequence_rows_match_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, SEQ);
+    skip_without_local_fixtures!(SEQ);
     replay_rows(&SEQ, 1000);
 }
 
@@ -270,7 +270,7 @@ fn controls_sequence_rows_match_the_original_bit_for_bit() {
 /// speed trace and rpm) are taken from the row.
 #[test]
 fn controls_sequences_chain_like_the_original() {
-    skip_without_local_fixtures!(CARS, SEQ);
+    skip_without_local_fixtures!(SEQ);
     let cars = cars();
     let rows = rows(&SEQ);
     let mut cmp = Compare::default();

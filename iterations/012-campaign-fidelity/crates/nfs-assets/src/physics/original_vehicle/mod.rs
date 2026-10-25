@@ -29,6 +29,8 @@
 //!   word, collision view, [`OriginalVehicle`]).
 //! - [`attitude`]: V6, wheel ground contact, suspension and the kinematic
 //!   pitch/roll model (`0x499a70`, `0x49a900`, `0x49bc80`, `0x499730`).
+//! - [`locate`]: `Car_TrackLocate` `0x49af70` (track node, body support
+//!   owner, alternate plane `0x499520`, surface, heading).
 //! - [`ground`]: V6, `Car_GroundContactTick` `0x49bd40` (vertical contact,
 //!   landing) and the engine's per-wheel ground queries.
 
@@ -38,18 +40,20 @@ pub mod controls;
 pub mod driver;
 pub mod engine;
 pub mod ground;
+pub mod locate;
 pub mod sim;
 pub mod step;
 pub mod tyre;
 
 pub use attitude::{wheel_ground_and_attitude, WheelGround};
-pub use car::{OriginalCar, OriginalGlobals, OriginalWheel};
+pub use car::{OriginalCar, OriginalGlobals, OriginalWheel, TrackFields};
 pub use controls::{apply_controls, gear_request, read_inputs, ControlsCar, ControlsEnv};
 pub use driver::{input_word, OriginalVehicle, StepClock, VehicleModel};
 pub use engine::{auto_gearbox, engine_drive_force, EngineCar, EngineEnv};
 pub use ground::{
     ground_contact_tick, FlatGround, GroundAdapter, GroundHit, GroundQuery, RoadGround,
 };
+pub use locate::{track_locate, BodyLocator};
 pub use sim::{derive, CarSpecs, Tuning};
 pub use step::{scheduler_step, step_64hz, GroundContact, Inputs, Phase, StepQueue};
 pub use tyre::{grip_limits, tyre_force, TyreCar, TyreEnv, WheelRecord};

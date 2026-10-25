@@ -74,7 +74,7 @@ fn replay(
 
 #[test]
 fn closed_loop_runs_match_bit_for_bit() {
-    skip_without_local_fixtures!(fixture::BODY, fixture::CARS, fixture::DYN, fixture::RUNS);
+    skip_without_local_fixtures!(BODY, CARS, DYN, RUNS);
     let specs = cars();
     let body = rows(&BODY);
     let dyn_rows = rows(&DYN);
@@ -181,7 +181,7 @@ fn closed_loop_runs_match_bit_for_bit() {
 
 #[test]
 fn ground_frame_matches() {
-    skip_without_local_fixtures!(fixture::CARS, fixture::FRAME);
+    skip_without_local_fixtures!(CARS, FRAME);
     let specs = cars();
     let specs = specs.values().next().unwrap();
     for r in rows(&FRAME) {
@@ -225,7 +225,7 @@ fn port_run(car: &str, scenario: &str) -> (CarSpecs, Vec<OriginalCar>) {
 /// rate rises and the car slides; without it the car turns gently.
 #[test]
 fn handbrake_turn_at_speed() {
-    skip_without_local_fixtures!(fixture::CARS, fixture::DYN, fixture::RUNS);
+    skip_without_local_fixtures!(CARS);
     for car in ["356A", "Boxster", "993C4"] {
         let (_, hb) = port_run(car, "handbrake");
         let (_, off) = port_run(car, "handbrake_off");
@@ -291,7 +291,7 @@ fn handbrake_turn_at_speed() {
 /// at least 0.8 of the redline (so no downshift is due).
 #[test]
 fn gear_matches_speed_after_a_slide() {
-    skip_without_local_fixtures!(fixture::CARS, fixture::DYN, fixture::RUNS);
+    skip_without_local_fixtures!(CARS);
     for car in ["356A", "Boxster", "993C4"] {
         let (specs, states) = port_run(car, "slide_recover");
         let red = specs.redline_94 as f64;

@@ -23,15 +23,14 @@
 //! 6. Velocity direction `+0x348`.
 //!
 //! What is approximated (docs/approximations.md):
-//! - The engine's support query stands in for the original polygon owners
-//!   (`GroundQuery`; A24). The alternate plane `+0x3e8/+0x400`, written by
-//!   the track code in the original, is the last contact plane with all
-//!   four wheels on a support polygon ([`GroundAdapter`]).
+//! - The wheels query the original support owners `w+4` through
+//!   [`RoadGround`] (`0x474060`, `0x474420`, `0x4745f0` on the retained
+//!   tree); the legacy triangle grid of CPU fixtures is the only stand-in.
+//!   The alternate plane `+0x3e8/+0x400` and the body surface `car+0x2c`
+//!   are written by `Car_TrackLocate` ([`super::locate`]).
 //! - The rollover contact `0x496610` (tilted car on the ground) is replaced
 //!   by the soft contact (A27). The overhead query `0x473330` (roof over the
-//!   car, flips an upward vertical speed) is taken as "none", and the body
-//!   surface `car+0x2c` (body support owner `car+8`, picks the landing
-//!   bounce) follows wheel 0's surface (A28).
+//!   car, flips an upward vertical speed) is taken as "none" (A28).
 //! - The `+0x52c` bit 7 path `0x4998c0` and the flag-1 call `0x493dd0` on a
 //!   hard landing are not ported (never set for the player).
 //!
@@ -115,13 +114,21 @@ pub struct RoadGround<'a> {
 
 impl GroundQuery for RoadGround<'_> {
     fn wheel_ground(&mut self, wheel: usize, point: [f32; 3]) -> Option<GroundHit> {
+        if let Some((tree, polygons)) = self.surface.original_arena() {
+            // `0x499b64..0x499c3b`: 0x474060 (reuse), 0x474420 normal,
+            // the flags word `+0x24` and, for the height, 0x4745f0(0).
+            let owner = &mut self.owners[wheel];
+            owner.locate(tree, polygons, point, true).ok()?;
+            owner.polygon?;
+            let normal = owner.normal(polygons);
+            return Some(GroundHit {
+                normal,
+                base: owner.vertex(polygons, 0),
+                surface: owner.flags_24,
+            });
+        }
         let scene = from_original(point);
-        let hit = if self.surface.uses_original_support() {
-            self.surface
-                .original_support(scene.to_array(), &mut self.owners[wheel])?
-        } else {
-            self.surface.query(scene.x, scene.z, scene.y, 2.0, 4.0)?
-        };
+        let hit = self.surface.query(scene.x, scene.z, scene.y, 2.0, 4.0)?;
         if !hit.height.is_finite() {
             return None;
         }
@@ -335,8 +342,10 @@ pub fn ground_contact_tick(
     Some(wg)
 }
 
-/// The engine side of the ground step: the original tick plus the
-/// stand-in for the track code's alternate plane (approximation A24).
+/// The engine side of the ground step: the original tick and the probe
+/// placement (approximation A39). The alternate plane `+0x3e8/+0x400` and
+/// the body surface `car+0x2c` come from `Car_TrackLocate`
+/// ([`super::locate::track_locate`], prio 6).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GroundAdapter {
     /// Result of the last tick.
@@ -344,27 +353,14 @@ pub struct GroundAdapter {
 }
 
 impl GroundAdapter {
-    /// One `Car_GroundContactTick`; then, if all four wheels stood on a
-    /// support polygon, the alternate plane `+0x3e8/+0x400` becomes the
-    /// contact plane (ground normal through the mean contact point), and the
-    /// body surface `car+0x2c` becomes wheel 0's surface for the next tick.
+    /// One `Car_GroundContactTick`.
     pub fn ground_step(
         &mut self,
         car: &mut OriginalCar,
         query: &mut impl GroundQuery,
         lcg: &mut OriginalLcg,
     ) {
-        let r = ground_contact_tick(car, query, lcg);
-        if let Some(g) = r {
-            if g.on_support.iter().all(|&s| s) {
-                car.alt_normal_3e8 = g.normal;
-                car.alt_base_400 = g.mean;
-            }
-            // The body support owner (car+8) is not queried: its surface
-            // `car+0x2c` follows wheel 0's (approximation A28).
-            car.body_surface_2c = car.wheels[0].tyre.surface_8c as u16;
-        }
-        self.last = r;
+        self.last = ground_contact_tick(car, query, lcg);
     }
 
     /// Places the car on the ground at its current x, z (spawn, model

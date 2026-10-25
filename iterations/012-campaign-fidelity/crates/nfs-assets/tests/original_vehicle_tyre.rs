@@ -121,7 +121,7 @@ impl Compare {
 
 #[test]
 fn grip_limits_match_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, GRIP);
+    skip_without_local_fixtures!(GRIP);
     let cars = cars();
     let rows = rows(&GRIP);
     assert!(rows.len() > 1000);
@@ -179,7 +179,7 @@ fn grip_limits_match_the_original_bit_for_bit() {
 
 #[test]
 fn tyre_forces_match_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, FORCE);
+    skip_without_local_fixtures!(FORCE);
     let cars = cars();
     let rows = rows(&FORCE);
     assert!(rows.len() > 5000);

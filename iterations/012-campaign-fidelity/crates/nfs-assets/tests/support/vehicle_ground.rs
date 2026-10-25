@@ -4,9 +4,9 @@
 #![allow(dead_code)]
 
 use nfs_assets::physics::original_vehicle::{GroundHit, GroundQuery, OriginalCar};
-use crate::local_fixtures::Fixture;
 
 use super::fixture::{Row, V};
+use crate::local_fixtures::Fixture;
 
 pub static RUNS: Fixture = Fixture::new("vehicle-ground-runs.tsv");
 pub static BODY: Fixture = Fixture::new("vehicle-ground-body.tsv");

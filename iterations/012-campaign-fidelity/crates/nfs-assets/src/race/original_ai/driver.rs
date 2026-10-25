@@ -75,9 +75,11 @@ pub struct AiWorld<'a> {
     pub player_b00: f32,
 }
 
-/// The part of `Car_TrackLocate` 0x49af70 the AI reads: the locator update
-/// `0x474440` (its section is the AI's branch section `+0xc`) and the node
-/// frame copy of `0x499520` when the node changed.
+/// The stand-in of `replay-ai-loop.py` for `Car_TrackLocate` 0x49af70: the
+/// locator update `0x474440` and a node frame copy when the node changed.
+/// The game runs the full locate
+/// ([`crate::physics::original_vehicle::locate::track_locate`]), where the
+/// frame copy follows the body polygon, not the node (docs/re/support.md).
 pub fn track_locate(car: &OriginalCar, s: &mut AiState, track: &TrackNodes) {
     s.locator_08.update(track, car.position_330);
     if s.locator_08.changed_09 {

@@ -11,7 +11,7 @@
 //! engine course.
 
 use super::ais::{load_ais, AisData, TrackTables};
-use super::driver::{read_inputs_ai, track_locate, AiState, AiWorld};
+use super::driver::{read_inputs_ai, AiState, AiWorld};
 use super::planner::{AiOther, OrderSlot};
 use super::query::TrackLocator;
 use super::racing_line::RacingLine;
@@ -26,6 +26,7 @@ use crate::physics::original_vehicle::driver::{
     barrier_state, pair_car, store_barrier_state, store_pair_car,
 };
 use crate::physics::original_vehicle::ground::{GroundAdapter, GroundQuery};
+use crate::physics::original_vehicle::locate::{track_locate, BodyLocator, SupportArena};
 use crate::physics::original_vehicle::step::{
     dynamics_tick, integrate_orientation, integrate_position,
 };
@@ -72,8 +73,6 @@ impl OriginalAiTrack {
 pub struct AiDriverCar {
     pub vehicle: OriginalVehicle,
     pub ai: AiState,
-    /// Body support owner for the barrier response.
-    pub body_owner: OriginalSupportOwner,
     /// Laps counted from the node fraction (A41).
     pub laps: i32,
     last_fraction: f32,
@@ -102,6 +101,11 @@ pub trait FieldQueue {
     ) -> bool;
     /// `Camera_UpdateAll` (prio 100) after the integrations.
     fn camera(&mut self, _player: &OriginalCar) {}
+    /// The retained support arena `Car_TrackLocate` queries; `None` on the
+    /// legacy grid (no body polygon).
+    fn support(&self) -> Option<SupportArena<'_>> {
+        None
+    }
 }
 
 /// AI options: SKILL, CATCHUP mode, the res skill values (fe.txt defaults).
@@ -182,10 +186,13 @@ impl OriginalAiField {
         let t = &self.track.nodes;
         let node = t.locate(position, 0);
         let ai = AiState::at_node(t, node);
+        vehicle.locator = BodyLocator::at_node(node);
+        vehicle.car.track.node_lat_3b8 = ai.node_lat_3b8;
+        vehicle.car.track.node_up_3c4 = ai.node_up_3c4;
+        vehicle.car.track.node_fwd_3d0 = ai.node_fwd_3d0;
         self.cars.push(AiDriverCar {
             vehicle,
             ai,
-            body_owner: OriginalSupportOwner::default(),
             laps: 0,
             last_fraction: 0.0,
         });
@@ -248,22 +255,41 @@ impl OriginalAiField {
         }
         let lcg = &mut player.lcg;
         if step & 1 == 0 {
-            // Prio 6: Car_TrackLocate.
+            // Prio 6: Car_TrackLocate for every car (support.md section 4).
             let t = &self.track.nodes;
-            self.player_locator.update(t, player.car.position_330);
+            let support = queue.support();
+            let mut racers = vec![player.car.position_330];
+            if run_ai {
+                racers.extend(self.cars.iter().map(|c| c.vehicle.car.position_330));
+            }
+            track_locate(&mut player.car, &mut player.locator, t, support, &racers);
+            self.player_locator = player.locator.track;
             let pf = self.fraction(self.player_locator.node_00 as i32);
             let player_af8 = Self::count_lap(&mut self.player_laps, &mut self.player_fraction, pf);
             if run_ai {
                 for i in 0..self.cars.len() {
                     let c = &mut self.cars[i];
-                    track_locate(&c.vehicle.car, &mut c.ai, &self.track.nodes);
-                    let car = &mut c.vehicle.car;
-                    car.surface_464 = (car.body_surface_2c & 0xf) as i32;
-                    if car.globals.handling_mode_6573f8 != 0
-                        && (car.surface_464 == 1 || car.surface_464 == 10)
-                    {
-                        car.surface_464 = 2;
+                    // The planner's branch section `+0xc` lives in the locator.
+                    c.vehicle.locator.track = c.ai.locator_08;
+                    track_locate(
+                        &mut c.vehicle.car,
+                        &mut c.vehicle.locator,
+                        t,
+                        support,
+                        &racers,
+                    );
+                    if support.is_none() && c.vehicle.locator.track.changed_08 {
+                        // Legacy grid without support polygons: the node
+                        // frame follows the node (test geometry only).
+                        let n = &t.nodes[c.vehicle.locator.track.node_00 as usize];
+                        c.vehicle.car.track.node_lat_3b8 = n.lateral_28;
+                        c.vehicle.car.track.node_up_3c4 = n.up_10;
+                        c.vehicle.car.track.node_fwd_3d0 = n.forward_1c;
                     }
+                    c.ai.locator_08 = c.vehicle.locator.track;
+                    c.ai.node_lat_3b8 = c.vehicle.car.track.node_lat_3b8;
+                    c.ai.node_up_3c4 = c.vehicle.car.track.node_up_3c4;
+                    c.ai.node_fwd_3d0 = c.vehicle.car.track.node_fwd_3d0;
                     let f = self.fraction(self.cars[i].ai.locator_08.node_00 as i32);
                     let c = &mut self.cars[i];
                     c.ai.progress_af8 = Self::count_lap(&mut c.laps, &mut c.last_fraction, f);
@@ -375,15 +401,20 @@ impl OriginalAiField {
         globals.rand_mul_5d102c = lcg.multiplier_5d102c;
         let cars = &mut self.cars;
         let pcar = &mut player.car;
+        let ploc = &mut player.locator.owner;
         let phalf = player.half_extents;
         collide_pass(&mut pairs, globals, |index, pair| {
-            let (car, half, owner): (&mut OriginalCar, [f32; 3], Option<&mut OriginalSupportOwner>) =
-                if index == 0 {
-                    (&mut *pcar, phalf, None)
-                } else {
-                    let c = &mut cars[index - 1];
-                    (&mut c.vehicle.car, c.vehicle.half_extents, Some(&mut c.body_owner))
-                };
+            let (car, half, owner): (
+                &mut OriginalCar,
+                [f32; 3],
+                Option<&mut OriginalSupportOwner>,
+            ) = if index == 0 {
+                (&mut *pcar, phalf, Some(&mut *ploc))
+            } else {
+                let c = &mut cars[index - 1];
+                let v = &mut c.vehicle;
+                (&mut v.car, v.half_extents, Some(&mut v.locator.owner))
+            };
             let mut state = barrier_state(car, pair);
             if queue.barrier(index, &mut state, half, owner) {
                 store_barrier_state(car, pair, &state);

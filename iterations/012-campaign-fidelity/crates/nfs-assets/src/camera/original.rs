@@ -10,7 +10,7 @@
 //! precision), so a chain of x87 operations is an `f64` chain rounded to `f32` where the
 //! original stores. The vector transform `Vec_TransformByMatrix 0x532a40` dispatches to the
 //! PACODE kernel 0x5b10b8, which switches to 24-bit precision: it is plain `f32` arithmetic.
-//! Fixtures: `scripts/research/replay-camera.py` (`tests/fixtures/camera-{tail,bumper}.tsv`).
+//! Fixtures: `scripts/research/replay-camera.py` (`local/fixtures/camera-{tail,bumper}.tsv`, gitignored).
 //!
 //! Not ported here: the crash camera (0x461590), the pause orbit (0x4617c0), replay/TV
 //! cameras, the replay-mode shake and up vector in the look-at (`[0x5e99f4] == 2`), the view

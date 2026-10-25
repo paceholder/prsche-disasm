@@ -229,19 +229,19 @@ fn replay_rows(text: &str, min_rows: usize) {
 
 #[test]
 fn engine_steps_match_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, STEP);
+    skip_without_local_fixtures!(STEP);
     replay_rows(&STEP, 5000);
 }
 
 #[test]
 fn engine_sequence_rows_match_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, SEQ);
+    skip_without_local_fixtures!(SEQ);
     replay_rows(&SEQ, 4000);
 }
 
 #[test]
 fn auto_gearbox_matches_the_original_bit_for_bit() {
-    skip_without_local_fixtures!(CARS, GEARBOX);
+    skip_without_local_fixtures!(GEARBOX);
     let cars = cars();
     let rows = rows(&GEARBOX);
     assert!(rows.len() >= 900);
@@ -261,7 +261,7 @@ fn auto_gearbox_matches_the_original_bit_for_bit() {
 /// events, throttle, the speed trace) are applied as the recorder does.
 #[test]
 fn engine_sequences_chain_like_the_original() {
-    skip_without_local_fixtures!(CARS, SEQ);
+    skip_without_local_fixtures!(SEQ);
     let cars = cars();
     let rows = rows(&SEQ);
     let mut cmp = Compare::default();

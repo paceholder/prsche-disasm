@@ -3277,6 +3277,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             inputs.angular_388 = car.angular_388;
             inputs.wheels_off_418 = car.wheels_off_418;
             inputs.height_424 = car.height_424;
+            if self.original_ai_track.is_some() {
+                // `Car_TrackLocate` runs (prio 6): node up `+0x3c4`, surface `+0x464`
+                // and the body owner's "no polygon" byte `car+0x12`.
+                inputs.node_up_dot =
+                    Vec3::from(car.track.node_up_3c4).dot(Vec3::from(car.axes_364[1]));
+                inputs.surface_464 = car.surface_464;
+                inputs.locator_12 = v.locator.missing_12();
+            }
         } else if let (true, Some(sim)) = (self.sim_mode, &self.sim_car) {
             let body = &sim.body;
             inputs.speed_35c = speed_estimate(to_original(body.linear_velocity));
@@ -3318,8 +3326,84 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     /// `Car_ResetToTrack 0x40f540` for the player: the car's track node (the nearest course
     /// waypoint), else the next free one, on the road there facing along the track, at rest.
     /// Lap, checkpoint and race state stay. Works for both vehicle models.
+    /// `Car_ResetToTrack` 0x40f540 for the original model on the node graph: the locator
+    /// node `car+8`, the first free node (`0x40f480`: support polygon at the node centre,
+    /// no original AI car on it), `0x49e220` + `0x40f400`, `Car_PlaceOnNode` 0x49b090, then
+    /// the probe placement (A39). False without the original model or the graph.
+    fn reset_original_on_nodes(&mut self) -> bool {
+        use nfs_assets::physics::original_vehicle::RoadGround;
+        use nfs_assets::physics::original_vehicle::locate::{place_on_node, reset_node};
+        if !self.original_active() {
+            return false;
+        }
+        let (Some(track), Some(surface)) =
+            (self.original_ai_track.as_ref(), self.road_surface.as_ref())
+        else {
+            return false;
+        };
+        let Some(support) = surface.original_arena() else {
+            return false;
+        };
+        let others: Vec<i16> = self
+            .original_ai
+            .as_ref()
+            .map(|f| f.cars.iter().map(|c| c.ai.locator_08.node_00).collect())
+            .unwrap_or_default();
+        let racers: Vec<[f32; 3]> = self
+            .original_ai
+            .as_ref()
+            .map(|f| f.cars.iter().map(|c| c.vehicle.car.position_330).collect())
+            .unwrap_or_default();
+        let Some(v) = self.original_vehicle.as_mut() else {
+            return false;
+        };
+        let node = reset_node(
+            &mut v.locator,
+            &track.nodes,
+            Some(support),
+            &others,
+            track.reverse,
+        );
+        v.reset_drive_state();
+        let mut racers = racers;
+        racers.push(v.car.position_330);
+        place_on_node(
+            &mut v.car,
+            &mut v.locator,
+            &track.nodes,
+            Some(support),
+            node,
+            track.reverse,
+            &racers,
+        );
+        let (pos, axes) = (v.car.position_330, v.car.axes_364);
+        let mut owners = v.owners.clone();
+        v.set_pose(
+            pos,
+            axes,
+            [0.0; 3],
+            [0.0; 3],
+            &mut RoadGround {
+                surface,
+                owners: &mut owners,
+            },
+        );
+        v.owners = owners;
+        self.body_support_owner = Default::default();
+        self.sync_sim_from_original(false);
+        true
+    }
+
     fn reset_car_to_track(&mut self, course: &nfs_assets::TrackCourse) -> bool {
         use nfs_assets::race::reset::{reset_node, reset_pose};
+        if self.reset_original_on_nodes() {
+            if let Some(view) = self.camera_car() {
+                self.player_camera
+                    .snap_to_car(&view, &mut nfs_assets::camera::FlatWorld);
+            }
+            self.car_resets += 1;
+            return true;
+        }
         let Some((pos, _)) = self.player_pose() else {
             return false;
         };
@@ -4046,7 +4130,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 skid(1),
                 skid(2),
                 skid(3),
-                0.0,
+                c.track.dist_78,
                 c.height_424,
                 c.ground_up_3a0,
                 (c.body_surface_2c & 0xf) as f32,
@@ -4466,6 +4550,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             lcg,
             ground,
             owners,
+            locator,
             clock,
             half_extents,
         } = v;
@@ -4474,7 +4559,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             surface: Option<&'a nfs_assets::RoadSurface>,
             ground: &'a mut nfs_assets::physics::original_vehicle::GroundAdapter,
             owners: &'a mut [nfs_assets::physics::original_support_owner::OriginalSupportOwner; 4],
-            body_owner: &'a mut nfs_assets::physics::original_support_owner::OriginalSupportOwner,
+            /// `car+8`: track locator and body support owner (also the barrier pass).
+            locator: &'a mut nfs_assets::physics::original_vehicle::BodyLocator,
+            nodes: Option<&'a nfs_assets::race::original_ai::track::TrackNodes>,
             pair_globals: &'a mut nfs_assets::physics::original_pair::PairGlobals,
             ai: &'a mut [nfs_assets::AiOpponent],
             ai_box: (Vec3, [f32; 3]),
@@ -4484,6 +4571,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             contacts: &'a mut Vec<SparkContact>,
         }
         impl StepQueue for Queue<'_> {
+            fn track_locate(&mut self, car: &mut OriginalCar) {
+                if let Some(nodes) = self.nodes {
+                    let me = car.position_330;
+                    nfs_assets::physics::original_vehicle::track_locate(
+                        car,
+                        self.locator,
+                        nodes,
+                        self.surface.and_then(|s| s.original_arena()),
+                        &[me],
+                    );
+                }
+            }
             fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
                 match self.surface {
                     Some(surface) => self.ground.ground_step(
@@ -4513,7 +4612,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     .collect();
                 let before = ai.clone();
                 let barrier = self.surface.filter(|s| s.uses_original_support());
-                let (half, owner) = (self.half, &mut *self.body_owner);
+                let (half, owner) = (self.half, &mut self.locator.owner);
                 let contacts = &mut *self.contacts;
                 collide_player(car, half, &mut ai, self.pair_globals, lcg, |state| {
                     let Some(s) = barrier else { return false };
@@ -4545,7 +4644,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             surface: self.road_surface.as_ref(),
             ground,
             owners,
-            body_owner: &mut self.body_support_owner,
+            locator,
+            nodes: self.original_ai_track.as_ref().map(|t| &t.nodes),
             pair_globals: &mut self.pair_globals,
             ai: &mut self.ai_opponents,
             ai_box: (center, half),

@@ -121,6 +121,29 @@ pub struct DamageHelpers {
 }
 
 /// The original car state used by the planar step and the integration.
+/// Car fields of the track locate step (`Car_TrackLocate` `0x49af70`,
+/// `0x417190`, `0x499520`); docs/re/support.md section 4.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct TrackFields {
+    /// `+0x78`: distance to the nearest race car (`max + 0.25·min` of
+    /// |dx|, |dz|, at most 1000), 0 for race participants (`0x417190`).
+    pub dist_78: f32,
+    /// `+0x7e`: cleared by `0x417190` (set by `Car_PlaceOnNode`).
+    pub flag_7e: u8,
+    /// Node frame lateral `+0x3b8`, up `+0x3c4`, forward `+0x3d0` (`0x499520`).
+    pub node_lat_3b8: [f32; 3],
+    pub node_up_3c4: [f32; 3],
+    pub node_fwd_3d0: [f32; 3],
+    /// `+0x3dc = +0x3e8 × +0x3f4` (`0x499520`).
+    pub alt_side_3dc: [f32; 3],
+    /// `+0x3f4`: the body polygon's edge direction (owner `+0x18`).
+    pub alt_tangent_3f4: [f32; 3],
+    /// `+0x414`: heading against the node, radians in (−π, π].
+    pub heading_414: f32,
+    /// `+0x460`: the body polygon's whole flags word.
+    pub surface_460: i32,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct OriginalCar {
     /// carSpecs (`car+0x760`).
@@ -175,10 +198,12 @@ pub struct OriginalCar {
     /// Collision box half extents (`+0x3a8`); x and y lift the car on one
     /// side in `0x499a70`.
     pub half_extents_3a8: [f32; 3],
-    /// Alternate support plane: normal `+0x3e8`, point `+0x400` (written by
-    /// the track code `0x499520`/`0x49b090`, not ported).
+    /// Alternate support plane: normal `+0x3e8`, point `+0x400`, written by
+    /// `0x499520` from the body support owner `car+8` ([`super::locate`]).
     pub alt_normal_3e8: [f32; 3],
     pub alt_base_400: [f32; 3],
+    /// The other fields `Car_TrackLocate` `0x49af70` writes.
+    pub track: TrackFields,
     /// `+0x40c`: filtered change of `+0x420`.
     pub ground_ay_40c: f32,
     /// `+0x418`: two or more wheels off the ground.
@@ -320,6 +345,7 @@ impl OriginalCar {
             half_extents_3a8: [0.0; 3],
             alt_normal_3e8: [0.0, 1.0, 0.0],
             alt_base_400: [0.0; 3],
+            track: TrackFields::default(),
             ground_ay_40c: 0.0,
             wheels_off_418: 0,
             ground_41c: 0.0,

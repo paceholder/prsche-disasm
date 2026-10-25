@@ -30,7 +30,7 @@
 //! query, pitch/roll or vertical velocity; the original ground step is
 //! [`super::ground::ground_contact_tick`] (V6), which the engine runs through
 //! [`scheduler_step`]. Not run either: the track
-//! locate/progress, collisions, and the `0x490140` path of
+//! progress, collisions, and the `0x490140` path of
 //! `0x49b8e0` (pair damping with a remote car, `[0x657408]` and `+0xdac`).
 //!
 //! Verified against `scripts/research/replay-vehicle-step.py` (tests
@@ -688,6 +688,8 @@ pub fn integrate_orientation(car: &mut OriginalCar) {
 /// sorted by priority; `docs/re/vehicle.md` section 1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
+    /// Even queue, prio 6: `Car_TrackLocate` `0x49af70`.
+    TrackLocate,
     /// Even queue, prio 0x15: `Car_ReadInputs` `0x4991e0`.
     ReadInputs,
     /// Even queue, prio 0x1e: `Car_DynamicsTick` `0x49fd30`.
@@ -709,6 +711,9 @@ pub enum Phase {
 /// ground step, the collision pass and the camera. Each runs at its place in
 /// [`scheduler_step`]. `trace` is called before every phase (tests).
 pub trait StepQueue {
+    /// `Car_TrackLocate` `0x49af70` (even steps, prio 6, first in the
+    /// queue). Default: not run.
+    fn track_locate(&mut self, _car: &mut OriginalCar) {}
     /// `Car_GroundContactTick` `0x49bd40` (even steps). The material height
     /// noise of `0x499730` draws from the shared random generator.
     fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg);
@@ -721,12 +726,12 @@ pub trait StepQueue {
 }
 
 /// One 64 Hz scheduler step for the player car in the original order: on
-/// even steps (`g_SchedStep` even) the 32 Hz queue `Car_ReadInputs` (prio
-/// 0x15), `Car_DynamicsTick` and `Car_GroundContactTick` (prio 0x1e, in
+/// even steps (`g_SchedStep` even) the 32 Hz queue `Car_TrackLocate` (prio
+/// 6, [`StepQueue::track_locate`]), `Car_ReadInputs` (prio 0x15), `Car_DynamicsTick` and `Car_GroundContactTick` (prio 0x1e, in
 /// insertion order), `Car_CollideTick` (prio 0x28); then on every step
 /// `Car_IntegratePosition` and `Car_IntegrateOrientation` (prio 0x1e) and the
-/// camera (prio 100); then `g_SchedStep += 1`. Not run: `Car_TrackLocate`
-/// (prio 6), `Car_TrackProgressTick` (prio 0x19) and
+/// camera (prio 100); then `g_SchedStep += 1`. Not run:
+/// `Car_TrackProgressTick` (prio 0x19) and
 /// `Car_ContactEffectsTick` (prio 0x32).
 pub fn scheduler_step(
     car: &mut OriginalCar,
@@ -735,6 +740,8 @@ pub fn scheduler_step(
     queue: &mut impl StepQueue,
 ) {
     if car.globals.sched_step_606ac4 & 1 == 0 {
+        queue.trace(Phase::TrackLocate, car);
+        queue.track_locate(car);
         queue.trace(Phase::ReadInputs, car);
         let specs = car.specs.clone();
         let (mut cc, ce) = car.controls_view(input_word);

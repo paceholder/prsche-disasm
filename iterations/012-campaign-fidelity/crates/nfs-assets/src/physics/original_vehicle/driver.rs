@@ -220,6 +220,8 @@ pub struct OriginalVehicle {
     pub lcg: OriginalLcg,
     pub ground: GroundAdapter,
     pub owners: [OriginalSupportOwner; 4],
+    /// `car+8`: track locator and body support owner (`Car_TrackLocate`).
+    pub locator: super::locate::BodyLocator,
     pub clock: StepClock,
     /// Collision box half extents (`+0x3a8`).
     pub half_extents: [f32; 3],
@@ -297,6 +299,7 @@ impl OriginalVehicle {
             lcg: OriginalLcg::default(),
             ground: GroundAdapter::default(),
             owners: Default::default(),
+            locator: Default::default(),
             clock: StepClock::default(),
             half_extents,
         };
@@ -321,10 +324,15 @@ impl OriginalVehicle {
         car.start_db0 = START_DB0;
         car.globals.sched_step_606ac4 = COUNTDOWN_SCHED_STEP;
         car.globals.auto_box_658098 = 1;
+        // A race participant: `0x40f160` sets `+0x52c` bit 0 for the human and
+        // the AI racers (res+8 bits 0/1), so `Car_BuildGroundFrame` builds the
+        // full frame and `0x417190` gives `+0x78 = 0`.
+        car.flags_52c = 1;
         update_world_points(&mut car);
         self.car = car;
         self.lcg = OriginalLcg::default();
         self.ground = GroundAdapter::default();
+        self.locator = Default::default();
         self.owners = Default::default();
         self.clock = StepClock::default();
     }
@@ -342,6 +350,8 @@ impl OriginalVehicle {
     /// A98), so the automatic car gets 1st (in N it would wait for the
     /// race-start request, which comes only before step 0x1c4).
     pub fn reset_drive_state(&mut self) {
+        // `0x49e220` clears the locator section `+0xc`.
+        self.locator.track.section_04 = -1;
         let old = &self.car;
         let mut car = OriginalCar::new(old.specs.clone());
         car.res_14 = old.res_14;
@@ -363,6 +373,7 @@ impl OriginalVehicle {
         car.half_extents_3a8 = old.half_extents_3a8;
         car.alt_normal_3e8 = old.alt_normal_3e8;
         car.alt_base_400 = old.alt_base_400;
+        car.track = old.track;
         car.damage_4e4 = old.damage_4e4;
         car.player_520 = old.player_520;
         car.flags_52c = old.flags_52c;
@@ -566,7 +577,8 @@ mod tests {
     }
 
     /// Step order of `Sched_Step` for the player car: on even steps the
-    /// 32 Hz queue (inputs 0x15, dynamics and ground 0x1e, collision 0x28),
+    /// 32 Hz queue (track locate 6, inputs 0x15, dynamics and ground 0x1e,
+    /// collision 0x28),
     /// then every step the integrations (0x1e) and the camera (100).
     #[test]
     fn scheduler_runs_the_original_order() {
@@ -579,6 +591,7 @@ mod tests {
             scheduler_step(&mut car, 0, &mut lcg, &mut q);
         }
         let even = [
+            TrackLocate,
             ReadInputs,
             Dynamics,
             Ground,

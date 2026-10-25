@@ -273,6 +273,18 @@ impl RoadSurface {
         }))
     }
 
+    /// Original support polygon `index` (original axes), for audits.
+    pub fn original_polygon(&self, index: usize) -> Option<&SupportPolygon> {
+        self.original.as_ref()?.polygons.get(index)
+    }
+
+    /// The retained support tree and its polygons (original axes), for the
+    /// owner methods of [`OriginalSupportOwner`].
+    pub fn original_arena(&self) -> Option<(&SupportTree, &[SupportPolygon])> {
+        let source = self.original.as_ref()?;
+        Some((&source.tree, &source.polygons))
+    }
+
     pub fn original_support_counts(&self) -> Option<(usize, usize)> {
         self.original
             .as_ref()

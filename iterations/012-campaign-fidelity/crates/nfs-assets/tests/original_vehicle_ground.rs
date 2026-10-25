@@ -155,7 +155,7 @@ fn by_run<'a>(rows: &'a [Row<'a>], name: &str) -> Vec<&'a Row<'a>> {
 
 #[test]
 fn closed_loop_runs_match_bit_for_bit() {
-    skip_without_local_fixtures!(fixture::CARS, ground_fixture::BODY, ground_fixture::DYN, ground_fixture::RUNS);
+    skip_without_local_fixtures!(BODY, fixture::CARS, DYN, RUNS);
     let specs = cars();
     let body = rows(&BODY);
     let dyn_rows = rows(&DYN);
@@ -172,7 +172,7 @@ fn closed_loop_runs_match_bit_for_bit() {
 
 #[test]
 fn single_ground_ticks_match_bit_for_bit() {
-    skip_without_local_fixtures!(fixture::CARS, ground_fixture::CALL);
+    skip_without_local_fixtures!(CALL, fixture::CARS);
     let specs = cars();
     let mut n = 0;
     for r in rows(&CALL) {
@@ -214,7 +214,7 @@ fn single_ground_ticks_match_bit_for_bit() {
 /// back when the car stops.
 #[test]
 fn braking_dive() {
-    skip_without_local_fixtures!(fixture::CARS, ground_fixture::BODY, ground_fixture::DYN, ground_fixture::RUNS);
+    skip_without_local_fixtures!(BODY, fixture::CARS, DYN, RUNS);
     let specs = cars();
     let body = rows(&BODY);
     let dyn_rows = rows(&DYN);
