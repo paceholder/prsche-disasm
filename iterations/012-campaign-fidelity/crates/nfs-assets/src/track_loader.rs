@@ -254,6 +254,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         road_surface: None,
         course: None,
         ai_track: None,
+        start_trigger: None,
     };
 
     let mut tex_map = BTreeMap::new();
@@ -1039,6 +1040,77 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             scene.ai_track = crate::race::original_ai::field::OriginalAiTrack::from_files(
                 track, reverse, crp_data, jnc_data, lsp,
             );
+        }
+    }
+
+    // The start scene of the direction (`FUN_0046d600`): the start line trigger.
+    let start_key = format!("{track}_{}start.scn", if reverse { 'b' } else { 'f' });
+    if let Ok(bytes) = find(files, &start_key) {
+        use crate::race::original_ai::start;
+        let text = String::from_utf8_lossy(bytes);
+        scene.start_trigger = start::start_trigger(&text);
+        // A point-to-point race runs from the start line to the finish line along the road:
+        // the course follows the node graph between the two triggers (the `.lsp` order is
+        // the file order of the sections, not the road, and runs on past the finish).
+        if let (Some(ai), Some(s), Some(f)) = (&scene.ai_track, scene.start_trigger, start::finish_trigger(&text)) {
+            let nodes = &ai.nodes;
+            let (sn, fnode) = (start::start_node(nodes, s), start::start_node(nodes, f));
+            if let Some(route) = start::route(nodes, sn, fnode, reverse).filter(|r| r.len() >= 3) {
+                let points: Vec<_> = route
+                    .iter()
+                    .map(|&n| {
+                        let p = nodes.nodes[n as usize].pos_04;
+                        nfs_formats::SplinePoint { x: p[0], z: p[2] }
+                    })
+                    .collect();
+                let surface = scene.road_surface.as_ref();
+                if let Ok(course) = TrackCourse::from_spline_points(&points, false, |x, z| {
+                    surface
+                        .and_then(|s| s.query(x, z, 0.0, 500.0, 500.0))
+                        .map(|h| h.height)
+                        .unwrap_or(0.0)
+                }) {
+                    scene.diagnostics.push(format!(
+                        "Course from the start line to the finish along the nodes: {} nodes, {:.1} m",
+                        route.len(),
+                        course.total_length
+                    ));
+                    scene.course = Some(course);
+                }
+            }
+        }
+    }
+
+    // No start triggers (circuits): the course is one lap along the node graph from the start
+    // node, in the race direction (the `.lsp` order of the sections is not the road).
+    if scene.start_trigger.is_none() {
+        use crate::race::original_ai::start;
+        if let Some(ai) = &scene.ai_track {
+            let nodes = &ai.nodes;
+            let first = start::circuit_first(nodes, reverse);
+            if let Some(route) = start::lap_route(nodes, first, reverse).filter(|r| r.len() >= 100) {
+                let points: Vec<_> = route
+                    .iter()
+                    .map(|&n| {
+                        let p = nodes.nodes[n as usize].pos_04;
+                        nfs_formats::SplinePoint { x: p[0], z: p[2] }
+                    })
+                    .collect();
+                let surface = scene.road_surface.as_ref();
+                if let Ok(course) = TrackCourse::from_spline_points(&points, true, |x, z| {
+                    surface
+                        .and_then(|s| s.query(x, z, 0.0, 500.0, 500.0))
+                        .map(|h| h.height)
+                        .unwrap_or(0.0)
+                }) {
+                    scene.diagnostics.push(format!(
+                        "Course: one lap along the nodes, {} nodes, {:.1} m",
+                        route.len(),
+                        course.total_length
+                    ));
+                    scene.course = Some(course);
+                }
+            }
         }
     }
 

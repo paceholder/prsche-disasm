@@ -366,6 +366,9 @@ pub struct Scene {
     /// The original AI's track node graph and racing line (`SimD`/`SimT`,
     /// `.jnc`, `<track>0.lsp`), if available.
     pub ai_track: Option<race::original_ai::field::OriginalAiTrack>,
+    /// Start line of the race direction: the type-2 trigger of `<track>_FStart.scn` /
+    /// `_BStart.scn` (`race::original_ai::start`), original coordinates.
+    pub start_trigger: Option<[f32; 3]>,
 }
 
 impl Default for Scene {
@@ -405,6 +408,7 @@ impl Default for Scene {
             road_surface: None,
             course: None,
             ai_track: None,
+            start_trigger: None,
         }
     }
 }

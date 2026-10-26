@@ -222,6 +222,7 @@ export function raceStart(p) {
     car: p.car,
     colour: p.colour,
     track: p.track.internal_name.toLowerCase(),
+    circuit: Boolean(p.track.circuit),
     laps: p.laps,
     reverse: Boolean(p.reverse),
     mirror: Boolean(p.mirror),

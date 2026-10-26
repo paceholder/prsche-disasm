@@ -183,7 +183,16 @@ pub fn parse_scn(input: &str) -> Result<ScnFile> {
                 &direction_tokens[direction_tokens.len() - 3..].join(" "),
                 "TRIGGER_ELEMENT direction",
             )?;
-            let name = lines.next().ok_or("TRIGGER_ELEMENT: missing name")?;
+            // The name line is empty in the start scenes (`<track>_FStart.scn`); the parser
+            // drops blank lines, so a record header here means the name was blank.
+            let name = if lines
+                .peek()
+                .is_none_or(|l| l.split_whitespace().next().is_some_and(|w| w.ends_with("_ELEMENT")))
+            {
+                ""
+            } else {
+                lines.next().ok_or("TRIGGER_ELEMENT: missing name")?
+            };
             elements.push(ScnElement::Trigger(triggers.len()));
             triggers.push(ScenarioTrigger {
                 version,
@@ -347,6 +356,22 @@ fn parse_three(line: &str, label: &str) -> Result<[f32; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The start scenes (`<track>_FStart.scn`) have no name line: the second trigger must
+    /// not be eaten as the first one's name.
+    #[test]
+    fn trigger_without_name_line_keeps_the_next_record() {
+        let one = |kind: u32, x: f32| {
+            format!(
+                "TRIGGER_ELEMENT 5\n{x} 0.0 1.0\n1 0 0\t0 1 0\t0 0 1\n\
+                 {kind} 1 1.0 19.0 0.25 0.0 200.0 -1 -1 -1 -1 -1 -1 0 65535 0 0\n\
+                 0 0 0\t1 0 0\n0 0.0 0.0 0.0\t0 0.0 0.0 0.0\n\n"
+            )
+        };
+        let scn = parse_scn(&(one(2, 10.0) + &one(1, 20.0))).unwrap();
+        let kinds: Vec<_> = scn.triggers.iter().map(|t| (t.trigger_type, t.position[0])).collect();
+        assert_eq!(kinds, vec![(Some(2), 10.0), (Some(1), 20.0)]);
+    }
 
     #[test]
     fn local_scenario_links_follow_source_order() {

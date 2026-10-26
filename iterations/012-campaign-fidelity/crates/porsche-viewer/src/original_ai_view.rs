@@ -155,8 +155,14 @@ impl Renderer {
         // Grid on the node graph ahead of the player (A44): upstream's grid behind the
         // player has no road on point-to-point tracks (alps starts at node 0).
         let start = field.track.nodes.locate(player.car.position_330, 0);
+        let racers = 1 + self.ai_opponents.len() as i32;
         for slot in 0..self.ai_opponents.len() {
-            let (centre, axes) = field.grid_slot(start, slot);
+            let (centre, axes) = match self.start_slot(racers - 1 - slot as i32, racers) {
+                Some(s) => {
+                    (s.position, nfs_assets::race::original_ai::start::frame_axes(s.up, s.forward))
+                }
+                None => field.grid_slot(start, slot),
+            };
             let mut owners: [OriginalSupportOwner; 4] = Default::default();
             match self.road_surface.as_ref() {
                 Some(surface) => field.spawn(
@@ -260,11 +266,11 @@ impl Renderer {
             .map(|c| {
                 let k = &c.vehicle.car;
                 format!(
-                    r#"{{"node":{},"laps":{},"pos":[{:.2},{:.2},{:.2}],"up":{:.2},"h":{:.2},"v":{:.2},"gear":{},"gas":{},"brake":{},"steer":{},"target":{:.1},"db0":{},"skill":{:?}}}"#,
+                    r#"{{"node":{},"laps":{},"pos":[{:.2},{:.2},{:.2}],"up":{:.2},"h":{:.2},"v":{:.2},"gear":{},"gas":{},"brake":{},"steer":{},"target":{:.1},"db0":{},"skill":{:?},"bup":[{:.3},{:.3},{:.3}]}}"#,
                     c.ai.locator_08.node_00, c.laps, k.position_330[0], k.position_330[1],
                     k.position_330[2], k.ground_up_3a0, k.height_424, k.vel_ground_d58[2],
                     k.gear_d82, k.gas_eff_d7f, k.brake_eff_d80, k.steer_d94, c.ai.target_eb8,
-                    k.start_db0, c.skill_154
+                    k.start_db0, c.skill_154, k.axes_364[1][0], k.axes_364[1][1], k.axes_364[1][2]
                 )
             })
             .collect();

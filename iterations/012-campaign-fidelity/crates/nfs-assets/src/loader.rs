@@ -765,6 +765,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         road_surface: None,
         course: None,
         ai_track: None,
+        start_trigger: None,
     };
     let mut skipped = Vec::new();
     let mut selected = Vec::new();

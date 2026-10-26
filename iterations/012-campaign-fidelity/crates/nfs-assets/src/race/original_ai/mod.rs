@@ -10,6 +10,7 @@ pub mod field;
 pub mod planner;
 pub mod racing_line;
 pub mod roster;
+pub mod start;
 pub mod track;
 
 pub use query::TrackLocator;

@@ -150,6 +150,7 @@ test("location and quick race choices reach the race start (VA 0x4fc0b0, 0x4eb47
   const s = raceStart(q.raceParams());
   assert.deepEqual([s.track, s.laps, s.reverse, s.mirror, s.traffic, s.opponents, s.opponentMode, s.difficulty],
     ["monaco1", 5, true, true, 2, 7, 2, 2]);
+  assert.equal(s.circuit, true); // LINEAR_TRACK is its negation: the start rule of the engine
   // Directions: 0 forward, 1 backward, 2 forward/mirrored, 3 backward/mirrored.
   for (const [dir, reverse, mirror] of [[0, false, false], [1, true, false], [2, false, true], [3, true, true]]) {
     q.accessor("Track1.Direction").select(dir);

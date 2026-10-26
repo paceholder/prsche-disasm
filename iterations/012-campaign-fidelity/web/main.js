@@ -2250,7 +2250,7 @@ if (resetSourceButton) {
   });
 }
 
-function findTrackFilesFromCatalog(target, specificScn = null) {
+function findTrackFilesFromCatalog(target, specificScn = null, reverse = false) {
   const matching = [];
   const targetLower = target.toLowerCase();
   const scnTarget = specificScn ? specificScn.toLowerCase() : null;
@@ -2269,6 +2269,11 @@ function findTrackFilesFromCatalog(target, specificScn = null) {
     if (fullPath.includes("/fedata/") || fullPath.includes("/trackart/") || fullPath.includes("/cardata/")) continue;
 
     if (ext === "scn") {
+      // The start scene of the race direction (FUN_0046d600): the start line trigger.
+      if (basename === `${targetLower}_${reverse ? "b" : "f"}start.scn`) {
+        matching.push(relPath);
+        continue;
+      }
       if (basename.includes("audio") || basename.includes("camera") || basename.includes("start")) {
         continue;
       }
@@ -2627,6 +2632,13 @@ quickRaceStartBtn.addEventListener('click', async () => {
   await launchQuickRace({ car, track, laps, opponents, fromDialog: true });
 });
 
+// nfs5.trk record +0x6e == 1: a circuit (LINEAR_TRACK 0x1d is its negation).
+async function trackIsCircuit(track) {
+  const bytes = await readGamePath("FEData/Data/nfs5.trk");
+  const records = bytes ? JSON.parse(fe_track_catalog_json(bytes)) : [];
+  return Boolean(records.find(r => r.internal_name.toLowerCase() === track.toLowerCase())?.circuit);
+}
+
 // Race choices of the running race, for the debug state and the loading screen.
 let lastRaceStart = null;
 
@@ -2658,7 +2670,7 @@ let lastRaceDrivers = [];
 // reverse / mirror / difficulty / traffic: Track1.Direction, Game.Difficutly, Track1.Traffic
 // (docs/re/frontend.md "Race start parameters"). Traffic cars are not raced yet (A100).
 async function launchQuickRace({ car, track, laps, opponents, manualBox = false, damage = true, fromDialog = false,
-  reverse = false, mirror = false, difficulty = 1, traffic = 0, colour = null }) {
+  reverse = false, mirror = false, difficulty = 1, traffic = 0, colour = null, circuit = null }) {
   quickRaceStartBtn.disabled = true;
   quickRaceCancelBtn.disabled = true;
   quickRaceStatus.textContent = 'Загрузка заезда…';
@@ -2681,6 +2693,7 @@ async function launchQuickRace({ car, track, laps, opponents, manualBox = false,
     await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     await setRaceOptions({ difficulty, mirror, opponents, car, colour });
+    viewer.set_linear_track?.(!(circuit ?? await trackIsCircuit(track)));
     viewer.configure_quick_race(laps, opponents);
     lastRaceStart = { reverse, mirror, difficulty, traffic, opponents };
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();
@@ -2744,6 +2757,11 @@ async function loadTarget(specificScn = null, reverse = false) {
           if (fullPath.includes("/fedata/") || fullPath.includes("/trackart/") || fullPath.includes("/cardata/")) continue;
 
           if (ext === "scn") {
+            if (basename === `${target}_${reverse ? "b" : "f"}start.scn`) {
+              names.push(selectedName(file));
+              bytes.push(new Uint8Array(await file.arrayBuffer()));
+              continue;
+            }
             if (basename.includes("audio") || basename.includes("camera") || basename.includes("start")) {
               continue;
             }
@@ -2794,7 +2812,7 @@ async function loadTarget(specificScn = null, reverse = false) {
       }
     } else {
       const paths = isTrack
-        ? findTrackFilesFromCatalog(target, specificScn)
+        ? findTrackFilesFromCatalog(target, specificScn, reverse)
         : findCarFilesFromCatalog(target);
 
       if (paths.length === 0) {
@@ -3692,6 +3710,7 @@ async function autostartRace(params) {
     await loadRaceCar(car.model_name, car.sim_name, car.bank || "", car.gauges || null, car.style || 0);
     if (!viewer.is_sim_mode()) viewer.toggle_sim_mode();
     await setRaceOptions({ ...start, car, colour: params.has("colour") ? Number(params.get("colour")) : null });
+    viewer.set_linear_track?.(!await trackIsCircuit(track));
     viewer.configure_quick_race(start.laps, start.opponents);
     lastRaceStart = start;
     if (!viewer.is_drive_mode()) viewer.toggle_camera_mode();

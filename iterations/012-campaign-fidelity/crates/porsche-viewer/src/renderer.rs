@@ -710,6 +710,10 @@ pub struct Renderer {
     ai_speed_limit: Option<f32>,
     /// Quick Race choices that reach the race (`docs/re/frontend.md` "Race start parameters").
     pub race_options: RaceOptions,
+    /// Start line trigger of the loaded race direction (`Scene::start_trigger`).
+    start_trigger: Option<[f32; 3]>,
+    /// LINEAR_TRACK `[0x657494]` from the track record (`None`: from the course).
+    linear_track: Option<bool>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
     /// In-race pause (`DAT_00606a90`): `update_car` runs no step. `re/pause.md`.
@@ -1839,6 +1843,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ai_performance: None,
             ai_speed_limit: None,
             race_options: RaceOptions::default(),
+            start_trigger: scene.start_trigger,
+            linear_track: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
             paused: false,
@@ -3511,6 +3517,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let (pos, _, yaw) = nfs_assets::calculate_grid_slot(0, course);
             let mut car_pos = Vec3::from(pos);
             let mut car_yaw = yaw;
+            // The original start: the player's grid slot on the node graph at the start line.
+            if !self.is_mission_mode {
+                let racers = 1 + self.ai_opponents.len() as i32;
+                if let Some(slot) = self.start_slot(racers, racers) {
+                    let p = nfs_assets::physics::original_adapter::from_original(slot.position);
+                    let f = nfs_assets::physics::original_adapter::from_original(slot.forward);
+                    car_pos = p;
+                    car_yaw = (-f.x).atan2(-f.z);
+                }
+            }
             let scenario_start = self.scenario_start.filter(|_| self.is_mission_mode);
             if let Some(start) = scenario_start {
                 let (position, heading) = scenario_start_pose(start);
@@ -3555,6 +3571,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     }
                     h
                 });
+            let road_up = hit.as_ref().map(|h| Vec3::from(h.normal));
             if let Some(hit) = hit {
                 car_pos.y = hit.height;
             }
@@ -3564,7 +3581,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 self.camera.drive_target = car.camera_target;
             }
             if let Some(sim) = &mut self.sim_car {
-                sim.reset(car_pos + Vec3::Y * sim.resting_height(), car_yaw);
+                // `Car_PlaceOnNode` 0x49b090: the frame is the road's (up = the support plane
+                // normal, forward along the heading), so a start on a slope is level with it.
+                let up = road_up.filter(|u| u.y > 0.05).unwrap_or(Vec3::Y);
+                sim.reset(car_pos + up * sim.resting_height(), car_yaw);
+                sim.body.orientation =
+                    Quat::from_mat3(&nfs_assets::race::ai::tilted_basis(car_yaw, up)).normalize();
             }
             if let Some(progress) = &mut self.mission_progress {
                 progress.reset(car_pos.to_array());
@@ -5106,6 +5128,36 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             opponent_paints: opponent_paints.chunks_exact(4).map(rgba).collect(),
         };
         self.rebuild_original_ai();
+    }
+
+    /// Whether the track record marks the track as point to point (LINEAR_TRACK).
+    pub fn set_linear_track(&mut self, linear: bool) {
+        self.linear_track = Some(linear);
+    }
+
+    /// Original start placement of grid value `grid` (the player has `racers`, the last
+    /// opponent 1) on the node graph (`race::original_ai::start`); `None` without a node graph.
+    pub fn start_slot(
+        &self,
+        grid: i32,
+        racers: i32,
+    ) -> Option<nfs_assets::race::original_ai::start::StartSlot> {
+        use nfs_assets::race::original_ai::start;
+        let track = self.original_ai_track.as_ref()?;
+        let nodes = &track.nodes;
+        if nodes.nodes.len() < 2 {
+            return None;
+        }
+        let linear = self
+            .linear_track
+            .unwrap_or_else(|| !self.track_course.as_ref().is_some_and(|c| c.is_circuit));
+        let node = match self.start_trigger {
+            Some(t) => start::start_node(nodes, t),
+            // `FUN_00410730`: no start trigger: node 1, 50 on a long point-to-point track.
+            None if linear && nodes.lap_nodes_04 > 99 => 50,
+            None => 1,
+        };
+        Some(start::slot(nodes, node, track.reverse, linear, racers, grid))
     }
 
     pub fn set_car_setup(&mut self, manual_box: bool, damage: bool) {

@@ -929,6 +929,14 @@ impl BrowserViewer {
             .map_err(|e| JsValue::from_str(&e))
     }
 
+    /// LINEAR_TRACK of the track record (`nfs5.trk +0x6e != 1`): point to point; call before
+    /// `configure_quick_race`.
+    pub fn set_linear_track(&mut self, linear: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_linear_track(linear);
+        }
+    }
+
     /// Quick Race difficulty (`SKILL`), mirror, the opponents' skill values (8 per opponent,
     /// from `fe_pick_opponents_json`) and the body paints (RGBA; empty player paint = unchanged,
     /// 4 per opponent); call before `configure_quick_race`.
