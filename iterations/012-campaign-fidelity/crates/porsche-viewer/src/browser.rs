@@ -501,6 +501,19 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Debug: look from `eye` at `target` (scene axes); 6 zeros clear it.
+    pub fn debug_look(&mut self, ex: f32, ey: f32, ez: f32, tx: f32, ty: f32, tz: f32) {
+        if let Some(r) = &mut self.renderer {
+            let (eye, target) = (glam::Vec3::new(ex, ey, ez), glam::Vec3::new(tx, ty, tz));
+            r.debug_look = (eye != target).then_some((eye, target));
+        }
+    }
+
+    /// Debug: drawn track particle systems, their particles, emitters, car particles.
+    pub fn get_particle_stats(&self) -> Vec<f32> {
+        self.renderer.as_ref().map(|r| r.particle_stats().to_vec()).unwrap_or_default()
+    }
+
     /// V key (debug): toggles the free camera; returns whether it is on.
     pub fn toggle_free_camera(&mut self) -> bool {
         self.renderer

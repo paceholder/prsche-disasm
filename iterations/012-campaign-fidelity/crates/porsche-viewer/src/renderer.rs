@@ -647,6 +647,8 @@ pub struct Renderer {
     pub player_camera: nfs_assets::camera::PlayerCamera,
     /// Debug free camera (V): the eye stays, the view follows the car.
     pub free_camera: bool,
+    /// Debug: fixed eye and target (scene axes) instead of the car camera.
+    pub debug_look: Option<(Vec3, Vec3)>,
     /// Shift+V (debug, not original): the drive view swung about the car by this many degrees
     /// (0 off, +/-`SIDE_VIEW_DEG`) to see the wheels.
     pub side_view_deg: f32,
@@ -773,6 +775,14 @@ pub struct Renderer {
     car_lighting: Option<CarLighting>,
     /// Player's spark emitter (`R3DCarParticle` slot 4, `CSPK`), if carpart.dat loaded.
     spark_emitter: Option<nfs_assets::sparks::SparkEmitter>,
+    /// Track particle emitters, their manager on the 64 Hz clock, the record
+    /// map and the player's wheel emitters (`docs/re/particles.md`).
+    particle_emitters: Vec<nfs_assets::particles::TrackEmitter>,
+    particle_manager: nfs_assets::particles::ParticleManager,
+    particle_clock: nfs_assets::particles::ParticleClock,
+    particle_defs: Vec<nfs_assets::particles::ParticleDef>,
+    car_particles: Option<nfs_assets::particles::CarParticles>,
+    car_particle_clock: f32,
     /// Barrier contacts of the collide ticks since the last effects update.
     spark_contacts: Vec<SparkContact>,
     spark_clock: f32,
@@ -1818,6 +1828,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 START_CYCLE_INDEX,
             ),
             free_camera: false,
+            debug_look: None,
             side_view_deg: 0.0,
             vehicle_contact_count: 0,
             sim_mode: true,
@@ -1886,6 +1897,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             light_clock_s: 0.0,
             car_lighting: CarLighting::from_track(scene),
             spark_emitter: None,
+            particle_emitters: scene.particle_emitters.clone(),
+            particle_manager: Default::default(),
+            particle_clock: Default::default(),
+            particle_defs: Vec::new(),
+            car_particles: None,
+            car_particle_clock: 0.0,
             camera_layout,
             specular_sampler,
             pipeline_factory,
@@ -2716,6 +2733,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 &camera,
             );
         }
+        for system in self
+            .particle_manager
+            .drawn()
+            .chain(self.car_particles.iter().flat_map(|c| c.drawn()))
+        {
+            push_particles(
+                &mut shadows,
+                &mut glares,
+                system,
+                nfs_assets::physics::original_adapter::from_original,
+                &camera,
+            );
+        }
         let view_projection = self.camera.view_projection(self.width, self.height);
         self.effects.draw(
             &self.device,
@@ -3191,6 +3221,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         self.update_lights(dt, player_light_inputs);
         self.update_sparks(dt);
+        self.update_particles(dt);
 
         // Advance opponents before resolving all vehicle pairs. Collision response
         // is applied back to their controller, rather than discarded next frame.
@@ -3425,16 +3456,91 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
+    /// Track emitters (0x4689c0 tick, then the requests of the drawn
+    /// articles, 0x450d10) and the player's wheel emitters (0x43ef80, 32 Hz).
+    fn update_particles(&mut self, dt: f32) {
+        use nfs_assets::particles::*;
+        use nfs_assets::physics::original_adapter::from_original;
+        for _ in 0..self.particle_clock.advance(dt) {
+            self.particle_manager.tick();
+        }
+        let view_projection = self.camera.view_projection(self.width, self.height);
+        let eye = self.camera.eye();
+        for (key, e) in self.particle_emitters.iter().enumerate() {
+            let Some(def) = self.particle_defs.iter().find(|d| d.tag == e.tag) else {
+                continue;
+            };
+            let p = from_original(e.frame.position);
+            let distance_sq = p.distance_squared(eye);
+            // Approximation A250: requested when inside the view frustum
+            // (margin: jitter + 30) and within PARTICLE_REQUEST_RANGE.
+            if distance_sq > PARTICLE_REQUEST_RANGE * PARTICLE_REQUEST_RANGE {
+                continue;
+            }
+            let margin = def.emit[0].max(def.emit[2]) + 30.0;
+            let clip = view_projection * p.extend(1.0);
+            let slack = clip.w.abs() + margin * 2.0;
+            if clip.w < -margin || clip.x.abs() > slack || clip.y.abs() > slack {
+                continue;
+            }
+            self.particle_manager.request(key, def, e.frame, distance_sq);
+        }
+        if !self.original_active() {
+            return;
+        }
+        let (Some(car_particles), Some(v)) = (&mut self.car_particles, self.original_vehicle.as_ref()) else {
+            return;
+        };
+        let car = &v.car;
+        let mut input = CarParticleInput {
+            velocity: car.velocity_33c,
+            forward: car.axes_364[2],
+            speed: car.vel_fwd_d60(),
+            // Approximation A251: no weather in the engine (dry, spray option off).
+            raining: false,
+            rain_spray: false,
+            distance_sq: from_original(car.position_330).distance_squared(eye),
+            ..Default::default()
+        };
+        for (w, src) in input.wheels.iter_mut().zip(&car.wheels) {
+            *w = WheelParticleInput {
+                contact: src.point_40,
+                surface: (src.tyre.surface_8c & 0xf) as u32,
+                skid: src.tyre.skid_b8,
+            };
+        }
+        car_particles.update(&input);
+        self.car_particle_clock += dt.max(0.0);
+        let step = 1.0 / nfs_assets::sparks::PARTICLE_HZ;
+        while self.car_particle_clock >= step {
+            self.car_particle_clock -= step;
+            car_particles.tick(self.particle_manager.far, &mut self.particle_manager.random);
+        }
+    }
+
+    /// Debug: drawn track systems, their live particles, emitters, car particles.
+    pub fn particle_stats(&self) -> [f32; 4] {
+        let drawn: Vec<_> = self.particle_manager.drawn().collect();
+        [
+            drawn.len() as f32,
+            drawn.iter().map(|s| s.particles.len()).sum::<usize>() as f32,
+            self.particle_emitters.len() as f32,
+            self.car_particles
+                .as_ref()
+                .map_or(0, |c| c.drawn().map(|s| s.particles.len()).sum::<usize>()) as f32,
+        ]
+    }
+
     /// Debug: live sparks, bursts so far, strongest barrier contact strength.
     pub fn spark_stats(&self) -> [f32; 6] {
         let first = self
             .spark_emitter
             .as_ref()
-            .and_then(|e| e.sparks.first())
+            .and_then(|e| e.sparks().first())
             .map(|s| nfs_assets::physics::original_adapter::from_original(s.position))
             .unwrap_or(Vec3::ZERO);
         [
-            self.spark_emitter.as_ref().map_or(0, |e| e.sparks.len()) as f32,
+            self.spark_emitter.as_ref().map_or(0, |e| e.sparks().len()) as f32,
             self.spark_bursts as f32,
             self.max_barrier_impact,
             first.x,
@@ -4288,6 +4394,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.proto_prev_car = None;
         }
         if self.camera.mode != CameraMode::Drive {
+            return;
+        }
+        if let Some((eye, target)) = self.debug_look {
+            self.camera.use_world_view();
+            self.camera.drive_fov = 60.0;
+            self.camera.drive_pos = eye;
+            self.camera.drive_target = target;
             return;
         }
         if self.free_camera {
@@ -5917,6 +6030,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .iter()
             .find(|d| &d.tag == b"CSPK")
             .map(|d| nfs_assets::sparks::SparkEmitter::new(*d));
+        self.particle_defs = scene.particle_defs.clone();
+        self.car_particles = nfs_assets::particles::CarParticles::new(
+            &scene.particle_defs,
+            nfs_assets::particles::DETAIL_FULL,
+        );
         self.effects
             .set_textures(&self.device, &self.queue, &scene.effect_textures);
 
@@ -6199,6 +6317,10 @@ fn alpha_mode_code(mode: AlphaMode) -> f32 {
 
 /// A barrier contact of one collide pass: strength (`+0x430`), point (`+0x440`)
 /// and car velocity (`+0x33c`), original space.
+/// Approximation A250: track emitters further than this from the eye are
+/// not requested (the original requests the emitters of drawn articles).
+const PARTICLE_REQUEST_RANGE: f32 = 1500.0;
+
 #[derive(Clone, Copy, Debug)]
 struct SparkContact {
     impact: f32,

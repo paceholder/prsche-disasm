@@ -158,7 +158,7 @@ pub fn push_sparks(
     to_scene: impl Fn([f32; 3]) -> Vec3,
     camera: &CameraFrame,
 ) {
-    for spark in &emitter.sparks {
+    for spark in emitter.sparks() {
         let back: [f32; 3] =
             std::array::from_fn(|k| spark.position[k] - spark.velocity[k] * SPARK_STREAK_TICKS);
         let pull = |p: Vec3| p + (camera.eye - p).normalize_or_zero() * GLARE_EYE_OFFSET;
@@ -177,6 +177,40 @@ pub fn push_sparks(
             [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
             [linear_f(r), linear_f(g), linear_f(b), a],
         );
+    }
+}
+
+/// Camera-facing squares of a particle system (0x454430 with the sprite
+/// expansion 0x44f6e0): `pos ± (right ± up)·size/2`, the camera axes rotated
+/// by the particle rotation about the view axis. Blend mode 0 goes to the
+/// alpha-blended batches, 1 and 2 to the additive ones (approximation A252:
+/// the blend enum of the driver layer is not read; no z bias).
+pub fn push_particles(
+    alpha: &mut EffectBatches,
+    additive: &mut EffectBatches,
+    system: &nfs_assets::particles::ParticleSystem,
+    to_scene: impl Fn([f32; 3]) -> Vec3,
+    camera: &CameraFrame,
+) {
+    let def = &system.def;
+    if !def.has_sprites() {
+        return;
+    }
+    let texture = def.texture();
+    let out = if def.blend_mode == 0 { alpha } else { additive };
+    let uvs = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+    for sprite in system.sprites() {
+        let a = (sprite.color >> 24) as f32 / 255.0;
+        if a <= 0.0 || sprite.size <= 0.0 {
+            continue;
+        }
+        let center = to_scene(sprite.position);
+        let (sin, cos) = sprite.rotation.to_radians().sin_cos();
+        let half = sprite.size * 0.5;
+        let r = (camera.right * cos + camera.up * sin) * half;
+        let u = (camera.up * cos - camera.right * sin) * half;
+        let [cr, cg, cb] = argb_rgb(sprite.color);
+        out.push_quad(&texture, [center - r - u, center + r - u, center + r + u, center - r + u], uvs, [cr, cg, cb, a]);
     }
 }
 
@@ -601,5 +635,26 @@ mod tests {
         assert!((width - 0.4).abs() < 1e-3, "2·|A|·I = 0.4, got {width}");
         assert_eq!(v[0].color[3], 1.0);
         assert!(v[0].color[0] > 0.99 && v[0].color[1] == 0.0);
+    }
+
+    #[test]
+    fn particle_sprites_face_the_camera_with_their_size() {
+        use nfs_assets::particles::*;
+        let def = ParticleDef {
+            tag: *b"WF06", flags: 0, count: 40, emit: [0.0; 3], rand_emit: [0.0; 3], air_friction: 1.0,
+            material: *b"ktss", blend_mode: 0, z_bias: 0, num_frames: 1, frame_speed: 10, num_states: 2,
+            start_size: 1.0, end_size: 1.0, lifetime: 220, period_on: 100, period_off: 0, prime_ticks: 0,
+            weight: 0.0, rand_weight: 0.0, rand_rotation: 0.0, fade_fraction: 1.0, colors: [0xffffffff, 0x00ffffff, 0, 0],
+        };
+        let mut s = ParticleSystem::new(def, EmitterFrame::default(), DETAIL_FULL, 0.0);
+        s.particles.push(Particle { position: [0.0; 3], velocity: [0.0; 3], age: 0.0, gravity: 0.0, rotation: 0.0 });
+        let camera = CameraFrame::look(Vec3::new(0.0, 0.0, 20.0), Vec3::ZERO);
+        let (mut alpha, mut add) = (EffectBatches::default(), EffectBatches::default());
+        push_particles(&mut alpha, &mut add, &s, |p| Vec3::from(p), &camera);
+        assert!(add.batches.is_empty());
+        let v = &alpha.batches["sstk"];
+        assert_eq!(v.len(), 6);
+        let width = Vec3::from(v[1].position).distance(Vec3::from(v[0].position));
+        assert!((width - 10.0).abs() < 1e-4, "size 1.0 in the .dat is 10 units");
     }
 }

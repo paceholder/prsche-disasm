@@ -2332,7 +2332,8 @@ function findCarFilesFromCatalog(target) {
     if (
       fullPath.endsWith("/render/common.fsh") ||
       fullPath.endsWith("/render/particle.fsh") ||
-      fullPath.endsWith("/render/carpart.dat")
+      fullPath.endsWith("/render/carpart.dat") ||
+      fullPath.endsWith("/render/particle.dat")
     ) {
       matching.push(relPath);
       continue;
@@ -2451,7 +2452,7 @@ async function loadRaceCar(model, simName, bank = "", gauges = null, style = 0) 
   if (useCustomFiles && selectedFiles.length > 0) {
     const selected = selectedFiles.filter(file => {
       const basename = selectedName(file).split(/[\\/]/).pop().toLowerCase();
-      return [`${target}.crp`, `${target}.tpg`, `${target}.clr`, 'carpart.dat'].includes(basename) || basename.endsWith('.fsh');
+      return [`${target}.crp`, `${target}.tpg`, `${target}.clr`, 'carpart.dat', 'particle.dat'].includes(basename) || basename.endsWith('.fsh');
     });
     files = { names: selected.map(selectedName), bytes: await Promise.all(selected.map(async file => new Uint8Array(await file.arrayBuffer()))) };
   } else {
@@ -2805,7 +2806,7 @@ async function loadTarget(specificScn = null, reverse = false) {
         for (const file of customFiles) {
           const basename = selectedName(file).split(/[\\/]/).pop().toLowerCase();
           if (
-            ![`${target}.crp`, `${target}.tpg`, `${target}.clr`, "carpart.dat"].includes(basename) &&
+            ![`${target}.crp`, `${target}.tpg`, `${target}.clr`, "carpart.dat", "particle.dat"].includes(basename) &&
             !basename.endsWith(".fsh")
           ) {
             continue;
@@ -2851,7 +2852,7 @@ async function loadTarget(specificScn = null, reverse = false) {
           if (isCustom) {
             for (const file of customFiles) {
               const basename = selectedName(file).split(/[\\/]/).pop().toLowerCase();
-              if (![`${carModel}.crp`, `${carModel}.tpg`, `${carModel}.clr`, "carpart.dat"].includes(basename) && !basename.endsWith(".fsh")) {
+              if (![`${carModel}.crp`, `${carModel}.tpg`, `${carModel}.clr`, "carpart.dat", "particle.dat"].includes(basename) && !basename.endsWith(".fsh")) {
                 continue;
               }
               carNames.push(selectedName(file));

@@ -6,6 +6,7 @@ pub mod camera;
 pub mod cockpit;
 pub mod collision_box;
 pub mod lights;
+pub mod particles;
 pub mod sparks;
 pub mod physics;
 pub mod race;
@@ -321,6 +322,8 @@ pub struct Scene {
     pub effect_textures: Vec<Texture>,
     /// Car particle systems of `GameData/Render/carpart.dat` (sparks, smoke, dirt).
     pub particle_defs: Vec<sparks::ParticleDef>,
+    /// Track particle emitters (`ef` type 3 of static articles, `docs/re/particles.md`).
+    pub particle_emitters: Vec<particles::TrackEmitter>,
     pub textures: Vec<Texture>,
     pub materials: Vec<Material>,
     pub bounds: [[f32; 3]; 2],
@@ -389,6 +392,7 @@ impl Default for Scene {
             car_roof_down: Vec::new(),
             effect_textures: Vec::new(),
             particle_defs: Vec::new(),
+            particle_emitters: Vec::new(),
             textures: Vec::new(),
             materials: Vec::new(),
             bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],

@@ -706,8 +706,9 @@ fn read_dir_recursive(
             let selected = extension.as_deref() == Some("fsh")
                 || (matches!(extension.as_deref(), Some("crp") | Some("tpg"))
                     && stem.eq_ignore_ascii_case(car))
-                // Car particle systems (sparks): Render/carpart.dat.
-                || (extension.as_deref() == Some("dat") && stem.eq_ignore_ascii_case("carpart"));
+                // Particle systems: Render/carpart.dat and Render/particle.dat (0x455570).
+                || (extension.as_deref() == Some("dat")
+                    && (stem.eq_ignore_ascii_case("carpart") || stem.eq_ignore_ascii_case("particle")));
             if !selected {
                 continue;
             }

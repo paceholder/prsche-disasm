@@ -733,10 +733,15 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         car_roof_up: Vec::new(),
         car_roof_down: Vec::new(),
         effect_textures: effect_textures(files)?,
-        particle_defs: match find(files, "carpart.dat") {
-            Ok(data) => crate::sparks::parse_particle_dat(data)?,
-            Err(_) => Vec::new(),
+        // One tag map as 0x455570: particle.dat, then carpart.dat replaces its tags.
+        particle_defs: {
+            let parse = |name: &str| match find(files, name) {
+                Ok(data) => crate::particles::parse_particle_dat(data),
+                Err(_) => Ok(Vec::new()),
+            };
+            crate::particles::merge_particle_defs(&parse("particle.dat")?, &parse("carpart.dat")?)
         },
+        particle_emitters: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],

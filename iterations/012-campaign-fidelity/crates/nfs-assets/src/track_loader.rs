@@ -61,6 +61,32 @@ fn assemble_boundary_lines(edges: &[TopologyEdge]) -> Vec<TopologyLine> {
     lines
 }
 
+/// `ef` entries of type 3 of the static (non-object) articles.
+fn particle_emitters(
+    crp: &nfs_formats::TrackCrp,
+    object_articles: &std::collections::BTreeSet<usize>,
+) -> Vec<crate::particles::TrackEmitter> {
+    let mut out = Vec::new();
+    for (ai, a) in crp.articles.iter().enumerate() {
+        // Library articles (Base bit 0x8000) are templates, not placed.
+        let library = a
+            .children
+            .iter()
+            .find(|c| c.tag == "Base")
+            .and_then(|b| b.data.get(0..4))
+            .is_some_and(|w| u32::from_le_bytes(w.try_into().unwrap()) & 0x8000 != 0);
+        if library || object_articles.contains(&ai) {
+            continue;
+        }
+        for c in a.children.iter().filter(|c| c.tag == "ef") {
+            if let Some(e) = crate::particles::parse_ef_emitter(&c.data, ai) {
+                out.push(e);
+            }
+        }
+    }
+    out
+}
+
 fn find<'a>(files: &'a AssetFiles, name: &str) -> Result<&'a [u8], String> {
     let name = name.to_ascii_lowercase();
     let suffix = format!("/{name}");
@@ -226,6 +252,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         car_roof_down: Vec::new(),
         effect_textures: Vec::new(),
         particle_defs: Vec::new(),
+        particle_emitters: Vec::new(),
         textures: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
@@ -361,6 +388,14 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         .map(|(i, r)| (r.article_index, i))
         .collect();
     let mut smack_meshes: BTreeMap<usize, Vec<Mesh>> = BTreeMap::new();
+    // Particle emitters of static articles (0x450de0 → 0x450d10). Objects use
+    // the object path 0x450980 (not ported).
+    let object_articles: std::collections::BTreeSet<usize> = track_objects
+        .iter()
+        .map(|o| o.article_index)
+        .chain(smack_records.iter().map(|r| r.article_index))
+        .collect();
+    scene.particle_emitters = particle_emitters(&crp, &object_articles);
     let mut raw_meshes = Vec::new();
     let mut single_sided = std::collections::BTreeSet::new();
     // Rendering and source collision resources are assembled separately.
@@ -1526,6 +1561,22 @@ mod tests {
         assert_eq!(c, [0x4b as f32 / 255.0, 0x6b as f32 / 255.0, 0x99 as f32 / 255.0, 1.0]);
         // Brake glare colour word 0xffff0000 (bytes 00 00 ff ff) is red.
         assert_eq!(df_rgba(&[0, 0, 0xff, 0xff]), [1.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn local_canyon_waterfall_emitters() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track/canyon.crp");
+        let Ok(data) = std::fs::read(path) else {
+            return;
+        };
+        let crp = parse_track_crp(&data).unwrap();
+        let e = particle_emitters(&crp, &Default::default());
+        let tags: Vec<&[u8; 4]> = e.iter().map(|e| &e.tag).collect();
+        assert_eq!(tags.iter().filter(|t| t.starts_with(b"WF0")).count(), 8, "{tags:?}");
+        let base = e.iter().find(|e| &e.tag == b"WF06").unwrap();
+        assert!((base.frame.position[0] + 3243.372).abs() < 0.01);
+        assert!(base.frame.axis_b[1] > 0.9, "the base mist rises");
     }
 
     #[test]
