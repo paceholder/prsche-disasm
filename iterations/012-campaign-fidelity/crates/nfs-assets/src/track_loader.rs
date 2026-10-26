@@ -277,6 +277,9 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sky_horizon: None,
         sky_dome: None,
         sky_map: None,
+        sky_map_b: None,
+        sky_layers_b: [None, None],
+        sky_weather: None,
         sun_position: None,
         topology: None,
         road_surface: None,
@@ -852,6 +855,10 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             Ok(horizon) => scene.sky_horizon = Some(horizon),
             Err(e) => scene.diagnostics.push(format!("Sky {key}: horizon {e}")),
         }
+        match nfs_formats::parse_sky_weather(data) {
+            Ok(weather) => scene.sky_weather = Some(weather),
+            Err(e) => scene.diagnostics.push(format!("Sky {key}: weather {e}")),
+        }
     }
 
     // --- Sky layer table Sky/<track>.txt (HIGH block, region A) ---
@@ -868,6 +875,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             .find(|b| b.capability == "HIGH")
             .or(blocks.first())
             .cloned();
+        scene.sky_map_b = scene.sky_map.as_ref().and_then(|b| b.region_b.as_deref().cloned());
     }
 
     // --- Sky texture loading ---
@@ -918,6 +926,16 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                     scene.sky_layers[0] = pick(0, "st").map(tex);
                     scene.sky_layers[1] = pick(1, "sc").map(tex);
                     scene.sky_layers[2] = by_name("hzcl").map(tex);
+                    // Region B maps (`FUN_0045b5a0` loads both regions per layer).
+                    for slot in 0..2 {
+                        scene.sky_layers_b[slot] = scene
+                            .sky_map_b
+                            .as_ref()
+                            .map(|b| b.maps[slot].as_str())
+                            .filter(|n| !n.eq_ignore_ascii_case("none"))
+                            .and_then(by_name)
+                            .map(tex);
+                    }
                     // Look for the horizon panorama texture ("horz")
                     if let Some(horz) = sky_images.iter().find(|img| img.name == "horz") {
                         scene.sky_texture = Some(SkyTexture {

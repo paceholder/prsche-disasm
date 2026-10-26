@@ -13,6 +13,9 @@ struct Camera {
     view_right: vec4<f32>,
     view_up: vec4<f32>,
     specular: vec4<f32>,
+    // World fog (0x45d3b0, docs/re/weather.md): sRGB colour, EXP density (0 = off).
+    fog: vec4<f32>,
+    forward: vec4<f32>,
 };
 @group(0) @binding(1) var specular_map: texture_2d<f32>;
 @group(0) @binding(2) var specular_sampler: sampler;
@@ -50,7 +53,25 @@ fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
     out.specular = pow(max(dot(r, to_eye), 0.0), 8.0);
     return out;
 }
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    return select(1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - vec3<f32>(0.055), c * 12.92, c <= vec3<f32>(0.0031308));
+}
+// D3D table fog EXP (driver dx7z.dll: THRASH state 0x15 = 4 -> FOGTABLEMODE EXP): the
+// framebuffer (gamma) colour moves to the fog colour by 1 - exp(-density * depth); depth is
+// the view-space z (Hypothesis: the driver's w-based fog).
+fn apply_fog(c: vec4<f32>, position: vec3<f32>) -> vec4<f32> {
+    if camera.fog.w <= 0.0 {
+        return c;
+    }
+    let depth = max(dot(position - camera.eye.xyz, camera.forward.xyz), 0.0);
+    let f = exp(-camera.fog.w * depth);
+    let rgb = mix(camera.fog.rgb, linear_to_srgb(clamp(c.rgb, vec3<f32>(0.0), vec3<f32>(1.0))), f);
+    return vec4<f32>(srgb_to_linear(rgb), c.a);
+}
 @fragment fn fs_main(in: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    return apply_fog(shade(in, front), in.position);
+}
+fn shade(in: Output, front: bool) -> vec4<f32> {
     // anim.xy: UV offset of LayerUVAnimate mode 0 (0x448cc0).
     let texel = textureSample(color_texture, color_sampler, in.uv + material.anim.xy);
     // Exterior alpha encodes paint regions, not opacity. Alpha 255 is fixed

@@ -255,6 +255,10 @@ pub struct SkyMapBlock {
     pub wind_speed: [f32; 3],
     /// Degrees, north 0, east 90.
     pub wind_direction: [f32; 3],
+    /// Weather region B of the same block (`MULTI*` only): the maps and scales the layer
+    /// blends to by the sky-map keys of `Sky/<track>.bin` (`FUN_0045b5a0` reads both regions,
+    /// `FUN_0045e160` mixes the texels, `FUN_0045f0a0` the scales; `docs/re/weather.md`).
+    pub region_b: Option<Box<SkyMapBlock>>,
 }
 
 /// Parse the commented script of `Sky/<track>.txt` (`#` starts a comment line).
@@ -305,21 +309,31 @@ fn sky_block(t: &[&str]) -> Option<SkyMapBlock> {
             move_ratio: 0.0,
             wind_speed: [0.0; 3],
             wind_direction: [0.0; 3],
+            region_b: None,
         });
     }
-    // MULTI*: 3 maps, 3 x, 3 y, move, 3 speeds, 3 directions, warp speed, warp amount.
-    if t.len() < 3 + 18 {
+    // MULTI*: 3 maps, 3 x, 3 y, move, 3 speeds, 3 directions, warp speed, warp amount,
+    // for region A (tokens 3..21) and region B (21..39).
+    let mut a = multi_region(t, 3, &capability, &kind)?;
+    a.region_b = multi_region(t, 3 + 18, &capability, &kind).map(Box::new);
+    Some(a)
+}
+
+fn multi_region(t: &[&str], base: usize, capability: &str, kind: &str) -> Option<SkyMapBlock> {
+    if t.len() < base + 18 {
         return None;
     }
+    let n = |i: usize| t.get(base + i).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
     Some(SkyMapBlock {
-        capability,
-        kind,
-        maps,
+        capability: capability.to_string(),
+        kind: kind.to_string(),
+        maps: [t[base].to_string(), t[base + 1].to_string(), t[base + 2].to_string()],
         x_scale: [n(3), n(4), n(5)],
         y_scale: [n(6), n(7), n(8)],
         move_ratio: n(9),
         wind_speed: [n(10), n(11), n(12)],
         wind_direction: [n(13), n(14), n(15)],
+        region_b: None,
     })
 }
 
@@ -451,6 +465,10 @@ mod tests {
         assert_eq!(b.maps, ["st1a", "sc1a", "none"]);
         assert_eq!((b.x_scale, b.y_scale), ([1.0, 2.0, 0.0], [1.0, 3.0, 0.0]));
         assert_eq!((b.move_ratio, b.wind_speed, b.wind_direction), (400.0, [0.0, 2.0, 0.0], [90.0, 40.0, 0.0]));
+        // Weather region B follows region A.
+        let rb = b.region_b.as_deref().expect("region B");
+        assert_eq!(rb.maps, ["st1b", "sc1b", "none"]);
+        assert_eq!((rb.x_scale, rb.y_scale), ([1.0, 2.0, 0.0], [1.0, 2.0, 0.0]));
     }
 
     #[test]

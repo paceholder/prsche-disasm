@@ -3688,6 +3688,8 @@ window.__nfs = {
       cameraEye: Array.from(cameraEye),
       status: statusLine.textContent,
       sparks: Array.from(viewer.get_spark_stats?.() ?? []),
+      weather: Array.from(viewer.get_weather_stats?.() ?? []),
+      precipitation: Array.from(viewer.get_precipitation_stats?.() ?? []),
       ai: JSON.parse(viewer.original_ai_state?.() ?? "null"),
     };
   },
@@ -3738,6 +3740,17 @@ async function autostartRace(params) {
 
 // Debug panel: the state of every debug key, top centre of the drive view (not part of the
 // original HUD). Refreshed every frame and after each key press.
+// Weather at the camera's track node and the surface nibble under each wheel (FL FR RL RR; the
+// g_GripTable row, docs/re/weather.md): "wx n<node> rain snow fog" and "surf a/b/c/d".
+function weatherReadout() {
+  const w = viewer.get_weather_stats?.();
+  if (!w || w.length < 11) return [];
+  const f = (v) => (v > 0 ? v.toFixed(2) : "0");
+  const items = [`wx n${w[0]} rain ${f(w[1])} snow ${f(w[2])} fog ${(w[4] * 1000).toFixed(1)}\u2030`];
+  if (w[7] >= 0) items.push(`surf ${Array.from(w.slice(7, 11)).join("/")}`);
+  return items;
+}
+
 let debugPanelShown = null;
 let debugPanelText = null;
 function updateDebugPanel() {
@@ -3760,6 +3773,7 @@ function updateDebugPanel() {
     `B boxes ${onOff(viewer.is_collision_boxes?.())}`,
     `H HUD ${onOff(hudVisible)}`,
     `hit: ${viewer.object_hit_report?.() || "-"}`,
+    ...weatherReadout(),
     "R reset", "Shift+R restart", "Esc menu", "` panel",
   ];
   const text = items.map((item) => item.replace(/ /g, "\u00a0")).join(" \u00b7 ");

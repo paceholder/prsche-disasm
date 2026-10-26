@@ -75,6 +75,7 @@ context.testApi.setViewer({
   has_original_vehicle: () => true,
   cycle_car_view: () => { freeCamera = false; cameraIndex = (cameraIndex + 1) % 4; return cameraCycle[cameraIndex]; },
   get_camera_name: () => freeCamera ? "Free" : cameraCycle[cameraIndex],
+  get_weather_stats: () => new Float32Array([812, 0, 1, 0.003, 0.0125, 1, 0, 1, 1, 3, 8]),
   toggle_free_camera: () => freeCamera = !freeCamera,
   is_free_camera: () => freeCamera,
   is_original_vehicle: () => originalModel,
@@ -138,6 +139,8 @@ for (const part of ["L lights off", "C TailCam0",
   "V free cam off", "Shift+V side off", "B boxes off", "H HUD on", "R reset", "Shift+R restart", "Esc menu"]) {
   assert.ok(panel().includes(part), `panel shows "${part}": ${panel()}`);
 }
+assert.ok(panel().includes("wx n812 rain 0 snow 1.00 fog 12.5\u2030"), `weather readout: ${panel()}`);
+assert.ok(panel().includes("surf 1/1/3/8"), `wheel surfaces: ${panel()}`);
 for (const gone of ["O car", "K collisions", "M 6 DOF", "J AI"]) {
   assert.ok(!panel().includes(gone), `panel no longer lists "${gone}": ${panel()}`);
 }

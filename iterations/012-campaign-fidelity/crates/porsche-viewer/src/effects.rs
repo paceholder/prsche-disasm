@@ -214,6 +214,23 @@ pub fn push_particles(
     }
 }
 
+/// Snow and rain triangles (0x4565f0, 0x4564e0): camera-space vertices placed in the
+/// world through the camera frame; white, blend mode 1 (additive batch, A252).
+pub fn push_precipitation(
+    out: &mut EffectBatches,
+    system: &nfs_assets::precipitation::Precipitation,
+    pose: &nfs_assets::precipitation::CameraPose,
+    camera: &CameraFrame,
+) {
+    let list = out.batches.entry(system.config.texture.to_string()).or_default();
+    for tri in system.triangles(pose) {
+        for (p, uv) in tri {
+            let position = camera.eye + camera.right * p[0] + camera.up * p[1] + camera.forward * p[2];
+            list.push(EffectVertex { position: position.to_array(), uv, color: [1.0; 4] });
+        }
+    }
+}
+
 fn linear_f(c: f32) -> f32 {
     if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }

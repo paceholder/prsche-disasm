@@ -514,6 +514,21 @@ impl BrowserViewer {
         self.renderer.as_ref().map(|r| r.particle_stats().to_vec()).unwrap_or_default()
     }
 
+    /// Debug: camera node, rain, snow, sky fog, world fog, sky blend, lightning, wheel surfaces.
+    pub fn get_weather_stats(&self) -> Vec<f32> {
+        self.renderer.as_ref().map(|r| r.weather_stats().to_vec()).unwrap_or_default()
+    }
+
+    /// Debug: live snow and rain particles.
+    pub fn get_precipitation_stats(&self) -> Vec<f32> {
+        self.renderer.as_ref().map(|r| r.precipitation_stats().to_vec()).unwrap_or_default()
+    }
+
+    /// Debug: centre and forward of a track node (scene axes), for `debug_look`.
+    pub fn debug_node_pose(&self, node: u32) -> Vec<f32> {
+        self.renderer.as_ref().map(|r| r.node_pose(node as usize)).unwrap_or_default()
+    }
+
     /// V key (debug): toggles the free camera; returns whether it is on.
     pub fn toggle_free_camera(&mut self) -> bool {
         self.renderer

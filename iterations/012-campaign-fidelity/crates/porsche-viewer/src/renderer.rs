@@ -330,6 +330,11 @@ impl Camera {
                 [u.x, u.y, u.z, 0.0]
             },
             specular: [0.0; 4],
+            fog: [0.0; 4],
+            forward: {
+                let f = (self.target() - eye).normalize_or(Vec3::NEG_Z);
+                [f.x, f.y, f.z, 0.0]
+            },
         }
     }
 }
@@ -351,6 +356,11 @@ struct CameraUniform {
     /// Specular highlight colour of slot 1 (`+0x388`: 0.8) and `w = 1` to enable the
     /// specular layers (`R3DSpecularLayer`, `R3DSpecularTextureLayer`).
     specular: [f32; 4],
+    /// World fog of the weather keys (`0x45d3b0`, `docs/re/weather.md`): sRGB colour and the
+    /// EXP density (0 = off).
+    fog: [f32; 4],
+    /// Camera forward in world space (fog depth).
+    forward: [f32; 4],
 }
 
 /// Car light state of `R3DCar_UpdateLighting` 0x43a560 for one track: slot 0
@@ -779,6 +789,17 @@ pub struct Renderer {
     /// map and the player's wheel emitters (`docs/re/particles.md`).
     particle_emitters: Vec<nfs_assets::particles::TrackEmitter>,
     particle_manager: nfs_assets::particles::ParticleManager,
+    /// Weather keys of `Sky/<track>.bin`, the weather at the camera's track node and that
+    /// node (`SkyManager_Draw` 0x45d4f0, `docs/re/weather.md`).
+    sky_weather: Option<nfs_formats::SkyWeather>,
+    pub weather: nfs_formats::Weather,
+    pub weather_node: i32,
+    /// Snow and rain boxes of the weather manager (0x458c90; `docs/re/weather.md`), their
+    /// 64 Hz clock and the generator 0x538040 they draw phases and gusts from.
+    precipitation: Vec<nfs_assets::precipitation::Precipitation>,
+    precipitation_filled: bool,
+    weather_clock: nfs_assets::particles::ParticleClock,
+    game_random: nfs_assets::precipitation::GameRandom,
     particle_clock: nfs_assets::particles::ParticleClock,
     particle_defs: Vec<nfs_assets::particles::ParticleDef>,
     car_particles: Option<nfs_assets::particles::CarParticles>,
@@ -1336,6 +1357,8 @@ impl Renderer {
                 &scene.sky_horizon.unwrap_or_else(default_sky_horizon),
                 scene.sky_dome.as_ref(),
                 scene.sky_map.as_ref(),
+                &scene.sky_layers_b,
+                scene.sky_map_b.as_ref(),
             )
         });
 
@@ -1899,6 +1922,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             spark_emitter: None,
             particle_emitters: scene.particle_emitters.clone(),
             particle_manager: Default::default(),
+            sky_weather: scene.sky_weather.clone(),
+            weather: Default::default(),
+            weather_node: 0,
+            precipitation: Vec::new(),
+            precipitation_filled: false,
+            weather_clock: Default::default(),
+            game_random: Default::default(),
             particle_clock: Default::default(),
             particle_defs: Vec::new(),
             car_particles: None,
@@ -2201,6 +2231,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             sky_uniform.view_projection = sky_vp.to_cols_array_2d();
             let t = animation_seconds();
             sky_uniform.drift = sky.drift.map(|v| ((f64::from(v) * t).rem_euclid(1.0)) as f32);
+            let f = (self.camera.target() - self.camera.eye()).normalize_or(Vec3::NEG_Z);
+            sky_uniform.forward = [f.x, f.y, f.z, 0.0];
+            let w = &self.weather;
+            sky_uniform.blend = [w.region_b, 0.0, 0.0, 0.0];
+            if w.sky_fog_density > 0.0 {
+                let [r, g, b] = argb_unit(w.sky_fog_color);
+                sky_uniform.fog = [r, g, b, w.sky_fog_density];
+            }
+            if let (Some(sw), Some(t)) = (&self.sky_weather, &self.original_ai_track) {
+                // 0x459950: the record of the sky detail level (highest present); 0x459a70.
+                let rec = sw.clear_record(3);
+                let rgb = if rec.use_fog_color {
+                    argb_unit(sw.sky_fog_color_forced(self.weather_node, t.nodes.nodes.len() as i32))
+                } else {
+                    let b = w.region_b;
+                    [0, 1, 2].map(|k| ((1.0 - b) * rec.color_a[k] + b * rec.color_b[k]).round() / 255.0)
+                };
+                sky_uniform.clear = [rgb[0], rgb[1], rgb[2], 1.0];
+            }
             self.queue
                 .write_buffer(&sky.camera_buffer, 0, bytemuck::bytes_of(&sky_uniform));
         }
@@ -2746,6 +2795,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 &camera,
             );
         }
+        // Snow and rain last (0x459020 after the particles), camera space to world.
+        let pose = self.precipitation_pose();
+        for system in &self.precipitation {
+            push_precipitation(&mut glares, system, &pose, &camera);
+        }
         let view_projection = self.camera.view_projection(self.width, self.height);
         self.effects.draw(
             &self.device,
@@ -3221,6 +3275,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         self.update_lights(dt, player_light_inputs);
         self.update_sparks(dt);
+        self.update_weather(dt);
         self.update_particles(dt);
 
         // Advance opponents before resolving all vehicle pairs. Collision response
@@ -3386,7 +3441,78 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if let Some(lighting) = &self.car_lighting {
             lighting.apply(&mut uniform, [1.0; 3]);
         }
+        self.apply_fog(&mut uniform);
         uniform
+    }
+
+    /// `SkyManager_Draw` 0x45d4f0: the camera's track node (`TrackNodes_Locate` 0x481400 from
+    /// the last node) selects the weather of `Sky/<track>.bin` (`docs/re/weather.md`).
+    fn update_weather(&mut self, dt: f32) {
+        use nfs_assets::precipitation::{Precipitation, RAIN, SNOW};
+        let (Some(w), Some(t)) = (&self.sky_weather, &self.original_ai_track) else {
+            return;
+        };
+        let n = t.nodes.nodes.len() as i32;
+        if n == 0 {
+            return;
+        }
+        let eye = nfs_assets::physics::original_adapter::to_original(self.camera.eye());
+        self.weather_node = t.nodes.locate(eye, self.weather_node.clamp(0, n - 1));
+        self.weather = w.at(self.weather_node, n);
+        // 0x459020: snow takes the snow key (0x45cfd0), rain the rain key (0x45d000).
+        if self.precipitation.is_empty() {
+            let g = &mut self.game_random;
+            self.precipitation = vec![Precipitation::new(SNOW, g), Precipitation::new(RAIN, g)];
+        }
+        let intensities = [self.weather.snow, self.weather.rain];
+        let pose = self.precipitation_pose();
+        let random = &mut self.particle_manager.random;
+        if !self.precipitation_filled {
+            // 0x459260 at render init.
+            self.precipitation_filled = true;
+            for (s, i) in self.precipitation.iter_mut().zip(intensities) {
+                s.fill(i, random, &mut self.game_random);
+            }
+        }
+        let ticks = self.weather_clock.advance(dt);
+        for (s, i) in self.precipitation.iter_mut().zip(intensities) {
+            s.update(ticks, i, pose, random, &mut self.game_random);
+        }
+    }
+
+    /// The camera's world-to-camera rows (right, up, forward) and eye in original axes.
+    fn precipitation_pose(&self) -> nfs_assets::precipitation::CameraPose {
+        use nfs_assets::physics::original_adapter::to_original;
+        let f = crate::effects::CameraFrame::look(self.camera.eye(), self.camera.target());
+        nfs_assets::precipitation::CameraPose {
+            rows: [to_original(f.right), to_original(f.up), to_original(f.forward)],
+            eye: to_original(f.eye),
+        }
+    }
+
+    /// Debug: track node centre and forward in scene axes (6 floats), empty without nodes.
+    pub fn node_pose(&self, node: usize) -> Vec<f32> {
+        use nfs_assets::physics::original_adapter::from_original;
+        let Some(n) = self.original_ai_track.as_ref().and_then(|t| t.nodes.nodes.get(node)) else {
+            return Vec::new();
+        };
+        let (p, f) = (from_original(n.pos_04), from_original(n.forward_1c));
+        vec![p.x, p.y, p.z, f.x, f.y, f.z]
+    }
+
+    /// Debug: live snow and rain particles.
+    pub fn precipitation_stats(&self) -> [f32; 2] {
+        let live = |i: usize| self.precipitation.get(i).map_or(0.0, |s| s.live() as f32);
+        [live(0), live(1)]
+    }
+
+    /// World fog after the sky (`0x45d3b0`): EXP table fog, density = key³, colour of the keys.
+    fn apply_fog(&self, uniform: &mut CameraUniform) {
+        let w = &self.weather;
+        if w.world_fog_density > 0.0 {
+            let [r, g, b] = argb_unit(w.world_fog_color);
+            uniform.fog = [r, g, b, w.world_fog_density];
+        }
     }
 
     /// Camera uniform for a car at `model`, lit with the road colour under it.
@@ -3402,6 +3528,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             lighting.apply(&mut uniform, road);
         }
         uniform.model = model.to_cols_array_2d();
+        self.apply_fog(&mut uniform);
         uniform
     }
 
@@ -3496,9 +3623,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             velocity: car.velocity_33c,
             forward: car.axes_364[2],
             speed: car.vel_fwd_d60(),
-            // Approximation A251: no weather in the engine (dry, spray option off).
-            raining: false,
-            rain_spray: false,
+            // Rain key of the camera node above 0.1 (0x45d000); `0x6197aa` is the driver's
+            // capability flag (0x44eb98), set on hardware renderers.
+            raining: self.weather.raining(),
+            rain_spray: true,
             distance_sq: from_original(car.position_330).distance_squared(eye),
             ..Default::default()
         };
@@ -3519,7 +3647,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     /// Debug: drawn track systems, their live particles, emitters, car particles.
-    pub fn particle_stats(&self) -> [f32; 4] {
+    pub fn particle_stats(&self) -> [f32; 5] {
         let drawn: Vec<_> = self.particle_manager.drawn().collect();
         [
             drawn.len() as f32,
@@ -3528,7 +3656,37 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.car_particles
                 .as_ref()
                 .map_or(0, |c| c.drawn().map(|s| s.particles.len()).sum::<usize>()) as f32,
+            // Bit i: car system i active (SMRT×4, CSPK, WTSP×2, RDDT×4).
+            self.car_particles.as_ref().map_or(-1.0, |c| {
+                c.systems.iter().enumerate().filter(|(_, s)| s.active).map(|(i, _)| 1u32 << i).sum::<u32>() as f32
+            }),
         ]
+    }
+
+    /// Debug: camera track node, rain, snow, sky fog density, world fog density, sky-map
+    /// blend, lightning, then the surface nibble (`polygon flags & 0xf`, the `g_GripTable`
+    /// row) under the four wheels of the original car (−1 without it).
+    pub fn weather_stats(&self) -> [f32; 11] {
+        let w = &self.weather;
+        let mut out = [
+            self.weather_node as f32,
+            w.rain,
+            w.snow,
+            w.sky_fog_density,
+            w.world_fog_density,
+            w.region_b,
+            w.lightning,
+            -1.0,
+            -1.0,
+            -1.0,
+            -1.0,
+        ];
+        if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
+            for (o, wheel) in out[7..].iter_mut().zip(&v.car.wheels) {
+                *o = (wheel.tyre.surface_8c & 0xf) as f32;
+            }
+        }
+        out
     }
 
     /// Debug: live sparks, bursts so far, strongest barrier contact strength.
@@ -6541,6 +6699,11 @@ fn depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureVi
         .create_view(&Default::default())
 }
 
+/// ARGB to sRGB-encoded unit RGB.
+fn argb_unit(c: u32) -> [f32; 3] {
+    [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff].map(|v| v as f32 / 255.0)
+}
+
 // --- Sky dome ---
 
 #[repr(C)]
@@ -6564,6 +6727,17 @@ struct SkyUniform {
     dome3: [f32; 4],
     /// Texture offsets of the two layers (u0, v0, u1, v1), wind drift (A194).
     drift: [f32; 4],
+    /// Sky fog of the weather keys (`0x45d2e0`): sRGB colour, EXP density (0 = off).
+    fog: [f32; 4],
+    /// Camera forward in scene axes (fog depth).
+    forward: [f32; 4],
+    /// Clear colour (`0x459a70`): sRGB, `w = 1` when known.
+    clear: [f32; 4],
+    /// Region B `1/x`, `1/y` scales of layers 0 and 1 (0 = no region B map).
+    dome_b: [f32; 4],
+    /// Sky-map blend A → B of the weather keys (`0x45a350`; texels `0x45e160`, scales
+    /// `0x45f0a0`), 0, 0, 0.
+    blend: [f32; 4],
 }
 
 /// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores
@@ -6592,6 +6766,8 @@ impl SkyUniform {
         dome: Option<&nfs_formats::SkyDome>,
         map: Option<&nfs_formats::SkyMapBlock>,
         layers: [bool; 2],
+        map_b: Option<&nfs_formats::SkyMapBlock>,
+        layers_b: [bool; 2],
     ) -> Self {
         let pixel = |column: usize, row: usize| -> [f32; 4] {
             let Some(t) = hzcl.filter(|t| t.width == 16 && t.height >= 2 && t.rgba.len() >= 16 * 2 * 4)
@@ -6620,6 +6796,13 @@ impl SkyUniform {
             u.dome = [d.angle, d.size, d.curvature, d.height];
             u.dome2 = [d.scale, 1.0, l0.0, l0.1];
             u.dome3 = [l1.0, l1.1, 0.0, 0.0];
+            if let Some(b) = map_b {
+                let on_b = |k: usize| {
+                    if layers[k] && layers_b[k] { (inv(b.x_scale[k]), inv(b.y_scale[k])) } else { (0.0, 0.0) }
+                };
+                let (b0, b1) = (on_b(0), on_b(1));
+                u.dome_b = [b0.0, b0.1, b1.0, b1.1];
+            }
         }
         u
     }
@@ -6692,6 +6875,8 @@ fn create_sky_state(
     horizon: &nfs_formats::SkyHorizon,
     dome: Option<&nfs_formats::SkyDome>,
     map: Option<&nfs_formats::SkyMapBlock>,
+    layers_b: &[Option<nfs_assets::SkyTexture>; 2],
+    map_b: Option<&nfs_formats::SkyMapBlock>,
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
@@ -6734,6 +6919,8 @@ fn create_sky_state(
             sky_layer_entry(2),
             sky_layer_entry(3),
             sky_layer_entry(4),
+            sky_layer_entry(6),
+            sky_layer_entry(7),
             wgpu::BindGroupLayoutEntry {
                 binding: 5,
                 visibility: wgpu::ShaderStages::FRAGMENT,
@@ -6796,6 +6983,8 @@ fn create_sky_state(
         dome,
         map,
         [layers[0].is_some(), layers[1].is_some()],
+        map_b,
+        [layers_b[0].is_some(), layers_b[1].is_some()],
     );
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sky camera"),
@@ -6830,6 +7019,16 @@ fn create_sky_state(
                 upload_texture(device, queue, t.width, t.height, &t.rgba)
             }
             _ => upload_texture(device, queue, 1, 1, &fallback),
+        })
+        .collect();
+    // Region B maps; without one the region A view stands in (its scale is 0 then).
+    let layer_b_views: Vec<wgpu::TextureView> = layers_b
+        .iter()
+        .map(|layer| match layer {
+            Some(t) if t.rgba.len() as u64 == u64::from(t.width) * u64::from(t.height) * 4 => {
+                upload_texture(device, queue, t.width, t.height, &t.rgba)
+            }
+            _ => upload_texture(device, queue, 1, 1, &[0; 4]),
         })
         .collect();
     let layer_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -6867,6 +7066,14 @@ fn create_sky_state(
             wgpu::BindGroupEntry {
                 binding: 5,
                 resource: wgpu::BindingResource::Sampler(&layer_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: wgpu::BindingResource::TextureView(&layer_b_views[0]),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: wgpu::BindingResource::TextureView(&layer_b_views[1]),
             },
         ],
     });
