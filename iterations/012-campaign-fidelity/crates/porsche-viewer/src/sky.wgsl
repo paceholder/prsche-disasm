@@ -123,27 +123,34 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
         let b_g = (px * sn + pz * cs) / scale;
         let half_size = sky_camera.dome.y * 0.5;
         let cell = sky_camera.dome.y / 15.0;
+        let col = (half_size - a_g) / cell;
+        let row = (b_g + half_size) / cell;
+        // Region A -> B blend (weather keys): the texture scale and the maps mix by `blend.x`.
+        let b = sky_camera.blend.x;
+        let has_b0 = sky_camera.dome_b.x > 0.0;
+        let has_b1 = sky_camera.dome_b.z > 0.0;
+        let inv0 = select(sky_camera.dome2.zw, mix(sky_camera.dome2.zw, sky_camera.dome_b.xy, b), has_b0);
+        let inv1 = select(sky_camera.dome3.xy, mix(sky_camera.dome3.xy, sky_camera.dome_b.zw, b), has_b1);
+        let uv0 = vec2<f32>(col, row) * sky_scale(inv0) + sky_camera.drift.xy;
+        let uv1 = vec2<f32>(col, row) * sky_scale(inv1) + sky_camera.drift.zw;
+        // Mip level from the screen derivatives (the maps are mipmapped); the derivatives and
+        // all samples are taken before any branch (uniform control flow).
+        let g0x = dpdx(uv0);
+        let g0y = dpdy(uv0);
+        let g1x = dpdx(uv1);
+        let g1y = dpdy(uv1);
+        let a0 = textureSampleGrad(sky_map, layer_sampler, uv0, g0x, g0y);
+        let b0 = textureSampleGrad(sky_map_b, layer_sampler, uv0, g0x, g0y);
+        let a1 = textureSampleGrad(cloud_map, layer_sampler, uv1, g1x, g1y);
+        let b1 = textureSampleGrad(cloud_map_b, layer_sampler, uv1, g1x, g1y);
         if abs(a_g) <= half_size && abs(b_g) <= half_size {
             covered = true;
             dome_depth = t * facing;
-            let col = (half_size - a_g) / cell;
-            let row = (b_g + half_size) / cell;
-            let b = sky_camera.blend.x;
             if sky_camera.dome2.z > 0.0 {
-                let has_b = sky_camera.dome_b.x > 0.0;
-                let inv = select(sky_camera.dome2.zw, mix(sky_camera.dome2.zw, sky_camera.dome_b.xy, b), has_b);
-                let uv0 = vec2<f32>(col, row) * sky_scale(inv) + sky_camera.drift.xy;
-                let a0 = textureSampleLevel(sky_map, layer_sampler, uv0, 0.0);
-                let b0 = textureSampleLevel(sky_map_b, layer_sampler, uv0, 0.0);
-                sky = select(a0, mix(a0, b0, b), has_b).rgb;
+                sky = select(a0, mix(a0, b0, b), has_b0).rgb;
             }
             if sky_camera.dome3.x > 0.0 {
-                let has_b = sky_camera.dome_b.z > 0.0;
-                let inv = select(sky_camera.dome3.xy, mix(sky_camera.dome3.xy, sky_camera.dome_b.zw, b), has_b);
-                let uv1 = vec2<f32>(col, row) * sky_scale(inv) + sky_camera.drift.zw;
-                let a1 = textureSampleLevel(cloud_map, layer_sampler, uv1, 0.0);
-                let b1 = textureSampleLevel(cloud_map_b, layer_sampler, uv1, 0.0);
-                let cloud = select(a1, mix(a1, b1, b), has_b);
+                let cloud = select(a1, mix(a1, b1, b), has_b1);
                 sky = mix(sky, cloud.rgb, cloud.a);
             }
         }

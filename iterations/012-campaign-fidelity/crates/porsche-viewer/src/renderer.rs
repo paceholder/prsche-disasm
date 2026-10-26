@@ -6817,14 +6817,17 @@ struct SkyUniform {
 }
 
 /// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores
-/// `(sin, cos)(-direction / 360 turns) * speed * 0.00025`; applying it once per 128 Hz tick is
-/// a Hypothesis (A194).
+/// `(sin, cos)(-direction / 360 turns) * speed * 0.00025` and `FUN_0045ed40` adds it times the
+/// elapsed ticks to the layer offset, wrapped to 0..1, which `FUN_0045ec40` adds to every vertex
+/// UV `index / scale`. The engine spreads the texture over 15 cells (A195), so the offset is
+/// divided by 15 too to keep the original speed over the dome; 128 ticks/s is a Hypothesis
+/// (A194).
 fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
     let mut v = [0.0; 4];
     if let Some(m) = map {
         for k in 0..2 {
             let turns = -m.wind_direction[k] / 360.0 * std::f32::consts::TAU;
-            let step = m.wind_speed[k] * 0.00025 * 128.0;
+            let step = m.wind_speed[k] * 0.00025 * 128.0 / 15.0;
             v[2 * k] = turns.sin() * step;
             v[2 * k + 1] = turns.cos() * step;
         }
@@ -7091,8 +7094,10 @@ fn create_sky_state(
         .iter()
         .zip(fallbacks)
         .map(|(layer, fallback)| match layer {
+            // Mipmapped: the dome squeezes the 16x16 maps towards the horizon, and
+            // unfiltered minification there shimmered into moving stripes.
             Some(t) if t.rgba.len() as u64 == u64::from(t.width) * u64::from(t.height) * 4 => {
-                upload_texture(device, queue, t.width, t.height, &t.rgba)
+                upload_texture_mipmapped(device, queue, t.width, t.height, &t.rgba)
             }
             _ => upload_texture(device, queue, 1, 1, &fallback),
         })
@@ -7113,6 +7118,7 @@ fn create_sky_state(
         address_mode_v: wgpu::AddressMode::Repeat,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
         ..Default::default()
     });
     let texture_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
