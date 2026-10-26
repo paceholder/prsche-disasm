@@ -280,7 +280,7 @@ pub fn push_car_shadow(
     }
 }
 
-const SHADER: &str = r#"
+pub(crate) const SHADER: &str = r#"
 struct Uniforms { view_projection: mat4x4<f32> };
 @group(0) @binding(0) var<uniform> u: Uniforms;
 @group(1) @binding(0) var tex: texture_2d<f32>;

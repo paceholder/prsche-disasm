@@ -628,6 +628,46 @@ struct CarWheelRender {
     mesh_indices: Vec<usize>,
 }
 
+/// Car, track and object shader (`car.wgsl`).
+pub(crate) const CAR_SHADER: &str = include_str!("car.wgsl");
+/// Sky dome shader (`sky.wgsl`).
+pub(crate) const SKY_SHADER: &str = include_str!("sky.wgsl");
+/// Topology debug lines (colour per vertex, pulled slightly toward the camera).
+pub(crate) const TOPOLOGY_LINE_SHADER: &str = r#"
+struct Camera {
+    matrix: mat4x4<f32>,
+    eye: vec4<f32>,
+    model: mat4x4<f32>,
+};
+@group(0) @binding(0) var<uniform> camera: Camera;
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) color: vec4<f32>,
+};
+
+@vertex
+fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    var world_pos = camera.model * vec4<f32>(in.position, 1.0);
+    var clip_pos = camera.matrix * world_pos;
+    clip_pos.z = clip_pos.z - 0.0004 * clip_pos.w;
+    out.clip_position = clip_pos;
+    out.color = in.color;
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return in.color;
+}
+"#;
+
 pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -1223,7 +1263,7 @@ impl Renderer {
         }
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("car shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("car.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(CAR_SHADER.into()),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("car"),
@@ -1399,43 +1439,7 @@ impl Renderer {
                 });
                 let line_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("topology line shader"),
-                    source: wgpu::ShaderSource::Wgsl(
-                        r#"
-struct Camera {
-    matrix: mat4x4<f32>,
-    eye: vec4<f32>,
-    model: mat4x4<f32>,
-};
-@group(0) @binding(0) var<uniform> camera: Camera;
-
-struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) color: vec4<f32>,
-};
-
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-};
-
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-    var world_pos = camera.model * vec4<f32>(in.position, 1.0);
-    var clip_pos = camera.matrix * world_pos;
-    clip_pos.z = clip_pos.z - 0.0004 * clip_pos.w;
-    out.clip_position = clip_pos;
-    out.color = in.color;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
-}
-"#
-                        .into(),
-                    ),
+                    source: wgpu::ShaderSource::Wgsl(TOPOLOGY_LINE_SHADER.into()),
                 });
                 let line_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("topology line layout"),
@@ -6959,7 +6963,7 @@ fn create_sky_state(
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("sky.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(SKY_SHADER.into()),
     });
 
     let sky_camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

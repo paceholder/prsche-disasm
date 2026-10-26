@@ -150,7 +150,7 @@ struct ScreenVertex {
     color: [f32; 4],
 }
 
-const SHADER: &str = r#"
+pub(crate) const SHADER: &str = r#"
 // size = render target in pixels, sun = sun position in pixels (y down).
 struct Screen { size: vec2<f32>, sun: vec2<f32> };
 @group(0) @binding(0) var<uniform> screen: Screen;
@@ -189,7 +189,7 @@ fn to_gamma(c: vec3<f32>) -> vec3<f32> {
     return vec4<f32>(to_gamma(t.rgb * in.color.rgb) * t.a * in.color.a, 0.0);
 }"#;
 
-const FLARE_SHADER: &str = r#"
+pub(crate) const FLARE_SHADER: &str = r#"
 @group(0) @binding(1) var depth: texture_depth_2d;
 // Flare_Draw 0x460460: the share of the 4×4 pixels at the sun that still show the
 // sun (here: nothing drawn over the sky there, depth at the far plane) is the

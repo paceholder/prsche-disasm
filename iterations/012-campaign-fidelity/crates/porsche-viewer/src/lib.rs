@@ -5,6 +5,7 @@ mod crate_smash;
 mod in_car;
 mod shade_sample;
 mod sun;
+mod shader_check;
 pub mod engine_audio;
 pub mod tyre_audio;
 pub mod game_audio;

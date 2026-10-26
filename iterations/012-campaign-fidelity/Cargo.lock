@@ -1378,6 +1378,7 @@ dependencies = [
  "console_error_panic_hook",
  "glam",
  "js-sys",
+ "naga",
  "nfs-assets",
  "nfs-formats",
  "nfs-game",
