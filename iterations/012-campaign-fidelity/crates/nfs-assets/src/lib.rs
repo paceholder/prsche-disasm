@@ -373,6 +373,9 @@ pub struct Scene {
     /// Sun position of `Sky/<track>.bin` in scene coordinates (`Sky_SunPosition`
     /// 0x461090); its direction lights the cars.
     pub sun_position: Option<[f32; 3]>,
+    /// Sun sprite and lens flare records of `Render/flare.dat` and `flarepos.dat`
+    /// (`SunFlare_Init` 0x460780), loaded with a car.
+    pub flare: Option<nfs_formats::FlareData>,
     /// Track topology (boundaries, junctions, map), if available.
     pub topology: Option<TrackTopology>,
     /// CPU-only support grid constructed from static road candidate geometry.
@@ -427,6 +430,7 @@ impl Default for Scene {
             sky_layers_b: [None, None],
             sky_weather: None,
             sun_position: None,
+            flare: None,
             topology: None,
             road_surface: None,
             course: None,

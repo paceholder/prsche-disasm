@@ -776,6 +776,12 @@ pub struct Renderer {
     pub stunt_detector: Option<nfs_game::factory_driver::StuntDetector>,
     /// Car glares and shadows (`docs/re/lighting.md`).
     effects: crate::effects::Effects,
+    /// Sun sprite and lens flare (`Sun_Draw` 0x460290, `Flare_Draw` 0x460460).
+    sun_flare: crate::sun::SunFlareGpu,
+    /// Sun point of the track's sky config (`Sky_SunPosition` 0x461090), scene axes.
+    sun_position: Option<Vec3>,
+    /// `Render/flare.dat` records of the loaded car scene.
+    flare: Option<nfs_formats::FlareData>,
     car_glares: Vec<nfs_assets::CarGlare>,
     /// Needle calibration of the car's `nfs5.car` record (`docs/re/cockpit.md`).
     cockpit_gauges: nfs_assets::cockpit::Gauges,
@@ -1800,6 +1806,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
 
         let effects = crate::effects::Effects::new(&device, format);
+        let sun_flare = crate::sun::SunFlareGpu::new(&device, format, effects.texture_layout());
         let mut smash_definitions = vec![None; scene.track_objects.len()];
         for s in &scene.smashables {
             smash_definitions[s.object_index] = Some(s.definition.clone());
@@ -1917,6 +1924,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             mission_elapsed_time: 0.0,
             stunt_detector: None,
             effects,
+            sun_flare,
+            sun_position: scene.sun_position.map(Vec3::from),
+            flare: None,
             car_glares: Vec::new(),
             cockpit_gauges: Default::default(),
             player_lights: Default::default(),
@@ -2259,6 +2269,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 .write_buffer(&sky.camera_buffer, 0, bytemuck::bytes_of(&sky_uniform));
         }
 
+        let sun_shown = self.prepare_sun();
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -2300,6 +2311,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 pass.set_vertex_buffer(0, sky.vertex_buffer.slice(..));
                 pass.set_index_buffer(sky.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                 pass.draw_indexed(0..sky.index_count, 0, 0..1);
+            }
+            // 1b. The sun sprite belongs to the sky pass (`SkyManager_Draw` 0x45d4f0
+            // calls `Sun_Draw` 0x460290 between the sky layers).
+            if sun_shown {
+                self.sun_flare.draw_sun(&mut pass, &self.effects);
             }
 
             // 2. Draw static geometry (identity model matrix)
@@ -2682,6 +2698,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // 3.6 Car shadows and light glares.
         self.draw_car_effects(target);
 
+        // 3.7 Lens flare over the frame (`Flare_Draw` 0x460460 after the scene).
+        if sun_shown {
+            self.sun_flare
+                .draw_flare(&self.device, &self.queue, target, &self.depth, &self.effects);
+        }
+
         // 3b. Collision box wireframes (debug)
         self.draw_collision_boxes(target);
 
@@ -2721,6 +2743,28 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
             self.queue.submit([encoder.finish()]);
         }
+    }
+
+    /// Sun and flare sprites of this frame (`Sun_Draw` 0x460290, `Flare_Draw`
+    /// 0x460460); false when there is no sun on screen. Needs the track's sky (sun
+    /// point) and the car scene's `flare.dat` and `common.fsh`.
+    fn prepare_sun(&mut self) -> bool {
+        let (Some(sun), Some(flare)) = (self.sun_position, &self.flare) else {
+            return false;
+        };
+        if self.sky.is_none() || self.fe_room.is_some() || !crate::sun::sun_shown(sun) {
+            return false;
+        }
+        let (w, h) = (self.width as f32, self.height as f32);
+        let vp = self.camera.sky_view_projection(self.width, self.height);
+        let Some(px) = crate::sun::sun_screen(sun, vp, w, h) else {
+            return false;
+        };
+        let sun_sprites = crate::sun::sun_sprites(flare, px, w, h);
+        let flare_sprites = crate::sun::flare_sprites(flare, px, w, h);
+        self.sun_flare
+            .prepare(&self.device, &self.queue, w, h, px, &sun_sprites, &flare_sprites);
+        true
     }
 
     /// Car shadows (`R3DCar_DrawShadow` 0x43b820) and light glares
@@ -6180,6 +6224,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         });
 
         self.car_glares = scene.car_glares.clone();
+        self.flare = scene.flare.clone();
         // Reflection texture slots SPC1..SPC3 of `Car_Load` 0x441a10, side by side.
         if let Some((width, height, rgba)) = specular_atlas(&scene.effect_textures) {
             let view = upload_texture(&self.device, &self.queue, width, height, &rgba);
@@ -6723,7 +6768,8 @@ fn depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureVi
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            // Sampled by the lens flare for the sun's visibility.
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
         .create_view(&Default::default())

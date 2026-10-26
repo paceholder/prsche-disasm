@@ -2336,7 +2336,9 @@ function findCarFilesFromCatalog(target) {
       fullPath.endsWith("/render/common.fsh") ||
       fullPath.endsWith("/render/particle.fsh") ||
       fullPath.endsWith("/render/carpart.dat") ||
-      fullPath.endsWith("/render/particle.dat")
+      fullPath.endsWith("/render/particle.dat") ||
+      fullPath.endsWith("/render/flare.dat") ||
+      fullPath.endsWith("/render/flarepos.dat")
     ) {
       matching.push(relPath);
       continue;

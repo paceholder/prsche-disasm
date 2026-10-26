@@ -281,6 +281,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sky_layers_b: [None, None],
         sky_weather: None,
         sun_position: None,
+        flare: None,
         topology: None,
         road_surface: None,
         course: None,

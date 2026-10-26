@@ -203,6 +203,21 @@ pub(crate) fn material_env_slot(mt: &[u8]) -> Option<u8> {
     })
 }
 
+/// Sun and lens-flare records of `Render/flare.dat` and the sprite layout
+/// `Render/flarepos.dat` (`FlareDb_Load` 0x4522b0, `SunFlare_Init` 0x460780; the
+/// built-in layout when that file is absent). No `flare.dat`: no sun sprites.
+fn flare_data(files: &AssetFiles) -> Result<Option<nfs_formats::FlareData>, String> {
+    let Ok(data) = find(files, "flare.dat") else {
+        return Ok(None);
+    };
+    Ok(Some(nfs_formats::FlareData {
+        records: nfs_formats::parse_flare_dat(data)?,
+        positions: find(files, "flarepos.dat")
+            .map(nfs_formats::parse_flare_positions)
+            .unwrap_or(nfs_formats::flare::DEFAULT_FLARE_POSITIONS),
+    }))
+}
+
 /// Glare and shadow textures of `Render/common.fsh` (`R3DCar_DrawGlare` 0x43cdd0 and
 /// `R3DCar_DrawShadow` 0x43b820 look them up by FSH name). Absent file: no effects.
 fn effect_textures(files: &AssetFiles) -> Result<Vec<Texture>, String> {
@@ -801,6 +816,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         sky_layers_b: [None, None],
         sky_weather: None,
         sun_position: None,
+        flare: flare_data(files)?,
         topology: None,
         road_surface: None,
         course: None,

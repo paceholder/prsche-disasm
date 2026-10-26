@@ -66,7 +66,12 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         alpha_mode: caps.alpha_modes[0],
         // WebGPU canvases offer only non-sRGB formats (bgra8unorm); render through an
         // sRGB view so the shaders' linear output is encoded as on native targets.
-        view_formats: if format.is_srgb() { vec![] } else { vec![format.add_srgb_suffix()] },
+        // The other encoding is also allowed: the lens flare adds in gamma space (sun.rs).
+        view_formats: if format.is_srgb() {
+            vec![format.remove_srgb_suffix()]
+        } else {
+            vec![format.add_srgb_suffix()]
+        },
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);

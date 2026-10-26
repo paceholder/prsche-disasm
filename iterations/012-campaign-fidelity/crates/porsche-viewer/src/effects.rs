@@ -446,6 +446,16 @@ impl Effects {
         }
     }
 
+    /// Layout of the per-texture bind groups (texture, sampler; fragment stage).
+    pub(crate) fn texture_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.texture_layout
+    }
+
+    /// Bind group of an effect texture by its exact FSH name.
+    pub(crate) fn texture_group(&self, name: &str) -> Option<&wgpu::BindGroup> {
+        self.textures.get(name)
+    }
+
     /// Upload the effect textures of a car scene (`Scene::effect_textures`).
     pub fn set_textures(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, textures: &[Texture]) {
         self.textures.clear();
