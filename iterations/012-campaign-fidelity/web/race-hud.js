@@ -3,7 +3,7 @@
 import {
   parseHudFiles, selectConfig, SLOT, carGauges, gaugePacks, NEEDLE_SIZES, speedoUnits, tachUnits,
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
-  BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale,
+  BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour,
   parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP,
 } from "./race-hud-core.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
@@ -12,8 +12,6 @@ import { drawText, textWidth } from "./frontend.js";
 const DASH = "GameData/DashHud";
 const CAR_RECORD = 0x670;
 const PHASE_RACING = 2;
-// Approximation: fixed per-car colours (original: paint colour res+0x218).
-const PALETTE = ["#f2f2f2", "#e8281e", "#f5c518", "#2f6fe0", "#2fb84a", "#ee8a1a", "#9b59d6", "#18b8c8"];
 
 const argb = n => ({ a: (n >>> 24) & 255, r: (n >>> 16) & 255, g: (n >>> 8) & 255, b: n & 255 });
 const rgbaCss = n => { const c = argb(n); return `rgba(${c.r},${c.g},${c.b},${(c.a / 255).toFixed(3)})`; };
@@ -110,7 +108,8 @@ export class RaceHud {
   }
 
   // Per-frame entry. `viewer`: wasm viewer; `dt` seconds; `lights` day/night packs.
-  draw(viewer, { dt = 0, lights = false } = {}) {
+  draw(viewer, { dt = 0, lights = false, carColours = null } = {}) {
+    this.carColours = carColours;
     if (!this.ready || !this.gauges) { this.clear(); return; }
     this.syncSize();
     const cfg = this.config;
@@ -285,7 +284,7 @@ export class RaceHud {
     const { ctx } = this;
     rows.forEach((r, i) => {
       const y = row.y + st.padY + row.h * i;
-      ctx.fillStyle = PALETTE[r.slot % PALETTE.length];
+      ctx.fillStyle = rgbCss(carHudColour(this.carColours, r.slot));
       ctx.fillRect(row.x + st.padX, y + Math.trunc((row.h - sh) / 2), sw, sh);
       const ty = y + Math.trunc((row.h - (small?.lineHeight ?? 12)) / 2);
       this.text(small, r.name, row.x + st.padX + sw + 4, ty, st.listGrey);
@@ -414,7 +413,7 @@ export class RaceHud {
       const w = Math.max(2, 2 * m[4] * k * scale);
       const l = Math.max(3, 2 * m[5] * k * scale);
       if (!car?.canvas) continue;
-      const color = i === 0 ? 0xffffff : parseInt(PALETTE[i % PALETTE.length].slice(1), 16);
+      const color = carHudColour(this.carColours, i);
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(mirror ? -rel : rel);

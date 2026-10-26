@@ -2658,11 +2658,15 @@ async function setRaceOptions({ difficulty, mirror, opponents, car = null, colou
   // per opponent (OpponentCar apply 0x4f4fa0).
   const own = colour === null ? null : playerPaint(car, colour);
   const paints = opponentPaints(car, opponents, () => Math.floor(Math.random() * 0x7fff)).flat();
+  const rgb24 = c => (Math.round(c[0] * 255) << 16) | (Math.round(c[1] * 255) << 8) | Math.round(c[2] * 255);
+  raceCarColours = [own ? rgb24(own) : 0xffffff, ...Array.from({ length: paints.length / 4 }, (_, i) => rgb24(paints.slice(i * 4, i * 4 + 4)))];
   viewer.set_race_options(difficulty, mirror, new Float32Array(skills), new Float32Array(own ?? []),
     new Float32Array(paints));
   canvas.classList.toggle("mirror", Boolean(mirror));
 }
 let lastRaceDrivers = [];
+// 0xRRGGBB paint of each car, player first: the HUD list square and map marker use it.
+let raceCarColours = null;
 
 // Load and start a Quick Race (web dialog or the original front end's PLAYGAME).
 // manualBox / damage: the car setup screen's transmission and Game.Damage [VA 0x4eeda0, 0x4e5520];
@@ -3240,7 +3244,7 @@ function drawRaceHud(dt) {
     raceHud.setCarRecord(raceHud.carRecords, raceHudCarIndex);
   }
   try {
-    raceHud.draw(viewer, { dt, lights: lightsOn });
+    raceHud.draw(viewer, { dt, lights: lightsOn, carColours: raceCarColours });
   } catch (error) {
     console.error("race HUD draw failed", error);
   }

@@ -441,3 +441,14 @@ export function countdownDraws(step, W, H, sizes) {
   out.push({ kind: "wedge", tris, color: COUNTDOWN_WEDGE });
   return out;
 }
+
+// Colour of a car in the HUD (position list square, map marker): its paint colour
+// `res+0x218` = COLORCONFIG[0], key 0x149 = the body colour of the car's colour entry as
+// 0xAARRGGBB [VA 0x42b000, 0x433110 read it; 0x4eeda0 writes it, 0x4f4fa0 draws the entry].
+// `colours[i]` is the 0xRRGGBB of car i (player first); cars without one keep a fixed palette
+// (A213).
+export const FALLBACK_CAR_COLOURS = [0xf2f2f2, 0xe8281e, 0xf5c518, 0x2f6fe0, 0x2fb84a, 0xee8a1a, 0x9b59d6, 0x18b8c8];
+export function carHudColour(colours, index) {
+  const c = colours?.[index];
+  return c === undefined || c === null ? FALLBACK_CAR_COLOURS[index % FALLBACK_CAR_COLOURS.length] : c & 0xffffff;
+}

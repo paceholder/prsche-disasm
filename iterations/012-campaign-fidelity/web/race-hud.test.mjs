@@ -179,3 +179,13 @@ test("countdown draws: zoom 8x..1x, previous digit, wedge fan", () => {
   const pts = wedgePoints(640, 480);
   assert.deepEqual([pts[0], pts[4], pts[8], pts[12]], [[320, 0], [640, 240], [320, 480], [0, 240]]);
 });
+
+test("HUD car colours are the cars' paint, with a palette for cars without one (VA 0x42b000, 0x433110)", async () => {
+  const { carHudColour, FALLBACK_CAR_COLOURS } = await import("./race-hud-core.js");
+  const colours = [0x112233, 0xaabbcc];
+  assert.equal(carHudColour(colours, 0), 0x112233);
+  assert.equal(carHudColour(colours, 1), 0xaabbcc);
+  assert.equal(carHudColour(colours, 2), FALLBACK_CAR_COLOURS[2]);
+  assert.equal(carHudColour(null, 9), FALLBACK_CAR_COLOURS[1]);
+  assert.equal(carHudColour([0xff112233], 0), 0x112233); // alpha is dropped
+});
