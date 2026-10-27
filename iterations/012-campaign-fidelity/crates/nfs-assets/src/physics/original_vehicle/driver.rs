@@ -163,6 +163,12 @@ pub fn barrier_state(car: &OriginalCar, pair: &PairCar) -> PreparedContactState 
 /// velocity, speed, yaw rate) and into the car (local velocity, wheel points
 /// and the wheel fields it may clear).
 pub fn store_barrier_state(car: &mut OriginalCar, pair: &mut PairCar, s: &PreparedContactState) {
+    // The response ends in 0x493e40, which runs 0x493dd0 for a human car (`+0x52c` bit 2).
+    let mut human = s.clone();
+    if car.flags_52c & 4 != 0 {
+        crate::physics::original_contact::reset_493dd0(&mut human);
+    }
+    let s = &human;
     pair.position_330 = s.position_330;
     pair.velocity_33c = s.velocity_33c;
     pair.speed_35c = s.speed_35c;
@@ -195,6 +201,7 @@ pub fn object_car(car: &OriginalCar, pair: &PairCar) -> ObjectCar {
         code_464: 0,
         ground_right_490: car.ground_490[0],
         ground_forward_4a8: car.ground_490[2],
+        reset_493dd0: false,
     }
 }
 
@@ -205,6 +212,14 @@ pub fn store_object_car(car: &mut OriginalCar, pair: &mut PairCar, o: &ObjectCar
     car.vel_ground_d58 = o.local_velocity_d58;
     for (w, p) in car.wheels.iter_mut().zip(o.wheel_records_7f8) {
         w.point_40 = p;
+    }
+    if o.reset_493dd0 {
+        // 0x493dd0 for a human car: skids `+0x870`, `+0xdc0` and `+0xdb8` cleared.
+        car.slip_ratio_dc0 = 0.0;
+        for w in &mut car.wheels {
+            w.tyre.skid_b8 = 0.0;
+        }
+        car.spin_rear_db8 = 0;
     }
     car.damage_4e4[..9].copy_from_slice(&o.pair.damage_4e4);
 }

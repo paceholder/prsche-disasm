@@ -96,6 +96,7 @@ fn load_car(w: &Words, damage: bool) -> (ObjectCar, PairGlobals) {
         code_464: u(w, 0x464),
         ground_right_490: v3(w, 0x490),
         ground_forward_4a8: v3(w, 0x4a8),
+        reset_493dd0: false,
     };
     let globals = PairGlobals {
         damage_on_657a2c: damage,

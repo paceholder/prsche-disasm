@@ -396,6 +396,9 @@ pub struct Scene {
     /// Race-intro camera animations: the `CmAn` entries of the track CRP in table order
     /// (`CamAnimList_LoadTrack 0x471850`, `camera::anim`).
     pub intro_cameras: Vec<camera::anim::CameraAnimation>,
+    /// Finish line of the race direction: the type-1 trigger of the same start scene
+    /// (`0x410730` locates it for `+0xb04`, `race::finish`), original coordinates.
+    pub finish_trigger: Option<[f32; 3]>,
 }
 
 impl Default for Scene {
@@ -444,6 +447,7 @@ impl Default for Scene {
             ai_track: None,
             start_trigger: None,
             intro_cameras: Vec::new(),
+            finish_trigger: None,
         }
     }
 }

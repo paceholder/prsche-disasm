@@ -315,7 +315,11 @@ context.testApi.setViewer({
 });
 const tick = () => context.testApi.updateNavigation(1 / 60);
 const resultModal = element("#raceResultsModal");
-for (const terminalPhase of [4, 5]) {
+// Phase 4 (finished, the race goes on until Race_EndCheck 0x417010) shows no results yet.
+phase = 4;
+tick();
+assert.equal(resultModal.hidden, true, "phase 4 does not present results");
+for (const terminalPhase of [5]) {
   phase = 2;
   tick();
   phase = terminalPhase;

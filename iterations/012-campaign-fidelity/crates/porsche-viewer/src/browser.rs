@@ -317,6 +317,33 @@ impl BrowserViewer {
         }
     }
 
+    /// The original race bookkeeping (`race::finish`) as JSON (`null` without it).
+    pub fn race_results(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.race_results_json())
+            .unwrap_or_else(|| "null".into())
+    }
+
+    /// Debug: the player car `nodes_before` nodes before the finish line at `speed` m/s.
+    pub fn debug_place_before_finish(&mut self, nodes_before: i32, speed: f32) -> bool {
+        self.renderer
+            .as_mut()
+            .is_some_and(|r| r.debug_place_before_finish(nodes_before, speed))
+    }
+
+    /// Debug: the player car on graph node `node` at `speed` m/s (circuit laps in hops).
+    pub fn debug_place_on_node(&mut self, node: i32, speed: f32) -> bool {
+        self.renderer
+            .as_mut()
+            .is_some_and(|r| r.debug_place_on_node(node, speed))
+    }
+
+    /// Debug: nodes per lap of the original track graph (0 without it).
+    pub fn debug_lap_nodes(&self) -> i32 {
+        self.renderer.as_ref().map_or(0, |r| r.debug_lap_nodes())
+    }
+
     /// The original AI cars as JSON (`null` without them).
     pub fn original_ai_state(&self) -> String {
         self.renderer

@@ -72,6 +72,7 @@ pub fn body_point_contact(car: &mut OriginalCar, n: [f32; 3], p: [f32; 3], k: f3
         code_464: car.surface_464 as u32,
         ground_right_490: car.ground_490[0],
         ground_forward_4a8: car.ground_490[2],
+        reset_493dd0: false,
     };
     let mut globals = PairGlobals {
         damage_on_657a2c: car.globals.flip_events_657a2c != 0,

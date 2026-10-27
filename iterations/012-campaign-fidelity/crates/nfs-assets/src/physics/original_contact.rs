@@ -98,6 +98,16 @@ pub(crate) fn yaw_kick(
     Some(value)
 }
 
+/// `0x493dd0` (the `+0x52c & 4` tail of `0x493e40`, a human car): ground-frame speeds
+/// `d58 = v·+0x490`, `d60 = v·+0x4a8`, the wheel skids `+0x870`, `+0xdb8`, `+0xdc0` cleared.
+pub fn reset_493dd0(state: &mut PreparedContactState) {
+    state.local_velocity_d58[0] = dot(state.velocity_33c, state.basis_490);
+    state.local_velocity_d58[2] = dot(state.velocity_33c, state.basis_4a8);
+    state.wheel_fields_870 = [0.0; 4];
+    state.field_db8 = 0.0;
+    state.field_dc0 = 0.0;
+}
+
 /// `0x493e40` without the `+0x52c & 4` branch: velocity x0.998, the local
 /// velocity `+0xd58..` and the speed estimate `+0x35c`.
 pub(crate) fn damp_velocity(velocity: &mut [f32; 3], basis: [[f32; 3]; 3]) -> ([f32; 3], f32) {
@@ -147,11 +157,7 @@ pub fn respond_prepared_contact(state: &mut PreparedContactState, contact: Prepa
         [state.basis_364, state.basis_370, state.basis_37c],
     );
     if contact.alternate_52c_mask_04 {
-        state.local_velocity_d58[0] = dot(state.velocity_33c, state.basis_490);
-        state.local_velocity_d58[2] = dot(state.velocity_33c, state.basis_4a8);
-        state.wheel_fields_870 = [0.0; 4];
-        state.field_db8 = 0.0;
-        state.field_dc0 = 0.0;
+        reset_493dd0(state);
     }
     (reported as f64 * 3.0).abs() as f32
 }

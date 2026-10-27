@@ -314,6 +314,7 @@ impl SmackBody {
                 field_3a0: 1.0,
                 ground_right_490: r.axes[0],
                 ground_forward_4a8: r.axes[2],
+                reset_493dd0: false,
                 ..ObjectCar::default()
             },
             hull: r.hull.clone(),

@@ -284,6 +284,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             .filter(|e| e.tag == crate::camera::anim::CMAN_TAG)
             .filter_map(|e| crate::camera::anim::CameraAnimation::parse(&e.data).ok())
             .collect(),
+        finish_trigger: None,
     };
 
     let mut tex_map = BTreeMap::new();
@@ -1085,6 +1086,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         use crate::race::original_ai::start;
         let text = String::from_utf8_lossy(bytes);
         scene.start_trigger = start::start_trigger(&text);
+        scene.finish_trigger = start::finish_trigger(&text);
         // A point-to-point race runs from the start line to the finish line along the road:
         // the course follows the node graph between the two triggers (the `.lsp` order is
         // the file order of the sections, not the road, and runs on past the finish).

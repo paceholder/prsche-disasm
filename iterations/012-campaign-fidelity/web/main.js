@@ -3381,7 +3381,8 @@ function updateNavigation(dt) {
     // Update Race HUD
     const phase = viewer.get_race_phase ? viewer.get_race_phase() : 0;
     const isRacingActive = phase > 0;
-    const isFinished = phase === 4 || phase === 5;
+    // Phase 5 (Results): the original race end, `Race_EndCheck` 0x417010 (5 s after the finish).
+    const isFinished = phase === 5;
     // Dismissal does not end the simulation's terminal phase. Re-arm only when
     // a new attempt actually begins, including keyboard and toolbar restarts.
     if (!isFinished) eventFinishedHandled = false;

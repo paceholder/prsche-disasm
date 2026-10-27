@@ -13,8 +13,9 @@
 //!   contact `0x496610`, the impulse at a point `0x495f30` and
 //!   `Car_ImpactByDirection` `0x494df0` (mode 0).
 //!
-//! Not ported: the `+0x52c & 4` branch of `0x493e40` (`0x493dd0`, wheel fields
-//! the fixtures never touch). Not covered by the recorded fixtures (ported from
+//! The `+0x52c & 4` branch of `0x493e40` (`0x493dd0`, a human car) sets the ground-frame
+//! speeds here; the wheel fields it clears are the caller's (`ObjectCar::reset_493dd0`); it
+//! is ported from the instructions (the fixtures have no human car). Not covered by the recorded fixtures (ported from
 //! the instructions): the flag-0x80 branch of `0x495f30` and the `0x464` code.
 //!
 //! Arithmetic follows the original operation order: f64 stands in for the x87
@@ -50,6 +51,9 @@ pub struct ObjectCar {
     /// Ground frame right/forward axes (`+0x490`, `+0x4a8`) used by `0x493f10`.
     pub ground_right_490: [f32; 3],
     pub ground_forward_4a8: [f32; 3],
+    /// Set when `0x493e40` ran `0x493dd0` for a human car (`+0x52c` bit 2): the caller
+    /// clears the wheel skids `+0x870`, `+0xdb8` and `+0xdc0` (not in this view).
+    pub reset_493dd0: bool,
 }
 
 /// `WTreeElem_CylinderObject` (vtable `0x5b490c`).
@@ -216,11 +220,16 @@ fn block_response(
         p.angular_388[1] = yaw;
     }
     // 0x493e40: velocity x0.998, local velocity, speed estimate.
-    debug_assert!(p.flags_52c & 4 == 0, "0x493dd0 (+0x52c & 4) is not ported");
     (car.local_velocity_d58, p.speed_35c) = damp_velocity(
         &mut p.velocity_33c,
         [p.axis_r_364, p.axis_u_370, p.axis_f_37c],
     );
+    // 0x493dd0 for a human car (+0x52c bit 2): ground-frame speeds from the ground axes.
+    if p.flags_52c & 4 != 0 {
+        car.local_velocity_d58[0] = dot_ext(p.velocity_33c, car.ground_right_490) as f32;
+        car.local_velocity_d58[2] = dot_ext(p.velocity_33c, car.ground_forward_4a8) as f32;
+        car.reset_493dd0 = true;
+    }
 
     if p.impact_430 > 10.0 {
         let strength = p.impact_430;

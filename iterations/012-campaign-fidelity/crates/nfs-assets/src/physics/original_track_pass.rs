@@ -243,6 +243,7 @@ pub fn object_car_from_pair(pair: &PairCar, local_points: &[[f32; 3]; 4]) -> Obj
         code_464: 0,
         ground_right_490: pair.axis_r_364,
         ground_forward_4a8: pair.axis_f_37c,
+        reset_493dd0: false,
     }
 }
 

@@ -3,6 +3,7 @@
 pub mod ai;
 pub mod collision;
 pub mod course;
+pub mod finish;
 pub mod original_ai;
 pub mod original_collision;
 pub mod reset;

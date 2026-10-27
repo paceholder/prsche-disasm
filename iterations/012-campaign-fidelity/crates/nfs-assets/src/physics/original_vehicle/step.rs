@@ -724,6 +724,13 @@ pub trait StepQueue {
     fn collide(&mut self, _car: &mut OriginalCar, _lcg: &mut OriginalLcg) {}
     /// `Camera_UpdateAll` `0x463c30` (every step).
     fn camera(&mut self, _car: &OriginalCar) {}
+    /// `Car_TrackProgressTick` `0x4169b0` (even steps, prio 0x19, after
+    /// `Car_ReadInputs`): the race bookkeeping of `race::finish`, which sets
+    /// the race state `+0xb50`. Default: not run.
+    fn progress(&mut self, _car: &mut OriginalCar) {}
+    /// After the queue on odd steps: `Race_EndCheck` `0x417010` and
+    /// `Race_Places` `0x415fc0`. Default: not run.
+    fn odd_tail(&mut self, _car: &mut OriginalCar) {}
     fn trace(&mut self, _phase: Phase, _car: &OriginalCar) {}
 }
 
@@ -732,9 +739,9 @@ pub trait StepQueue {
 /// 6, [`StepQueue::track_locate`]), `Car_ReadInputs` (prio 0x15), `Car_DynamicsTick` and `Car_GroundContactTick` (prio 0x1e, in
 /// insertion order), `Car_CollideTick` (prio 0x28); then on every step
 /// `Car_IntegratePosition` and `Car_IntegrateOrientation` (prio 0x1e) and the
-/// camera (prio 100); then `g_SchedStep += 1`. Not run:
-/// `Car_TrackProgressTick` (prio 0x19) and
-/// `Car_ContactEffectsTick` (prio 0x32).
+/// camera (prio 100); then `g_SchedStep += 1`. `Car_TrackProgressTick` (prio
+/// 0x19) and the odd-step race end check run through [`StepQueue::progress`]
+/// and [`StepQueue::odd_tail`]. Not run: `Car_ContactEffectsTick` (prio 0x32).
 pub fn scheduler_step(
     car: &mut OriginalCar,
     input_word: u32,
@@ -749,6 +756,7 @@ pub fn scheduler_step(
         let (mut cc, ce) = car.controls_view(input_word);
         read_inputs(&mut cc, &specs, &ce);
         car.store_controls(&cc, &ce);
+        queue.progress(car);
         queue.trace(Phase::Dynamics, car);
         dynamics_tick(car, lcg);
         queue.trace(Phase::Ground, car);
@@ -762,6 +770,9 @@ pub fn scheduler_step(
     integrate_orientation(car);
     queue.trace(Phase::Camera, car);
     queue.camera(car);
+    if car.globals.sched_step_606ac4 & 1 == 1 {
+        queue.odd_tail(car);
+    }
     car.globals.sched_step_606ac4 = car.globals.sched_step_606ac4.wrapping_add(1);
 }
 

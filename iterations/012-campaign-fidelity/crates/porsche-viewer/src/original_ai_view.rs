@@ -24,6 +24,7 @@ struct Queue<'a> {
     smack: &'a mut nfs_assets::physics::original_smackable::SmackWorld,
     events: &'a mut Vec<nfs_assets::physics::original_track_pass::SmashEvent>,
     awake: Vec<usize>,
+    race: Option<&'a mut nfs_assets::race::finish::RaceTable>,
 }
 
 impl FieldQueue for Queue<'_> {
@@ -101,6 +102,10 @@ impl FieldQueue for Queue<'_> {
         }
     }
 
+    fn race_table(&mut self) -> Option<&mut nfs_assets::race::finish::RaceTable> {
+        self.race.as_deref_mut()
+    }
+
     fn camera(&mut self, player: &OriginalCar) {
         self.camera.step(
             &nfs_assets::physics::original_vehicle::driver::camera_car(player, self.half),
@@ -130,6 +135,57 @@ impl Renderer {
     /// model drives and the track graph, the `.ais` and the player's original car exist;
     /// otherwise drops them (the kinematic AI takes over).
     pub(super) fn rebuild_original_ai(&mut self) {
+        self.rebuild_original_ai_cars();
+        self.build_race_table();
+    }
+
+    /// The original race bookkeeping at the race start (`0x410730`, `race::finish`): car 0
+    /// the player (human, `+0x52c` bit 2), then the AI cars; the start fraction `+0xb00` of
+    /// each car's node, the finish fraction `+0xb04` of the finish trigger's node.
+    pub(super) fn build_race_table(&mut self) {
+        use nfs_assets::race::finish::{fraction, RaceCar, RaceGlobals, RaceTable};
+        self.race_table = None;
+        if !self.original_active() || self.is_mission_mode {
+            return;
+        }
+        let (Some(track), Some(session), Some(player)) = (
+            self.original_ai_track.as_ref(),
+            self.race_session.as_ref(),
+            self.original_vehicle.as_ref(),
+        ) else {
+            return;
+        };
+        let nodes = &track.nodes;
+        let linear = self
+            .linear_track
+            .unwrap_or_else(|| !self.track_course.as_ref().is_some_and(|c| c.is_circuit));
+        let globals = RaceGlobals {
+            laps_6573f0: session.lap_tracker.total_laps as i32,
+            linear_657494: linear,
+            reverse_657430: track.reverse,
+            nodes_per_lap: nodes.lap_nodes_04,
+            ..Default::default()
+        };
+        let mut positions = vec![player.car.position_330];
+        if let Some(field) = &self.original_ai {
+            positions.extend(field.cars.iter().map(|c| c.vehicle.car.position_330));
+        }
+        let cars = positions
+            .iter()
+            .enumerate()
+            .map(|(i, &p)| {
+                let node = nodes.locate(p, 0);
+                let start = fraction(&globals, nodes, node);
+                let finish = self
+                    .finish_trigger
+                    .map_or(1.0, |t| fraction(&globals, nodes, nodes.locate(t, node)));
+                RaceCar::new(i as i32, i == 0, linear, start, finish)
+            })
+            .collect();
+        self.race_table = Some(RaceTable::new(globals, cars));
+    }
+
+    fn rebuild_original_ai_cars(&mut self) {
         let had = self.original_ai.take().is_some();
         if had {
             for ai in &mut self.ai_opponents {
@@ -207,7 +263,10 @@ impl Renderer {
     /// One frame of the player and the original AI cars (instead of the player-only
     /// scheduler step): the 64 Hz steps due after `dt`.
     pub(super) fn run_original_field(&mut self, dt: f32, word: u32) {
-        let running = self.race_session.as_ref().is_none_or(|s| s.phase.is_racing());
+        // The AI cars race on after the player finished (they brake once they finish).
+        let running = self.race_session.as_ref().is_none_or(|s| {
+            s.phase.is_racing() || matches!(s.phase, nfs_assets::RacePhase::Finished { .. })
+        });
         let (Some(player), Some(field)) = (self.original_vehicle.as_mut(), self.original_ai.as_mut())
         else {
             return;
@@ -222,6 +281,7 @@ impl Renderer {
             smack: &mut self.smack_world,
             events: &mut self.smash_events,
             awake: Vec::new(),
+            race: self.race_table.as_mut(),
         };
         queue.camera.advance(
             0.0,

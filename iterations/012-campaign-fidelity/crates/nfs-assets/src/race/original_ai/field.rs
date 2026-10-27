@@ -120,6 +120,11 @@ pub trait FieldQueue {
     fn store_smack_cars(&mut self, _cars: &[PairCar]) {}
     /// `Camera_UpdateAll` (prio 100) after the integrations.
     fn camera(&mut self, _player: &OriginalCar) {}
+    /// The race bookkeeping (`race::finish`): progress at prio 0x19 on even steps, the end
+    /// check after the queue on odd steps. `None`: not run.
+    fn race_table(&mut self) -> Option<&mut crate::race::finish::RaceTable> {
+        None
+    }
     /// The retained support arena `Car_TrackLocate` queries; `None` on the
     /// legacy grid (no body polygon).
     fn support(&self) -> Option<SupportArena<'_>> {
@@ -374,6 +379,23 @@ impl OriginalAiField {
                 }
             }
 
+            // Prio 0x19: Car_TrackProgressTick (race::finish); the race state +0xb50 it sets
+            // cuts the human's controls in Car_ApplyControls and brakes the AI planners.
+            if let Some(t) = queue.race_table() {
+                let mut cars = vec![(self.player_locator.node_00 as i32, player.car.vel_ground_d58[2])];
+                cars.extend(
+                    self.cars
+                        .iter()
+                        .map(|c| (c.ai.locator_08.node_00 as i32, c.vehicle.car.vel_ground_d58[2])),
+                );
+                t.even_step(step, &cars, &self.track.nodes);
+                player.car.field_b50 = t.cars[0].state_b50;
+                for (c, r) in self.cars.iter_mut().zip(&t.cars[1..]) {
+                    c.vehicle.car.field_b50 = r.state_b50;
+                }
+            }
+            let lcg = &mut player.lcg;
+
             // Prio 0x1e: dynamics, then ground, per car.
             dynamics_tick(&mut player.car, lcg);
             queue.ground(0, &mut player.car, &mut player.ground, &mut player.owners, lcg);
@@ -399,6 +421,12 @@ impl OriginalAiField {
             }
         }
         queue.camera(&player.car);
+        if step & 1 == 1 {
+            if let Some(t) = queue.race_table() {
+                // The speech queue state is not modelled: taken as idle (approximation A290).
+                t.odd_step(step, true);
+            }
+        }
         player.car.globals.sched_step_606ac4 = step.wrapping_add(1);
         for c in &mut self.cars {
             c.vehicle.car.globals.sched_step_606ac4 = step.wrapping_add(1);

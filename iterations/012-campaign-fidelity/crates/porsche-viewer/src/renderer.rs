@@ -801,6 +801,11 @@ pub struct Renderer {
     start_trigger: Option<[f32; 3]>,
     /// The track's race-intro camera animations (`Scene::intro_cameras`).
     intro_cameras: Vec<std::sync::Arc<nfs_assets::camera::anim::CameraAnimation>>,
+    /// Finish line trigger of the loaded race direction (`Scene::finish_trigger`).
+    finish_trigger: Option<[f32; 3]>,
+    /// Original race bookkeeping with the original model (`race::finish`): progress,
+    /// finish (`+0xb50`), race end and results.
+    pub race_table: Option<nfs_assets::race::finish::RaceTable>,
     /// LINEAR_TRACK `[0x657494]` from the track record (`None`: from the course).
     linear_track: Option<bool>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
@@ -1937,6 +1942,8 @@ impl Renderer {
                 .cloned()
                 .map(std::sync::Arc::new)
                 .collect(),
+            finish_trigger: scene.finish_trigger,
+            race_table: None,
             linear_track: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
@@ -3398,6 +3405,40 @@ impl Renderer {
         }
     }
 
+    /// The race session follows the original bookkeeping (`race::finish`): the player's laps
+    /// `+0xb20`, the finish (`+0xb50 = 2`: phase Finished, the race time `+0xb24`) and the
+    /// race end of `Race_EndCheck` 0x417010 (phase Results). Opponents' laps from the table.
+    fn sync_session_from_race(&mut self) {
+        use nfs_assets::race::finish::FINISHED;
+        let (Some(t), Some(s)) = (&self.race_table, self.race_session.as_mut()) else {
+            return;
+        };
+        let p = &t.cars[0];
+        while s.phase.is_racing() && (s.lap_tracker.completed_laps.len() as i32) < p.laps_b20 {
+            s.on_player_lap_completed();
+        }
+        let time = p.time_b24 as f32 / 64.0;
+        if p.state_b50 >= FINISHED
+            && matches!(
+                s.phase,
+                nfs_assets::RacePhase::Racing { .. } | nfs_assets::RacePhase::Finished { .. }
+            )
+            && !t.globals.leave_606a8c
+        {
+            // The race goes on (AI cars, camera) until `0x417010` ends it.
+            s.phase = nfs_assets::RacePhase::Finished {
+                total_time_secs: time,
+                cooldown_secs: f32::INFINITY,
+            };
+            if let Some(player) = s.participants.iter_mut().find(|q| q.is_player) {
+                player.total_time_secs = Some(time);
+            }
+        }
+        if t.globals.leave_606a8c && !matches!(s.phase, nfs_assets::RacePhase::Results) {
+            s.phase = nfs_assets::RacePhase::Results;
+        }
+    }
+
     /// Pauses or resumes the race: while paused no scheduler step runs (the original gates
     /// `Sched_Step` on `DAT_00606a90`, `re/pause.md` section 3). The session phase follows.
     pub fn set_paused(&mut self, paused: bool) {
@@ -3580,6 +3621,8 @@ impl Renderer {
             }
         }
 
+        self.sync_session_from_race();
+
         // Progress tracking along course
         if let (Some(course), Some(tracker), Some(session)) = (
             &self.track_course,
@@ -3610,7 +3653,8 @@ impl Renderer {
                 self.is_wrong_way = d < 0.0 && !finished;
             }
 
-            if let Some(true) = lap_res {
+            // With the original model the laps and the finish come from `race::finish`.
+            if lap_res == Some(true) && self.race_table.is_none() {
                 session.on_player_lap_completed();
             }
 
@@ -4411,6 +4455,91 @@ impl Renderer {
         true
     }
 
+    /// Debug (headless checks of the finish): put the original player car `nodes_before`
+    /// nodes before the finish trigger's node, facing the race direction, at `speed` m/s.
+    pub fn debug_place_before_finish(&mut self, nodes_before: i32, speed: f32) -> bool {
+        let Some(track) = self.original_ai_track.as_ref() else {
+            return false;
+        };
+        let Some(finish) = self.finish_trigger else {
+            return false;
+        };
+        let (reverse, from) = (track.reverse, self.original_vehicle.as_ref().map_or(0, |v| v.locator.track.node_00 as i32));
+        let goal = track.nodes.locate(finish, from);
+        let dir = if reverse { 1 } else { -1 };
+        let node = track.nodes.step(goal, dir * nodes_before, -1);
+        self.debug_place_on_node(node, speed)
+    }
+
+    pub fn debug_lap_nodes(&self) -> i32 {
+        self.original_ai_track.as_ref().map_or(0, |t| t.nodes.lap_nodes_04)
+    }
+
+    /// Debug: put the original player car on graph node `node` (0 .. nodes per lap), facing the
+    /// race direction, at `speed` m/s. Circuits: hop in steps under 0.4 lap, running between hops,
+    /// as a teleport across more reads as driving backwards to the lap counter.
+    pub fn debug_place_on_node(&mut self, node: i32, speed: f32) -> bool {
+        use nfs_assets::physics::original_vehicle::RoadGround;
+        use nfs_assets::physics::original_vehicle::locate::place_on_node;
+        if !self.original_active() {
+            return false;
+        }
+        let (Some(track), Some(surface)) = (
+            self.original_ai_track.as_ref(),
+            self.road_surface.as_ref(),
+        ) else {
+            return false;
+        };
+        let Some(support) = surface.original_arena() else {
+            return false;
+        };
+        let Some(v) = self.original_vehicle.as_mut() else {
+            return false;
+        };
+        let nodes = &track.nodes;
+        let racers = vec![v.car.position_330];
+        place_on_node(&mut v.car, &mut v.locator, nodes, Some(support), node, track.reverse, &racers);
+        let (pos, axes) = (v.car.position_330, v.car.axes_364);
+        let vel = axes[2].map(|f| f * speed);
+        let mut owners = v.owners.clone();
+        v.set_pose(pos, axes, vel, [0.0; 3], &mut RoadGround { surface, owners: &mut owners });
+        v.owners = owners;
+        self.body_support_owner = Default::default();
+        self.drawn_states = None;
+        self.sync_sim_from_original(false);
+        true
+    }
+
+    /// The race results of the original bookkeeping as JSON (`null` without it): per car in
+    /// grid order (0 = player) the state `+0xb50`, place (`+0xcd4` after the race end,
+    /// else the live place `+0xb48`), race time `+0xb24` and best lap in 1/64 s steps, laps.
+    pub fn race_results_json(&self) -> String {
+        let Some(t) = &self.race_table else {
+            return "null".into();
+        };
+        let cars: Vec<String> = t
+            .cars
+            .iter()
+            .map(|c| {
+                let place = if t.globals.leave_606a8c { c.place_cd4 } else { c.place_b48 };
+                format!(
+                    r#"{{"index":{},"state":{},"place":{},"time":{},"best":{},"laps":{},"finishStep":{},"progress":{},"finishAt":{},"node":{}}}"#,
+                    c.index_520, c.state_b50, place, c.time_b24,
+                    if t.globals.leave_606a8c { c.best_cfc } else { 0 }, c.laps_b20, c.step_b14,
+                    c.progress_af8, c.finish_b04, c.node_08
+                )
+            })
+            .collect();
+        format!(
+            r#"{{"ended":{},"laps":{},"linear":{},"step":{},"cars":[{}]}}"#,
+            t.globals.leave_606a8c,
+            t.globals.laps_6573f0,
+            t.globals.linear_657494,
+            t.globals.step_606ac4,
+            cars.join(",")
+        )
+    }
+
     fn reset_car_to_track(&mut self, course: &nfs_assets::TrackCourse) -> bool {
         use nfs_assets::race::reset::{reset_node, reset_pose};
         if self.reset_original_on_nodes() {
@@ -4509,6 +4638,14 @@ impl Renderer {
     }
 
     pub fn get_player_position(&self) -> usize {
+        // The original place: `+0xcd4` after the race end, else `+0xb48` (`0x415fc0`).
+        if let Some(t) = &self.race_table {
+            let c = &t.cars[0];
+            let place = if t.globals.leave_606a8c { c.place_cd4 } else { c.place_b48 };
+            if place > 0 {
+                return place as usize;
+            }
+        }
         self.race_session
             .as_ref()
             .map(|s| s.player_position())
@@ -5626,6 +5763,7 @@ impl Renderer {
         let body = self.original_body_points();
         if let Some(v) = &mut self.original_vehicle {
             v.set_body_points(&body);
+            v.car.flags_52c |= 4;
         }
         self.sync_original_from_sim(false);
     }
@@ -5799,6 +5937,9 @@ impl Renderer {
         self.drawn_states = None;
         if let Some(v) = &mut self.original_vehicle {
             v.restart();
+            // The human car: `0x40f160` sets `+0x52c` bits 0 and 2 (with 0x100) for res+8
+            // bit 0; bit 2 enables the finish cut of `Car_ApplyControls` 0x49dd20.
+            v.car.flags_52c |= 4;
             self.sync_original_from_sim(false);
         }
         self.rebuild_original_ai();
@@ -5889,8 +6030,23 @@ impl Renderer {
             world: Option<&'a mut nfs_assets::physics::original_track_pass::TrackObjectWorld>,
             smack: &'a mut nfs_assets::physics::original_smackable::SmackWorld,
             events: &'a mut Vec<nfs_assets::physics::original_track_pass::SmashEvent>,
+            /// The race bookkeeping (`race::finish`), the player alone.
+            race: Option<&'a mut nfs_assets::race::finish::RaceTable>,
         }
         impl StepQueue for Queue<'_> {
+            fn progress(&mut self, car: &mut OriginalCar) {
+                if let (Some(t), Some(nodes)) = (self.race.as_deref_mut(), self.nodes) {
+                    let me = (self.locator.track.node_00 as i32, car.vel_ground_d58[2]);
+                    t.even_step(car.globals.sched_step_606ac4, &[me], nodes);
+                    car.field_b50 = t.cars[0].state_b50;
+                }
+            }
+            fn odd_tail(&mut self, car: &mut OriginalCar) {
+                if let Some(t) = self.race.as_deref_mut() {
+                    // Speech queue taken as idle (approximation A290).
+                    t.odd_step(car.globals.sched_step_606ac4, true);
+                }
+            }
             fn track_locate(&mut self, car: &mut OriginalCar) {
                 if let Some(nodes) = self.nodes {
                     let me = car.position_330;
@@ -5990,6 +6146,7 @@ impl Renderer {
                 .filter(|_| cfg!(feature = "experimental-original-port")),
             smack: &mut self.smack_world,
             events: &mut self.smash_events,
+            race: self.race_table.as_mut(),
         };
         // Starts the camera (end of the race intro) on the first call; no steps.
         queue.camera.advance(
