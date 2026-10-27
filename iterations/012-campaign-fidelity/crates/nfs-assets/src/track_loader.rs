@@ -1087,6 +1087,29 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         let text = String::from_utf8_lossy(bytes);
         scene.start_trigger = start::start_trigger(&text);
         scene.finish_trigger = start::finish_trigger(&text);
+        // The finish line: the start scene's GEOM elements place the track's `FNSH`
+        // library article (animdefs `collideType=0`) at the finish trigger; the scenario
+        // reader 0x46c220 places them like the mission scenes' objects.
+        if let Ok(scn) = parse_scn(&text) {
+            let mut placed = 0;
+            for ge in &scn.geom_elements {
+                if let Some(idx) = scene.prop_articles.iter().position(|pa| pa.fourcc == ge.fourcc) {
+                    scene.prop_instances.push(PropInstance {
+                        article_index: idx,
+                        triggerable: false,
+                        position: to_scene_coordinates(ge.position),
+                        rotation: ge.rotation.map(|row| {
+                            row.map(|v| v * ge.uniform_scale_percent.map_or(1.0, |p| p as f32 * 0.01))
+                        }),
+                    });
+                    placed += 1;
+                }
+            }
+            scene.diagnostics.push(format!(
+                "Start scene {start_key}: {placed} of {} GEOM elements placed (finish line)",
+                scn.geom_elements.len()
+            ));
+        }
         // A point-to-point race runs from the start line to the finish line along the road:
         // the course follows the node graph between the two triggers (the `.lsp` order is
         // the file order of the sections, not the road, and runs on past the finish).
@@ -1424,6 +1447,46 @@ mod tests {
         assert_eq!(uv_animate_speed(&mt_record(&[(4, vec![2, 10, 0, 0, 0])])), None);
         assert_eq!(uv_animate_speed(&mt_record(&[(1, vec![0xffff_ffff])])), None);
         assert_eq!(uv_animate_speed(&[0; 16]), None);
+    }
+
+    #[test]
+    fn local_finish_line_objects_at_the_finish_trigger_of_every_open_track() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let Ok(anim) = std::fs::read(root.join("animdefs.txt")) else {
+            eprintln!("SKIPPED local_finish_line_objects_at_the_finish_trigger_of_every_open_track");
+            return;
+        };
+        let fnsh = u32::from_le_bytes(*b"FNSH");
+        for track in [
+            "alps", "autobahn", "canyon", "castle", "coastal", "farmland", "foothills", "forest",
+            "industrial",
+        ] {
+            for (reverse, key) in [(false, "fstart"), (true, "bstart")] {
+                let mut files = AssetFiles::new();
+                files.insert("animdefs.txt".into(), anim.clone());
+                for ext in ["crp", "fsh"] {
+                    let name = format!("{track}.{ext}");
+                    let Ok(b) = std::fs::read(root.join(&name)) else { return };
+                    files.insert(name, b);
+                }
+                let name = format!("{track}_{key}.scn");
+                let Ok(b) = std::fs::read(root.join(&name)) else { return };
+                files.insert(name, b);
+                let scene = load_direction(&files, track, reverse).unwrap();
+                let finish = to_scene_coordinates(scene.finish_trigger.expect("finish trigger"));
+                let lines: Vec<_> = scene
+                    .prop_instances
+                    .iter()
+                    .filter(|p| scene.prop_articles[p.article_index].fourcc == fnsh)
+                    .collect();
+                assert!(lines.len() >= 2, "{track} {key}: {} FNSH, {:?}", lines.len(), scene.diagnostics);
+                for p in lines {
+                    let d = (0..3).map(|k| (p.position[k] - finish[k]).powi(2)).sum::<f32>().sqrt();
+                    assert!(d < 25.0, "{track} {key}: FNSH {d} m from the finish trigger");
+                }
+            }
+        }
     }
 
     #[test]
