@@ -9,7 +9,7 @@ import {
   anchorBox, parseHudFiles, selectConfig, carGauges, speedoUnits, tachUnits, needleAngle,
   needleQuad, dialCentre, SLOT, formatTicks, gearText, accentColor, mapZoom, markerScale,
   parseCourseMap, mapTransform, damageColor, DAMAGE_UNDAMAGED, DAMAGE_RAMP, damageLevel, damageDraws,
-  mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints,
+  mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints, hudElementsVisible,
 } from "./race-hud-core.js";
 
 const gameDir = process.env.NFS5_GAME_DIR
@@ -141,6 +141,12 @@ test("damage silhouette: mirrored lower half and zone mapping (VA 0x4229d0, 0x42
   // Lower half: the mirrored outline and parts reach below the axis y = 27.
   assert.ok(draws.filter(d => d.flip).every(d => d.y + (d.h ?? 27) > 27));
   assert.ok(Math.max(...draws.map(d => d.y + (d.h ?? 27))) >= 50);
+});
+
+test("HUD elements hidden during the start (g_SchedStep <= 0x1c0, VA 0x425a29)", () => {
+  assert.equal(hudElementsVisible(1), false);
+  assert.equal(hudElementsVisible(2), true);
+  assert.equal(hudElementsVisible(0), true);
 });
 
 test("countdown H321Go: stages, sweep tick and window (VA 0x4184f0)", () => {

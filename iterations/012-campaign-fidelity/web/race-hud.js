@@ -4,7 +4,7 @@ import {
   parseHudFiles, selectConfig, SLOT, carGauges, gaugePacks, NEEDLE_SIZES, speedoUnits, tachUnits,
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
   BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour,
-  parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP,
+  parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP, hudElementsVisible,
 } from "./race-hud-core.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
 import { drawText, textWidth } from "./frontend.js";
@@ -135,6 +135,7 @@ export class RaceHud {
     const box = cfg.translucency !== 0;
     const st = { accent, grey, listGrey, padX, padY, box, tel, viewer, lights, phase };
 
+    if (!hudElementsVisible(phase)) { this.countdown(viewer, phase, W, H); return; }
     const rows = this.getStandings(viewer);
     const listBox = { x: S[4].x, y: S[4].y, w: S[4].w, h: (rows.length + 1) * S[4].h + 2 * padY };
     if (box) {

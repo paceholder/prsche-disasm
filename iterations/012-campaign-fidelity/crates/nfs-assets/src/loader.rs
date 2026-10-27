@@ -403,10 +403,39 @@ fn with_driver(style: &StyleSelection, driver: u32) -> StyleSelection {
     out
 }
 
+/// Which parts [`car_parts`] builds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PartView {
+    /// BumperCam2 in-car passes: parts with `Base+0x44` byte 0xd set.
+    InCar,
+    /// Exterior driver pass of `R3DObject_DrawPasses` 0x444e00: mask 0x80 parts drawn without
+    /// the in-car flag, i.e. byte 0xe clear (`R3DCarLOD_DrawParts` 0x43c830), at LOD
+    /// `[0x5cdb28 + 4·lod]` = {0, 0, 0, 1} for car LOD 0..3: level 1 near the camera.
+    ExteriorDriver,
+}
+
 fn in_car_parts(
     crp: &nfs_formats::Crp,
     style: &StyleSelection,
     matmap: &BTreeMap<u16, usize>,
+) -> Result<Vec<InCarPart>, String> {
+    car_parts(crp, style, matmap, PartView::InCar)
+}
+
+/// The driver seen from outside (body, legs, arms; the hands are in-car only).
+fn exterior_driver_parts(
+    crp: &nfs_formats::Crp,
+    style: &StyleSelection,
+    matmap: &BTreeMap<u16, usize>,
+) -> Result<Vec<InCarPart>, String> {
+    car_parts(crp, style, matmap, PartView::ExteriorDriver)
+}
+
+fn car_parts(
+    crp: &nfs_formats::Crp,
+    style: &StyleSelection,
+    matmap: &BTreeMap<u16, usize>,
+    view: PartView,
 ) -> Result<Vec<InCarPart>, String> {
     let style = &with_driver(style, DRIVER_INDEX);
     let mut parts = Vec::new();
@@ -424,7 +453,11 @@ fn in_car_parts(
                 .get(&u32::from(info[0]))
                 .copied()
                 .unwrap_or(0);
-        if !selected || info[0xd] == 0 {
+        let shown = match view {
+            PartView::InCar => info[0xd] != 0,
+            PartView::ExteriorDriver => info[0xe] == 0,
+        };
+        if !selected || !shown {
             continue;
         }
         let level_count = (u32le(&base.data, 12)? as usize).min(15);
@@ -436,6 +469,9 @@ fn in_car_parts(
             .map(text)
             .unwrap_or_else(|| format!("article{ai}"));
         for pass in InCarPass::ALL {
+            if view == PartView::ExteriorDriver && pass != InCarPass::Driver {
+                continue;
+            }
             if info[10] & pass.mask() == 0 {
                 continue;
             }
@@ -775,6 +811,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         car_wheels: Vec::new(),
         car_glares: car_glares(&crp, &style, scene_lod)?,
         car_in_car: Vec::new(),
+        car_driver_exterior: Vec::new(),
         car_anim_parts: Vec::new(),
         car_roof_up: Vec::new(),
         car_roof_down: Vec::new(),
@@ -822,6 +859,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         course: None,
         ai_track: None,
         start_trigger: None,
+        intro_cameras: Vec::new(),
     };
     let mut skipped = Vec::new();
     let mut selected = Vec::new();
@@ -967,6 +1005,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         });
     }
     scene.car_in_car = in_car_parts(&crp, &style, &matmap)?;
+    scene.car_driver_exterior = exterior_driver_parts(&crp, &style, &matmap)?;
     for (ai, a) in crp.articles.iter().enumerate() {
         let article_name = a
             .find("Name", 0)
@@ -2004,6 +2043,15 @@ mod tests {
             assert!(find(hidden).is_none(), "{hidden}");
         }
         assert!(find("Body").is_some() && find("SideMirrorLeft").is_some());
+        // Exterior driver pass (0x444e00, mask 0x80 without the in-car flag): body, arms and
+        // legs of driver 0, no hands.
+        let ext: Vec<&str> = scene.car_driver_exterior.iter().map(|p| p.name.as_str()).collect();
+        eprintln!("exterior driver: {ext:?}");
+        for shown in ["DriverBody2", "LeftArm2", "RightArm2"] {
+            assert!(ext.contains(&shown), "{shown} in {ext:?}");
+        }
+        assert!(ext.iter().all(|n| !n.contains("Hand")), "{ext:?}");
+        assert!(scene.car_driver_exterior.iter().all(|p| p.pass == InCarPass::Driver));
     }
 
     #[test]

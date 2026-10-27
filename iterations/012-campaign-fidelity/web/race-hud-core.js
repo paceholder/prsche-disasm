@@ -365,6 +365,13 @@ export const COUNTDOWN_ART = [
   { solid: ["321go2", 0], outline: ["321go2", 1] }, // 1sol, 1ol
 ];
 
+// The HUD elements (dials, gear, time, list, damage, map) are drawn only once the scheduler step
+// is past the start, `g_SchedStep > 0x1c0` [VA 0x425a29, 0x425bab]: nothing during the race intro
+// and the countdown; H321Go is drawn on its own window. Phase 1 = the 7 s start (countdown).
+export function hudElementsVisible(phase) {
+  return phase !== 1;
+}
+
 // Stage (0..2), sweep tick k (0..15, 1/15 s) and the step within the second for scheduler step
 // `step`; null outside the countdown (0x4184f0).
 export function countdownState(step) {

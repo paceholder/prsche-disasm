@@ -609,6 +609,25 @@ impl BrowserViewer {
             .unwrap_or_default()
     }
 
+    /// Debug: armed race-intro animation, index, steps played.
+    pub fn get_intro_camera(&self) -> String {
+        self.renderer
+            .as_ref()
+            .map(|r| r.intro_camera_info())
+            .unwrap_or_default()
+    }
+
+    /// Target and up of the drive camera (scene axes), for view checks (race intro).
+    pub fn get_camera_target_up(&self) -> Vec<f32> {
+        self.renderer
+            .as_ref()
+            .map(|r| {
+                let c = &r.camera;
+                [c.drive_target.to_array(), c.drive_up.to_array()].concat()
+            })
+            .unwrap_or_default()
+    }
+
     /// Eye of the drawn camera (scene axes), for smoothness checks.
     pub fn get_camera_eye(&self) -> Vec<f32> {
         self.renderer

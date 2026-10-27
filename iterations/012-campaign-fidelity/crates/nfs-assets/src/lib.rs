@@ -316,6 +316,9 @@ pub struct Scene {
     pub car_glares: Vec<CarGlare>,
     /// Parts of the in-car view (BumperCam2) of a car scene; empty for tracks.
     pub car_in_car: Vec<InCarPart>,
+    /// The driver drawn with the exterior car (`R3DObject_DrawPasses` 0x444e00, mask 0x80
+    /// without the in-car flag): body, legs and arms at level 1; pass `Driver`.
+    pub car_driver_exterior: Vec<InCarPart>,
     /// Hood, trunk lid and cabrio top of a car scene (front-end clicks).
     pub car_anim_parts: Vec<CarAnimPart>,
     /// Cabrio top at rest, closed: indices of the `CabrioUp*` meshes (geometry 41, odd types) in
@@ -390,6 +393,9 @@ pub struct Scene {
     /// Start line of the race direction: the type-2 trigger of `<track>_FStart.scn` /
     /// `_BStart.scn` (`race::original_ai::start`), original coordinates.
     pub start_trigger: Option<[f32; 3]>,
+    /// Race-intro camera animations: the `CmAn` entries of the track CRP in table order
+    /// (`CamAnimList_LoadTrack 0x471850`, `camera::anim`).
+    pub intro_cameras: Vec<camera::anim::CameraAnimation>,
 }
 
 impl Default for Scene {
@@ -402,6 +408,7 @@ impl Default for Scene {
             car_wheels: Vec::new(),
             car_glares: Vec::new(),
             car_in_car: Vec::new(),
+            car_driver_exterior: Vec::new(),
             car_anim_parts: Vec::new(),
             car_roof_up: Vec::new(),
             car_roof_down: Vec::new(),
@@ -436,6 +443,7 @@ impl Default for Scene {
             course: None,
             ai_track: None,
             start_trigger: None,
+            intro_cameras: Vec::new(),
         }
     }
 }

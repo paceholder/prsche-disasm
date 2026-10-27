@@ -159,6 +159,25 @@ class EngineVoices {
     this.active = false;
     this.bus = null;
     this.busCtx = null;
+    this.startLog = []; // debug: the last voice starts {slot, looped, volume, t}
+    this.trace = []; // debug: commands of the first 8 s after activation [t ms, kind, voice, slot, volume]
+    this.levels = []; // debug: output RMS (dBFS) every 100 ms for the first 8 s
+    this.activatedAt = 0;
+    this.analyser = null;
+    this.lastLevel = 0;
+  }
+
+  // Debug readout (`__nfs.state().audio.engine`): loaded bank, active, live voices, last starts.
+  readout() {
+    return {
+      loaded: this.loaded,
+      bank: this.files?.bank ?? null,
+      active: this.active,
+      voices: this.voices.size,
+      starts: this.startLog.slice(-8),
+      trace: this.trace,
+      levels: this.levels,
+    };
   }
 
   free() {
@@ -224,6 +243,10 @@ class EngineVoices {
     this.deactivate();
     this.audio.set_running(false);
     this.active = true;
+    this.activatedAt = performance.now();
+    this.trace = [];
+    this.levels = [];
+    this.lastLevel = 0;
   }
 
   deactivate() {
@@ -244,6 +267,20 @@ class EngineVoices {
       if (!this.active) this.activate();
       if (ctx.state === "suspended") ctx.resume().catch(() => {});
       const out = this.audio.update(dt, rpm, redline, throttle, view, gear);
+      const since = performance.now() - this.activatedAt;
+      if (since < 8000) {
+        for (let i = 0; i + ENGINE_CMD_STRIDE <= out.length; i += ENGINE_CMD_STRIDE) {
+          if (out[i] !== 3 && out[i] !== 2) this.trace.push([Math.round(since), out[i], out[i + 1], out[i + 2], out[i + 3]]);
+        }
+        if (this.analyser && since - this.lastLevel >= 100) {
+          this.lastLevel = since;
+          const buf = new Float32Array(this.analyser.fftSize);
+          this.analyser.getFloatTimeDomainData(buf);
+          let sum = 0;
+          for (const x of buf) sum += x * x;
+          this.levels.push([Math.round(since), Math.round(10 * Math.log10(sum / buf.length + 1e-12)) ]);
+        }
+      }
       for (let i = 0; i + ENGINE_CMD_STRIDE <= out.length; i += ENGINE_CMD_STRIDE) {
         this.execute(ctx, out[i], out[i + 1], out[i + 2], out[i + 3], out[i + 4], out[i + 5], out[i + 6]);
       }
@@ -267,7 +304,12 @@ class EngineVoices {
           this.bus = ctx.createGain();
           this.bus.connect(ctx.destination);
           this.busCtx = ctx;
+          this.analyser = ctx.createAnalyser();
+          this.analyser.fftSize = 2048;
+          this.bus.connect(this.analyser);
         }
+        this.startLog.push({ slot, looped: Boolean(looped), volume, t: Math.round(performance.now()) });
+        if (this.startLog.length > 32) this.startLog.shift();
         const src = ctx.createBufferSource();
         src.buffer = buffer;
         if (looped) {
@@ -3667,6 +3709,8 @@ window.__nfs = {
   get viewer() { return viewer; },
   get hud() { return raceHud; },
   get frontEnd() { return frontEnd; },
+  // Front-end button actions as the layout buttons send them (e.g. "PLAYGAME" = RACE).
+  frontEndAction(name) { return frontEndAction(name); },
   state() {
     if (!viewer) return { ready: false, error: debugError };
     const pose = viewer.get_car_pose?.() ?? [];
@@ -3678,6 +3722,7 @@ window.__nfs = {
       rpm: viewer.get_car_rpm(),
       gear: viewer.get_car_gear(),
       camera: viewer.get_camera_name(),
+      intro: viewer.get_intro_camera?.() ?? null,
       model: viewer.is_original_vehicle?.() ? "original" : "prototype",
       phase: viewer.get_race_phase(),
       position: viewer.get_player_position(),
@@ -3693,6 +3738,7 @@ window.__nfs = {
         } : null,
         speech: gameAudio.speechReady,
         tyres: tyreSound.readout(),
+        engine: engineSound.readout(),
         context: soundManager.ctx?.state ?? "none",
         log: gameAudio.log.slice(-40),
       },
@@ -3781,7 +3827,7 @@ function updateDebugPanel() {
   const original = Boolean(viewer.is_original_vehicle?.());
   const items = [
     `L lights ${onOff(lightsOn)}`,
-    `C ${viewer.get_camera_name?.() ?? "-"}`,
+    `C ${viewer.get_camera_name?.() ?? "-"}${viewer.get_camera_name?.() === "AnimCam" ? ` (${viewer.get_intro_camera?.() ?? "-"})` : ""}`,
     `V free cam ${onOff(viewer.is_free_camera?.())}`,
     `Shift+V side ${side === 0 ? "off" : `${side > 0 ? "R" : "L"} ${Math.abs(Math.round(side))}\u00b0`}`,
     `B boxes ${onOff(viewer.is_collision_boxes?.())}`,

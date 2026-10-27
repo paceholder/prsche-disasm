@@ -479,6 +479,20 @@ const BOX_OVERLAY_MAX_CARS: usize = 16;
 /// Start camera: index 2 of the original cycle list = TailCam0. The original starts in
 /// `list[cycle index]` after the intro; the index the front end passes is not read (A12).
 const START_CYCLE_INDEX: i16 = 2;
+/// `[0x62893c]`: index of the last race-intro animation, static for the program's life.
+static INTRO_CAMERA_INDEX: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+/// `CamAnimList_NewPlayer 0x471a50(0)`: advances the program-wide index (it outlives the
+/// renderer, which the page rebuilds on every track load) and returns the animation to play.
+fn advance_intro_index(counter: &std::sync::atomic::AtomicU32, count: usize) -> Option<usize> {
+    use std::sync::atomic::Ordering;
+    if count == 0 {
+        return None;
+    }
+    let index = nfs_assets::camera::anim::next_index(counter.load(Ordering::Relaxed), count);
+    counter.store(index as u32, Ordering::Relaxed);
+    Some(index)
+}
+
 /// Camera half extents of a car without a CRP collision box.
 const FALLBACK_HALF_EXTENTS: [f32; 3] = [0.9, 0.65, 2.1];
 const BOX_OVERLAY_MAX_VERTICES: usize = BOX_OVERLAY_MAX_CARS * 12 * 2;
@@ -620,6 +634,8 @@ struct CarRenderState {
     body_bounds: Option<[Vec3; 2]>,
     /// In-car parts drawn instead of the car in BumperCam2 (`docs/re/cockpit.md`).
     in_car: Vec<crate::in_car::InCarPartRender>,
+    /// The driver of the exterior pass (mask 0x80 without the in-car flag, 0x444e00).
+    driver: Vec<crate::in_car::InCarPartRender>,
 }
 
 #[derive(Clone)]
@@ -774,6 +790,8 @@ pub struct Renderer {
     pub race_options: RaceOptions,
     /// Start line trigger of the loaded race direction (`Scene::start_trigger`).
     start_trigger: Option<[f32; 3]>,
+    /// The track's race-intro camera animations (`Scene::intro_cameras`).
+    intro_cameras: Vec<std::sync::Arc<nfs_assets::camera::anim::CameraAnimation>>,
     /// LINEAR_TRACK `[0x657494]` from the track record (`None`: from the course).
     linear_track: Option<bool>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
@@ -1720,6 +1738,7 @@ impl Renderer {
                 wheels: Vec::new(),
                 body_bounds: None,
                 in_car: Vec::new(),
+                driver: Vec::new(),
                 anim_parts: Vec::new(),
                 roof_up: Vec::new(),
                 roof_down: Vec::new(),
@@ -1901,6 +1920,12 @@ impl Renderer {
             ai_speed_limit: None,
             race_options: RaceOptions::default(),
             start_trigger: scene.start_trigger,
+            intro_cameras: scene
+                .intro_cameras
+                .iter()
+                .cloned()
+                .map(std::sync::Arc::new)
+                .collect(),
             linear_track: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
@@ -2177,6 +2202,37 @@ impl Renderer {
                     &indices,
                 );
             }
+        }
+    }
+
+    /// Exterior pass of the driver (`R3DObject_DrawPasses` 0x444e00: mask 0x80 first, then the
+    /// body): body, legs and arms at their animation frames, drawn before the body so the
+    /// windows blend over it. `channels` = `None` for cars without cockpit inputs (AI).
+    fn draw_exterior_driver(
+        &self,
+        target: &wgpu::TextureView,
+        car_render: &CarRenderState,
+        body: Mat4,
+        channels: Option<&nfs_assets::cockpit::CockpitChannels>,
+    ) {
+        // The frame buffers are shared by every car drawing this model: only the player's
+        // channels are uploaded; AI cars reuse them (approximation A285).
+        let rest = nfs_assets::cockpit::CockpitChannels::default();
+        let player = channels.is_some();
+        let channels = channels.unwrap_or(&rest);
+        for part in &car_render.driver {
+            if player {
+                part.update_frames(&self.queue, channels);
+            }
+            let indices: Vec<usize> = (0..part.meshes.len()).collect();
+            self.draw_gpu_meshes(
+                target,
+                "driver",
+                &part.meshes,
+                &car_render.materials,
+                body * part.matrix(channels),
+                &indices,
+            );
         }
     }
 
@@ -2611,6 +2667,11 @@ impl Renderer {
             {
                 let (center, _) = self.collision_box_or_fallback();
                 let body_matrix = self.drawn_body_matrix(&v.car) * Mat4::from_translation(-center);
+                let channels = nfs_assets::cockpit::cockpit_channels(
+                    &self.cockpit_inputs(),
+                    &self.cockpit_gauges,
+                );
+                self.draw_exterior_driver(target, car_render, body_matrix, Some(&channels));
                 self.draw_car_meshes(
                     target,
                     "original car chassis",
@@ -2631,6 +2692,11 @@ impl Renderer {
             } else if let (Some(sim), true) = (&self.sim_car, self.sim_mode) {
                 let body_matrix = sim.body.transform_matrix()
                     * Mat4::from_translation(car_chassis_adapter_body(sim, car_render));
+                let channels = nfs_assets::cockpit::cockpit_channels(
+                    &self.cockpit_inputs(),
+                    &self.cockpit_gauges,
+                );
+                self.draw_exterior_driver(target, car_render, body_matrix, Some(&channels));
                 self.draw_car_meshes(
                     target,
                     "sim car chassis",
@@ -2676,6 +2742,7 @@ impl Renderer {
                 // surface, not the original vehicle model.
                 let model_matrix = Mat4::from_translation(Vec3::from(ai.position))
                     * Mat4::from_mat3(ai.body_rotation());
+                self.draw_exterior_driver(target, car_render, model_matrix, None);
                 self.draw_car_meshes(
                     target,
                     "ai car",
@@ -3863,6 +3930,7 @@ impl Renderer {
 
     pub fn reset_car(&mut self) {
         self.player_camera.restart();
+        self.choose_intro_camera();
         self.proto_view = None;
         self.body_support_owner = Default::default();
         self.collision_clock = Default::default();
@@ -4386,6 +4454,37 @@ impl Renderer {
                 let initial_yaw = if let Some(c) = &self.car { c.yaw } else { 0.0 };
                 detector.reset(initial_yaw);
             }
+        }
+    }
+
+    /// Race intro (`Camera_RaceInit 0x4640b0` starts in AnimCam): the next of the track's
+    /// `CmAn` animations (`CamAnimList_NewPlayer 0x471a50`: `(index + 1) % count`, the index
+    /// is static across races). Only for races with a start countdown; free driving and
+    /// factory missions start in the cycle camera (approximation A284).
+    fn choose_intro_camera(&mut self) {
+        let racing = self.race_session.is_some() && !self.is_mission_mode;
+        let anim = if racing {
+            advance_intro_index(&INTRO_CAMERA_INDEX, self.intro_cameras.len())
+                .map(|index| self.intro_cameras[index].clone())
+        } else {
+            None
+        };
+        self.player_camera.set_intro(anim);
+    }
+
+    /// Debug: the armed intro animation, its list index and the steps played
+    /// ("camera04 #1/5 12"), or "-" without one.
+    pub fn intro_camera_info(&self) -> String {
+        use std::sync::atomic::Ordering;
+        match self.player_camera.intro() {
+            Some(anim) => format!(
+                "{} #{}/{} {}",
+                anim.name,
+                INTRO_CAMERA_INDEX.load(Ordering::Relaxed),
+                self.intro_cameras.len(),
+                self.player_camera.intro_steps()
+            ),
+            None => format!("- (0/{})", self.intro_cameras.len()),
         }
     }
 
@@ -6242,10 +6341,12 @@ impl Renderer {
             .filter(|i| !hidden.contains(i))
             .collect();
         // Race meshes map raw CRP (x, y, z) to body (-x, y, z), see CAR_SCALE above.
+        let intro = self.player_camera.intro_handle();
         self.player_camera = nfs_assets::camera::PlayerCamera::new(
             scene.car_driver_camera.unwrap_or_default(),
             self.player_camera.cycle_index,
         );
+        self.player_camera.set_intro(intro);
         self.car_body_points = scene
             .car_body_points
             .iter()
@@ -6276,6 +6377,7 @@ impl Renderer {
                 && (body_max - body_min).min_element() > 0.0)
                 .then_some([body_min, body_max]),
             in_car: crate::in_car::build(&self.device, &scene.car_in_car),
+            driver: crate::in_car::build(&self.device, &scene.car_driver_exterior),
             anim_parts,
             roof_up,
             roof_down,
@@ -7273,6 +7375,17 @@ fn original_start_countdown(session: &mut nfs_assets::RaceSession) {
 #[cfg(test)]
 mod sim_loading_tests {
     use super::*;
+
+    #[test]
+    fn intro_index_cycles_across_starts_and_tracks() {
+        // Same counter for every renderer: program start picks 1, then 2, 3, 4, 0, 1 ...
+        let counter = std::sync::atomic::AtomicU32::new(0);
+        let picks: Vec<_> = (0..6).map(|_| advance_intro_index(&counter, 5).unwrap()).collect();
+        assert_eq!(picks, [1, 2, 3, 4, 0, 1]);
+        // A track without CmAn entries arms no intro and keeps the index.
+        assert_eq!(advance_intro_index(&counter, 0), None);
+        assert_eq!(advance_intro_index(&counter, 5), Some(2));
+    }
 
     fn put_f32(data: &mut [u8], offset: usize, value: f32) {
         data[offset..offset + 4].copy_from_slice(&value.to_le_bytes());

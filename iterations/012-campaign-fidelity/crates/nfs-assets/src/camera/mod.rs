@@ -1,6 +1,7 @@
 //! Original NFS5 player camera without a renderer.
 //!
 //! Research notes: `docs/re/camera.md` in the research workspace.
+pub mod anim;
 pub mod original;
 pub mod player;
 

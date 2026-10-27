@@ -237,6 +237,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         car_wheels: Vec::new(),
         car_glares: Vec::new(),
         car_in_car: Vec::new(),
+        car_driver_exterior: Vec::new(),
         car_anim_parts: Vec::new(),
         car_roof_up: Vec::new(),
         car_roof_down: Vec::new(),
@@ -277,6 +278,12 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         course: None,
         ai_track: None,
         start_trigger: None,
+        intro_cameras: crp
+            .misc
+            .iter()
+            .filter(|e| e.tag == crate::camera::anim::CMAN_TAG)
+            .filter_map(|e| crate::camera::anim::CameraAnimation::parse(&e.data).ok())
+            .collect(),
     };
 
     let mut tex_map = BTreeMap::new();

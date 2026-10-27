@@ -2,7 +2,7 @@
 # Regenerates the game-derived test fixtures from YOUR OWN copy of the game.
 #
 # The repository contains no data taken from the original game. Tests that compare this port
-# with the original (SIM-derived car specs, AI track graphs, engine audio, cameras) replay
+# with the original (SIM-derived car specs, AI track graphs, engine audio, cameras, the race-intro camera) replay
 # recordings made by executing the original nfs5.exe in Unicorn against game files. The
 # recordings are written to the gitignored local/fixtures/ and the tests skip when they are
 # absent.
@@ -30,6 +30,7 @@ run() { echo "== $1"; "$PYTHON" "$R/$1" --game-dir "$GAME_DIR" "${@:2}"; }
 run replay-vehicle-sim.py --out "$OUT/vehicle-sim.tsv"
 for s in tyre engine controls step ground keyboard; do run "replay-vehicle-$s.py" --out-dir "$OUT"; done
 run replay-camera.py --out-dir "$OUT"
+run replay-camera-anim.py --out-dir "$OUT"
 run replay-engine-audio.py --out-dir "$OUT"
 run replay-ai-track.py --out "$OUT/ai-track-graph.tsv"
 run replay-ai-query.py --out "$OUT/ai-track-query.tsv"

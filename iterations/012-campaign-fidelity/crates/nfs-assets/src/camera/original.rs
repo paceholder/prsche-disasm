@@ -247,7 +247,7 @@ const K_02: f32 = f32::from_bits(0x3e4ccccd); // 0.2
 const TWO_PI: f64 = f64::from_bits(0x401921fb20000000);
 
 #[inline]
-fn d(x: f32) -> f64 {
+pub(crate) fn d(x: f32) -> f64 {
     x as f64
 }
 
@@ -317,7 +317,7 @@ fn unflat(v: [f64; 9]) -> Mat3 {
 }
 
 /// `0x532470(a, b, out)`: out = a * b (rows), with the original summation order.
-fn mat_mul(a: &Mat3, b: &Mat3) -> Mat3 {
+pub(crate) fn mat_mul(a: &Mat3, b: &Mat3) -> Mat3 {
     let (a, b) = (flat(a), flat(b));
     unflat([
         (b[3] * a[1] + b[6] * a[2]) + b[0] * a[0],

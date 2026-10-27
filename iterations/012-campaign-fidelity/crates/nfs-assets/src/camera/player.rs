@@ -1,10 +1,14 @@
 //! Player camera driver: the 64 Hz clock, the per-step dispatch of `Camera_UpdateAll 0x463c30`
-//! (one player; no crash camera, re-init, pause orbit or replay cameras), `Camera_Set
+//! (one player; no crash camera, re-init, pause orbit or replay cameras), the AnimCam race
+//! intro (`Camera_UpdateAnim 0x462f30`, [`super::anim`]), `Camera_Set
 //! 0x465790`, `Camera_Cycle 0x465a60` (C key) with the snap `0x4618b0`, and the per-frame view
 //! build (`Camera_BuildView 0x464f80`, view part).
 //!
 //! Notes: `docs/re/camera.md` of the research workspace.
 
+use std::sync::Arc;
+
+use super::anim::{update_anim, CameraAnimation};
 use super::original::{
     add, build_view, clamped_height, transform, update_bumper, update_bumper2, update_heli,
     update_tail, CameraGlobals, CameraParam, CameraRecord, CameraView, CameraWorld, CarView,
@@ -73,6 +77,10 @@ pub struct PlayerCamera {
     /// Seconds not yet stepped.
     clock: f64,
     started: bool,
+    /// The track's intro animation (`CamAnimList_NewPlayer 0x471a50`); `None` skips the intro.
+    intro: Option<Arc<CameraAnimation>>,
+    /// Steps since the intro player was created (`g_SchedStep - start`).
+    intro_steps: i32,
 }
 
 impl PlayerCamera {
@@ -84,6 +92,8 @@ impl PlayerCamera {
         let record = CameraRecord {
             cockpit_rot_4c: driver.rotation_deg,
             id_bc: ANIM_CAM,
+            // `Camera_RaceInit`: flags byte = split-screen bit 7 | 0x20 (no look-at).
+            flags_c0: 0x20,
             ..CameraRecord::default()
         };
         Self {
@@ -94,7 +104,34 @@ impl PlayerCamera {
             keys: LookKeys::default(),
             clock: 0.0,
             started: false,
+            intro: None,
+            intro_steps: 0,
         }
+    }
+
+    /// The race-intro animation to play from the next start (`None`: start straight in the
+    /// cycle camera, as without track data).
+    pub fn set_intro(&mut self, anim: Option<Arc<CameraAnimation>>) {
+        self.intro = anim;
+    }
+
+    pub fn intro(&self) -> Option<&CameraAnimation> {
+        self.intro.as_deref()
+    }
+
+    /// The shared intro animation (kept when the camera is rebuilt for another car).
+    pub fn intro_handle(&self) -> Option<Arc<CameraAnimation>> {
+        self.intro.clone()
+    }
+
+    /// The AnimCam intro is running (or about to start).
+    pub fn in_intro(&self) -> bool {
+        self.record.id_bc == ANIM_CAM
+    }
+
+    /// Steps the intro has played (`g_SchedStep` - start of the AnimCam player).
+    pub fn intro_steps(&self) -> i32 {
+        self.intro_steps
     }
 
     pub fn id(&self) -> i16 {
@@ -113,8 +150,31 @@ impl PlayerCamera {
     /// Restart from the race-init state (the next advance sets the camera again).
     pub fn restart(&mut self) {
         self.record.id_bc = ANIM_CAM;
+        self.record.flags_c0 = (self.record.flags_c0 & 0x80) | 0x20;
+        self.record.half_fov_58 = 37.5;
+        self.record.near_5c = 0.5;
         self.clock = 0.0;
         self.started = false;
+        self.intro_steps = 0;
+    }
+
+    /// The cycle camera the intro hands over to (`Camera_Set(player, list[0])` in 0x462f30).
+    fn end_intro(&mut self, car: &CarView, world: &mut impl CameraWorld) {
+        self.set(CYCLE_LIST[(self.cycle_index as u16 & 3) as usize], car, world);
+    }
+
+    /// `Camera_UpdateAnim 0x462f30` at `elapsed`; at the end the cycle camera is set and
+    /// updated in the same step (the extra `Camera_UpdateAll`). Returns whether it played.
+    fn anim_step(&mut self, elapsed: i32, car: &CarView, world: &mut impl CameraWorld) -> bool {
+        let playing = match &self.intro {
+            Some(anim) => update_anim(&mut self.record, car, anim, elapsed),
+            None => false,
+        };
+        if !playing {
+            self.end_intro(car, world);
+            self.step(car, world);
+        }
+        playing
     }
 
     /// Copies table flag bits 0..5 to record flag bits 1..6 (bits 0 and 7 are kept).
@@ -193,6 +253,13 @@ impl PlayerCamera {
 
     /// One 64 Hz step of `Camera_UpdateAll 0x463c30` for the player.
     pub fn step(&mut self, car: &CarView, world: &mut impl CameraWorld) {
+        if self.record.id_bc == ANIM_CAM {
+            let elapsed = self.intro_steps;
+            if self.anim_step(elapsed, car, world) {
+                self.intro_steps += 1;
+            }
+            return;
+        }
         let (rec, g, keys, params) = (&mut self.record, &self.globals, &self.keys, &self.params);
         match rec.id_bc {
             0 => update_bumper(rec, car, g, keys, params),
@@ -204,8 +271,9 @@ impl PlayerCamera {
     }
 
     /// Runs the steps due after `dt` seconds (the car state is that of the end of the frame,
-    /// after the car update, as the camera runs after the car callbacks). The first call sets
-    /// the camera of the cycle index (end of the race intro). Returns the number of steps.
+    /// after the car update, as the camera runs after the car callbacks). The first call starts
+    /// the intro animation, or without one sets the camera of the cycle index. Returns the
+    /// number of steps.
     pub fn advance(&mut self, dt: f32, car: &CarView, world: &mut impl CameraWorld) -> u32 {
         self.advance_sampled(dt, |_| *car, world, |_, _| {})
     }
@@ -222,11 +290,14 @@ impl PlayerCamera {
     ) -> u32 {
         if !self.started {
             self.started = true;
-            self.set(
-                CYCLE_LIST[(self.cycle_index as u16 & 3) as usize],
-                &car_at(1.0),
-                world,
-            );
+            self.intro_steps = 0;
+            if self.intro.is_some() && self.record.id_bc == ANIM_CAM {
+                // `Camera_RaceInit 0x4640b0` runs `Camera_UpdateAll` once: the AnimCam player
+                // is created at the current step and shows its first key.
+                self.anim_step(0, &car_at(1.0), world);
+            } else {
+                self.end_intro(&car_at(1.0), world);
+            }
         }
         let step = 1.0 / UPDATE_HZ as f64;
         let frame = (dt as f64).clamp(0.0, MAX_FRAME_S);
@@ -355,6 +426,44 @@ mod tests {
             settle(&mut cam);
         }
         assert_eq!(names, ["TailCam1", "BumperCam", "BumperCam2", "TailCam0"]);
+    }
+
+    fn intro_camera() -> PlayerCamera {
+        let anim = super::super::anim::synthetic_chunk(121);
+        let mut cam = PlayerCamera::new(DriverCamera::DEFAULT, 2);
+        cam.set_intro(Some(Arc::new(CameraAnimation::parse(&anim).unwrap())));
+        cam
+    }
+
+    #[test]
+    fn intro_plays_273_steps_then_hands_over() {
+        let c = car([0.0, 0.5, 0.0]);
+        let mut cam = intro_camera();
+        // First advance: Camera_RaceInit's direct update shows key 0, no step yet.
+        assert_eq!(cam.advance(0.001, &c, &mut FlatWorld), 0);
+        assert!(cam.in_intro());
+        let first = cam.record.eye_24;
+        assert!((first[0] - 0.0).abs() < 1e-6 && (first[2] - 3.0).abs() < 1e-5, "{first:?}");
+        // No look-at during the intro (flags 0x20), FOV 75.
+        assert_eq!(cam.record.flags_c0 & 0x08, 0);
+        // The C key is ignored during the intro.
+        cam.cycle(&c, &mut FlatWorld);
+        assert!(cam.in_intro());
+        let mut steps = 0;
+        while cam.in_intro() {
+            steps += cam.advance(1.0 / 64.0, &c, &mut FlatWorld);
+            assert!(steps <= 300);
+        }
+        // Steps 0..=272 play (elapsed 0..272), step 273 hands over to list[2] = TailCam0
+        // and updates it in the same step.
+        assert_eq!(steps, 274);
+        assert_eq!(cam.name(), "TailCam0");
+        assert_eq!(cam.record.settle_c1, SETTLE_STEPS - 1);
+        // A restart replays the intro.
+        cam.restart();
+        assert!(cam.in_intro());
+        cam.advance(0.001, &c, &mut FlatWorld);
+        assert_eq!(cam.record.eye_24, first);
     }
 
     #[test]
