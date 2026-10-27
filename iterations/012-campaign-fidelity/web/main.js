@@ -3,6 +3,7 @@ import { carClickZone, carPartMs, ZONE_CHANNEL } from "./fe-car-click.js";
 import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE } from "./pause-menu.js";
 import { HudOptions } from "./hud-options.js";
 import { parseHudFiles, selectConfig, hudPreviewDraws } from "./race-hud-core.js";
+import { RaceSummary, drawRaceSummary, summaryModel } from "./race-summary.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -2052,6 +2053,58 @@ function pauseCode(code) {
   queueFrame();
 }
 
+// After the race end (phase 5) of an original race: the race is re-run as the replay with the
+// race summary window over it (0x4b6a50, 0x426c90, HRaceSummary 0x42bcd0; docs/re/race-finish.md).
+// Space closes the window, Esc (or the replay reaching the race end again) leaves to the menu.
+const summaryCanvas = document.querySelector("#summaryCanvas");
+const raceSummary = new RaceSummary();
+let raceSummaryInfo = null; // { names, car, colours } of the race being run
+let replayRunning = false;
+
+function summaryDraw() {
+  if (!summaryCanvas) return;
+  summaryCanvas.hidden = !raceSummary.isOpen;
+  if (!raceSummary.isOpen) return;
+  const rect = canvas.getBoundingClientRect();
+  const W = Math.max(1, Math.round(rect.width));
+  const H = Math.max(1, Math.round(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+  if (summaryCanvas.width !== Math.round(W * dpr) || summaryCanvas.height !== Math.round(H * dpr)) {
+    summaryCanvas.width = Math.round(W * dpr);
+    summaryCanvas.height = Math.round(H * dpr);
+  }
+  const ctx = summaryCanvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  raceSummary.resize(W, H);
+  drawRaceSummary(ctx, raceSummary, { fe: raceHud?.fe, fonts: raceHud?.fonts ?? {}, ...(pauseText ?? {}) });
+}
+
+function startReplayWithSummary() {
+  let results = null;
+  try { results = JSON.parse(viewer?.race_results?.() ?? "null"); } catch { results = null; }
+  if (!results?.ended || !viewer.start_replay?.()) return false;
+  replayRunning = true;
+  raceSummary.open(summaryModel(results, raceSummaryInfo ?? {}, raceHud?.strings ?? {}));
+  ensureRaceHud().then(() => import("./frontend.js")).then(fe => {
+    pauseText = { drawText: fe.drawText, textWidth: fe.textWidth };
+    if (raceSummary.isOpen) raceSummary.model = summaryModel(results, raceSummaryInfo ?? {}, raceHud?.strings ?? {});
+    summaryDraw();
+  }).catch(() => {});
+  summaryDraw();
+  queueFrame();
+  return true;
+}
+
+function leaveReplay() {
+  viewer?.stop_replay?.();
+  replayRunning = false;
+  raceSummary.close();
+  summaryDraw();
+  activeCareerEvent = null;
+  setMenuVisible(true);
+  queueFrame();
+}
+
 if (pauseCanvas) {
   const local = e => { const r = pauseCanvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   pauseCanvas.addEventListener("pointermove", e => { pauseMenu.pointerMove(...local(e)); pauseDraw(); });
@@ -2723,6 +2776,20 @@ async function setRaceOptions({ difficulty, mirror, opponents, car = null, colou
   const own = colour === null ? null : playerPaint(car, colour);
   const paints = opponentPaints(car, opponents, () => Math.floor(Math.random() * 0x7fff)).flat();
   const rgb24 = c => (Math.round(c[0] * 255) << 16) | (Math.round(c[1] * 255) << 8) | Math.round(c[2] * 255);
+  // Driver names: festrings.loc entries of the nfs5.per drivers (the front end's table, or read here).
+  let feStrings = frontEnd?.assets?.strings ?? null;
+  if (!feStrings && opponents > 0) {
+    try {
+      const loc = await readGamePath("FEData/Locale/festrings.loc");
+      feStrings = loc ? JSON.parse(fe_parse_strings(loc, 0)) : {};
+    } catch { feStrings = {}; }
+  }
+  feStrings ??= {};
+  raceSummaryInfo = {
+    names: [currentProfile?.name || "Player",
+      ...(opponents > 0 ? lastRaceDrivers : []).map(d => feStrings[String(d.name_string)] || "")],
+    car: car?.short_name || car?.display_name || car?.model_name || "",
+  };
   raceCarColours = [own ? rgb24(own) : 0xffffff, ...Array.from({ length: paints.length / 4 }, (_, i) => rgb24(paints.slice(i * 4, i * 4 + 4)))];
   viewer.set_race_options(difficulty, mirror, new Float32Array(skills), new Float32Array(own ?? []),
     new Float32Array(paints));
@@ -2745,6 +2812,7 @@ async function launchQuickRace({ car, track, laps, opponents, manualBox = false,
   clearNavigation();
   // Clear career identity before loading or restarting any race; no rewards are possible.
   activeCareerEvent = null;
+  if (replayRunning) { viewer?.stop_replay?.(); replayRunning = false; raceSummary.close(); summaryDraw(); }
   if (raceResultsModal) raceResultsModal.hidden = true;
   try {
     if (frontEnd) {
@@ -3108,6 +3176,14 @@ function isTyping(event) {
 }
 
 function onKeyDown(event) {
+  if (replayRunning && (event.code === "Escape" || event.code === "Space")) {
+    event.preventDefault();
+    if (event.repeat) return;
+    const r = raceSummary.isOpen ? raceSummary.key(event.code) : (event.code === "Escape" ? "exit" : null);
+    if (r === "exit") leaveReplay();
+    else summaryDraw();
+    return;
+  }
   if (event.code === "Escape" && !event.repeat) {
     event.preventDefault();
     if (!quickRaceModal.hidden) {
@@ -3420,7 +3496,11 @@ function updateNavigation(dt) {
         }
       }
     }
-    drawRaceHud(dt);
+    // The replay shows its windows, not the race HUD.
+    if (!replayRunning) drawRaceHud(dt);
+    else hudCanvas?.getContext("2d")?.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+    if (raceSummaryInfo) raceSummaryInfo.colours = raceCarColours;
+    if (raceSummary.isOpen) summaryDraw();
 
     // Countdown Banner (fallback only: the original H321Go is drawn by race-hud.js once the HUD is ready)
     if (countdownBanner && raceHud?.ready && raceHud.gauges) countdownBanner.hidden = true;
@@ -3450,12 +3530,19 @@ function updateNavigation(dt) {
       }
     }
     lastPhase = phase;
-    gameAudio.frame(phase, phase === 1 ? viewer.get_countdown_remaining() : 0);
+    // No race speech in the replay (0x657424 == 2, re/audio.md); the music goes on.
+    if (!replayRunning) gameAudio.frame(phase, phase === 1 ? viewer.get_countdown_remaining() : 0);
 
 
     // Race Finished / Results Modal
     if (raceResultsModal) {
-      if (isFinished && !eventFinishedHandled) {
+      if (isFinished && !eventFinishedHandled && replayRunning) {
+        // The replay reached the race end: back to the front end (0x4b6a50).
+        eventFinishedHandled = true;
+        leaveReplay();
+      } else if (isFinished && !eventFinishedHandled && !activeCareerEvent && startReplayWithSummary()) {
+        eventFinishedHandled = true;
+      } else if (isFinished && !eventFinishedHandled) {
         eventFinishedHandled = true;
         raceResultsModal.hidden = false;
         const pos = viewer.get_player_position();

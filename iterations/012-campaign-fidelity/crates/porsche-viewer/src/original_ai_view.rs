@@ -272,6 +272,8 @@ impl Renderer {
             return;
         };
         field.running = running;
+        // With the original race bookkeeping the AI start at the green-light step (0x1c0).
+        field.start_by_step = self.race_table.is_some();
         let mut queue = Queue {
             surface: self.road_surface.as_ref(),
             body_owner: &mut self.body_support_owner,
@@ -304,6 +306,12 @@ impl Renderer {
             self.drawn_ai = ai_poses(field).into_iter().map(|p| [p, p]).collect();
         }
         for _ in 0..player.clock.advance(dt) {
+            let word = replay_word(
+                &mut self.input_record,
+                self.replay_words.as_deref(),
+                player.car.globals.sched_step_606ac4,
+                word,
+            );
             field.step(player, word, &mut self.pair_globals, &mut queue);
             let (pose, view) = sample(player, queue.camera);
             states.push(pose, view);

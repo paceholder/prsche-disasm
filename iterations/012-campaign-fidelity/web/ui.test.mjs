@@ -5,6 +5,7 @@ import vm from "node:vm";
 import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE_VALUES } from "./pause-menu.js";
 import { HudOptions } from "./hud-options.js";
 import { parseHudFiles, selectConfig, hudPreviewDraws } from "./race-hud-core.js";
+import { RaceSummary, drawRaceSummary, summaryModel } from "./race-summary.js";
 
 class Element {
   constructor() {
@@ -50,6 +51,7 @@ const context = vm.createContext({
   HTMLInputElement: Input, HTMLTextAreaElement: Textarea, HTMLSelectElement: Select,
   PauseMenu, drawPauseMenu, PAUSE_CODE: PAUSE_CODE_VALUES, // main.js imports of ./pause-menu.js
   HudOptions, parseHudFiles, selectConfig, hudPreviewDraws, // ./hud-options.js, ./race-hud-core.js
+  RaceSummary, drawRaceSummary, summaryModel, // and of ./race-summary.js
 });
 const source = readFileSync(new URL("main.js", import.meta.url), "utf8")
   .replace(/^import .*;\r?\n/gm, "")

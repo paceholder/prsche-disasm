@@ -317,6 +317,21 @@ impl BrowserViewer {
         }
     }
 
+    /// Starts the replay of the race just ended (true when there is one).
+    pub fn start_replay(&mut self) -> bool {
+        self.renderer.as_mut().is_some_and(|r| r.start_replay())
+    }
+
+    pub fn stop_replay(&mut self) {
+        if let Some(r) = self.renderer.as_mut() {
+            r.stop_replay();
+        }
+    }
+
+    pub fn is_replay(&self) -> bool {
+        self.renderer.as_ref().is_some_and(|r| r.is_replay())
+    }
+
     /// The original race bookkeeping (`race::finish`) as JSON (`null` without it).
     pub fn race_results(&self) -> String {
         self.renderer

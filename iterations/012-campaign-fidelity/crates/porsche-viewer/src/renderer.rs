@@ -806,6 +806,10 @@ pub struct Renderer {
     /// Original race bookkeeping with the original model (`race::finish`): progress,
     /// finish (`+0xb50`), race end and results.
     pub race_table: Option<nfs_assets::race::finish::RaceTable>,
+    /// The player's input word of every even step since the race start (`Replay_RecordInput`
+    /// 0x4143f0), and the words a replay feeds back (`0x4144b0`); `None` while racing.
+    input_record: Vec<u32>,
+    replay_words: Option<Vec<u32>>,
     /// LINEAR_TRACK `[0x657494]` from the track record (`None`: from the course).
     linear_track: Option<bool>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
@@ -1944,6 +1948,8 @@ impl Renderer {
                 .collect(),
             finish_trigger: scene.finish_trigger,
             race_table: None,
+            input_record: Vec::new(),
+            replay_words: None,
             linear_track: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
@@ -4695,6 +4701,7 @@ impl Renderer {
     }
 
     pub fn restart_race(&mut self) {
+        self.replay_words = None;
         self.set_paused(false);
         self.reset_car();
         if self.is_mission_mode {
@@ -4736,6 +4743,29 @@ impl Renderer {
             ),
             None => format!("- (0/{})", self.intro_cameras.len()),
         }
+    }
+
+    /// The replay after the race end (`0x4b6a50`: the race is set up again and re-run in
+    /// replay mode, the player's car driven by the recorded input words, every other car
+    /// simulated again). False without a recorded original race.
+    pub fn start_replay(&mut self) -> bool {
+        if self.race_table.is_none() || self.input_record.is_empty() {
+            return false;
+        }
+        let words = std::mem::take(&mut self.input_record);
+        self.restart_race();
+        self.replay_words = Some(words);
+        true
+    }
+
+    /// Ends the replay (the race stays where it is).
+    pub fn stop_replay(&mut self) {
+        self.replay_words = None;
+    }
+
+    /// The replay runs (`[0x5e99f4] == 2`).
+    pub fn is_replay(&self) -> bool {
+        self.replay_words.is_some()
     }
 
     /// Start a standalone race on the loaded course with the selected grid size.
@@ -5935,6 +5965,7 @@ impl Renderer {
     /// Race (re)start of the original car at the 6 DOF body's spawn pose.
     fn restart_original_vehicle(&mut self) {
         self.drawn_states = None;
+        self.input_record.clear();
         if let Some(v) = &mut self.original_vehicle {
             v.restart();
             // The human car: `0x40f160` sets `+0x52c` bits 0 and 2 (with 0x100) for res+8
@@ -6162,6 +6193,12 @@ impl Renderer {
             nfs_assets::render_interp::DrawnStates::new(pose, view)
         });
         for _ in 0..clock.advance(dt) {
+            let word = replay_word(
+                &mut self.input_record,
+                self.replay_words.as_deref(),
+                car.globals.sched_step_606ac4,
+                word,
+            );
             scheduler_step(car, word, lcg, &mut queue);
             let (pose, view) = sample(car, queue.camera);
             states.push(pose, view);
@@ -7975,4 +8012,25 @@ mod wheel_placement_tests {
             }
         }
     }
+}
+
+/// The input word of the even 64 Hz step `step` (index `step / 2` from the race start at step
+/// 0): recorded during the race (`Replay_RecordInput` 0x4143f0, the original packs 8 words per
+/// record, 0x414060), read back in the replay (`Replay_ReadInput` 0x4144b0; no input after
+/// the recorded end). Odd steps read no input.
+fn replay_word(record: &mut Vec<u32>, replay: Option<&[u32]>, step: i32, live: u32) -> u32 {
+    if step & 1 == 1 || step < 0 {
+        return live;
+    }
+    let k = (step / 2) as usize;
+    if let Some(words) = replay {
+        return words.get(k).copied().unwrap_or(0);
+    }
+    if record.len() > k {
+        record[k] = live;
+    } else {
+        record.resize(k, 0);
+        record.push(live);
+    }
+    live
 }

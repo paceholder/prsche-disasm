@@ -165,6 +165,9 @@ pub struct OriginalAiField {
     player_fraction: f32,
     /// `[0x606ac0]`: the race runs (AI cars are stepped only then).
     pub running: bool,
+    /// Set `running` from the step as `Sched_Step` 0x414ff0 does (`g_SchedStep > 0x1bf`)
+    /// instead of the caller's countdown; needed for a replay that re-runs the race.
+    pub start_by_step: bool,
 }
 
 impl OriginalAiField {
@@ -185,6 +188,7 @@ impl OriginalAiField {
             player_laps: 0,
             player_fraction: 0.0,
             running: false,
+            start_by_step: false,
         }
     }
 
@@ -275,6 +279,9 @@ impl OriginalAiField {
         queue: &mut impl FieldQueue,
     ) {
         let step = player.car.globals.sched_step_606ac4;
+        if self.start_by_step {
+            self.running = step > 0x1bf;
+        }
         let run_ai = self.running;
         for c in &mut self.cars {
             c.vehicle.car.globals.sched_step_606ac4 = step;
