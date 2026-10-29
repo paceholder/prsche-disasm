@@ -52,6 +52,7 @@ export class FrontEnd {
       if (a.shapepathname) c.shapes = await this.assets.pack(a.shapepathname);
       if (c.type === "COMBOBOXSLIDER" || c.type === "COLORBOX") c.arrow = await this.assets.pack("weeicons.fsh");
       if (c.type === "EXTRACIRCLE") c.extra = await this.assets.pack("extracircle.fsh");
+      if (c.type === "HUD") c.hudArt = await this.assets.pack("hud.fsh"); // FEData/Art [VA 0x4cb650]
       if (c.type === "CARLOGO") await this.loadLogoPack(this.host.carLogo?.(a.accessor)?.pack);
       c.fonts = {};
       for (const font of CONTROL_FONTS[c.type] ?? []) c.fonts[font] = await this.assets.font(font);
@@ -485,6 +486,19 @@ function drawPicture(ctx, c) {
   drawShape(ctx, c.shapes?.[attrInt(c.attrs, "shapeindex", 0)], x, y, attrInt(c.attrs, "flip", 0));
 }
 
+// NFS5.HUD (FEHudDisplayControl, display.lay): preview of the selected HUD layout drawn from
+// FEData/Art/hud.fsh [VA 0x4cb970]; the draw list comes from host.hudPreview(sizes).
+function drawHudPreview(ctx, c, fe) {
+  const [x, y] = attrPair(c.attrs, "pos");
+  const art = c.hudArt;
+  if (!art) return;
+  const draws = fe.host.hudPreview?.(i => [art[i]?.width ?? 0, art[i]?.height ?? 0]) ?? [];
+  for (const d of draws) {
+    const sh = art[d.shape];
+    if (sh?.canvas) ctx.drawImage(sh.canvas, x + d.x, y + d.y, d.w, d.h);
+  }
+}
+
 function buttonState(c, fe, layout) {
   if (fe.disabled(c, layout ?? fe.screen)) return "disabled";
   if (fe.hover === c) return "hover";
@@ -607,7 +621,9 @@ function drawComboBox(ctx, c, fe, now) {
   if (g.labelW) ctx.fillRect(x + g.labelW, y, 1, h);
   drawText(ctx, fe, g.labelFont, g.label, x + 5, y + 2, parseColor("0xffffffff"));
   const acc = fe.host.accessor?.(a.accessor);
-  const valueFont = c.fonts["UniversC11m.ffn"];
+  // `usesmallfont=1` (display.lay): the value in the small font too, so it fits the 15 px bar
+  // (Hypothesis: the original's small-font path is not read).
+  const valueFont = c.fonts[attrInt(a, "usesmallfont", 0) === 1 ? "Univers8b.ffn" : "UniversC11m.ffn"];
   const value = acc?.text?.() ?? "";
   const valueColor = parseColor(disabled ? "0x30000000" : "0xff000000");
   const valueW = textWidth(valueFont, value);
@@ -972,6 +988,7 @@ function drawMovieCircle(ctx, c) {
 
 const CONTROL_DRAW = {
   PICTURE: drawPicture,
+  HUD: drawHudPreview,
   GOTOBUTTON: drawGotoButton,
   COMBOBOXSLIDER: drawComboBox,
   COLORBOX: drawComboBox,

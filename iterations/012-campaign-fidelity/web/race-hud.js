@@ -5,7 +5,9 @@ import {
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
   BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour,
   parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP, hudElementsVisible,
+  translucencyAlpha, hudKey, HUD_KEYS,
 } from "./race-hud-core.js";
+import { HudOptions } from "./hud-options.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
 import { drawText, textWidth } from "./frontend.js";
 
@@ -18,8 +20,9 @@ const rgbaCss = n => { const c = argb(n); return `rgba(${c.r},${c.g},${c.b},${(c
 const rgbCss = n => { const c = argb(n); return `rgb(${c.r},${c.g},${c.b})`; };
 
 export class RaceHud {
-  // opts: { canvas: #hudCanvas, view: element whose CSS size is the 3D view, api, readFile }
-  constructor({ canvas, view, api, readFile }) {
+  // opts: { canvas: #hudCanvas, view: element whose CSS size is the 3D view, api, readFile,
+  //         options: HudOptions shared with the options screen }
+  constructor({ canvas, view, api, readFile, options = null }) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.view = view;
@@ -41,6 +44,9 @@ export class RaceHud {
     this.standings = { at: -1e9, rows: [] };
     this.last = { speedUnits: 0, tachUnits: 0, gear: "" };
     this.nightPacks = null;
+    this.options = options ?? new HudOptions(null);
+    this.keyState = null; // in-race key edits of the selected record (hudKey)
+    this.configKey = "";
   }
 
   async init() {
@@ -48,6 +54,7 @@ export class RaceHud {
       this.readFile("FEData/Data/nfs5-1.hud"), this.readFile("FEData/Data/nfs5-2.hud")]);
     if (!h1 || !h2) throw new Error("HUD config files missing");
     this.records = parseHudFiles(h1, h2);
+    if (!this.options.records) this.options.records = this.records;
     await this.assets.loadStrings(0, `${DASH}/hud.loc`);
     this.strings = this.assets.strings;
     for (const [key, file] of [["big", "UniversC12b.ffn"], ["list", "unviers9b.ffn"], ["listi", "unviers9bi.ffn"]]) {
@@ -61,8 +68,18 @@ export class RaceHud {
 
   // Gauge settings from the nfs5.car record of the race car.
   setCarRecord(bytes, index) {
-    if (!bytes || index == null || index < 0 || (index + 1) * CAR_RECORD > bytes.length) { this.gauges = null; return; }
-    this.gauges = carGauges(bytes.subarray(index * CAR_RECORD, (index + 1) * CAR_RECORD), 0);
+    if (!bytes || index == null || index < 0 || (index + 1) * CAR_RECORD > bytes.length) { this.gauges = null; this.carRecord = null; return; }
+    this.carRecord = bytes.subarray(index * CAR_RECORD, (index + 1) * CAR_RECORD);
+    this.gauges = carGauges(this.carRecord, 0);
+  }
+
+  // In-race HUD key (KeyboardEvent.code); true when it is one of the original HUD keys.
+  key(code) {
+    const action = HUD_KEYS[code];
+    if (!action || !this.keyState) return Boolean(action);
+    this.keyState = hudKey(this.keyState, action);
+    this.config = null; // re-select: options changed
+    return true;
   }
 
   str(id, fallback) { return this.strings[String(id)] ?? fallback; }
@@ -84,9 +101,27 @@ export class RaceHud {
       this.canvas.width = pw;
       this.canvas.height = ph;
     }
+    const layout = this.options.layout;
+    const key = `${layout}|${this.options.version}`;
+    if (key !== this.configKey || !this.keyState) {
+      // Options screen edits (or a new layout) restart the key state from the record.
+      const o = this.options.options(layout);
+      this.configKey = key;
+      this.keyState = {
+        shown: true, map: o.map ?? 0, mapScale: o.mapScale ?? 0, rearViewMirror: o.rearViewMirror ?? 0,
+        savedMap: null, alpha: translucencyAlpha(o.translucency),
+      };
+      this.config = null;
+    }
     if (W !== this.size[0] || H !== this.size[1] || !this.config) {
       this.size = [W, H];
-      this.config = selectConfig(this.records, 0, W, H);
+      const ks = this.keyState;
+      this.config = selectConfig(this.records, layout, W, H, {
+        ...(this.options.overrides(layout) ?? {}), map: ks.map, mapScale: ks.mapScale, rearViewMirror: ks.rearViewMirror,
+      });
+      if (this.config) this.config.translucency = ks.alpha;
+      // SPEEDUNITS picks the mph face and the per-car mph table [VA 0x42e710, 0x4eb710].
+      if (this.carRecord) this.gauges = carGauges(this.carRecord, this.config?.options.speedUnits ?? 0);
     }
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -135,7 +170,8 @@ export class RaceHud {
     const box = cfg.translucency !== 0;
     const st = { accent, grey, listGrey, padX, padY, box, tel, viewer, lights, phase };
 
-    if (!hudElementsVisible(phase)) { this.countdown(viewer, phase, W, H); return; }
+    // I_TOGGLEHUD (F5) hides the elements [VA 0x4273b0, 0x425950]; the countdown stays.
+    if (!hudElementsVisible(phase) || !this.keyState.shown) { this.countdown(viewer, phase, W, H); return; }
     const rows = this.getStandings(viewer);
     const listBox = { x: S[4].x, y: S[4].y, w: S[4].w, h: (rows.length + 1) * S[4].h + 2 * padY };
     if (box) {
@@ -230,7 +266,8 @@ export class RaceHud {
     const g = this.gauges;
     const gauge = kind === "speedo" ? g.speedo : g.tach;
     const night = st.lights;
-    const names = gaugePacks(night, 0);
+    const units = this.config.options.speedUnits ? 1 : 0;
+    const names = gaugePacks(night, units);
     const face = (this.packs[kind === "speedo" ? names.speedFace : names.tachFace] ?? this.packs[kind === "speedo" ? "speedK" : "tach"])?.[gauge.style];
     const needlePack = this.packs[kind === "speedo" ? names.speedNeedle : names.tachNeedle] ?? this.packs[kind === "speedo" ? "needle2" : "needle"];
     const backing = this.packs.circletach?.[0];
@@ -241,7 +278,7 @@ export class RaceHud {
       ctx.globalAlpha = 1;
     }
     if (face?.canvas) ctx.drawImage(face.canvas, b.x, b.y);
-    const value = kind === "speedo" ? speedoUnits(st.tel[0], 0) : tachUnits(st.tel[1], st.tel[3]);
+    const value = kind === "speedo" ? speedoUnits(st.tel[0], units) : tachUnits(st.tel[1], st.tel[3]);
     this.last[kind === "speedo" ? "speedUnits" : "tachUnits"] = value;
     const [cx, cy] = dialCentre(b);
     const size = NEEDLE_SIZES[g.needleStyle] ?? NEEDLE_SIZES[0];

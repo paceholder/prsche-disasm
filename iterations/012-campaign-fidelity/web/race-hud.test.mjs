@@ -10,7 +10,9 @@ import {
   needleQuad, dialCentre, SLOT, formatTicks, gearText, accentColor, mapZoom, markerScale,
   parseCourseMap, mapTransform, damageColor, DAMAGE_UNDAMAGED, DAMAGE_RAMP, damageLevel, damageDraws,
   mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints, hudElementsVisible,
+  DISPLAY_OPTIONS, OPTION_NAMES, configOptions, hudKey, HUD_KEYS, translucencyAlpha, hudPreviewDraws,
 } from "./race-hud-core.js";
+import { HudOptions } from "./hud-options.js";
 
 const gameDir = process.env.NFS5_GAME_DIR
   ?? fileURLToPath(new URL("../../../local/game/", import.meta.url));
@@ -194,4 +196,78 @@ test("HUD car colours are the cars' paint, with a palette for cars without one (
   assert.equal(carHudColour(colours, 2), FALLBACK_CAR_COLOURS[2]);
   assert.equal(carHudColour(null, 9), FALLBACK_CAR_COLOURS[1]);
   assert.equal(carHudColour([0xff112233], 0), 0x112233); // alpha is dropped
+});
+
+test("display options: accessor lists in value order (VA 0x4e4f70, lists 0x5b6c48..)", () => {
+  const by = Object.fromEntries(DISPLAY_OPTIONS.map(e => [e.accessor, e]));
+  assert.deepEqual(by["Display.ScreenLayout"].strings, [1824, 1825, 1826, 1827]);
+  assert.deepEqual(by["Display.Damage"].strings, [1500, 1805, 1806, 1807]); // off, car icon, bar graph, percentages
+  assert.deepEqual(by["Display.Map"].strings, [1500, 1808, 1809, 1830]); // off, rotating, static, radar
+  assert.deepEqual(by["Display.Translucency"].strings, [1501, 1500]); // value 0 = "on"
+  for (const e of DISPLAY_OPTIONS) if (e.option) assert.ok(OPTION_NAMES.includes(e.option), e.option);
+  assert.equal(translucencyAlpha(0), 0x80);
+  assert.equal(translucencyAlpha(1), 0);
+});
+
+test("in-race HUD keys (VA 0x4273b0, 0x427550, 0x427360, 0x426740, 0x427600, 0x427630, 0x4275d0)", () => {
+  assert.equal(HUD_KEYS.F5, "toggleHud");
+  assert.equal(HUD_KEYS.Digit1, undefined); // I_CYCLEHUD: predicate 0x427ac0 is always false
+  const s0 = { shown: true, map: 1, mapScale: 0, rearViewMirror: 1, savedMap: null, alpha: 0x80 };
+  let s = hudKey(s0, "cycleMap");
+  assert.equal(s.map, 3);
+  s = hudKey(s, "cycleMap");
+  assert.equal(s.map, 2);
+  s = hudKey(s, "cycleMap");
+  assert.equal(s.map, 1);
+  assert.equal(hudKey(s0, "zoomIn").mapScale, 2); // 0 -> 2
+  assert.equal(hudKey({ ...s0, mapScale: 4 }, "zoomIn").mapScale, 4);
+  assert.equal(hudKey({ ...s0, mapScale: 2 }, "zoomOut").mapScale, 1);
+  assert.equal(hudKey({ ...s0, mapScale: 1 }, "zoomOut").mapScale, 1);
+  const off = hudKey({ ...s0, map: 3 }, "toggleMap");
+  assert.equal(off.map, 0);
+  assert.equal(hudKey(off, "toggleMap").map, 3); // restored
+  assert.equal(hudKey({ ...s0, map: 0 }, "toggleMap").map, 1); // nothing saved -> rotating
+  assert.equal(hudKey(s0, "toggleMirror").rearViewMirror, 0);
+  assert.equal(hudKey({ ...s0, rearViewMirror: 0, shown: false }, "toggleMirror").rearViewMirror, 0);
+  assert.equal(hudKey(s0, "translucency").alpha, 0);
+  const hidden = hudKey(s0, "toggleHud");
+  assert.deepEqual([hidden.shown, hidden.map, hidden.rearViewMirror], [false, 0, 0]);
+  const back = hudKey(hidden, "toggleHud");
+  assert.deepEqual([back.shown, back.map, back.rearViewMirror], [true, 1, 1]);
+});
+
+test("shipped configs 1-4: what each draws (data nfs5-2.hud)", { skip: !hasGame }, () => {
+  const records = parseHudFiles(read("FEData/Data/nfs5-1.hud"), read("FEData/Data/nfs5-2.hud"));
+  const pick = i => { const o = configOptions(records, i); return [o.speedometer, o.tachometer, o.damageDisplay, o.map, o.opponentList, o.rearViewMirror, o.gear, o.translucency]; };
+  assert.deepEqual(pick(0), [2, 2, 1, 1, 1, 1, 1, 0]); // dials, car icon, rotating map, list, mirror
+  assert.deepEqual(pick(1), [2, 2, 3, 3, 1, 1, 1, 0]); // percentages, radar
+  assert.deepEqual(pick(2), [2, 2, 2, 1, 2, 0, 1, 1]); // bar graph, time gaps, no mirror, no boxes
+  assert.deepEqual(pick(3), [1, 1, 0, 1, 0, 0, 0, 1]); // digital speed and rpm only
+  const c3 = selectConfig(records, 3, 640, 480);
+  assert.equal(c3.translucency, 0);
+  const edited = selectConfig(records, 0, 640, 480, { damageDisplay: 3, translucency: 1 });
+  assert.equal(edited.options.damageDisplay, 3);
+  assert.equal(edited.translucency, 0);
+  // Preview (0x4cb970): road picture, then the elements of Config 1 at 640x480.
+  const p = hudPreviewDraws(selectConfig(records, 0, 640, 480), 640, 480, () => [10, 10]);
+  assert.deepEqual(p.map(d => d.shape), [0, 3, 4, 6, 7, 10, 11, 14, 13]);
+  const mirror = p.find(d => d.shape === 7);
+  assert.ok(Math.abs(mirror.x - 185 / 640 * 240) < 0.5 && mirror.y === 0);
+});
+
+test("HudOptions: per-config edits and layout persist", () => {
+  const mem = new Map();
+  const storage = { getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const opts = new HudOptions(storage);
+  const str = id => `s${id}`;
+  const layout = opts.accessor("Display.ScreenLayout", str);
+  assert.equal(layout.text(), "s1824");
+  layout.select(2);
+  opts.accessor("Display.Gear", str).select(0);
+  assert.deepEqual(opts.overrides(2), { gear: 0 });
+  assert.equal(opts.overrides(0), null);
+  const again = new HudOptions(storage);
+  assert.equal(again.layout, 2);
+  assert.deepEqual(again.overrides(2), { gear: 0 });
+  assert.equal(again.accessor("Display.Nope", str), null);
 });

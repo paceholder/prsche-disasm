@@ -84,7 +84,9 @@ const f32 = Math.fround;
 // The config used for a screen [VA 0x41f7a0, 0x41ebf0, 0x41eff0, 0x41fb40]: a record whose hud2
 // resolution matches and whose name is "Config <index+1>"; otherwise record `index` converted
 // to the screen (fraction * 640x480, anchored, divided by the screen size).
-export function selectConfig(records, index, W, H) {
+// `overrides`: display options edited on the options screen or by the race keys (they live in
+// the hud2 record in memory and are written back to nfs5-2.hud by 0x41ea50; A85).
+export function selectConfig(records, index, W, H, overrides = null) {
   const name = `Config ${index + 1}`;
   const match = records.find(r => r.width === W && r.height === H && r.name === name);
   const base = match ?? records[index] ?? records[0];
@@ -107,6 +109,7 @@ export function selectConfig(records, index, W, H) {
   }
   const options = {};
   OPTION_NAMES.forEach((key, i) => { options[key] = base.hud2.getInt32(0x30 + 4 * i, true); });
+  if (overrides) for (const key of OPTION_NAMES) if (Number.isInteger(overrides[key])) options[key] = overrides[key];
   const hud1 = base.hud1;
   return {
     name, matched: Boolean(match), hud1, hud2: base.hud2, options,
@@ -114,13 +117,139 @@ export function selectConfig(records, index, W, H) {
     slots: fracs.map(([fx, fy], i) => ({
       x: Math.trunc(f32(fx * W)), y: Math.trunc(f32(fy * H)), w: sizes[i][0], h: sizes[i][1],
     })),
-    // +0x14: high byte = alpha of the dark gauge backing (0: none; F8 toggles it) [VA 0x41e5c0, 0x41e540].
-    translucency: hud1.getUint32(0x14, true) >>> 24,
+    // +0x14: high byte = alpha of the dark backings (0: none). Hud_Build sets it from TRANSLUCENCY:
+    // 0 ("on") -> 0x80 [0x5ccb34], else 0 [VA 0x424460, 0x41e540, 0x41e590, 0x420f30]; F8 toggles it.
+    translucency: translucencyAlpha(options.translucency),
+    fractions: fracs,
     colors: [0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30].map(o => hud1.getUint32(o, true)),
     fonts: [cstr(new Uint8Array(hud1.buffer, hud1.byteOffset), 0x4c, 24),
       cstr(new Uint8Array(hud1.buffer, hud1.byteOffset), 0x64, 24),
       cstr(new Uint8Array(hud1.buffer, hud1.byteOffset), 0x7c, 24)],
   };
+}
+
+// Alpha of the dark backings for a TRANSLUCENCY value (0 = "on") [VA 0x420f30, 0x5ccb34 = 0x80].
+export const BACKING_ALPHA = 0x80;
+export function translucencyAlpha(translucency) {
+  return translucency === 0 ? BACKING_ALPHA : 0;
+}
+
+// --- Display options screen (FEData/Layouts/display.lay, "Anzeige") ---------------------------
+// Accessor `Display.<name>` -> race-config key and its choice strings (festrings ids), in value
+// order [VA 0x4e4f70: FUN_004bb680(name, key, list); lists 0x5b6c48..0x5b6d18]. `option` is the
+// hud2 field (OPTION_NAMES) the screen writes back into the selected config's record when it
+// closes [VA 0x4cb860 -> setters 0x420e10..0x421010, 0x41ea50 rewrites nfs5-2.hud].
+export const DISPLAY_OPTIONS = [
+  { accessor: "Display.ScreenLayout", key: 0x5b, option: null, strings: [1824, 1825, 1826, 1827] },
+  { accessor: "Display.Speedometer", key: 0x5c, option: "speedometer", strings: [1500, 1801, 1802] },
+  { accessor: "Display.SpeedUnits", key: 0x5d, option: "speedUnits", strings: [1803, 1804] },
+  { accessor: "Display.Tach", key: 0x5e, option: "tachometer", strings: [1500, 1801, 1802] },
+  { accessor: "Display.Damage", key: 0x5f, option: "damageDisplay", strings: [1500, 1805, 1806, 1807] },
+  { accessor: "Display.Map", key: 0x60, option: "map", strings: [1500, 1808, 1809, 1830] },
+  { accessor: "Display.MapScale", key: 0x61, option: "mapScale", strings: [1810, 1811, 1812, 1813, 1814] },
+  { accessor: "Display.OppList", key: 0x62, option: "opponentList", strings: [1500, 1832, 1833] },
+  { accessor: "Display.SplitTimes", key: 0x63, option: "splitTimes", strings: [1500, 1816, 1817, 1819] },
+  { accessor: "Display.DispCols", key: 0x64, option: "displayColors", strings: [1821, 1822, 1823] },
+  { accessor: "Display.Translucency", key: 0x66, option: "translucency", strings: [1501, 1500] },
+  { accessor: "Display.RearView", key: 0x67, option: "rearViewMirror", strings: [1500, 1501] },
+  { accessor: "Display.RecordTime", key: 0x68, option: "recordTime", strings: [1500, 1501] },
+  { accessor: "Display.Gear", key: 0x69, option: "gear", strings: [1500, 1501] },
+];
+
+// The hud2 options of config `index` as shipped (before any edit).
+export function configOptions(records, index) {
+  const r = records[index] ?? records[0];
+  const out = {};
+  if (r) OPTION_NAMES.forEach((key, i) => { out[key] = r.hud2.getInt32(0x30 + 4 * i, true); });
+  return out;
+}
+
+// In-race HUD keys (fe.txt: I_TOGGLEHUD F5, I_TOGGLEREARVIEW F6, I_TOGGLEMAP F7,
+// I_HUDTRANSPARENCY F8, I_CYCLEHUD 1, I_CYCLEMAP 2, I_ZOOMINMAP numpad -, I_ZOOMOUTMAP numpad +;
+// actions 0x18..0x1f = ids 0x207..0x20e [VA 0x4b4274, dispatcher 0x4152e0]). They edit the
+// selected record in memory (not the files) and keep the HUD state `s`:
+// { shown, map, mapScale, rearViewMirror, savedMap, alpha }. I_CYCLEHUD's predicate 0x427ac0
+// always returns 0 in this build, so key 1 does nothing.
+export const HUD_KEYS = {
+  F5: "toggleHud", F6: "toggleMirror", F7: "toggleMap", F8: "translucency",
+  Digit2: "cycleMap", NumpadSubtract: "zoomIn", NumpadAdd: "zoomOut",
+};
+export function hudKey(s, action) {
+  const n = { ...s };
+  switch (action) {
+    case "toggleHud": // 0x4273b0
+      if (n.shown) {
+        n.shown = false;
+        n.mapWasOn = n.map !== 0;
+        if (n.mapWasOn) { n.savedMap = n.map; n.map = 0; }
+        n.mirrorWasOn = n.rearViewMirror !== 0;
+        if (n.mirrorWasOn) n.rearViewMirror = 0;
+      } else {
+        n.shown = true;
+        if (n.mapWasOn) n.map = n.savedMap ?? 1;
+        if (n.mirrorWasOn) n.rearViewMirror = 1;
+      }
+      break;
+    case "toggleMirror": // 0x427550
+      if (n.rearViewMirror !== 0) n.rearViewMirror = 0;
+      else if (n.shown) n.rearViewMirror = 1;
+      break;
+    case "toggleMap": // 0x427360: 0x41e6e0 saves and clears, 0x41e690 restores (1 if nothing saved)
+      if (n.map !== 0) { n.savedMap = n.map; n.map = 0; }
+      else if (n.shown) { n.map = n.savedMap ?? 1; n.savedMap = null; }
+      break;
+    case "cycleMap": // 0x426740: radar -> static, rotating -> radar, else -> rotating
+      n.map = n.map === 3 ? 2 : n.map === 1 ? 3 : 1;
+      break;
+    case "zoomIn": // 0x427600 -> 0x41e620
+      n.mapScale = n.mapScale === 0 ? 2 : Math.min(4, n.mapScale + 1);
+      break;
+    case "zoomOut": // 0x427630 -> 0x41e5e0
+      n.mapScale = Math.max(1, n.mapScale - 1);
+      break;
+    case "translucency": // 0x4275d0: 0x41e5c0 ? 0x41e540 : 0x41e590
+      n.alpha = n.alpha === 0 ? BACKING_ALPHA : 0;
+      break;
+    default:
+      return s;
+  }
+  return n;
+}
+
+// Preview of the options screen (`NFS5.HUD` control, FEHudDisplayControl draw 0x4cb970): the
+// road picture hud.fsh shape 0 over 240x180, then one hud.fsh shape per shown element at its slot
+// fraction of the selected config * (240, 180), sized shape * (640/W, 480/H). Order and shapes:
+// damage (1 car icon: 3 at S3; 2 bar graph: 1 at S3; 3 percentages: 2 at S5), map (1, 2: 4;
+// 3: 5 at S8), opponent list (6 at S4), mirror (7 at S10), split times (10 at S11), gear (11 at
+// S0), tachometer (1: 12 at S12; 2: 14 at S6), speedometer (1: 12 at S1; 2: 13 at S7).
+// `cfg` from selectConfig at W x H; `sizes(shape)` -> [w, h]. Items {shape, x, y, w, h} relative
+// to the control.
+export const PREVIEW_W = 240;
+export const PREVIEW_H = 180;
+export function hudPreviewDraws(cfg, W, H, sizes) {
+  const o = cfg.options;
+  const out = [{ shape: 0, x: 0, y: 0, w: PREVIEW_W, h: PREVIEW_H }];
+  const sx = DESIGN_W / W;
+  const sy = DESIGN_H / H;
+  const put = (shape, slot) => {
+    const [fx, fy] = cfg.fractions[slot];
+    const [w, h] = sizes(shape);
+    out.push({ shape, x: fx * PREVIEW_W, y: fy * PREVIEW_H, w: w * sx, h: h * sy });
+  };
+  if (o.damageDisplay === 1) put(3, 3);
+  else if (o.damageDisplay === 2) put(1, 3);
+  else if (o.damageDisplay === 3) put(2, 5);
+  if (o.map === 1 || o.map === 2) put(4, 8);
+  else if (o.map === 3) put(5, 8);
+  if (o.opponentList !== 0) put(6, 4);
+  if (o.rearViewMirror !== 0) put(7, 10);
+  if (o.splitTimes !== 0) put(10, 11);
+  if (o.gear !== 0) put(11, 0);
+  if (o.tachometer === 1) put(12, 12);
+  else if (o.tachometer === 2) put(14, 6);
+  if (o.speedometer === 1) put(12, 1);
+  else if (o.speedometer === 2) put(13, 7);
+  return out;
 }
 
 // Gauge settings of a car: nfs5.car record (0x670 bytes) +0x300..+0x322, written by the front end

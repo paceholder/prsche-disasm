@@ -1,6 +1,8 @@
 import init, { create_viewer, EngineAudio, TyreAudio, MusicTrack, MusicDirector, RaceAnnouncer, engine_bank_for_sim, shell_profile_new, shell_profile_buy_356, shell_apply_event_result, shell_get_first_evolution_event, shell_get_first_factory_event, shell_get_dealership_catalog, parse_car_catalogue_json, shell_get_used_cars, shell_get_parts_catalog, shell_get_tournament_cups, shell_buy_car, shell_sell_car, shell_buy_part, shell_repair_car, shell_get_factory_missions, shell_complete_factory_mission, fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings, fe_track_catalog_json, fe_event_infos_json, fe_quick_race_cars_json, fe_pick_opponents_json } from "./package/viewer_impl.js";
 import { carClickZone, carPartMs, ZONE_CHANNEL } from "./fe-car-click.js";
 import { PauseMenu, drawPauseMenu, CODE as PAUSE_CODE } from "./pause-menu.js";
+import { HudOptions } from "./hud-options.js";
+import { parseHudFiles, selectConfig, hudPreviewDraws } from "./race-hud-core.js";
 
 // A lap finish or elapsed time alone cannot award a Factory mission.
 function factoryGoalSatisfied(driver, elapsed, timeLimit) {
@@ -120,6 +122,15 @@ try { debugPanelVisible = localStorage.getItem("nfs5.debugPanel") !== "0"; } cat
 let raceHud = null; // original 2D HUD (race-hud.js), created on first use
 let raceHudLoading = false;
 let raceHudCarIndex = null;
+// HUD display options (options screen "display.lay" + the race HUD share them, docs/re/hud.md).
+let hudStorage = null;
+try { hudStorage = window.localStorage; } catch {}
+const hudOptions = new HudOptions(hudStorage);
+async function loadHudRecords() {
+  if (hudOptions.records) return;
+  const [h1, h2] = await Promise.all([readGamePath("FEData/Data/nfs5-1.hud"), readGamePath("FEData/Data/nfs5-2.hud")]);
+  if (h1 && h2) hudOptions.records = parseHudFiles(h1, h2);
+}
 let lightsOn = false;
 let lastPhase = 0;
 
@@ -3115,8 +3126,13 @@ function onKeyDown(event) {
   if (!quickRaceModal.hidden) return;
   if (isTyping(event)) return;
   if (event.ctrlKey || event.altKey || event.metaKey) return;
-  if ((event.code === "KeyH" || event.code === "F5") && !event.repeat) {
-    if (event.code === "F5") event.preventDefault?.();
+  // Original HUD keys (fe.txt: F5 HUD, F6 mirror, F7 map, F8 translucency, 2 map mode,
+  // numpad -/+ map zoom; key 1 I_CYCLEHUD does nothing in this build) [VA 0x4152e0].
+  if (raceHud && hudVisible && !event.repeat && raceHud.key(event.code)) {
+    event.preventDefault?.();
+    return;
+  }
+  if (event.code === "KeyH" && !event.repeat) {
     toggleHud();
     return;
   }
@@ -3276,7 +3292,7 @@ async function ensureRaceHud() {
   try {
     const { RaceHud } = await import("./race-hud.js");
     const hudView = new RaceHud({
-      canvas: hudCanvas, view: canvas, readFile: readGamePath,
+      canvas: hudCanvas, view: canvas, readFile: readGamePath, options: hudOptions,
       api: { fe_parse_layout, fe_decode_fsh, fe_parse_font, fe_parse_strings },
     });
     await hudView.init();
@@ -3564,8 +3580,8 @@ function updateNavigation(dt) {
   if (activeKeys.has("KeyS") || activeKeys.has("ArrowDown")) inForward -= 1;
   if (activeKeys.has("KeyA") || activeKeys.has("ArrowLeft")) inRight -= 1;
   if (activeKeys.has("KeyD") || activeKeys.has("ArrowRight")) inRight += 1;
-  if (activeKeys.has("KeyQ") || activeKeys.has("Minus") || activeKeys.has("NumpadSubtract")) inZoom += 1;
-  if (activeKeys.has("KeyE") || activeKeys.has("Equal") || activeKeys.has("NumpadAdd")) inZoom -= 1;
+  if (activeKeys.has("KeyQ") || activeKeys.has("Minus")) inZoom += 1;
+  if (activeKeys.has("KeyE") || activeKeys.has("Equal")) inZoom -= 1;
 
   // Normalize diagonal movement
   const len = Math.hypot(inForward, inRight);
@@ -4043,6 +4059,10 @@ function frontEndAction(name) {
     case "TRACK1DEC": frontEndSetup?.stepTrack(-1); queueFrame(); return true;
     case "PLAYGAME": frontEndPlayGame(); return true;
     case "OPTIONS":
+      // The options screen (Options.lay: tabs + panels) is not restored; OPTIONS opens its
+      // display panel display.lay directly (A85) [data Options.lay, optiontabs.lay].
+      loadHudRecords().then(() => frontEnd.goto("display", 1)).then(syncFrontEndClasses);
+      return true;
     case "QUIT":
       // Web shell (developer tools) until the options screens are restored.
       frontEnd.hide();
@@ -4070,7 +4090,16 @@ async function startFrontEnd() {
       readFile: readGamePath,
       onRoom: loadFrontEndRoom,
       onAction: frontEndAction,
-      accessor: name => frontEndSetup?.accessor(name) ?? eventInfoSetup?.accessor(name) ?? null,
+      accessor: name => frontEndSetup?.accessor(name) ?? eventInfoSetup?.accessor(name)
+        ?? (/^Display\./i.test(name || "") ? hudOptions.accessor(name, id => frontEnd.assets.string(id)) : null),
+      // NFS5.HUD preview of display.lay: the selected config at the window size [VA 0x4cb970].
+      hudPreview: sizes => {
+        if (!hudOptions.records) return [];
+        const W = Math.max(1, Math.round(canvas.getBoundingClientRect().width));
+        const H = Math.max(1, Math.round(canvas.getBoundingClientRect().height));
+        const cfg = selectConfig(hudOptions.records, hudOptions.layout, W, H, hudOptions.overrides());
+        return cfg ? hudPreviewDraws(cfg, W, H, sizes) : [];
+      },
       // Track pictures of TrackArt: the location screen's wall tile and the event panel's map.
       trackPicture: screen => {
         if (screen === "location") {
@@ -4105,6 +4134,7 @@ async function startFrontEnd() {
       requestFrame: queueFrame,
     });
     await frontEnd.init();
+    await loadHudRecords();
     await buildFrontEndSetup(frontEnd.assets.strings);
     resizeCanvas();
     frontEnd.resize(canvas.width, canvas.height);
