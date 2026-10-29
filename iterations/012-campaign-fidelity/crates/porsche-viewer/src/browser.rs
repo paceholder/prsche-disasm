@@ -989,6 +989,14 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Rear-view mirror box (HUD slot S10) in canvas pixels; a width or height of 0 turns the
+    /// mirror off (`HRearview` 0x42c510, `docs/re/hud.md`).
+    pub fn set_rear_view(&mut self, x: u32, y: u32, width: u32, height: u32) {
+        if let Some(r) = self.renderer.as_mut() {
+            r.set_rear_view(Some([x, y, width, height]));
+        }
+    }
+
     pub fn is_wrong_way(&self) -> bool {
         self.renderer
             .as_ref()

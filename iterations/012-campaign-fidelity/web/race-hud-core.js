@@ -513,6 +513,26 @@ export function wrongWayLines(W, H, textW, textH) {
   };
 }
 
+// --- Rear-view mirror HRearview (S10, ctor 0x42c510, update 0x42c740) -------------------------
+// No tray box (ctor 0x433f90 with the no-box flag); the 3D view fills the slot; around it a bevel
+// frame of 4 px ([0x5cce30]) drawn by 0x435a20 when the box did not move since the last frame and
+// the no-alpha mode is off. Style 0 ([0x60cb34], no writer found): per side the outer edge and the
+// inner edge colours (ARGB) of a Gouraud quad.
+export const MIRROR_FRAME = { top: [0x05ffffff, 0x4c000000], right: [0x4c000000, 0x05ffffff],
+  bottom: [0x4c000000, 0x05ffffff], left: [0x05ffffff, 0x4c000000] };
+// Quads [VA 0x435a20]: pts = [outer0, outer1, inner1, inner0] for each side.
+export function mirrorFrameQuads(x, y, w, h, b) {
+  const oTL = [x - b, y - b], oTR = [x + w + b, y - b], oBR = [x + w + b, y + h + b], oBL = [x - b, y + h + b];
+  const iTL = [x, y], iTR = [x + w, y], iBR = [x + w, y + h], iBL = [x, y + h];
+  const q = (side, pts) => ({ side, pts, outer: MIRROR_FRAME[side][0], inner: MIRROR_FRAME[side][1] });
+  return [
+    q("top", [oTL, oTR, iTR, iTL]),
+    q("right", [oTR, oBR, iBR, iTR]),
+    q("bottom", [oBR, oBL, iBL, iBR]),
+    q("left", [oBL, oTL, iTL, iBL]),
+  ];
+}
+
 // Map zoom Z (half width of the map box in metres) [VA 0x41e9c0]: MAPSCALE 0..4 -> s = 0, 0, 33,
 // 66, 100; Z = 185 + 4.15 s (radar mode MAP 3: 5 + 0.15 s); Z = 600 means the whole track
 // (centre on the outline's bounding box, Z = max extent / 2 + 200) [VA 0x41ea40, 0x433440].

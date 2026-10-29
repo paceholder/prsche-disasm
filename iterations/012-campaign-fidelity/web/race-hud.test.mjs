@@ -12,7 +12,7 @@ import {
   mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints, hudElementsVisible,
   DISPLAY_OPTIONS, OPTION_NAMES, configOptions, hudKey, HUD_KEYS, translucencyAlpha, hudPreviewDraws,
   digitalSpeedText, digitalRpmText, textDamageValues, textDamagePercent, textDamageRowY, textDamageBars,
-  wrongWayBlink, wrongWayLines,
+  wrongWayBlink, wrongWayLines, mirrorFrameQuads,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 
@@ -322,4 +322,15 @@ test("wrong way: blink and corner brackets (VA 0x436f70, 0x437360)", () => {
 test("race-hud.js and hud-options.js load as modules", async () => {
   const m = await import("./race-hud.js");
   assert.equal(typeof m.RaceHud, "function");
+});
+
+test("rear-view mirror slot and bevel frame (VA 0x42c510, 0x435a20)", { skip: !hasGame }, () => {
+  const records = parseHudFiles(read("FEData/Data/nfs5-1.hud"), read("FEData/Data/nfs5-2.hud"));
+  // Config 1 at 800x600: 240x84 centred at the top (race-hud-chase.png: x 280..520 at 800 px).
+  assert.deepEqual(selectConfig(records, 0, 800, 600).slots[10], { x: 280, y: 0, w: 240, h: 84 });
+  const q = mirrorFrameQuads(280, 0, 240, 84, 4);
+  assert.deepEqual(q.map(x => x.side), ["top", "right", "bottom", "left"]);
+  assert.deepEqual(q[0].pts, [[276, -4], [524, -4], [520, 0], [280, 0]]);
+  assert.equal(q[0].outer, 0x05ffffff);
+  assert.equal(q[1].outer, 0x4c000000);
 });

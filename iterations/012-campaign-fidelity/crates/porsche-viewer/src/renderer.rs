@@ -62,6 +62,7 @@ pub enum CameraMode {
     Drive,
 }
 
+#[derive(Clone)]
 pub struct Camera {
     pub mode: CameraMode,
     pub yaw: f32,
@@ -690,6 +691,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 "#;
 
 pub struct Renderer {
+    /// Colour format of the frame (the pipelines' target format).
+    color_format: wgpu::TextureFormat,
+    /// Rear-view mirror box in frame pixels [x, y, w, h] (`HRearview` S10), set by the HUD.
+    mirror_rect: Option<[u32; 4]>,
+    mirror_target: Option<crate::mirror::MirrorTarget>,
+    mirror_blit: Option<crate::mirror::MirrorBlit>,
+    /// True while the scene is drawn for the mirror (no player car, no sun).
+    mirror_pass: bool,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub camera: Camera,
@@ -1932,6 +1941,11 @@ impl Renderer {
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
             wrong_way_node: 0,
+            color_format: format,
+            mirror_rect: None,
+            mirror_target: None,
+            mirror_blit: None,
+            mirror_pass: false,
             paused: false,
             reset_watch: Default::default(),
             reset_request: false,
@@ -2273,7 +2287,75 @@ impl Renderer {
             }
         }
     }
+    /// The frame: the main view, then the rear-view mirror when the HUD shows one.
     pub fn render(&mut self, target: &wgpu::TextureView) {
+        self.render_view(target);
+        self.render_mirror(target);
+    }
+
+    /// Rear-view mirror box in frame pixels (`None`: no mirror).
+    pub fn set_rear_view(&mut self, rect: Option<[u32; 4]>) {
+        self.mirror_rect = rect.filter(|r| r[2] > 0 && r[3] > 0);
+    }
+
+    /// `HRearview` (S10): the scene from `PlayerCamera::mirror_view` (`0x468ca0` ->
+    /// `Camera_BuildView` mode 1) into an offscreen target of the box size, then copied into the
+    /// frame flipped left-right (the mirror view culls opposite to the main view, `0x468ba0` vs
+    /// `0x468ca0`). Only in drive mode on a track, not in front-end rooms. The original's view
+    /// distance (`+0x124` = max(50, view distance / 3)) is not applied (A92).
+    fn render_mirror(&mut self, target: &wgpu::TextureView) {
+        let Some(rect) = self.mirror_rect else {
+            return;
+        };
+        if self.fe_room.is_some() || self.camera.mode != CameraMode::Drive || self.width == 0 || self.height == 0 {
+            return;
+        }
+        let Some(car) = self.camera_car() else {
+            return;
+        };
+        // The drawn (interpolated) car, as the main view and the blended AI cars see it, not
+        // the last 64 Hz step.
+        let mut car = car;
+        if let Some(d) = self.drawn_states.as_ref().filter(|_| self.original_active()) {
+            let pose = d.car_pose();
+            car.pos_330 = pose.position;
+            car.axes_364 = pose.axes;
+        }
+        let view = self.player_camera.mirror_view(&car);
+        let (w, h) = (rect[2], rect[3]);
+        if self.mirror_blit.is_none() {
+            self.mirror_blit = Some(crate::mirror::MirrorBlit::new(&self.device, self.color_format));
+        }
+        if self.mirror_target.as_ref().is_none_or(|t| t.width != w || t.height != h) {
+            let blit = self.mirror_blit.as_ref().expect("blit");
+            self.mirror_target = Some(blit.target(&self.device, self.color_format, w, h));
+        }
+        let mut mirror = self.mirror_target.take().expect("mirror target");
+        // Swap in the mirror camera, size and depth buffer, draw, restore.
+        let saved_camera = self.camera.clone();
+        let (saved_w, saved_h) = (self.width, self.height);
+        apply_original_view(&mut self.camera, &view);
+        // The original projection: x by tan(fov / 2), y by tan(fov / 2) / aspect of the box.
+        self.camera.drive_hfov = None;
+        self.camera.drive_fov = vertical_fov(view.fov_deg, w as f32 / h as f32).to_degrees();
+        self.width = w;
+        self.height = h;
+        std::mem::swap(&mut self.depth, &mut mirror.depth);
+        self.mirror_pass = true;
+        self.render_view(&mirror.color);
+        self.mirror_pass = false;
+        std::mem::swap(&mut self.depth, &mut mirror.depth);
+        self.width = saved_w;
+        self.height = saved_h;
+        self.camera = saved_camera;
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.scene_uniform()));
+        if let Some(blit) = &self.mirror_blit {
+            blit.draw(&self.device, &self.queue, target, &mirror, rect, (self.width, self.height));
+        }
+        self.mirror_target = Some(mirror);
+    }
+
+    fn render_view(&mut self, target: &wgpu::TextureView) {
         if self.width == 0 || self.height == 0 {
             return;
         }
@@ -2336,7 +2418,7 @@ impl Renderer {
                 .write_buffer(&sky.camera_buffer, 0, bytemuck::bytes_of(&sky_uniform));
         }
 
-        let sun_shown = self.prepare_sun();
+        let sun_shown = !self.mirror_pass && self.prepare_sun();
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -2645,7 +2727,12 @@ impl Renderer {
         }
 
         // 3.5. Draw car on track (if present)
-        if let (Some(car), Some(car_render), None) = (&self.car, &self.car_render, &self.fe_room) {
+        // The mirror view looks out from the player car: its own body is not drawn there.
+        if let (Some(car), Some(car_render), None) = (
+            self.car.as_ref(),
+            &self.car_render,
+            &self.fe_room,
+        ) {
             if let Some(paint) = self.race_options.player_paint {
                 self.paint_car(car_render, paint);
             }
@@ -2657,7 +2744,9 @@ impl Renderer {
                 } else {
                     car.view_mode == crate::arcade::DriveViewMode::Bumper
                 };
-            if bumper_view && self.sim_mode {
+            if self.mirror_pass {
+                // Mirror view: the player's own car is skipped, the opponents below are drawn.
+            } else if bumper_view && self.sim_mode {
                 // BumperCam: the viewed car isn't drawn (`R3DCar_SelectLOD` 0x439f90 returns 0);
                 // BumperCam2: its in-car passes (0x444e00).
                 if self.player_camera.id() == 1 {

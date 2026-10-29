@@ -17,7 +17,7 @@ mod tests {
     #[test]
     fn all_shaders_parse_and_validate() {
         let flare = format!("{}{}", crate::sun::SHADER, crate::sun::FLARE_SHADER);
-        let shaders: [(&str, &str); 7] = [
+        let shaders: [(&str, &str); 8] = [
             ("car.wgsl", crate::renderer::CAR_SHADER),
             ("sky.wgsl", include_str!("sky.wgsl")),
             ("sky-baseline.wgsl", include_str!("sky-baseline.wgsl")),
@@ -25,6 +25,7 @@ mod tests {
             ("effects", crate::effects::SHADER),
             ("sun", crate::sun::SHADER),
             ("sun + flare", &flare),
+            ("mirror blit", crate::mirror::SHADER),
         ];
         for (name, source) in shaders {
             validate(name, source);

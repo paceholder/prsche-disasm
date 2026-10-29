@@ -335,6 +335,26 @@ impl PlayerCamera {
     pub fn peek_view(&self, target: [f32; 3]) -> CameraView {
         build_view(&mut self.record.clone(), target)
     }
+
+    /// Rear-view mirror view (`Camera_BuildView 0x464f80` in mode 1, called by `0x468ca0` for the
+    /// mirror view `0x628144` on camera slot 0): eye = car `+0x330` with `y` raised by
+    /// `g_CameraParams[current id].y` (`0x5cf614`); rows right = -R (`-+0x364`), up = U
+    /// (`+0x370`), forward = -F (`-+0x37c`); FOV from the record (`+0x58`), near `+0x5c` - 0.35.
+    pub fn mirror_view(&self, car: &CarView) -> CameraView {
+        let neg = |v: [f32; 3]| [-v[0], -v[1], -v[2]];
+        let id = (self.record.id_bc.max(0) as usize).min(self.params.len() - 1);
+        let p = car.pos_330;
+        let eye = [p[0], p[1] + self.params[id].offset[1], p[2]];
+        let [r, u, f] = car.axes_364;
+        let forward = neg(f);
+        CameraView {
+            eye,
+            matrix: [neg(r), u, forward],
+            target: add(eye, forward),
+            fov_deg: 2.0 * self.record.half_fov_58,
+            near: self.record.near_5c - 0.35,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -351,6 +371,19 @@ mod tests {
             lateral_speed_d58: 0.0,
             forward_speed_d60: 20.0,
         }
+    }
+
+    #[test]
+    fn mirror_view_looks_back_from_the_camera_height() {
+        let c = car([10.0, 0.5, 20.0]);
+        let mut cam = PlayerCamera::new(DriverCamera::DEFAULT, 2);
+        cam.advance(0.01, &c, &mut FlatWorld); // TailCam0: g_CameraParams[2].y = 1.15
+        let v = cam.mirror_view(&c);
+        assert_eq!(v.eye, [10.0, 0.5 + 1.15, 20.0]);
+        assert_eq!(v.matrix, [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]]);
+        assert_eq!(v.target, [10.0, 1.65, 19.0]);
+        assert_eq!(v.fov_deg, 75.0);
+        assert!((v.near - 0.15).abs() < 1e-6);
     }
 
     #[test]

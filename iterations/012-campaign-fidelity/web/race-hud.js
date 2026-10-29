@@ -7,7 +7,7 @@ import {
   parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP, hudElementsVisible,
   translucencyAlpha, hudKey, HUD_KEYS, digitalSpeedText, digitalRpmText, TEXT_DAMAGE_LABELS,
   textDamageValues, textDamagePercent, textDamageRowY, textDamageBars, WRONG_WAY_COLOR,
-  wrongWayBlink, wrongWayLines,
+  wrongWayBlink, wrongWayLines, mirrorFrameQuads,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
@@ -87,6 +87,7 @@ export class RaceHud {
   str(id, fallback) { return this.strings[String(id)] ?? fallback; }
 
   clear() {
+    if (this.viewer) this.rearView(this.viewer, null, 1); // no HUD, no mirror
     const { ctx, canvas } = this;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -147,7 +148,8 @@ export class RaceHud {
   // Per-frame entry. `viewer`: wasm viewer; `dt` seconds; `lights` day/night packs.
   draw(viewer, { dt = 0, lights = false, carColours = null, wrongWay = false } = {}) {
     this.carColours = carColours;
-    if (!this.ready || !this.gauges) { this.clear(); return; }
+    this.viewer = viewer;
+    if (!this.ready || !this.gauges) { this.clear(); this.rearView(viewer, null, 1); return; }
     this.syncSize();
     const cfg = this.config;
     if (!cfg) return;
@@ -165,7 +167,6 @@ export class RaceHud {
     this.steps = (this.steps ?? 0) + dt * 64;
     this.lastPhase = phase;
     const o = cfg.options;
-    const S = cfg.slots;
     const accent = accentColor(o.displayColors);
     const grey = cfg.colors[0];
     const listGrey = cfg.colors[1];
@@ -175,6 +176,11 @@ export class RaceHud {
     const st = { accent, grey, listGrey, padX, padY, box, tel, viewer, lights, phase };
 
     // I_TOGGLEHUD (F5) hides the elements [VA 0x4273b0, 0x425950]; the countdown stays.
+    const S = cfg.slots;
+    // HRearview (S10): the 3D mirror view is drawn by the renderer into the slot box
+    // [VA 0x42c740, 0x468ca0]; it shows with the other elements and when REARVIEWMIRROR != 0.
+    const mirrorOn = hudElementsVisible(phase) && this.keyState.shown && cfg.options.rearViewMirror !== 0;
+    this.rearView(viewer, mirrorOn ? S[10] : null, W);
     if (!hudElementsVisible(phase) || !this.keyState.shown) {
       this.countdown(viewer, phase, W, H);
       if (wrongWay || this.debugWrongWay) this.wrongWay(W, H);
@@ -217,9 +223,46 @@ export class RaceHud {
     if (o.damageDisplay === 1) this.damage(S[5], st);
     if (o.damageDisplay === 2 || o.damageDisplay === 3) this.textDamage(S[3], o.damageDisplay, st);
     if (o.map !== 0) this.map(S[SLOT.MAP], st, o);
+    if (mirrorOn && !this.config.noAlpha) this.mirrorFrame(S[10]);
     // Wrong way after the element pass [VA 0x425950]; test hook __nfs.hud.debugWrongWay = true.
     if (wrongWay || this.debugWrongWay) this.wrongWay(W, H);
     this.countdown(viewer, phase, W, H);
+  }
+
+  // Tells the renderer where the mirror goes (canvas pixels), or turns it off.
+  rearView(viewer, box, W) {
+    if (typeof viewer.set_rear_view !== "function") return;
+    let r = [0, 0, 0, 0];
+    if (box) {
+      const k = (this.view.width || W) / W; // CSS px -> canvas px
+      r = [Math.round(box.x * k), Math.round(Math.max(0, box.y) * k), Math.round(box.w * k), Math.round(box.h * k)];
+    }
+    const key = r.join(",");
+    if (key === this.lastRearView) return;
+    this.lastRearView = key;
+    viewer.set_rear_view(r[0], r[1], r[2], r[3]);
+    this.last.rearView = box ? r : null;
+  }
+
+  // Bevel frame around the mirror [VA 0x435a20]: four 4 px trapezoids, outer edge white 0x05 /
+  // black 0x4c alpha, inner edge the other (style 0, tables 0x5b3358..0x5b3388).
+  mirrorFrame(b) {
+    const { ctx } = this;
+    for (const q of mirrorFrameQuads(b.x, b.y, b.w, b.h, 4)) {
+      const [o0, o1, i0] = q.pts;
+      // Gradient across the border: from the outer edge to the inner edge.
+      const mx = (o0[0] + o1[0]) / 2, my = (o0[1] + o1[1]) / 2;
+      const ix = q.side === "top" || q.side === "bottom" ? mx : i0[0];
+      const iy = q.side === "top" || q.side === "bottom" ? i0[1] : my;
+      const g = ctx.createLinearGradient(mx, my, ix, iy);
+      g.addColorStop(0, rgbaCss(q.outer));
+      g.addColorStop(1, rgbaCss(q.inner));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      q.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   // HWrongWay [VA 0x436f70 update, 0x437360 layout]: "WRONG WAY" (18159) centred, amber
