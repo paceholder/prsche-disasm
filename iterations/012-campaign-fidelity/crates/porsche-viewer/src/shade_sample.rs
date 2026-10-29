@@ -108,6 +108,7 @@ mod tests {
                 prelit: true,
                 uv_scroll: None,
                 env_slot: None,
+                clamp_uv: false,
             }],
             ..Default::default()
         }

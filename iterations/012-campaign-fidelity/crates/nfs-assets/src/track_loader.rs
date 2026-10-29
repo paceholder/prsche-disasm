@@ -317,10 +317,18 @@ fn track_material_double_sided(state: Option<[i32; 6]>, render_method: &str) -> 
 
 /// Preserve the pre-PR26 render-method classification. Alpha distribution alone does
 /// not prove the original method registry's blend state (`FUN_0044a770`, A190).
+/// `S_UVAnimate` is the shadow method of the tracks (`sh80`, sway layer mode 2,
+/// `docs/re/water.md`): its `sR` block enables blending (read from the `RMth` data, not
+/// recorded), so the texture alpha is a soft mask, not a cut-out. Behind
+/// `experimental-original-port` (evidence gate).
+fn track_shadow_method(render_method: &str) -> bool {
+    cfg!(feature = "experimental-original-port") && render_method == "S_UVAnimate"
+}
+
 fn track_alpha_mode(render_method: &str, rgba: &[u8]) -> AlphaMode {
     if !rgba.as_chunks::<4>().0.iter().any(|p| p[3] < 255) {
         AlphaMode::Opaque
-    } else if render_method == "Transparency" {
+    } else if render_method == "Transparency" || track_shadow_method(render_method) {
         AlphaMode::Blend
     } else {
         AlphaMode::Mask
@@ -459,11 +467,18 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             material_render_state(&e.data, methods.get(&render_method)),
             &render_method,
         );
-        let depth_bias = if e.data.len() >= 0x118 {
+        let state = material_render_state(&e.data, methods.get(&render_method));
+        let mut depth_bias = if e.data.len() >= 0x118 {
             u32le(&e.data, 0x114).unwrap_or(0) as i32
         } else {
             0
         };
+        // The shadow sheet's z bias is the `sR` field 4 of its method (-3 for `S_UVAnimate`),
+        // not `mt+0x114` (absent from these records). Read from the data (0x540660 block),
+        // behind `experimental-original-port`; unit A72.
+        if track_shadow_method(&render_method) {
+            depth_bias = state.map_or(depth_bias, |s| s[4]);
+        }
 
         let flags = u32le(&e.data, 0x0c).unwrap_or(0);
         if let Some(c) = methods
@@ -486,6 +501,10 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             prelit: true,
             uv_scroll: uv_animate_speed(&e.data),
             env_slot: None,
+            // The shadow decal texture has alpha 0 on its whole border and the sheet's UVs
+            // run far outside 0..1 (-5..15 on canyon): clamped addressing fades each decal out
+            // at its border, repeat shows the wrong tile as a hard cut along road polygons.
+            clamp_uv: track_shadow_method(&render_method),
         });
     }
 
@@ -1698,6 +1717,43 @@ mod tests {
     }
 
     #[test]
+    fn local_canyon_shadow_material_is_blended() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let (Ok(crp), Ok(fsh), Ok(anim)) = (
+            std::fs::read(root.join("canyon.crp")),
+            std::fs::read(root.join("canyon.fsh")),
+            std::fs::read(root.join("animdefs.txt")),
+        ) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        files.insert("canyon.crp".into(), crp);
+        files.insert("canyon.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        let scene = load(&files, "canyon").unwrap();
+        let sheet: Vec<_> = scene
+            .materials
+            .iter()
+            .filter(|m| m.texture.is_some_and(|t| scene.textures[t].name == "sh80"))
+            .collect();
+        assert_eq!(sheet.len(), 1);
+        // Evidence gate: read-not-recorded behaviour only with `experimental-original-port`.
+        let on = cfg!(feature = "experimental-original-port");
+        let m = sheet[0];
+        assert_eq!(m.alpha_mode, if on { AlphaMode::Blend } else { AlphaMode::Mask });
+        // Method default `sR` {1, 2, 0, 1, -3, -1}: z bias -3, clamped decal addressing.
+        assert_eq!(m.depth_bias, if on { -3 } else { 0 });
+        assert_eq!(m.clamp_uv, on);
+        // The decal's border has alpha 0, so clamped addressing hides what lies outside 0..1.
+        let t = &scene.textures[m.texture.unwrap()];
+        let (w, h) = (t.width as usize, t.height as usize);
+        let a = |x: usize, y: usize| t.rgba[(y * w + x) * 4 + 3];
+        assert!((0..w).all(|x| a(x, 0) == 0 && a(x, h - 1) == 0));
+        assert!((0..h).all(|y| a(0, y) == 0 && a(w - 1, y) == 0));
+    }
+
+    #[test]
     fn local_castle_and_forest_waterfalls_scroll_with_source_render_method() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../local/game/GameData/Track");
@@ -1783,6 +1839,10 @@ mod tests {
         let opaque = [10, 90, 20, 255].repeat(64);
         assert_eq!(track_alpha_mode("Transparency", &opaque), AlphaMode::Opaque);
         assert_eq!(track_alpha_mode("Opaque", &[]), AlphaMode::Opaque);
+        assert_eq!(
+            track_alpha_mode("S_UVAnimate", &sea),
+            if cfg!(feature = "experimental-original-port") { AlphaMode::Blend } else { AlphaMode::Mask }
+        );
     }
 
     /// `RMth` record: name, one pass, the layer definition tags, one `sR` default.

@@ -1003,6 +1003,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             } else {
                 None
             },
+            clamp_uv: false,
         });
     }
     scene.car_in_car = in_car_parts(&crp, &style, &matmap)?;

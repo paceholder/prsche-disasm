@@ -171,6 +171,9 @@ pub struct Material {
     /// (`R3DSpecularTextureLayer` 0x445520), for materials whose render method has one
     /// (`CarExtEnv`, `CarWindow`); `None` otherwise.
     pub env_slot: Option<u8>,
+    /// Sampled with clamp-to-edge addressing instead of repeat (decal textures with a zero
+    /// alpha border, the track shadow sheet).
+    pub clamp_uv: bool,
 }
 
 /// Game timer rate of `TIMER_init(0x80)` [VA 0x4a5410, 0x565030].

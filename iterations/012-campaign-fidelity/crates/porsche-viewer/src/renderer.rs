@@ -1236,6 +1236,11 @@ impl Renderer {
             ],
         });
         let sampler = device.create_sampler(&mipmapped_sampler("texture sampler"));
+        let clamp_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            ..mipmapped_sampler("texture clamp sampler")
+        });
         let mut texture_views = Vec::new();
         for texture in &scene.textures {
             if texture.width == 0
@@ -1290,7 +1295,11 @@ impl Renderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
+                        resource: wgpu::BindingResource::Sampler(if material.clamp_uv {
+                            &clamp_sampler
+                        } else {
+                            &sampler
+                        }),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
