@@ -41,7 +41,8 @@ fn srgb_to_linear(c: u8) -> f32 {
 }
 
 /// `Flare_DrawSprite` 0x451710: for each texture pass of `record`, a quad of half
-/// extent `size·0.1` pixels of a 640×480 screen (scaled to `width × height`) around
+/// extent `size·0.1` pixels of a 640×480 screen (scaled by `height / 480` on both axes,
+/// A286) around
 /// `center`, turned by `(x + y)/1440` turns when the record has flag 4; the colour's
 /// alpha is multiplied by `intensity` when that is below 1; nothing below 0.05.
 /// Blink timing (`+0x50..+0x58`) is not applied (the sun records have none).
@@ -49,7 +50,7 @@ pub fn record_sprites(
     record: &FlareRecord,
     center: [f32; 2],
     intensity: f32,
-    width: f32,
+    _width: f32,
     height: f32,
 ) -> Vec<ScreenSprite> {
     if !(intensity >= MIN_INTENSITY) {
@@ -70,7 +71,9 @@ pub fn record_sprites(
             alpha = ((argb >> 24) as f32 * intensity).trunc() / 255.0;
         }
         let size = record.sizes[pass] * 0.1;
-        let (hx, hy) = (width * size / 640.0, height * size / 480.0);
+        // The original scales x by W/640 and y by H/480, which is the same on its 4:3 modes
+        // and stretches every sprite on other aspects (approximation A286): one scale, H/480.
+        let (hx, hy) = (height * size / 480.0, height * size / 480.0);
         let corners = [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]].map(|[x, y]| {
             [x * cos + y * sin + center[0], y * cos - x * sin + center[1]]
         });
@@ -496,13 +499,16 @@ mod tests {
     #[test]
     fn sprite_size_scales_with_the_screen() {
         let r = rec("suna", [Some("SUNA"), None], [0xffff_ffff, 0], [200.0, 0.0]);
-        // At the origin there is no turn: half extent 20 px on 640×480, 40×20 on 1280×240.
+        // At the origin there is no turn: half extent 20 px on 640×480, 10×10 on 1280×240
+        // (height-based, so the sprites stay round on other aspects: A286).
         let s = record_sprites(&r, [0.0, 0.0], 1.0, 640.0, 480.0);
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].corners[0], [-20.0, -20.0]);
         assert_eq!(s[0].corners[2], [20.0, 20.0]);
         let s = record_sprites(&r, [0.0, 0.0], 1.0, 1280.0, 240.0);
-        assert_eq!(s[0].corners[2], [40.0, 10.0]);
+        assert_eq!(s[0].corners[2], [10.0, 10.0]);
+        let s = record_sprites(&r, [0.0, 0.0], 1.0, 1000.0, 1000.0);
+        assert_eq!(s[0].corners[2], [41.666668, 41.666668]);
     }
 
     #[test]

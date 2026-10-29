@@ -841,7 +841,7 @@ pub struct Renderer {
     /// Sun sprite and lens flare (`Sun_Draw` 0x460290, `Flare_Draw` 0x460460).
     sun_flare: crate::sun::SunFlareGpu,
     /// Sun point of the track's sky config (`Sky_SunPosition` 0x461090), scene axes.
-    sun_position: Option<Vec3>,
+    pub(crate) sun_position: Option<Vec3>,
     /// `Render/flare.dat` records of the loaded car scene.
     flare: Option<nfs_formats::FlareData>,
     car_glares: Vec<nfs_assets::CarGlare>,

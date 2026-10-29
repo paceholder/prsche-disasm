@@ -523,6 +523,11 @@ impl BrowserViewer {
             .unwrap_or(0.0)
     }
 
+    /// Debug: the sun point (scene axes, `Sky_SunPosition`), empty without a sun.
+    pub fn debug_sun(&self) -> Vec<f32> {
+        self.renderer.as_ref().and_then(|r| r.sun_position).map(|s| s.to_array().to_vec()).unwrap_or_default()
+    }
+
     /// Debug: look from `eye` at `target` (scene axes); 6 zeros clear it.
     pub fn debug_look(&mut self, ex: f32, ey: f32, ez: f32, tx: f32, ty: f32, tz: f32) {
         if let Some(r) = &mut self.renderer {
