@@ -5,7 +5,8 @@ import {
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
   BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour,
   parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP, hudElementsVisible,
-  translucencyAlpha, hudKey, HUD_KEYS,
+  translucencyAlpha, hudKey, HUD_KEYS, digitalSpeedText, digitalRpmText, TEXT_DAMAGE_LABELS,
+  textDamageValues, textDamagePercent, textDamageRowY, textDamageBars,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
@@ -176,14 +177,27 @@ export class RaceHud {
     const listBox = { x: S[4].x, y: S[4].y, w: S[4].w, h: (rows.length + 1) * S[4].h + 2 * padY };
     if (box) {
       if (o.gear === 1) this.panel(S[0]);
+      if (o.speedometer === 1) this.panel(S[1]);
       this.panel(S[2]);
+      if (o.damageDisplay === 2 || o.damageDisplay === 3) this.panel(S[3]);
       if (o.opponentList !== 0 && rows.length) this.panel(listBox);
       if (o.damageDisplay === 1) this.panel(S[5]);
       if (o.splitTimes !== 0) this.panel(S[11]);
+      if (o.tachometer === 1) this.panel(S[12]);
     }
 
     if (o.speedometer === 2) this.dial(S[SLOT.SPEEDO], "speedo", st);
     if (o.tachometer === 2) this.dial(S[SLOT.TACH], "tach", st);
+    // Digital speed HSpeed (S1) and rpm HTachDigital (S12) [VA 0x42e570, 0x42f740].
+    if (o.speedometer === 1) {
+      const units = o.speedUnits ? 1 : 0;
+      this.last.digitalSpeed = digitalSpeedText(tel[0], units);
+      this.combo(S[1], this.last.digitalSpeed, units ? this.str(20, "mph") : this.str(11, "km/h"), st);
+    }
+    if (o.tachometer === 1) {
+      this.last.digitalRpm = digitalRpmText(tel[1]);
+      this.combo(S[12], this.last.digitalRpm, this.str(18144, "rpm"), st);
+    }
     this.last.gear = gearText(tel[2], this.strings);
     if (o.gear === 1) this.combo(S[0], this.last.gear, this.str(10, "gear"), st);
     this.combo(S[2], formatTicks(secondsToTicks(this.raceTime)), this.str(18, "time"), st);
@@ -194,6 +208,7 @@ export class RaceHud {
     }
     if (o.opponentList !== 0 && rows.length) this.positionList(listBox, S[4], rows, st);
     if (o.damageDisplay === 1) this.damage(S[5], st);
+    if (o.damageDisplay === 2 || o.damageDisplay === 3) this.textDamage(S[3], o.damageDisplay, st);
     if (o.map !== 0) this.map(S[SLOT.MAP], st, o);
     this.countdown(viewer, phase, W, H);
   }
@@ -383,6 +398,34 @@ export class RaceHud {
     this.text(li, "0%", bx, by - li.lineHeight - 1, st.accent);
     this.text(li, "100%", bx + bw - textWidth(li, "100%"), by - li.lineHeight - 1, st.accent);
     const big = this.fonts.big;
+    this.text(big, this.str(12, "damage"), b.x + st.padX, b.y + b.h - st.padY - big.lineHeight, st.grey);
+  }
+
+  // HTextDamage [VA 0x430150]: four rows with bars (mode 2) or percentages (mode 3).
+  textDamage(b, mode, st) {
+    const { ctx } = this;
+    const small = this.fonts.list;
+    const smallI = this.fonts.listi;
+    const big = this.fonts.big;
+    const hud1 = this.config.hud1;
+    const values = textDamageValues(Array.from({ length: 9 }, (_, i) => st.tel[4 + i]));
+    this.last.textDamage = values;
+    TEXT_DAMAGE_LABELS.forEach((id, i) => {
+      const y = textDamageRowY(b, i);
+      this.text(small, this.str(id, ""), b.x + st.padX, y, st.listGrey);
+      if (mode === 3) {
+        const t = textDamagePercent(values[i]);
+        this.text(smallI, t, b.x + b.w - st.padX - textWidth(smallI, t), y, st.accent);
+      } else {
+        const bars = textDamageBars(b, i, values[i], st.padX, small?.lineHeight ?? 10,
+          hud1.getInt32(0x3c, true), hud1.getUint32(0x28, true), hud1.getUint32(0x2c, true));
+        for (const q of bars) {
+          if (q.w <= 0) continue;
+          ctx.fillStyle = rgbaCss(q.color);
+          ctx.fillRect(q.x, q.y, q.w, q.h);
+        }
+      }
+    });
     this.text(big, this.str(12, "damage"), b.x + st.padX, b.y + b.h - st.padY - big.lineHeight, st.grey);
   }
 

@@ -11,6 +11,7 @@ import {
   parseCourseMap, mapTransform, damageColor, DAMAGE_UNDAMAGED, DAMAGE_RAMP, damageLevel, damageDraws,
   mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints, hudElementsVisible,
   DISPLAY_OPTIONS, OPTION_NAMES, configOptions, hudKey, HUD_KEYS, translucencyAlpha, hudPreviewDraws,
+  digitalSpeedText, digitalRpmText, textDamageValues, textDamagePercent, textDamageRowY, textDamageBars,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 
@@ -270,4 +271,32 @@ test("HudOptions: per-config edits and layout persist", () => {
   assert.equal(again.layout, 2);
   assert.deepEqual(again.overrides(2), { gear: 0 });
   assert.equal(again.accessor("Display.Nope", str), null);
+});
+
+test("digital speed and rpm (VA 0x42e570, 0x42f740)", () => {
+  assert.equal(digitalSpeedText(0.5), "000");
+  assert.equal(digitalSpeedText(1.5), "005");
+  assert.equal(digitalSpeedText(10), "036");
+  assert.equal(digitalSpeedText(50), "180");
+  assert.equal(digitalSpeedText(50, 1), "111");
+  assert.equal(digitalRpmText(0.4), "0000");
+  assert.equal(digitalRpmText(7), "0007");
+  assert.equal(digitalRpmText(850.9), "0850");
+  assert.equal(digitalRpmText(6500), "6500");
+});
+
+test("text damage rows (VA 0x430150, 0x4938a0, 0x493960, 0x493c90, 0x493bc0)", () => {
+  const zones = [10, 30, 50, 0, 0, 0, 0, 0, 30];
+  // drivetrain = zone 1 (no parts), steering (z0 + z2) / 2, body sum / 12, handling 0 (no parts)
+  assert.deepEqual(textDamageValues(zones), [30, 30, 10, 0]);
+  assert.equal(textDamagePercent(0), "0%");
+  assert.equal(textDamagePercent(42), "42%");
+  const box = { x: 0, y: 0, w: 124, h: 100 };
+  assert.deepEqual([0, 1, 2, 3, 4].map(i => textDamageRowY(box, i)), [0, 20, 40, 60, 80]);
+  const bars = textDamageBars(box, 1, 25, 5, 10, 3, 0xffd70a0f, 0xc8a58c0a);
+  assert.deepEqual(bars, [
+    { x: 5, y: 34, w: 28, h: 3, color: 0xffd70a0f },
+    { x: 33, y: 34, w: 86, h: 3, color: 0xc8a58c0a },
+  ]);
+  assert.equal(textDamageBars(box, 0, 100, 5, 10, 3, 1, 2).length, 1);
 });

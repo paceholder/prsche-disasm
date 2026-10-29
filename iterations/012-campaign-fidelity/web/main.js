@@ -126,6 +126,12 @@ let raceHudCarIndex = null;
 let hudStorage = null;
 try { hudStorage = window.localStorage; } catch {}
 const hudOptions = new HudOptions(hudStorage);
+// Test hook: ?hudlayout=1..4 selects a HUD config for this page only (not saved).
+{
+  const m = /[?&]hudlayout=(\d)/.exec(globalThis.location?.search ?? "");
+  const n = m ? Number(m[1]) : 0;
+  if (Number.isInteger(n) && n >= 1 && n <= 4) hudOptions.layout = n - 1;
+}
 async function loadHudRecords() {
   if (hudOptions.records) return;
   const [h1, h2] = await Promise.all([readGamePath("FEData/Data/nfs5-1.hud"), readGamePath("FEData/Data/nfs5-2.hud")]);

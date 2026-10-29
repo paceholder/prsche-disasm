@@ -423,6 +423,56 @@ export function damageDraws() {
   return out;
 }
 
+// --- Digital gauges (SPEEDOMETER / HUDTACHOMETER == 1) -----------------------------------------
+// HSpeed (S1) [VA 0x42e570]: ftol(car+0xec4 * 3.6 | * 2.2374139), label "km/h" (11) / "mph" (20);
+// zero-padded to 3 digits ("00" below 10, "0" below 100); "000" while car+0xec4 < 1.0 [0x5b24a8].
+export function digitalSpeedText(speedEc4, units = 0) {
+  if (!(speedEc4 >= 1)) return "000";
+  const v = speedoUnits(speedEc4, units);
+  return v < 10 ? `00${v}` : v < 100 ? `0${v}` : String(v);
+}
+// HTachDigital (S12) [VA 0x42f740]: ftol(car+0xdb4) rpm, label "rpm" (18144); padded to 4 digits,
+// "0000" below 1.
+export function digitalRpmText(rpm) {
+  const v = Math.trunc(rpm);
+  if (!(v >= 1)) return "0000";
+  return v < 10 ? `000${v}` : v < 100 ? `00${v}` : v < 1000 ? `0${v}` : String(v);
+}
+
+// --- Text damage panel HTextDamage (S3, DAMAGEDISPLAY 2 bar graph / 3 percentages) -------------
+// Rows [VA 0x42f900 ctor, 0x430870 layout, 0x430150 update]: labels 13 drivetrain, 14 steering,
+// 15 body, 16 handling at y + trunc(h * i / 5), x + padX (unviers9b, list grey +0x1c); values
+// right-aligned at x + w - padX (unviers9bi, accent), only in mode 3 ("N%", "0%" for 0); label
+// "damage" (12) in UniversC12b grey +0x18 at the bottom like the combo labels. Values (ftol):
+// drivetrain Car_DamageEngine 0x4938a0, steering (zone 0 + zone 2) / 2 0x493960, body sum of
+// zones 0..8 * 0.083333336 0x493c90, handling Car_AlignmentNoise 0x493bc0. Without installed
+// parts (Quick Race, A30) 0x4938a0 is zone 1 and 0x493bc0 is 0.
+export const TEXT_DAMAGE_LABELS = [13, 14, 15, 16];
+export function textDamageValues(zones) {
+  const z = i => Math.fround(zones[i] ?? 0);
+  let body = 0;
+  for (let i = 0; i < 9; i++) body += z(i);
+  return [z(1), (z(0) + z(2)) * 0.5, body * 0.083333336, 0].map(v => Math.trunc(v));
+}
+export function textDamagePercent(v) {
+  return v === 0 ? "0%" : `${v}%`;
+}
+export function textDamageRowY(box, i) {
+  return box.y + Math.trunc((box.h * i) / 5);
+}
+// Bar graph of row i (mode 2) [VA 0x430535..0x430851]: from x + padX, width w - 2 padX, top
+// y_i + 4 [0x5b2404] + label text height, height hud1 +0x3c; filled trunc(v * width / 100) in
+// hud1 +0x28, the rest in hud1 +0x2c (not drawn at 100).
+export function textDamageBars(box, i, value, padX, textH, barH, fill, rest) {
+  const x = box.x + padX;
+  const w = box.w - 2 * padX;
+  const y = textDamageRowY(box, i) + 4 + textH;
+  const f = Math.trunc((value * w) / 100);
+  const out = [{ x, y, w: f, h: barH, color: fill }];
+  if (value !== 100) out.push({ x: x + f, y, w: w - f, h: barH, color: rest });
+  return out;
+}
+
 // Map zoom Z (half width of the map box in metres) [VA 0x41e9c0]: MAPSCALE 0..4 -> s = 0, 0, 33,
 // 66, 100; Z = 185 + 4.15 s (radar mode MAP 3: 5 + 0.15 s); Z = 600 means the whole track
 // (centre on the outline's bounding box, Z = max extent / 2 + 200) [VA 0x41ea40, 0x433440].
