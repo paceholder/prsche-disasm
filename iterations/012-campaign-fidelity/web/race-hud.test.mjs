@@ -12,6 +12,7 @@ import {
   mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints, hudElementsVisible,
   DISPLAY_OPTIONS, OPTION_NAMES, configOptions, hudKey, HUD_KEYS, translucencyAlpha, hudPreviewDraws,
   digitalSpeedText, digitalRpmText, textDamageValues, textDamagePercent, textDamageRowY, textDamageBars,
+  wrongWayBlink, wrongWayLines,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 
@@ -299,4 +300,26 @@ test("text damage rows (VA 0x430150, 0x4938a0, 0x493960, 0x493c90, 0x493bc0)", (
     { x: 33, y: 34, w: 86, h: 3, color: 0xc8a58c0a },
   ]);
   assert.equal(textDamageBars(box, 0, 100, 5, 10, 3, 1, 2).length, 1);
+});
+
+test("wrong way: blink and corner brackets (VA 0x436f70, 0x437360)", () => {
+  let b = wrongWayBlink(null, 1000); // first update after the start: the long gap hides it
+  assert.equal(b.visible, false);
+  b = wrongWayBlink(b, 1032);
+  assert.equal(b.visible, false); // 32 steps: not more than 0x20 yet
+  b = wrongWayBlink(b, 1033);
+  assert.equal(b.visible, true);
+  b = wrongWayBlink(b, 1033 + 64);
+  assert.equal(b.visible, true);
+  b = wrongWayBlink(b, 1033 + 65);
+  assert.equal(b.visible, false);
+  const g = wrongWayLines(640, 480, 100, 12);
+  assert.deepEqual([g.textX, g.textY], [270, 240]);
+  assert.deepEqual(g.lines[0], [265, 235, 270, 235]);
+  assert.deepEqual(g.lines[7], [375, 257, 375, 252]);
+});
+
+test("race-hud.js and hud-options.js load as modules", async () => {
+  const m = await import("./race-hud.js");
+  assert.equal(typeof m.RaceHud, "function");
 });

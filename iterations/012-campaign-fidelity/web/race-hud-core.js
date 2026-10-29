@@ -473,6 +473,46 @@ export function textDamageBars(box, i, value, padX, textH, barH, fill, rest) {
   return out;
 }
 
+// --- Wrong way HWrongWay (ctor 0x436ea0, update 0x436f70, layout 0x437360) ----------------------
+// Not one of the configurable elements: shown while car+0xd30 != 0 (counted by 0x4a7660 while the
+// car points against its track node), after step 0x1c0, outside race type 9 and replays
+// [VA 0x425950]. Text 18159 in UniversC12b, colour 0xfffab400 (fixed, not DISPLAYCOLORS).
+export const WRONG_WAY_COLOR = 0xfffab400;
+// Blink [VA 0x436f70]: timer += step - lastStep (lastStep only advances while the element is
+// updated); visible -> hidden after more than 0x40 steps, hidden -> visible after more than 0x20.
+// The state starts visible with lastStep 0, so the first update after a long gap hides it first.
+export function wrongWayBlink(prev, step) {
+  const s = prev ?? { timer: 0, visible: true, last: 0 };
+  let timer = s.timer + (step - s.last);
+  let visible = s.visible;
+  if ((visible && timer > 0x40) || (!visible && timer > 0x20)) {
+    visible = !visible;
+    timer = 0;
+  }
+  return { timer, visible, last: step };
+}
+// Layout [VA 0x437360]: centre (W/2, H/2) (integer halves); text at (ftol(cx - w/2), cy); frame
+// left/right ftol(cx -/+ w/2 -/+ 5), top cy - 5, bottom ftol(cy + h + 5); each corner two 5 px
+// lines [VA 0x436fcb..0x437345, line queue 0x419e90]. Lines as [x0, y0, x1, y1].
+export function wrongWayLines(W, H, textW, textH) {
+  const cx = Math.trunc(W / 2);
+  const cy = Math.trunc(H / 2);
+  const tx = cx - textW * 0.5;
+  const L = Math.trunc(tx - 5);
+  const R = Math.trunc(cx + textW * 0.5 + 5);
+  const T = cy - 5;
+  const B = Math.trunc(cy + textH + 5);
+  return {
+    textX: Math.trunc(tx), textY: cy,
+    lines: [
+      [L, T, L + 5, T], [L, T, L, T + 5],
+      [L, B, L + 5, B], [L, B, L, B - 5],
+      [R - 5, T, R, T], [R, T, R, T + 5],
+      [R - 5, B, R, B], [R, B, R, B - 5],
+    ],
+  };
+}
+
 // Map zoom Z (half width of the map box in metres) [VA 0x41e9c0]: MAPSCALE 0..4 -> s = 0, 0, 33,
 // 66, 100; Z = 185 + 4.15 s (radar mode MAP 3: 5 + 0.15 s); Z = 600 means the whole track
 // (centre on the outline's bounding box, Z = max extent / 2 + 200) [VA 0x41ea40, 0x433440].

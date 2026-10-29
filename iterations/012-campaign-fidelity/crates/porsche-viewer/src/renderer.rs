@@ -796,6 +796,8 @@ pub struct Renderer {
     linear_track: Option<bool>,
     pub barrier_config: nfs_assets::BarrierCollisionConfig,
     pub is_wrong_way: bool,
+    /// Track node of the player for the wrong-way test (`car+0x8`, located per frame).
+    pub wrong_way_node: i32,
     /// In-race pause (`DAT_00606a90`): `update_car` runs no step. `re/pause.md`.
     pub paused: bool,
     /// Track reset (R, `Car_ResetWatch 0x40f740`): its timers, the pending key event, the
@@ -1929,6 +1931,7 @@ impl Renderer {
             linear_track: None,
             barrier_config: nfs_assets::BarrierCollisionConfig::default(),
             is_wrong_way: false,
+            wrong_way_node: 0,
             paused: false,
             reset_watch: Default::default(),
             reset_request: false,
@@ -3496,6 +3499,27 @@ impl Renderer {
         ) {
             let lap_res = tracker.update(player_pos, player_fwd, course, dt);
             self.is_wrong_way = tracker.is_wrong_way;
+            // HWrongWay condition (`car+0xd30` counts while the car's forward axis `+0x37c`
+            // points against the forward `+0x1c` of its track node, negated on reverse tracks
+            // `0x657430`; reset when finished `+0xb50 == 2`) [VA 0x4a7660]; the HUD shows it
+            // while the count is non-zero [VA 0x425950]. Tracks without a node graph keep the
+            // course heading test.
+            if let Some(t) = self.original_ai_track.as_ref().filter(|t| !t.nodes.nodes.is_empty()) {
+                let n = t.nodes.nodes.len() as i32;
+                let pos = nfs_assets::physics::original_adapter::to_original(Vec3::from(player_pos));
+                self.wrong_way_node = t.nodes.locate(pos, self.wrong_way_node.clamp(0, n - 1));
+                let node = &t.nodes.nodes[self.wrong_way_node.clamp(0, n - 1) as usize];
+                let fwd = nfs_assets::physics::original_adapter::to_original(Vec3::from(player_fwd));
+                let mut d = fwd[0] * node.forward_1c[0] + fwd[1] * node.forward_1c[1] + fwd[2] * node.forward_1c[2];
+                if t.reverse {
+                    d = -d;
+                }
+                let finished = session
+                    .participants
+                    .iter()
+                    .any(|p| p.is_player && p.total_time_secs.is_some());
+                self.is_wrong_way = d < 0.0 && !finished;
+            }
 
             if let Some(true) = lap_res {
                 session.on_player_lap_completed();

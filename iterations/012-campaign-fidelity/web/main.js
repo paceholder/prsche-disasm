@@ -107,7 +107,6 @@ const facStatusVal = document.querySelector("#facStatusVal");
 const facStatusSub = document.querySelector("#facStatusSub");
 const countdownBanner = document.querySelector("#countdownBanner");
 const countdownText = document.querySelector("#countdownText");
-const wrongWayBanner = document.querySelector("#wrongWayBanner");
 const raceResultsModal = document.querySelector("#raceResultsModal");
 const resultsSubtitle = document.querySelector("#resultsSubtitle");
 const resultsLapTime = document.querySelector("#resultsLapTime");
@@ -2980,7 +2979,6 @@ function syncTourButton() {
   updateDebugPanel();
   if (!isDriveAndCar) {
     if (countdownBanner) countdownBanner.hidden = true;
-    if (wrongWayBanner) wrongWayBanner.hidden = true;
     if (raceResultsModal) raceResultsModal.hidden = true;
   }
 }
@@ -3322,7 +3320,10 @@ function drawRaceHud(dt) {
     raceHud.setCarRecord(raceHud.carRecords, raceHudCarIndex);
   }
   try {
-    raceHud.draw(viewer, { dt, lights: lightsOn, carColours: raceCarColours });
+    // HWrongWay (0x436ea0): shown after the start in races other than race type 9 (the
+    // factory missions stand for it here) and not in replays [VA 0x425950].
+    const wrongWay = !activeCareerEvent?.is_factory && viewer.get_race_phase?.() === 2 && viewer.is_wrong_way?.();
+    raceHud.draw(viewer, { dt, lights: lightsOn, carColours: raceCarColours, wrongWay: Boolean(wrongWay) });
   } catch (error) {
     console.error("race HUD draw failed", error);
   }
@@ -3450,10 +3451,6 @@ function updateNavigation(dt) {
     lastPhase = phase;
     gameAudio.frame(phase, phase === 1 ? viewer.get_countdown_remaining() : 0);
 
-    // Wrong Way Alert
-    if (wrongWayBanner) {
-      wrongWayBanner.hidden = !(!activeCareerEvent?.is_factory && phase === 2 && viewer.is_wrong_way());
-    }
 
     // Race Finished / Results Modal
     if (raceResultsModal) {

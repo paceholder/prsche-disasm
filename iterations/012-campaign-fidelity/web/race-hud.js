@@ -6,7 +6,8 @@ import {
   BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour,
   parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP, hudElementsVisible,
   translucencyAlpha, hudKey, HUD_KEYS, digitalSpeedText, digitalRpmText, TEXT_DAMAGE_LABELS,
-  textDamageValues, textDamagePercent, textDamageRowY, textDamageBars,
+  textDamageValues, textDamagePercent, textDamageRowY, textDamageBars, WRONG_WAY_COLOR,
+  wrongWayBlink, wrongWayLines,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 import { FeAssets, makeCanvas } from "./fe-assets.js";
@@ -144,7 +145,7 @@ export class RaceHud {
   }
 
   // Per-frame entry. `viewer`: wasm viewer; `dt` seconds; `lights` day/night packs.
-  draw(viewer, { dt = 0, lights = false, carColours = null } = {}) {
+  draw(viewer, { dt = 0, lights = false, carColours = null, wrongWay = false } = {}) {
     this.carColours = carColours;
     if (!this.ready || !this.gauges) { this.clear(); return; }
     this.syncSize();
@@ -160,6 +161,8 @@ export class RaceHud {
     const phase = viewer.get_race_phase();
     if (phase === PHASE_RACING) this.raceTime += dt;
     else if (phase < PHASE_RACING) this.raceTime = 0;
+    // Scheduler steps (64 Hz) for HWrongWay's blink: the frame clock stands for g_SchedStep.
+    this.steps = (this.steps ?? 0) + dt * 64;
     this.lastPhase = phase;
     const o = cfg.options;
     const S = cfg.slots;
@@ -172,7 +175,11 @@ export class RaceHud {
     const st = { accent, grey, listGrey, padX, padY, box, tel, viewer, lights, phase };
 
     // I_TOGGLEHUD (F5) hides the elements [VA 0x4273b0, 0x425950]; the countdown stays.
-    if (!hudElementsVisible(phase) || !this.keyState.shown) { this.countdown(viewer, phase, W, H); return; }
+    if (!hudElementsVisible(phase) || !this.keyState.shown) {
+      this.countdown(viewer, phase, W, H);
+      if (wrongWay || this.debugWrongWay) this.wrongWay(W, H);
+      return;
+    }
     const rows = this.getStandings(viewer);
     const listBox = { x: S[4].x, y: S[4].y, w: S[4].w, h: (rows.length + 1) * S[4].h + 2 * padY };
     if (box) {
@@ -210,7 +217,33 @@ export class RaceHud {
     if (o.damageDisplay === 1) this.damage(S[5], st);
     if (o.damageDisplay === 2 || o.damageDisplay === 3) this.textDamage(S[3], o.damageDisplay, st);
     if (o.map !== 0) this.map(S[SLOT.MAP], st, o);
+    // Wrong way after the element pass [VA 0x425950]; test hook __nfs.hud.debugWrongWay = true.
+    if (wrongWay || this.debugWrongWay) this.wrongWay(W, H);
     this.countdown(viewer, phase, W, H);
+  }
+
+  // HWrongWay [VA 0x436f70 update, 0x437360 layout]: "WRONG WAY" (18159) centred, amber
+  // 0xfffab400, framed by four 5 px corner brackets; blinks 64 steps on, 32 off.
+  wrongWay(W, H) {
+    const blink = wrongWayBlink(this.wrongWayState, Math.trunc(this.steps));
+    this.wrongWayState = blink;
+    this.last.wrongWay = blink.visible;
+    if (!blink.visible) return;
+    const f = this.fonts.big;
+    if (!f) return;
+    const text = this.str(18159, "WRONG WAY");
+    const g = wrongWayLines(W, H, textWidth(f, text), f.lineHeight);
+    this.text(f, text, g.textX, g.textY, WRONG_WAY_COLOR);
+    const { ctx } = this;
+    ctx.strokeStyle = rgbaCss(WRONG_WAY_COLOR);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [x0, y0, x1, y1] of g.lines) {
+      const h = y0 === y1;
+      ctx.moveTo(h ? x0 : x0 + 0.5, h ? y0 + 0.5 : y0);
+      ctx.lineTo(h ? x1 : x1 + 0.5, h ? y1 + 0.5 : y1);
+    }
+    ctx.stroke();
   }
 
   // Start countdown H321Go (0x4184f0), visible from step 0x100 to 0x1c0 of the 7 s start.

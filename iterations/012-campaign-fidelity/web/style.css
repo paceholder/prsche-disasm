@@ -622,25 +622,6 @@ body:not(.menu-hidden) #menuButton {
 }
 @keyframes pulse-cue { from { transform: scale(0.92); opacity: 0.85; } to { transform: scale(1.08); opacity: 1.0; } }
 
-.wrong-way-banner {
-  position: absolute;
-  top: 16%;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 30;
-  background: rgba(220, 38, 38, 0.92);
-  color: #fff;
-  font: bold 16px/1 sans-serif;
-  padding: 10px 24px;
-  border: 2px solid #f87171;
-  border-radius: 4px;
-  box-shadow: 0 0 30px rgba(239, 68, 68, 0.8);
-  pointer-events: none;
-  user-select: none;
-  animation: flash-red 0.4s infinite alternate;
-}
-@keyframes flash-red { from { opacity: 0.4; } to { opacity: 1.0; } }
-
 /* ==========================================================================
    AUTHENTIC BRIEFING MODAL (missionbrief.lay)
    ========================================================================== */
