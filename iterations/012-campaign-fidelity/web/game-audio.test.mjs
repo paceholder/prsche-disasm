@@ -79,3 +79,24 @@ test("Go (step 0x1c0) is delivered on the countdown to racing transition", () =>
   assert.equal(announcerStep(2, 2, 0), null);
   assert.equal(announcerStep(0, 0, 0), null);
 });
+
+test("no countdown speech after the start: laps, pause and finish never ask for a step", () => {
+  const ev = new RaceEvents();
+  const asked = [];
+  const frame = (phase, lap, remaining = 0) => {
+    const before = ev.phase;
+    const e = ev.update({ phase, lap, best: 0 });
+    const step = announcerStep(phase, before, remaining);
+    if (step !== null) asked.push(step);
+    return e;
+  };
+  frame(1, 1, 7);
+  frame(2, 1);
+  asked.length = 0;
+  for (let lap = 2; lap <= 4; lap++) {
+    assert.equal(frame(2, lap).start, false);
+    frame(3, lap); frame(2, lap); // pause and resume on the line
+  }
+  frame(4, 4); frame(5, 4);
+  assert.deepEqual(asked, []);
+});
