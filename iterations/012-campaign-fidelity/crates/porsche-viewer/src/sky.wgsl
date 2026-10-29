@@ -91,8 +91,14 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
     let across = select(along, 1.0 - along, tile.y > 0.5);
     let column = tile.x - floor(tile.x / columns) * columns;
     let row = floor(tile.x / columns);
-    let u = (column + across) / columns;
-    let v = (row + 0.01 + down_c * 0.97) / rows;
+    // Keep the bilinear footprint inside the tile: the panorama is an atlas, so sampling exactly on a
+    // tile edge (the segment seams of the ring) blends in the neighbouring tile (thin bright line).
+    let atlas = vec2<f32>(textureDimensions(sky_texture));
+    let tile_texels = atlas / vec2<f32>(columns, rows);
+    let inset = vec2<f32>(0.5) / tile_texels;
+    let tile_uv = clamp(vec2<f32>(across, 0.01 + down_c * 0.97), inset, vec2<f32>(1.0) - inset);
+    let u = (column + tile_uv.x) / columns;
+    let v = (row + tile_uv.y) / rows;
     let panorama = textureSampleLevel(sky_texture, sky_sampler, vec2<f32>(u, v), 0.0);
     // Vertex colours from the hzcl strip, Gouraud across the quad.
     let next = (k + 1u) & 15u;
