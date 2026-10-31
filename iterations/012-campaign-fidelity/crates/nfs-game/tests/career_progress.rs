@@ -19,6 +19,7 @@ fn event_name(e: &CareerEvent) -> &'static str {
         CareerEvent::RebuildCarLists => "rebuild",
         CareerEvent::RaceListRefresh => "races",
         CareerEvent::DebugPrint => "print",
+        e => panic!("unexpected event {e:?}"),
     }
 }
 

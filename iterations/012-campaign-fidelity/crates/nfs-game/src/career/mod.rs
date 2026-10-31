@@ -7,13 +7,19 @@
 //!
 //! - [`trn`]: the `nfs5.trn` tournament table (blob edited in place).
 //! - [`save`]: the `Tournament` save section.
+//! - [`catalogue`], [`garage`]: car and parts records, dealer, car lists, owned cars.
 //! - [`Career`]: the career globals and (in `progression`) the year/era state machine,
 //!   tournaments, points and money.
 
+pub mod catalogue;
+pub mod garage;
 pub mod progression;
 pub mod save;
 pub mod trn;
 
+
+pub use catalogue::{CarCatalogue, CarRecord, PartRecord, PartsCatalogue};
+pub use garage::{dealer_price, BuyRefusal, CarLists, Garage, OwnedCar};
 pub use progression::{ApplyOutcome, CarResult, LaunchRefusal, RaceKind, RaceResults};
 pub use trn::{RaceInfo, TournamentInfo, TournamentTable};
 
@@ -52,6 +58,10 @@ pub enum CareerEvent {
     RaceListRefresh,
     /// `0x504a40`: "Current year is now %d / era %s" debug print.
     DebugPrint,
+    /// `0x4fbc10`: the front end's track lists (first step of `Career_RebuildCarLists`).
+    RebuildTrackList,
+    /// `0x4aadb0(id)`: front-end sound (0xb after a purchase).
+    Sound(i32),
 }
 
 /// The career globals of the original and the tournament table.
@@ -78,6 +88,10 @@ pub struct Career {
     pub cash: i32,
     /// Side effects for the caller (see [`CareerEvent`]).
     pub events: Vec<CareerEvent>,
+    /// Owned cars (`PlayerInfo` in the original).
+    pub garage: Garage,
+    /// Catalogue lists of the last `rebuild_car_lists`.
+    pub car_lists: CarLists,
     era_lists: [Vec<i32>; 6],
 }
 
@@ -98,6 +112,8 @@ impl Career {
             era_changed: false,
             cash: NEW_PROFILE_CASH,
             events: Vec::new(),
+            garage: Garage::default(),
+            car_lists: CarLists::default(),
             era_lists: Default::default(),
         };
         c.build_era_lists();

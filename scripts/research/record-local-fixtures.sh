@@ -38,6 +38,7 @@ run replay-ai-ais.py --out "$OUT/ai-ais.tsv"
 run replay-ai-planner.py --out "$OUT/ai-planner.tsv"
 run replay-ai-loop.py --out "$OUT/ai-loop.tsv"
 run replay-career-progress.py --table "$GAME_DIR/FEData/Data/nfs5.trn" --seeds 1,2,3 --out "$OUT/career-progress-trn.tsv"
+run replay-career-garage.py --data "$GAME_DIR" --out "$OUT/career-garage-car.tsv"
 
 # Road support: dump the type-1 support polygons with the Rust loader, then record the original.
 # Needs a Rust toolchain (cargo) on PATH.
