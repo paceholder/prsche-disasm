@@ -10,9 +10,11 @@
 //! - [`Career`]: the career globals and (in `progression`) the year/era state machine,
 //!   tournaments, points and money.
 
+pub mod progression;
 pub mod save;
 pub mod trn;
 
+pub use progression::{ApplyOutcome, CarResult, LaunchRefusal, RaceKind, RaceResults};
 pub use trn::{RaceInfo, TournamentInfo, TournamentTable};
 
 /// Year steps of the career (`g_CareerYearTable` 0x5b8670, int[17]).

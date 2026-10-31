@@ -300,7 +300,10 @@ class Career:
 
     def era_query(self, era):
         a = self.call('q', ERA_COMPLETE, era) & 0xff
-        b = self.call('q', HIGHEST_ERA)
+        # Career_HighestCompletedEra returns the incoming ECX when Classic is not complete
+        # (and no later era is): the recorder passes ECX = 0.
+        self.calls.clear()
+        b = self.m.call(HIGHEST_ERA, regs={'ecx': 0})
         c = (self.call('q', TYPE2, era) - TRN) // REC
         self.record('eraquery', [era], f'{a}:{b}:{c}')
 
