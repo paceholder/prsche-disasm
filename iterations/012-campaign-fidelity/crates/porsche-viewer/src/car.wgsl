@@ -1,7 +1,3 @@
-// Approximation A22: gamma-space factor for prelit colours (2 = MODULATE2X) and
-// how much of their hue is kept (0 = brightness only, 1 = full colour).
-const PRELIT_SCALE: f32 = 1.6;
-const PRELIT_SATURATION: f32 = 0.3;
 struct Camera {
     view_projection: mat4x4<f32>,
     eye: vec4<f32>,
@@ -90,13 +86,11 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
     if alpha_mode > 0.5 && alpha_mode < 1.5 && base.a <= alpha_cutoff { discard; }
     let out_alpha = select(1.0, base.a, alpha_mode > 1.5);
     if material.params.w > 0.5 && material.params.w < 1.5 {
-        // Prelit track geometry: texture times its `df` vertex colour
-        // (approximation A22: the original combine mode is not recovered).
-        // The scale applies to the gamma-space colour (like D3D MODULATE2X).
-        let grey = dot(in.color.rgb, vec3<f32>(0.299, 0.587, 0.114));
-        let tinted = mix(vec3<f32>(grey), in.color.rgb, PRELIT_SATURATION);
-        let shade = srgb_to_linear(min(tinted * PRELIT_SCALE, vec3<f32>(2.0)));
-        return vec4<f32>(min(base.rgb * shade, vec3<f32>(1.0)), out_alpha);
+        // Track geometry: texture times its 8-bit vertex colour (the `df` word, or the
+        // `LayerAmbient` constant), D3D COLOROP MODULATE (THRASH 0x29 = 8, set by every
+        // single-texture draw 0x540ce0/0x543ae0/0x545ad0/0x5483c0/0x5492f0) on gamma values:
+        // never brighter than the texture. No scale, full hue (re/lighting.md "Track lighting").
+        return vec4<f32>(base.rgb * srgb_to_linear(in.color.rgb), out_alpha);
     }
     let normal = normalize(select(-in.normal, in.normal, front));
     if camera.sun.w > 0.5 {

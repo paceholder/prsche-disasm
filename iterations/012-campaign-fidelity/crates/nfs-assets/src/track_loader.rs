@@ -187,6 +187,41 @@ fn uv_animate_speed(mt: &[u8]) -> Option<i32> {
     None
 }
 
+/// Constant vertex colour of a track material whose render method keeps a `LayerAmbient`
+/// layer (`RCustomLayers::LayerAmbient`, entry type 0x8007, apply 0x448c70: writes its
+/// parameter word into every vertex colour). The scene loader 0x44a770 builds a material's
+/// layers from the `RMth` chunk named at `mt +0x10`; `0x44bf70` keeps an entry when its mask
+/// is 0 or shares a bit with the `mt +0x0c` flags. Track methods keep either this layer
+/// (flag 0x10: objects, signs) or the `df` data layer (entry type 6, flag 8: road, cliffs);
+/// the draw then copies the `df` words unchanged (0x540ce0). `RMth` layout: name (16),
+/// group, entry and parameter counts, 16-byte groups, 16-byte entries
+/// `{u16 pass, tag, type, arg, mask}`, 16-byte parameter descriptors `{u16 pass, tag,
+/// offset, size, _}`, then the default values. Parameter overrides in the `mt` record are
+/// not read (shipped tracks override only the render state).
+fn ambient_layer_colour(rmth: &[u8], flags: u32) -> Option<[f32; 4]> {
+    let (groups, entries, params) = (
+        u32le(rmth, 0x10).ok()? as usize,
+        u32le(rmth, 0x14).ok()? as usize,
+        u32le(rmth, 0x18).ok()? as usize,
+    );
+    let entry_base = 0x1c + groups.checked_mul(16)?;
+    let param_base = entry_base + entries.checked_mul(16)?;
+    let blob = param_base + params.checked_mul(16)?;
+    let tag = (0..entries).find_map(|i| {
+        let e = entry_base + i * 16;
+        let (ty, mask) = (u32le(rmth, e + 4).ok()?, u32le(rmth, e + 12).ok()?);
+        (ty == 0x8007 && (mask == 0 || flags & mask != 0)).then(|| bytes(rmth, e, 4).ok())?
+    })?;
+    (0..params).find_map(|i| {
+        let p = param_base + i * 16;
+        if bytes(rmth, p, 4).ok()? != tag || u32le(rmth, p + 8).ok()? != 4 {
+            return None;
+        }
+        let off = blob + u32le(rmth, p + 4).ok()? as usize;
+        Some(df_rgba(bytes(rmth, off, 4).ok()?))
+    })
+}
+
 /// Preserve the pre-PR26 render-method classification. Alpha distribution alone does
 /// not prove the original method registry's blend state (`FUN_0044a770`, A190).
 fn track_alpha_mode(render_method: &str, rgba: &[u8]) -> AlphaMode {
@@ -301,6 +336,14 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
     }
 
     let mut matmap = BTreeMap::new();
+    let methods: BTreeMap<String, &[u8]> = crp
+        .misc
+        .iter()
+        .filter(|e| e.tag == "RMth" && e.data.len() >= 0x1c)
+        .filter_map(|e| Some((c_string(bytes(&e.data, 0, 16).ok()?), e.data.as_slice())))
+        .collect();
+    // Material index -> constant vertex colour of its `LayerAmbient` layer.
+    let mut ambient_colour: BTreeMap<usize, [f32; 4]> = BTreeMap::new();
     let mut material_entries: Vec<_> = crp.misc.iter().filter(|e| e.tag == "mt").collect();
     material_entries.sort_by_key(|e| e.index);
 
@@ -331,6 +374,13 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             0
         };
 
+        let flags = u32le(&e.data, 0x0c).unwrap_or(0);
+        if let Some(c) = methods
+            .get(&render_method)
+            .and_then(|m| ambient_layer_colour(m, flags))
+        {
+            ambient_colour.insert(scene.materials.len(), c);
+        }
         matmap.insert(e.index, scene.materials.len());
         scene.materials.push(Material {
             name: format!("mt{}:{render_method}", e.index),
@@ -341,7 +391,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             alpha_cutoff: 0.5,
             double_sided,
             depth_bias,
-            // Track geometry carries prelit `df` vertex colours (approximation A22).
+            // Track geometry: texture × vertex colour (`df` or the `LayerAmbient` constant).
             prelit: true,
             uv_scroll: uv_animate_speed(&e.data),
             env_slot: None,
@@ -433,6 +483,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                                 &raw_positions,
                                 uv,
                                 &matmap,
+                                &ambient_colour,
                                 format!("prop_{fourcc:#x}#{ai}/{}", pr.index),
                             ) {
                                 if !m.indices.is_empty() {
@@ -504,6 +555,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                 &raw_positions,
                 uv,
                 &matmap,
+                &ambient_colour,
                 format!("{article_name}#{ai}/{}", pr.index),
             )?;
             if !m.indices.is_empty() {
@@ -1239,6 +1291,7 @@ fn parse_mesh(
     positions: &[[f32; 3]],
     uv: Option<&Entry>,
     materials: &BTreeMap<u16, usize>,
+    ambient_colour: &BTreeMap<usize, [f32; 4]>,
     name: String,
 ) -> Result<Mesh, String> {
     let d = &pr.data;
@@ -1318,9 +1371,12 @@ fn parse_mesh(
             }
         }
 
-        // `df` colours are D3D ARGB words (bytes B, G, R, A).
+        // `df` colours are D3D ARGB words (bytes B, G, R, A); a `LayerAmbient` material
+        // has its constant instead (`ambient_layer_colour`).
         let mut color = [1.0; 4];
-        if let (Some(df), Some(&(off, adj))) = (df, channels.get(&3)) {
+        if let Some(&c) = ambient_colour.get(&material) {
+            color = c;
+        } else if let (Some(df), Some(&(off, adj))) = (df, channels.get(&3)) {
             let c_ix = off.map_or(i, |off| raw[off + i] as usize) + adj;
             if let Some(px) = df.data.get(c_ix * 4..c_ix * 4 + 4) {
                 color = df_rgba(px);
@@ -1487,6 +1543,80 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// `RMth` chunk: one group, the given entries `(tag, type, mask)` and one parameter
+    /// (tag `mA`, 4 bytes) with the default value `word`.
+    fn rmth_chunk(entries: &[(&[u8; 2], u32, u32)], word: u32) -> Vec<u8> {
+        let mut b = b"Test\0\0\0\0\0\0\0\0\0\0\0\0".to_vec();
+        for v in [1u32, entries.len() as u32, 1, 0, entries.len() as u32, 0, 1] {
+            b.extend(v.to_le_bytes());
+        }
+        for (tag, ty, mask) in entries {
+            b.extend(1u16.to_le_bytes());
+            b.extend(*tag);
+            for v in [*ty, 1, *mask] {
+                b.extend(v.to_le_bytes());
+            }
+        }
+        b.extend(1u16.to_le_bytes());
+        b.extend(b"mA");
+        for v in [0u32, 4, 0, word] {
+            b.extend(v.to_le_bytes());
+        }
+        b
+    }
+
+    #[test]
+    fn ambient_layer_colour_follows_the_material_flags() {
+        // Entries as in the shipped `Opaque` method: `df` data layer (mask 0x40008) and
+        // `LayerAmbient` (mask 0x10); the `mt +0x0c` flags pick one (0x44bf70).
+        let rmth = rmth_chunk(&[(b"fd", 6, 0x40008), (b"mA", 0x8007, 0x10)], 0xff80_4020);
+        let c = ambient_layer_colour(&rmth, 0x30010).unwrap();
+        assert_eq!(c, df_rgba(&0xff80_4020u32.to_le_bytes()));
+        assert_eq!(ambient_layer_colour(&rmth, 0x30008), None);
+        // Mask 0: always kept.
+        let always = rmth_chunk(&[(b"mA", 0x8007, 0)], 0xffff_ffff);
+        assert_eq!(ambient_layer_colour(&always, 0), Some([1.0; 4]));
+        assert_eq!(ambient_layer_colour(&[0; 8], 0x10), None);
+    }
+
+    #[test]
+    fn local_canyon_road_keeps_df_and_objects_take_the_ambient_constant() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let (Ok(crp), Ok(fsh), Ok(anim)) = (
+            std::fs::read(root.join("canyon.crp")),
+            std::fs::read(root.join("canyon.fsh")),
+            std::fs::read(root.join("animdefs.txt")),
+        ) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        files.insert("canyon.crp".into(), crp);
+        files.insert("canyon.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        let scene = load(&files, "canyon").unwrap();
+        let colours = |tex: &str| -> Vec<[f32; 4]> {
+            scene
+                .meshes
+                .iter()
+                .filter(|m| {
+                    scene.materials[m.material]
+                        .texture
+                        .is_some_and(|t| scene.textures[t].name == tex)
+                })
+                .flat_map(|m| m.vertices.iter().map(|v| v.color))
+                .collect()
+        };
+        // Road (`Opaque`, flags 0x30008): `df` words, shaded.
+        let road = colours("rd74");
+        assert!(!road.is_empty());
+        assert!(road.iter().any(|c| c[..3] != [1.0; 3]));
+        // Cone (`Opaque`, flags 0x30010): `LayerAmbient` 0xffffffff.
+        let cone = colours("cone");
+        assert!(!cone.is_empty());
+        assert!(cone.iter().all(|c| *c == [1.0; 4]));
     }
 
     #[test]
@@ -1674,15 +1804,16 @@ mod tests {
             let elevation = sun[1].atan2(sun[0].hypot(sun[2])).to_degrees();
             assert!((40.0..45.0).contains(&elevation), "sun elevation {elevation}");
         }
-        // Prelit `df` colours reach the vertices (pr channel kind 3). Skidpad's
-        // colours are almost all white; only 90 entries are shaded.
+        // Vertex colours: `df` words (pr channel kind 3) or the `LayerAmbient` constant.
+        // Skidpad's `df` words are white where they are drawn; its 90 shaded entries
+        // belong to `LayerAmbient` materials (flag 0x10), which take 0xffffffff.
         let colors: Vec<[f32; 4]> = scene
             .meshes
             .iter()
             .flat_map(|m| m.vertices.iter().map(|v| v.color))
             .collect();
         let shaded = colors.iter().filter(|c| c[..3] != [1.0; 3]).count();
-        assert!((60..1000).contains(&shaded), "{shaded} of {} shaded", colors.len());
+        assert_eq!(shaded, 0, "{shaded} of {} shaded", colors.len());
         assert!(scene.materials.iter().all(|m| m.prelit));
         assert_eq!(scene.meshes.len(), 180);
         assert_eq!(scene.prop_articles.len(), 70);
