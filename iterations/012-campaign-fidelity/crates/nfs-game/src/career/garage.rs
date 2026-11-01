@@ -118,7 +118,7 @@ impl OwnedCar {
 }
 
 /// `0x49c350` part order: category +0x26, then price +0x5c, then id, ascending.
-fn part_less(a: &PartRecord, b: &PartRecord) -> bool {
+pub(crate) fn part_less(a: &PartRecord, b: &PartRecord) -> bool {
     if a.category() != b.category() {
         return a.category() < b.category();
     }

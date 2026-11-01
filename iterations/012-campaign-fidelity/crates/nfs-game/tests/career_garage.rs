@@ -7,16 +7,11 @@
 mod support;
 
 use nfs_game::career::{dealer_price, CarCatalogue, Career, CareerEvent, OwnedCar, PartsCatalogue};
-use support::career_fixture::{fnv64, int};
+use support::career_fixture::{fnv64, int, parse_tables};
 use support::local_fixtures::Fixture;
-use std::collections::{HashMap, HashSet};
 
 const SYNTHETIC: &str = include_str!("fixtures/career-garage-synthetic.tsv");
 static LOCAL: Fixture = Fixture::new("career-garage-car.tsv");
-
-fn hex(s: &str) -> Vec<u8> {
-    (0..s.len() / 2).map(|k| u8::from_str_radix(&s[2 * k..2 * k + 2], 16).unwrap()).collect()
-}
 
 fn car_dump(c: &OwnedCar) -> String {
     let ids = |l: &[nfs_game::career::PartRecord]| {
@@ -41,21 +36,8 @@ fn lists_dump(c: &Career) -> String {
 }
 
 fn replay(text: &str) -> (usize, usize) {
-    let (mut cars, mut parts, mut present) = (Vec::new(), Vec::new(), HashSet::new());
-    let mut header: Vec<String> = Vec::new();
-    let mut rows: Vec<HashMap<String, String>> = Vec::new();
-    for line in text.lines().filter(|l| !l.starts_with('#')) {
-        let f: Vec<&str> = line.split('\t').collect();
-        match f[0] {
-            "car" => cars.extend(hex(f[2])),
-            "part" => parts.extend(hex(f[2])),
-            "present" => {
-                present.insert(f[1].as_bytes().to_vec());
-            }
-            _ if header.is_empty() => header = f.iter().map(|s| s.to_string()).collect(),
-            _ => rows.push(header.iter().cloned().zip(f.iter().map(|s| s.to_string())).collect()),
-        }
-    }
+    let fx = parse_tables(text);
+    let (cars, parts, present, rows) = (fx.cars, fx.parts, fx.present, fx.rows);
     let cat = CarCatalogue::from_bytes(&cars);
     let parts = PartsCatalogue::from_bytes(&parts);
     let mut c = Career::new(&[]);

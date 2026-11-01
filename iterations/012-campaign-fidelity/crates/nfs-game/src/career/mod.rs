@@ -8,11 +8,13 @@
 //! - [`trn`]: the `nfs5.trn` tournament table (blob edited in place).
 //! - [`save`]: the `Tournament` save section.
 //! - [`catalogue`], [`garage`]: car and parts records, dealer, car lists, owned cars.
+//! - [`parts`]: part prices, parts market, spare parts, installing, repair.
 //! - [`Career`]: the career globals and (in `progression`) the year/era state machine,
 //!   tournaments, points and money.
 
 pub mod catalogue;
 pub mod garage;
+pub mod parts;
 pub mod progression;
 pub mod save;
 pub mod trn;
@@ -38,6 +40,8 @@ pub mod strings {
     pub const NO_MORE_THAN_EIGHTY: i32 = 61;
     /// IDS_DIALOG_NOTENOUGHCASH.
     pub const NOT_ENOUGH_CASH: i32 = 802;
+    /// IDS_NOTENOUGHCASHREPAIRS.
+    pub const NOT_ENOUGH_CASH_REPAIR: i32 = 809;
     /// IDS_FAILRESTRICTIONS: car not allowed in the tournament.
     pub const FAIL_RESTRICTIONS: i32 = 813;
     /// IDS_NOFUNDSFORTOURNY: cash below the entry fee.
@@ -92,6 +96,8 @@ pub struct Career {
     pub garage: Garage,
     /// Catalogue lists of the last `rebuild_car_lists`.
     pub car_lists: CarLists,
+    /// The player's spare parts `[0x69a0ec]` (bought or removed parts).
+    pub spare_parts: Vec<PartRecord>,
     era_lists: [Vec<i32>; 6],
 }
 
@@ -114,6 +120,7 @@ impl Career {
             events: Vec::new(),
             garage: Garage::default(),
             car_lists: CarLists::default(),
+            spare_parts: Vec::new(),
             era_lists: Default::default(),
         };
         c.build_era_lists();
