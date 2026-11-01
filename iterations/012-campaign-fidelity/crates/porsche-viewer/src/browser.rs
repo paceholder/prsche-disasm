@@ -1112,6 +1112,12 @@ impl BrowserViewer {
         }
     }
 
+    /// Debug: set the player car's ten damage zones (`car+0x4e4`, 0..100) as a collision would
+    /// (original vehicle model only); returns whether it was applied.
+    pub fn debug_set_damage_zones(&mut self, zones: Vec<f32>) -> bool {
+        self.renderer.as_mut().is_some_and(|r| r.debug_set_damage_zones(&zones))
+    }
+
     /// Manual box gear event: +1 up, -1 down.
     pub fn shift_gear(&mut self, direction: i32) {
         if let Some(renderer) = &mut self.renderer {

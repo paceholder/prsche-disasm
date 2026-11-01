@@ -498,17 +498,18 @@ fn car_parts(
                 |n: [f32; 3]| to_scene_coordinates(normalize(frame_point(&m, n, 0.0)));
             let frame_count = if info[8] > 1 { info[8] } else { 0 };
             let mut meshes = Vec::new();
+            let mut vt_indices = Vec::new();
             for pr in a
                 .children
                 .iter()
                 .filter(|e| e.tag == "pr" && e.index >> 12 == lod)
             {
                 let label = format!("{name}#{ai}/{} (in-car)", pr.index & 4095);
-                let local = |frame: u16| -> Result<Mesh, String> {
+                let local = |frame: u16| -> Result<(Mesh, Vec<u32>), String> {
                     let index = lod | (frame << 4);
                     let vt = a.find("vt", index).unwrap_or(vt);
                     let nm = a.find("nm", index).or_else(|| a.find("nm", lod));
-                    mesh(
+                    mesh_with_vt_indices(
                         pr,
                         vt,
                         nm,
@@ -535,10 +536,11 @@ fn car_parts(
                         })
                         .collect()
                 };
-                let mut base_mesh = local(0)?;
+                let (mut base_mesh, base_vt) = local(0)?;
                 if base_mesh.indices.is_empty() {
                     continue;
                 }
+                vt_indices.push(base_vt);
                 let placed = place(&base_mesh);
                 for (v, (p, n)) in base_mesh.vertices.iter_mut().zip(&placed) {
                     v.position = *p;
@@ -560,7 +562,7 @@ fn car_parts(
                         if a.find("vt", index).is_none() {
                             break;
                         }
-                        let mut fm = place(&local(f)?);
+                        let mut fm = place(&local(f)?.0);
                         for tri in fm.chunks_mut(3) {
                             if tri.len() == 3 && tri.iter().all(|(_, n)| *n == [0.; 3]) {
                                 let n = triangle_normal([tri[0].0, tri[1].0, tri[2].0]);
@@ -578,6 +580,16 @@ fn car_parts(
             if meshes.is_empty() {
                 continue;
             }
+            // Damage morph (0x43e390 runs for every LOD of the car, these levels included);
+            // parts with animation frames keep their frames.
+            let damage = if frames_or_zero(frame_count, &meshes) == 0 {
+                crate::car_damage::MorphPart::from_article(a, lod)
+                    .map_err(|e| format!("{name}: {e}"))?
+                    .filter(|part| part.morphs())
+                    .map(|part| InCarDamage { part, frame: m, meshes: vt_indices })
+            } else {
+                None
+            };
             parts.push(InCarPart {
                 name: name.clone(),
                 pass,
@@ -587,6 +599,7 @@ fn car_parts(
                 frame_channel: info[9],
                 frame_count: frames_or_zero(frame_count, &meshes),
                 meshes,
+                damage,
             });
         }
     }
@@ -892,6 +905,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         start_trigger: None,
         intro_cameras: Vec::new(),
         finish_trigger: None,
+        car_damage: Vec::new(),
     };
     let mut skipped = Vec::new();
     let mut selected = Vec::new();
@@ -1084,12 +1098,18 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             return Err(format!("{name}: unaligned vertices"));
         }
         let first_mesh = scene.meshes.len();
+        // Damage morph (0x43e390): the part of this article at the drawn level, when its
+        // flags and data let the zones move it.
+        let mut damage = crate::car_damage::MorphPart::from_article(a, lod)
+            .map_err(|e| format!("{name}: {e}"))?
+            .filter(|part| part.morphs())
+            .map(|part| CarDamagePart { name: name.clone(), part, translation, meshes: Vec::new() });
         for pr in a
             .children
             .iter()
             .filter(|e| e.tag == "pr" && e.index >> 12 == lod)
         {
-            let result = mesh(
+            let result = mesh_with_vt_indices(
                 pr,
                 vt,
                 nm,
@@ -1098,8 +1118,12 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 &matmap,
                 format!("{name}#{ai}/{}", pr.index & 4095),
             );
-            let mut m = result.map_err(|e| format!("{name}, CRP offset 0x{:x}: {e}", pr.offset))?;
+            let (mut m, vt_indices) =
+                result.map_err(|e| format!("{name}, CRP offset 0x{:x}: {e}", pr.offset))?;
             if !m.indices.is_empty() {
+                if let Some(d) = &mut damage {
+                    d.meshes.push((scene.meshes.len(), vt_indices));
+                }
                 // NFS5 stores model coordinates five times larger than the
                 // viewer scale. mesh() applies that scale once and adds the
                 // part translation; only the handedness conversion remains.
@@ -1132,7 +1156,12 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 scene.car_roof_up.extend(first_mesh..scene.meshes.len());
             } else {
                 scene.car_roof_down.extend(scene.meshes.drain(first_mesh..));
+                // Not morphed: the open top is drawn from `car_roof_down` (A310).
+                damage = None;
             }
+        }
+        if let Some(d) = damage.filter(|d| !d.meshes.is_empty()) {
+            scene.car_damage.push(d);
         }
         // Cabrio top (frame channel 1), hood / trunk lid (transform channels 8, 9) and the
         // retractable headlight lid (channel 0x11, 0x438440 / 0x43c830).
@@ -1329,6 +1358,19 @@ fn mesh(
     materials: &BTreeMap<u16, usize>,
     name: String,
 ) -> Result<Mesh, String> {
+    mesh_with_vt_indices(pr, vt, nm, uv, translation, materials, name).map(|(m, _)| m)
+}
+
+/// [`mesh`] and, per mesh vertex, its index into the `vt` array (what the damage morph moves).
+fn mesh_with_vt_indices(
+    pr: &Entry,
+    vt: &Entry,
+    nm: Option<&Entry>,
+    uv: Option<&Entry>,
+    translation: [f32; 3],
+    materials: &BTreeMap<u16, usize>,
+    name: String,
+) -> Result<(Mesh, Vec<u32>), String> {
     let d = &pr.data;
     let material = *materials
         .get(&u16le(d, 4)?)
@@ -1382,8 +1424,10 @@ fn mesh(
     let (vo, va) = *channels.get(&0).ok_or("missing vertex index stream")?;
     let mut vertices = Vec::with_capacity(pr.count);
     let mut indices = Vec::with_capacity(pr.count);
+    let mut vt_indices = Vec::with_capacity(pr.count);
     for i in 0..pr.count {
         let ix = vo.map_or(i, |off| raw[off + i] as usize) + va;
+        vt_indices.push(ix as u32);
         let mut p = [0.; 3];
         for (k, v) in p.iter_mut().enumerate() {
             *v = f32le(&vt.data, ix * 16 + k * 4)?;
@@ -1412,12 +1456,15 @@ fn mesh(
             color: [1.0; 4],
         });
     }
-    Ok(Mesh {
-        name,
-        vertices,
-        indices,
-        material,
-    })
+    Ok((
+        Mesh {
+            name,
+            vertices,
+            indices,
+            material,
+        },
+        vt_indices,
+    ))
 }
 fn mesh_position(p: [f32; 3], translation: [f32; 3]) -> [f32; 3] {
     std::array::from_fn(|i| p[i] / 5.0 + translation[i])

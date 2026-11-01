@@ -33,6 +33,8 @@ pub(crate) struct InCarPartRender {
     /// Per mesh, per frame: vertices in car mesh space.
     frames: Vec<Vec<Vec<GpuVertex>>>,
     shown_frame: Cell<f32>,
+    /// Damage morph (`R3DCarLOD_ApplyDamageMorph` 0x43e390) and the drawn vertices per mesh.
+    damage: Option<(nfs_assets::car_damage::CarDamageModel, nfs_assets::InCarDamage, Vec<Vec<GpuVertex>>)>,
 }
 
 impl InCarPartRender {
@@ -48,6 +50,29 @@ impl InCarPartRender {
                 ROTATION_SENSE * turns * std::f32::consts::TAU,
             )
             * Mat4::from_translation(-self.pivot_origin)
+    }
+
+    /// 0x438230 for this part on the car's zones: rewrites its meshes when they moved. Called
+    /// every frame with the zones of the car, so its cache follows the exterior model's.
+    pub(crate) fn update_damage(
+        &mut self,
+        queue: &wgpu::Queue,
+        zones: &[f32; 10],
+        view: nfs_assets::car_damage::DamageView,
+    ) {
+        let Some((model, data, drawn)) = &mut self.damage else {
+            return;
+        };
+        if !model.update(zones, view, 2, false).is_some_and(|w| !w.is_empty()) {
+            return;
+        }
+        let vertices = &model.parts[0].vertices;
+        for (k, (mesh, verts)) in self.meshes.iter().zip(drawn.iter_mut()).enumerate() {
+            for (v, p) in verts.iter_mut().zip(data.mesh_positions(k, vertices)) {
+                v.position = body(p);
+            }
+            queue.write_buffer(&mesh.vertex, 0, bytemuck::cast_slice(verts));
+        }
     }
 
     /// Uploads the blend of the two frames around the channel frame (approximation A61:
@@ -95,6 +120,7 @@ pub(crate) fn build(device: &wgpu::Device, parts: &[InCarPart]) -> Vec<InCarPart
         .map(|part| {
             let mut meshes = Vec::new();
             let mut frames = Vec::new();
+            let mut drawn = Vec::new();
             for m in &part.meshes {
                 let vertices: Vec<GpuVertex> = m
                     .mesh
@@ -142,6 +168,7 @@ pub(crate) fn build(device: &wgpu::Device, parts: &[InCarPart]) -> Vec<InCarPart
                     center,
                 });
                 frames.push(per_frame);
+                drawn.push(vertices);
             }
             InCarPartRender {
                 pass: part.pass,
@@ -153,6 +180,9 @@ pub(crate) fn build(device: &wgpu::Device, parts: &[InCarPart]) -> Vec<InCarPart
                 meshes,
                 frames,
                 shown_frame: Cell::new(f32::NAN),
+                damage: part.damage.clone().map(|d| {
+                    (nfs_assets::car_damage::CarDamageModel::new(vec![d.part.clone()]), d, drawn)
+                }),
             }
         })
         .collect()

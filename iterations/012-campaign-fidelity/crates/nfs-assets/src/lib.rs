@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 
 pub mod audio;
 pub mod camera;
+pub mod car_damage;
 pub mod car_tint;
 pub mod cockpit;
 pub mod collision_box;
@@ -164,6 +165,36 @@ pub struct InCarPart {
     pub frame_channel: u8,
     pub frame_count: u8,
     pub meshes: Vec<InCarMesh>,
+    /// Damage morph of the part (parts without animation frames), see [`CarDamagePart`].
+    pub damage: Option<InCarDamage>,
+}
+
+/// The damage morph data of an in-car part.
+#[derive(Debug, Clone)]
+pub struct InCarDamage {
+    pub part: car_damage::MorphPart,
+    /// The part's `tr` matrix at its level (column-major, raw CRP units).
+    pub frame: [f32; 16],
+    /// Per mesh of [`InCarPart::meshes`], the vt index of every vertex.
+    pub meshes: Vec<Vec<u32>>,
+}
+
+impl InCarDamage {
+    /// Positions of mesh `k` (scene coordinates, as `InCarMesh::mesh`) from the drawn array.
+    pub fn mesh_positions(&self, k: usize, vertices: &[[f32; 4]]) -> Vec<[f32; 3]> {
+        let m = &self.frame;
+        self.meshes[k]
+            .iter()
+            .map(|&v| {
+                let q = vertices[v as usize];
+                let p = [q[0] / 5.0, q[1] / 5.0, q[2] / 5.0];
+                let r: [f32; 3] = std::array::from_fn(|r| {
+                    m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r] / 5.0
+                });
+                [r[0], r[1], -r[2]]
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -440,6 +471,40 @@ pub struct Scene {
     /// Finish line of the race direction: the type-1 trigger of the same start scene
     /// (`0x410730` locates it for `+0xb04`, `race::finish`), original coordinates.
     pub finish_trigger: Option<[f32; 3]>,
+    /// Parts of a car scene that the damage zones deform (`car_damage`, 0x43e390); empty for
+    /// tracks.
+    pub car_damage: Vec<CarDamagePart>,
+}
+
+/// A drawn car article whose vertices the damage zones move ([`car_damage::MorphPart`] at the
+/// scene level), with the scene meshes built from it.
+#[derive(Debug, Clone)]
+pub struct CarDamagePart {
+    pub name: String,
+    pub part: car_damage::MorphPart,
+    /// The article's `tr` translation, raw / 5, as [`Mesh`] positions use it.
+    pub translation: [f32; 3],
+    /// `(index into Scene::meshes, vt index of every mesh vertex)`.
+    pub meshes: Vec<(usize, Vec<u32>)>,
+}
+
+impl CarDamagePart {
+    /// Positions of mesh `k` of this part (in `Scene::meshes` coordinates) from `vertices`,
+    /// the part's drawn vertex array.
+    pub fn mesh_positions(&self, k: usize, vertices: &[[f32; 4]]) -> Vec<[f32; 3]> {
+        self.meshes[k]
+            .1
+            .iter()
+            .map(|&v| {
+                let p = vertices[v as usize];
+                [
+                    p[0] / 5.0 + self.translation[0],
+                    p[1] / 5.0 + self.translation[1],
+                    -(p[2] / 5.0 + self.translation[2]),
+                ]
+            })
+            .collect()
+    }
 }
 
 impl Default for Scene {
@@ -491,6 +556,7 @@ impl Default for Scene {
             start_trigger: None,
             intro_cameras: Vec::new(),
             finish_trigger: None,
+            car_damage: Vec::new(),
         }
     }
 }

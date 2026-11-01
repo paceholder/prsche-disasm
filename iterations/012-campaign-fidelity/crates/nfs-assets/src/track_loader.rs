@@ -423,6 +423,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             .filter_map(|e| crate::camera::anim::CameraAnimation::parse(&e.data).ok())
             .collect(),
         finish_trigger: None,
+        car_damage: Vec::new(),
     };
 
     let mut tex_map = BTreeMap::new();

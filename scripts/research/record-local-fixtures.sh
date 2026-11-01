@@ -43,6 +43,7 @@ run replay-career-garage.py --data "$GAME_DIR" --out "$OUT/career-garage-car.tsv
 run replay-career-parts.py --data "$GAME_DIR" --out "$OUT/career-parts-car.tsv"
 run replay-career-market.py --data "$GAME_DIR" --out "$OUT/career-market-car.tsv"   # ~12 min
 run replay-career-save.py --data "$GAME_DIR" --out "$OUT/career-save-car.tsv"
+run replay-car-deform.py --data "$GAME_DIR" --cars 356a,gt1,996 --out "$OUT/car-deform-cars.tsv"
 
 # Road support: dump the type-1 support polygons with the Rust loader, then record the original.
 # Needs a Rust toolchain (cargo) on PATH.
