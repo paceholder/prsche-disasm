@@ -25,6 +25,9 @@ pub struct OwnedCar {
     pub installed: Vec<PartRecord>,
     /// `+0x75c`: stock part copies (catalogue order).
     pub stock: Vec<PartRecord>,
+    /// Port-side identity (the original uses the object address): links a garage car to its
+    /// used-market listing.
+    pub handle: u64,
 }
 
 macro_rules! field {
@@ -51,7 +54,7 @@ impl OwnedCar {
     pub fn new(record: &CarRecord, colours: [i32; 6], parts: &PartsCatalogue, others_alive: bool) -> Self {
         let mut image = vec![0u8; OWNED_CAR_SIZE];
         image[4..4 + CAR_RECORD_SIZE].copy_from_slice(&record.bytes()[..CAR_RECORD_SIZE]);
-        let mut c = OwnedCar { image, installed: Vec::new(), stock: Vec::new() };
+        let mut c = OwnedCar { image, installed: Vec::new(), stock: Vec::new(), handle: 0 };
         c.set_serial(others_alive as i32);
         for (k, v) in colours.iter().enumerate() {
             c.set_i32(0x674 + 4 * k, *v);
@@ -84,6 +87,9 @@ impl OwnedCar {
         sort_parts(&mut self.installed);
     }
 
+    pub fn i16_at(&self, o: usize) -> i16 {
+        i16::from_le_bytes([self.image[o], self.image[o + 1]])
+    }
     pub fn i32(&self, o: usize) -> i32 {
         i32::from_le_bytes(self.image[o..o + 4].try_into().unwrap())
     }
@@ -269,10 +275,20 @@ impl Career {
             .collect();
     }
 
-    /// Whether any car object exists: the registry `[0x69188c]` (owned cars here; the
-    /// used market is not ported yet).
-    fn cars_alive(&self) -> bool {
+    /// Whether any car object exists: the registry `[0x69188c]` (garage and market cars).
+    pub(crate) fn cars_alive(&self) -> bool {
         !self.garage.cars.is_empty()
+            || self.used_market.slots.iter().any(|s| matches!(s, super::used::MarketSlot::Market(_)))
+    }
+
+    pub(crate) fn next_handle(&mut self) -> u64 {
+        self.handles += 1;
+        self.handles
+    }
+
+    /// `Garage_Sort` 0x4f0ee0.
+    pub(crate) fn sort_garage(&mut self) {
+        selection_swap(&mut self.garage.cars, |a, b| car_less(&a.record(), &b.record()));
     }
 
     /// `Garage_BuyDealerCar` 0x501cf0 for catalogue record `index` with the colour words of
@@ -296,9 +312,10 @@ impl Career {
             return Err(BuyRefusal::GarageFull);
         }
         let mut car = OwnedCar::new(rec, colours, parts, self.cars_alive());
+        car.handle = self.next_handle();
         car.set_price_paid(price);
         self.garage.cars.push(car);
-        selection_swap(&mut self.garage.cars, |a, b| car_less(&a.record(), &b.record()));
+        self.sort_garage();
         self.events.push(CareerEvent::Sound(0xb));
         self.add_cash(price.wrapping_neg());
         self.update_available_cars(game_type);
@@ -317,6 +334,7 @@ impl Career {
     ) {
         let rec = &catalogue.records[catalogue.find(car_id)];
         let mut car = OwnedCar::new(rec, colours, parts, self.cars_alive());
+        car.handle = self.next_handle();
         car.set_price_paid(0);
         self.garage.cars.push(car);
         self.update_available_cars(game_type);

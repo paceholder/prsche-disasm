@@ -9,6 +9,7 @@
 //! - [`save`]: the `Tournament` save section.
 //! - [`catalogue`], [`garage`]: car and parts records, dealer, car lists, owned cars.
 //! - [`parts`]: part prices, parts market, spare parts, installing, repair.
+//! - [`used`]: car values, the used-car market, selling and buying used cars.
 //! - [`Career`]: the career globals and (in `progression`) the year/era state machine,
 //!   tournaments, points and money.
 
@@ -18,6 +19,7 @@ pub mod parts;
 pub mod progression;
 pub mod save;
 pub mod trn;
+pub mod used;
 
 
 pub use catalogue::{CarCatalogue, CarRecord, PartRecord, PartsCatalogue};
@@ -98,6 +100,10 @@ pub struct Career {
     pub car_lists: CarLists,
     /// The player's spare parts `[0x69a0ec]` (bought or removed parts).
     pub spare_parts: Vec<PartRecord>,
+    /// The used-car market `[0x691b88]`, year `[0x691b58]`.
+    pub used_market: used::UsedMarket,
+    /// Last port-side car handle ([`OwnedCar::handle`]).
+    pub handles: u64,
     era_lists: [Vec<i32>; 6],
 }
 
@@ -121,6 +127,8 @@ impl Career {
             garage: Garage::default(),
             car_lists: CarLists::default(),
             spare_parts: Vec::new(),
+            used_market: used::UsedMarket::default(),
+            handles: 0,
             era_lists: Default::default(),
         };
         c.build_era_lists();
