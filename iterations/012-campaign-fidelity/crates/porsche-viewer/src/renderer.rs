@@ -649,6 +649,8 @@ struct CarRenderState {
     /// Damage morph of the player's car (`R3DCar_UpdateDamage` 0x438230); `None` without
     /// morphable parts.
     damage: Option<CarDamageRender>,
+    /// Per AI slot, its own damage model once it has damage (A311, feature only).
+    ai_damage: Vec<Option<CarDamageRender>>,
 }
 
 /// The car texture tint of 0x443f60/0x444130 (`nfs_assets::car_tint`) for the `CarInt`
@@ -715,6 +717,8 @@ struct CarDamageRender {
     mesh_slots: Vec<Vec<Option<usize>>>,
     /// Index into `CarRenderState::meshes` -> drawn vertices and their GPU copy.
     meshes: BTreeMap<usize, (Vec<GpuVertex>, GpuMesh)>,
+    /// Undamaged vertices of `meshes`, for the copies of the AI cars.
+    base: BTreeMap<usize, Vec<GpuVertex>>,
 }
 
 impl CarDamageRender {
@@ -723,6 +727,7 @@ impl CarDamageRender {
             return None;
         }
         let mut meshes = BTreeMap::new();
+        let mut base = BTreeMap::new();
         let mesh_slots = scene
             .car_damage
             .iter()
@@ -735,6 +740,7 @@ impl CarDamageRender {
                         meshes
                             .entry(slot)
                             .or_insert_with(|| (body_vertices(mesh), dynamic_car_mesh(device, mesh)));
+                        base.entry(slot).or_insert_with(|| body_vertices(mesh));
                         Some(slot)
                     })
                     .collect()
@@ -747,7 +753,40 @@ impl CarDamageRender {
             parts: scene.car_damage.clone(),
             mesh_slots,
             meshes,
+            base,
         })
+    }
+
+    /// An undamaged copy with its own vertex buffers (one `R3DCar` per car: an AI car).
+    fn fresh_copy(&self, device: &wgpu::Device) -> Self {
+        let mut model = self.model.clone();
+        model.reset();
+        let meshes = self
+            .meshes
+            .iter()
+            .map(|(&slot, (_, gpu))| {
+                let vertices = self.base[&slot].clone();
+                let mesh = GpuMesh {
+                    vertex: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("damaged ai car"),
+                        contents: bytemuck::cast_slice(&vertices),
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    }),
+                    index: gpu.index.clone(),
+                    count: gpu.count,
+                    material: gpu.material,
+                    center: gpu.center,
+                };
+                (slot, (vertices, mesh))
+            })
+            .collect();
+        Self {
+            model,
+            parts: self.parts.clone(),
+            mesh_slots: self.mesh_slots.clone(),
+            meshes,
+            base: self.base.clone(),
+        }
     }
 
     /// 0x438230 on the zones; rewrites the GPU copies of the parts that moved.
@@ -1913,6 +1952,7 @@ impl Renderer {
                 hidden: BTreeSet::new(),
                 interior_tint: None,
                 damage: None,
+                ai_damage: Vec::new(),
             });
         }
 
@@ -2287,23 +2327,35 @@ impl Renderer {
         model_matrix: Mat4,
         mesh_indices: &[usize],
         turns: f32,
+        overrides: Option<&BTreeMap<usize, (Vec<GpuVertex>, GpuMesh)>>,
     ) {
+        let draw = |label: &'static str, matrix: Mat4, indices: &[usize]| {
+            self.draw_gpu_meshes_with(
+                target,
+                label,
+                &car_render.meshes,
+                &car_render.materials,
+                matrix,
+                indices,
+                overrides,
+            );
+        };
         let lid = car_render
             .anim_parts
             .iter()
             .find(|p| p.channel == nfs_assets::HEADLIGHT_CHANNEL && turns != 0.0);
         let Some(lid) = lid else {
-            self.draw_car_meshes_damaged(target, label, car_render, model_matrix, mesh_indices);
+            draw(label, model_matrix, mesh_indices);
             return;
         };
         let (moving, fixed): (Vec<usize>, Vec<usize>) =
             mesh_indices.iter().partition(|i| lid.base.contains(i));
-        self.draw_car_meshes_damaged(target, label, car_render, model_matrix, &fixed);
+        draw(label, model_matrix, &fixed);
         let angle = lid.open_sign * turns * std::f32::consts::TAU;
         let hinge = Mat4::from_translation(lid.pivot)
             * Mat4::from_rotation_x(angle)
             * Mat4::from_translation(-lid.pivot);
-        self.draw_car_meshes_damaged(target, "headlight lid", car_render, model_matrix * hinge, &moving);
+        draw("headlight lid", model_matrix * hinge, &moving);
     }
 
     fn draw_gpu_meshes(
@@ -2316,26 +2368,6 @@ impl Renderer {
         mesh_indices: &[usize],
     ) {
         self.draw_gpu_meshes_with(target, label, meshes, materials, model_matrix, mesh_indices, None);
-    }
-
-    /// The player's car: its damaged copies (`CarDamageRender::meshes`) replace the shared meshes.
-    fn draw_car_meshes_damaged(
-        &self,
-        target: &wgpu::TextureView,
-        label: &'static str,
-        car_render: &CarRenderState,
-        model_matrix: Mat4,
-        mesh_indices: &[usize],
-    ) {
-        self.draw_gpu_meshes_with(
-            target,
-            label,
-            &car_render.meshes,
-            &car_render.materials,
-            model_matrix,
-            mesh_indices,
-            car_render.damage.as_ref().map(|d| &d.meshes),
-        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2603,6 +2635,21 @@ impl Renderer {
         for part in &mut car_render.in_car {
             part.update_damage(&self.queue, &zones, view);
         }
+        // AI cars: not the viewed car, so the full cap table (their sides and roof show).
+        if !cfg!(feature = "experimental-original-port") {
+            return;
+        }
+        car_render.ai_damage.resize_with(self.ai_opponents.len(), || None);
+        for (slot, ai) in car_render.ai_damage.iter_mut().zip(&self.ai_opponents) {
+            if slot.is_none() && ai.damage_4e4.iter().any(|&z| z > 0.0) {
+                *slot = car_render.damage.as_ref().map(|d| d.fresh_copy(&self.device));
+            }
+            if let Some(d) = slot {
+                let mut zones = [0.0; 10];
+                zones[..9].copy_from_slice(&ai.damage_4e4);
+                d.update(&self.queue, &zones, nfs_assets::car_damage::DamageView::default());
+            }
+        }
     }
 
     /// Debug: write the player car's damage zones (as `Car_ApplyImpact` would).
@@ -2610,6 +2657,17 @@ impl Renderer {
         match self.original_vehicle.as_mut() {
             Some(v) if zones.len() == 10 => {
                 v.car.damage_4e4.copy_from_slice(zones);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Debug: write AI car `index`'s damage zones (its collision view, A6).
+    pub fn debug_set_ai_damage_zones(&mut self, index: usize, zones: &[f32]) -> bool {
+        match self.ai_opponents.get_mut(index) {
+            Some(ai) if zones.len() == 9 => {
+                ai.damage_4e4.copy_from_slice(zones);
                 true
             }
             _ => false,
@@ -3094,6 +3152,7 @@ impl Renderer {
                     body_matrix,
                     &car_render.chassis_mesh_indices,
                     self.lid_turns(&self.player_lights),
+                    car_render.damage.as_ref().map(|d| &d.meshes),
                 );
                 for wheel in &car_render.wheels {
                     let matrix = body_matrix * original_wheel_matrix(v, wheel, center);
@@ -3120,6 +3179,7 @@ impl Renderer {
                     body_matrix,
                     &car_render.chassis_mesh_indices,
                     self.lid_turns(&self.player_lights),
+                    car_render.damage.as_ref().map(|d| &d.meshes),
                 );
                 for wheel in &car_render.wheels {
                     let Some(wheel_matrix) = prototype_wheel_world_matrix(
@@ -3147,6 +3207,7 @@ impl Renderer {
                     car.model_matrix(),
                     &all_meshes,
                     self.lid_turns(&self.player_lights),
+                    car_render.damage.as_ref().map(|d| &d.meshes),
                 );
             }
 
@@ -3169,6 +3230,7 @@ impl Renderer {
                     model_matrix,
                     &car_render.chassis_mesh_indices,
                     turns,
+                    car_render.ai_damage.get(slot).and_then(|d| d.as_ref()).map(|d| &d.meshes),
                 );
                 for wheel in &car_render.wheels {
                     let steer = if wheel.wheel_index < 2 {
@@ -4183,6 +4245,13 @@ impl Renderer {
             let car = &v.car;
             player.brake = if car.reverse_d98 != 0 { car.gas_eff_d7f } else { car.brake_eff_d80 };
             player.reverse_gear = car.gear_d82 == 0;
+            // Broken lights: 0x4398c6..0x4399eb compares the raw zones car+0x4e4 (not the
+            // model's capped ones) with 30.0 [0x5b2408] and switches the zone's groups off;
+            // the glare draw 0x43d800 only reads the lit flag (no size change). Read from code,
+            // not recorded: behind the feature (evidence gate).
+            if cfg!(feature = "experimental-original-port") {
+                player.damage.copy_from_slice(&car.damage_4e4[..9]);
+            }
         }
         self.player_lights.update(&player, now_ms, blink);
         self.ai_lights.resize(
@@ -7035,6 +7104,7 @@ impl Renderer {
                 None
             },
             damage: CarDamageRender::new(&self.device, scene, &mesh_index_map),
+            ai_damage: Vec::new(),
         });
 
         self.car_glares = scene.car_glares.clone();

@@ -232,6 +232,7 @@ fn pair_car_from_ai_with_mass(
         extents_3a8: half_extents,
         radius_3b4: Vec3::from(half_extents).length(),
         active_7c: true,
+        damage_4e4: ai.damage_4e4,
         ..PairCar::default()
     }
 }
@@ -239,6 +240,11 @@ fn pair_car_from_ai_with_mass(
 /// Apply a pair-collision result to a kinematic AI car: position change, new
 /// velocity, and the yaw part of the spin change (roll/pitch are dropped).
 pub fn apply_pair_car_to_ai(ai: &mut AiOpponent, before: &PairCar, after: &PairCar) {
+    // Kept for the AI car's damage morph (A311); the kinematic AI (A6) is not a recorded
+    // domain, so behind the feature.
+    if cfg!(feature = "experimental-original-port") {
+        ai.damage_4e4 = after.damage_4e4;
+    }
     let delta = from_original(after.position_330) - from_original(before.position_330);
     ai.position = (Vec3::from(ai.position) + delta).to_array();
     if after.velocity_33c != before.velocity_33c {

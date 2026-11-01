@@ -388,6 +388,11 @@ impl Renderer {
                 ai.distance_along_course = course.distance_along_course(ai.position);
             }
             ai.laps_completed = c.laps.max(0) as u32;
+            // Zones the pair collision wrote to the AI car, for its damage morph (A311); behind
+            // the feature like the morph itself.
+            if cfg!(feature = "experimental-original-port") {
+                ai.damage_4e4.copy_from_slice(&car.damage_4e4[..9]);
+            }
         }
     }
 }

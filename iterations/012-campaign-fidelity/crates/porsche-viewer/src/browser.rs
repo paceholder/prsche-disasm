@@ -1118,6 +1118,11 @@ impl BrowserViewer {
         self.renderer.as_mut().is_some_and(|r| r.debug_set_damage_zones(&zones))
     }
 
+    /// Debug: set AI car `index`'s nine damage zones (shown with experimental-original-port).
+    pub fn debug_set_ai_damage_zones(&mut self, index: usize, zones: Vec<f32>) -> bool {
+        self.renderer.as_mut().is_some_and(|r| r.debug_set_ai_damage_zones(index, &zones))
+    }
+
     /// Manual box gear event: +1 up, -1 down.
     pub fn shift_gear(&mut self, direction: i32) {
         if let Some(renderer) = &mut self.renderer {

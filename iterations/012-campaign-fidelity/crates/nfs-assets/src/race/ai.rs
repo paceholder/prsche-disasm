@@ -194,6 +194,9 @@ pub struct AiOpponent {
     /// Body rotation set by an original-model AI car (`original_ai`), used
     /// instead of `yaw`/`up` while it drives.
     pub rotation_override: Option<Mat3>,
+    /// Damage zones `car+0x4e4[0..9]` written by `Car_ApplyImpact` in the pair
+    /// response (the AI car's collision view, A6); drawn by the damage morph (A311).
+    pub damage_4e4: [f32; 9],
 }
 
 impl AiOpponent {
@@ -231,6 +234,7 @@ impl AiOpponent {
             impact_yaw_rate: 0.0,
             performance: None,
             rotation_override: None,
+            damage_4e4: [0.0; 9],
         }
     }
 
