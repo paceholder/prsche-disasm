@@ -365,6 +365,13 @@ struct CameraUniform {
     forward: [f32; 4],
 }
 
+/// Alpha scale of the car sphere-map reflection (`car.wgsl`, `camera.specular.x`). The original
+/// pass blends with the plain texture alpha `SPC.a` (0x445520, combine 0x540ce0) and `CARCHROME`
+/// only selects which passes exist (0x44ed10), so the original value is 1. Approximation A71:
+/// 0.8 is a user preference (playtest 2026-11-01: ~30 % less gloss on sunny tracks, together
+/// with the original `· lit` factor), not from the original.
+pub(crate) const REFLECTION_ALPHA_SCALE: f32 = 0.8;
+
 /// Car light state of `R3DCar_UpdateLighting` 0x43a560 for one track: slot 0
 /// `ambient`/`tint`, slot 1 `ambient·interior`/`interiordiffuse` from
 /// `<track>.map [header]`, light from the sun of `Sky/<track>.bin`.
@@ -397,7 +404,7 @@ impl CarLighting {
     /// slot colours are multiplied by it, 0x43a560).
     fn apply(&self, uniform: &mut CameraUniform, road: [f32; 3]) {
         uniform.sun = [self.sun.x, self.sun.y, self.sun.z, 1.0];
-        uniform.specular = [0.0, 0.0, 0.0, 1.0];
+        uniform.specular = [REFLECTION_ALPHA_SCALE, 0.0, 0.0, 1.0];
         for slot in 0..2 {
             let [r, g, b] = self.ambient[slot];
             uniform.ambient[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
@@ -7778,6 +7785,20 @@ mod sky_tests {
         let turned = drive_camera(Vec3::new(510.0, 3.0, -200.0)).sky_view();
         let east = turned.transform_vector3(Vec3::X);
         assert!(east.z < -0.99, "{east:?}");
+    }
+
+    #[test]
+    fn car_lighting_passes_the_reflection_alpha_scale() {
+        let lighting = CarLighting {
+            sun: Vec3::Y,
+            ambient: [[0.3; 3], [0.3; 3]],
+            diffuse: [[0.7; 3], [0.7; 3]],
+        };
+        let mut uniform = CameraUniform::zeroed();
+        lighting.apply(&mut uniform, [0.5; 3]);
+        assert_eq!(uniform.specular, [REFLECTION_ALPHA_SCALE, 0.0, 0.0, 1.0]);
+        assert!(REFLECTION_ALPHA_SCALE > 0.0 && REFLECTION_ALPHA_SCALE <= 1.0);
+        assert_eq!(uniform.ambient[0], [0.15, 0.15, 0.15, 1.0]);
     }
 
     #[test]

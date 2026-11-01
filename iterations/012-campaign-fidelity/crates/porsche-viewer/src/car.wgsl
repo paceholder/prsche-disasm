@@ -97,19 +97,23 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
         // Vertex colour min(1, ambient + diffuse·max(0, n·sun)) modulating the
         // texture in gamma space (approximation A23: per pixel, S = 1).
         let slot = select(0, 1, material.params.w > 1.5 && material.params.w < 2.5);
-        let lit = camera.ambient[slot].rgb + camera.diffuse[slot].rgb * max(dot(normal, camera.sun.xyz), 0.0);
-        var rgb = base.rgb * srgb_to_linear(min(lit, vec3<f32>(1.0)));
+        let lit = min(camera.ambient[slot].rgb + camera.diffuse[slot].rgb * max(dot(normal, camera.sun.xyz), 0.0), vec3<f32>(1.0));
+        var rgb = base.rgb * srgb_to_linear(lit);
         if material.params.w > 2.5 && camera.specular.w > 0.5 {
-            // Texture slot k = params.w − 3 (layer parameter of the material). The pass's
-            // render state has blend field 0, as the car shadow (which must be an alpha
-            // blend), not 1 as the additive glares: the map is alpha-blended over the paint,
-            // on gamma-encoded values like the original frame buffer (A71: the THRASH blend
-            // mapping itself is not read).
+            // Texture slot k = params.w − 3 (layer parameter of the material). Render state
+            // blend field 0 = THRASH 0x38 SRCALPHA/INVSRCALPHA in every driver: the map is
+            // alpha-blended over the paint on gamma-encoded values (frame buffer). The pass
+            // draws with THRASH 0x29 = 8 (MODULATE texture × diffuse, 0x540ce0) and the
+            // diffuse is the vertex colour pass 1's R3DLightLayer (0x446530) left in the
+            // shared buffer, i.e. `lit`: colour `SPC.rgb · lit`, alpha `SPC.a` (vertex alpha
+            // 255 · ambient.a = 1 on every track). camera.specular.x scales the alpha
+            // (A71: user-preference strength, not from the original).
             let slot = clamp(round(material.params.w - 3.0), 0.0, 2.0);
             let texel = 0.5 / f32(textureDimensions(specular_map).y);
             let u = (slot + clamp(in.sphere.x, texel, 1.0 - texel)) / 3.0;
             let spc = textureSample(specular_map, specular_sampler, vec2<f32>(u, in.sphere.y));
-            rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(spc.rgb), spc.a));
+            let a = spc.a * camera.specular.x;
+            rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(spc.rgb) * lit, a));
         }
         return vec4<f32>(rgb, out_alpha);
     }
