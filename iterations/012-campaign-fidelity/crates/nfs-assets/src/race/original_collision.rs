@@ -8,9 +8,12 @@
 //! in turns/s and converted to rad/s around each pair call, then both cars
 //! are clamped [VA 0x499103..0x499158]. See docs/re/collision.md.
 //!
-//! Not ported (documented): the track-object pass 0x498de0, the object
-//! cooldown `+0x43c` and the pinned-car damage after exhausted retries
-//! (`Car_ApplyImpact(100, zone 8)` when speed > 15) — damage is out of scope.
+//! Not ported (documented): the track-object pass 0x498de0 and the object
+//! cooldown `+0x43c`. The pinned-car damage after exhausted retries
+//! (`Car_ApplyImpact(100, zone 8, 2)` when `+0xd2c != 0` and speed > 15) never
+//! fires in the original: every store to `car+0xd2c` writes 0 (0x410a9d car
+//! reset, 0x49e409, 0x49f747; scan of all `[reg+0xd2c]` accesses), so it is
+//! left out on purpose.
 
 use std::f32::consts::TAU;
 
