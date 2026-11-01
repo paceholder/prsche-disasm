@@ -901,6 +901,9 @@ pub struct Renderer {
     pub player_camera: nfs_assets::camera::PlayerCamera,
     /// Debug free camera (V): the eye stays, the view follows the car.
     pub free_camera: bool,
+    /// Zones of a front-end preview car (owned-car words `+0x6a8` shown by a layout with
+    /// `data.damage`, 0x4c065c); `None` outside such screens.
+    preview_damage_zones: Option<[f32; 10]>,
     /// Debug: fixed eye and target (scene axes) instead of the car camera.
     pub debug_look: Option<(Vec3, Vec3)>,
     /// Shift+V (debug, not original): the drive view swung about the car by this many degrees
@@ -2100,6 +2103,7 @@ impl Renderer {
                 START_CYCLE_INDEX,
             ),
             free_camera: false,
+            preview_damage_zones: None,
             debug_look: None,
             side_view_deg: 0.0,
             vehicle_contact_count: 0,
@@ -2370,6 +2374,26 @@ impl Renderer {
         self.draw_gpu_meshes_with(target, label, meshes, materials, model_matrix, mesh_indices, None);
     }
 
+    /// The player's car: its damaged copies (`CarDamageRender::meshes`) replace the shared meshes.
+    fn draw_car_meshes_damaged(
+        &self,
+        target: &wgpu::TextureView,
+        label: &'static str,
+        car_render: &CarRenderState,
+        model_matrix: Mat4,
+        mesh_indices: &[usize],
+    ) {
+        self.draw_gpu_meshes_with(
+            target,
+            label,
+            &car_render.meshes,
+            &car_render.materials,
+            model_matrix,
+            mesh_indices,
+            car_render.damage.as_ref().map(|d| &d.meshes),
+        );
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn draw_gpu_meshes_with(
         &self,
@@ -2620,12 +2644,21 @@ impl Renderer {
     /// only). It is the viewed car, so 0x4382e0 caps it with the viewed-car table whenever the
     /// camera id is not 0 or below 2, i.e. always: zones 3, 7 and 8 never show on it.
     fn update_car_damage(&mut self) {
+        let id = self.player_camera.id();
+        let mut view = nfs_assets::car_damage::DamageView { viewed: true, camera_id: id, in_car: id < 2 };
         let zones = match self.original_vehicle.as_ref().filter(|_| self.original_active()) {
             Some(v) => v.car.damage_4e4,
-            None => [0.0; 10],
+            // Front-end preview car (garage, paint shop, used-car damage): the record's zone
+            // words through 0x4d1a00; it is not a race car, so the full cap table (the used-car
+            // screen shows roof and side dents). Read from code: behind the feature.
+            None => match self.preview_damage_zones.filter(|_| cfg!(feature = "experimental-original-port")) {
+                Some(z) => {
+                    view = nfs_assets::car_damage::DamageView::default();
+                    z
+                }
+                None => [0.0; 10],
+            },
         };
-        let id = self.player_camera.id();
-        let view = nfs_assets::car_damage::DamageView { viewed: true, camera_id: id, in_car: id < 2 };
         let Some(car_render) = self.car_render.as_mut() else {
             return;
         };
@@ -2650,6 +2683,11 @@ impl Renderer {
                 d.update(&self.queue, &zones, nfs_assets::car_damage::DamageView::default());
             }
         }
+    }
+
+    /// Zones of the front-end preview car (`OwnedCar::preview_damage_zones`); `None` clears.
+    pub fn set_preview_damage_zones(&mut self, zones: Option<[f32; 10]>) {
+        self.preview_damage_zones = zones;
     }
 
     /// Debug: write the player car's damage zones (as `Car_ApplyImpact` would).
@@ -3000,7 +3038,7 @@ impl Renderer {
                     let (center, half) = self.collision_box_or_fallback();
                     fe_room_car_lift(center, half)
                 });
-                self.draw_car_meshes(target, "front-end room car", car_render, car_matrix, &fixed);
+                self.draw_car_meshes_damaged(target, "front-end room car", car_render, car_matrix, &fixed);
                 for part in &car_render.anim_parts {
                     let open = self
                         .fe_car_anim
@@ -3014,7 +3052,7 @@ impl Renderer {
                         if pos <= 0.0 {
                             // Closed: the rest mesh is in `fixed`; without one frame 0 is drawn.
                             if car_render.roof_up.is_empty() {
-                                self.draw_car_meshes(target, "room car top", car_render, car_matrix, &part.base);
+                                self.draw_car_meshes_damaged(target, "room car top", car_render, car_matrix, &part.base);
                             }
                         } else if pos >= max && !car_render.roof_down.is_empty() {
                             let all: Vec<usize> = (0..car_render.roof_down.len()).collect();
@@ -3067,7 +3105,7 @@ impl Renderer {
                             Mat4::from_rotation_x(angle)
                         };
                         let hinge = Mat4::from_translation(part.pivot) * turn * Mat4::from_translation(-part.pivot);
-                        self.draw_car_meshes(target, "room car lid", car_render, car_matrix * hinge, &part.base);
+                        self.draw_car_meshes_damaged(target, "room car lid", car_render, car_matrix * hinge, &part.base);
                     }
                 }
             }

@@ -1123,6 +1123,19 @@ impl BrowserViewer {
         self.renderer.as_mut().is_some_and(|r| r.debug_set_ai_damage_zones(index, &zones))
     }
 
+    /// Zones of the front-end preview car (owned-car words `+0x6a8`, shown by the garage,
+    /// paint shop and used-car damage screens); an empty array clears them. Needs
+    /// experimental-original-port to show.
+    pub fn set_preview_damage_zones(&mut self, zones: Vec<f32>) -> bool {
+        let Some(r) = self.renderer.as_mut() else { return false };
+        match zones.len() {
+            0 => r.set_preview_damage_zones(None),
+            10 => r.set_preview_damage_zones(Some(std::array::from_fn(|i| zones[i]))),
+            _ => return false,
+        }
+        true
+    }
+
     /// Manual box gear event: +1 up, -1 down.
     pub fn shift_gear(&mut self, direction: i32) {
         if let Some(renderer) = &mut self.renderer {

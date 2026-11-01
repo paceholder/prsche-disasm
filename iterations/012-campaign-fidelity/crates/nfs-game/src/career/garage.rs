@@ -102,6 +102,53 @@ impl OwnedCar {
     pub fn f32(&self, o: usize) -> f32 {
         f32::from_bits(self.i32(o) as u32)
     }
+
+    /// The ten damage zone words `+0x6a8` (0..100 per zone, `car+0x4e4` order).
+    pub fn damage_zones(&self) -> [f32; 10] {
+        std::array::from_fn(|z| self.f32(0x6a8 + 4 * z))
+    }
+
+    /// Zones of the front-end 3D car (`0x4c065c..0x4c068b`): the record's words when the
+    /// layout's `data.damage` attribute is set (garage, paint shop, used-car damage screen),
+    /// else 0; written into the preview car's `car+0x4e4` through `0x4d1a00`, so the model
+    /// morph (`R3DCar_UpdateDamage` 0x438230) shows them.
+    pub fn preview_damage_zones(&self, layout_damage: bool) -> [f32; 10] {
+        if layout_damage { self.damage_zones() } else { [0.0; 10] }
+    }
+
+    /// `.DAMAGEZONES` 0x14d of `FE_WriteCarConfig` 0x4eeda0: the zone words, zeros for game
+    /// types 0..3 and 9; `Car_Reset` 0x410730 loads them into the race car's `car+0x4e4`, so a
+    /// career car starts the race with its saved damage.
+    pub fn race_damage_zones(&self, game_type: i32) -> [f32; 10] {
+        if matches!(game_type, 0..=3 | 9) { [0.0; 10] } else { self.damage_zones() }
+    }
+
+    /// `Record_LoadZoneDamage` 0x4edd40 (after a career race): the player's config block
+    /// (`0x5e75a0 + 600·player`: zones `+0x1c4`, part ids `+0x124`, part wear `+0x174`, the
+    /// `.DAMAGEZONES` / `.PARTINDEX` / `.PARTDAMAGE` keys) goes back into the car: the zone
+    /// words are copied, every installed part whose id equals one of the first `n` ids
+    /// (`n` = installed count) takes that wear (0 when not above 0), and the first "Body" part
+    /// gets `sum(zones) · 0.1f` (x87 at 53-bit precision; the original writes through NULL
+    /// when there is none, here nothing happens).
+    pub fn apply_race_damage(&mut self, zones: &[f32; 10], ids: &[i32; 20], wear: &[f32; 20]) {
+        let mut sum = 0.0f64;
+        for (z, &v) in zones.iter().enumerate() {
+            self.set_f32(0x6a8 + 4 * z, v);
+            sum += f64::from(v);
+        }
+        let body = (sum * f64::from(0.1f32)) as f32;
+        let n = self.installed.len().min(20);
+        for p in self.installed.iter_mut() {
+            for k in 0..n {
+                if i32::from(p.id()) == ids[k] {
+                    p.set_condition(if wear[k] > 0.0 { wear[k] } else { 0.0 });
+                }
+            }
+        }
+        if let Some(p) = self.installed.iter_mut().find(|p| p.category() == 10 && p.name() == b"Body") {
+            p.set_condition(body);
+        }
+    }
     pub fn set_f32(&mut self, o: usize, v: f32) {
         self.set_i32(o, v.to_bits() as i32);
     }
