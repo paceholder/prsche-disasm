@@ -644,6 +644,61 @@ struct CarRenderState {
     in_car: Vec<crate::in_car::InCarPartRender>,
     /// The driver of the exterior pass (mask 0x80 without the in-car flag, 0x444e00).
     driver: Vec<crate::in_car::InCarPartRender>,
+    /// Tinted copies of the pages the `CarInt` materials draw (experimental-original-port).
+    interior_tint: Option<InteriorTint>,
+}
+
+/// The car texture tint of 0x443f60/0x444130 (`nfs_assets::car_tint`) for the `CarInt`
+/// materials: their pages are drawn as copies with the car's colour words baked in by alpha
+/// code (interior tiles the interior word, dash tiles the body word). The other materials keep
+/// the untinted pages and the body multiply of A127, so opponents keep their own paint;
+/// the interior copies carry the player's colours for every car (A312).
+struct InteriorTint {
+    pages: Vec<InteriorTintPage>,
+    sampler: wgpu::Sampler,
+    layout: wgpu::BindGroupLayout,
+    /// Colour words (`res+0x218` order) of the last bake.
+    baked: Option<[[u8; 3]; 4]>,
+}
+
+struct InteriorTintPage {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+    mask: Vec<bool>,
+    /// `CarInt` materials drawing this page.
+    materials: Vec<usize>,
+}
+
+impl InteriorTint {
+    fn new(scene: &Scene, sampler: &wgpu::Sampler, layout: &wgpu::BindGroupLayout) -> Option<Self> {
+        let pages: Vec<InteriorTintPage> = scene
+            .textures
+            .iter()
+            .zip(&scene.car_texture_tint)
+            .enumerate()
+            .filter(|(_, (_, mask))| mask.iter().any(|&m| m))
+            .filter_map(|(page, (texture, mask))| {
+                let materials: Vec<usize> = (scene.materials.iter().enumerate())
+                    .filter(|(_, m)| m.texture == Some(page) && m.name.ends_with(":CarInt"))
+                    .map(|(i, _)| i)
+                    .collect();
+                (!materials.is_empty()).then(|| InteriorTintPage {
+                    width: texture.width,
+                    height: texture.height,
+                    rgba: texture.rgba.clone(),
+                    mask: mask.clone(),
+                    materials,
+                })
+            })
+            .collect();
+        (!pages.is_empty()).then(|| Self {
+            pages,
+            sampler: sampler.clone(),
+            layout: layout.clone(),
+            baked: None,
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -838,6 +893,9 @@ pub struct Renderer {
     pub fe_room_car: bool,
     /// Body paint of the room car (the colour button's list entry); `None` keeps the model's.
     pub fe_room_paint: Option<[f32; 4]>,
+    /// Interior colour word of the loaded car (`res+0x224`, 0..1 RGBA of the packed bytes), baked
+    /// into its `CarInt` pages by [`InteriorTint`]; `None` keeps the untinted pages.
+    pub car_interior: Option<[f32; 4]>,
     /// Car compare screen (`carcompare.lay`): the room car stands at spot 1 and the stashed
     /// second car at spot 2 (`FECar3DControl` position types 1 and 2, A230).
     pub fe_compare: bool,
@@ -1783,6 +1841,7 @@ impl Renderer {
                 roof_up: Vec::new(),
                 roof_down: Vec::new(),
                 hidden: BTreeSet::new(),
+                interior_tint: None,
             });
         }
 
@@ -1988,6 +2047,7 @@ impl Renderer {
             fe_room: None,
             fe_room_car: false,
             fe_room_paint: None,
+            car_interior: None,
             fe_compare: false,
             fe_car_anim: crate::fe_room::CarAnim::CLOSED,
             fe_anim_ms: 0.0,
@@ -2051,6 +2111,50 @@ impl Renderer {
             self.depth = depth_view(&self.device, width, height);
         }
     }
+    /// Bakes the car's colour words into the `CarInt` pages when they changed (0x444130 with
+    /// decal package 1, `nfs_assets::car_tint`): body = the room or race paint (white without
+    /// one), interior = `car_interior`. Words 1 and 2 are not used by package 1.
+    fn update_interior_tint(&mut self) {
+        let Some(interior) = self.car_interior else {
+            return;
+        };
+        let body = if self.fe_room.is_some() { self.fe_room_paint } else { self.race_options.player_paint };
+        let Some(car_render) = self.car_render.as_mut() else {
+            return;
+        };
+        let Some(tint) = car_render.interior_tint.as_mut() else {
+            return;
+        };
+        let byte = |c: [f32; 4]| [0, 1, 2].map(|i| (c[i].clamp(0.0, 1.0) * 255.0).round() as u8);
+        let body = body.map_or([255; 3], byte);
+        let colours = [body, body, body, byte(interior)];
+        if tint.baked == Some(colours) {
+            return;
+        }
+        for page in &tint.pages {
+            let rgba = nfs_assets::car_tint::tint_page(
+                &page.rgba,
+                &page.mask,
+                &colours,
+                &nfs_assets::car_tint::PACKAGE1_BANDS,
+            );
+            let view = upload_texture_mipmapped(&self.device, &self.queue, page.width, page.height, &rgba);
+            for &m in &page.materials {
+                let material = &mut car_render.materials[m];
+                material.group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("car interior tint"),
+                    layout: &tint.layout,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&tint.sampler) },
+                        wgpu::BindGroupEntry { binding: 2, resource: material.color_buffer.as_entire_binding() },
+                    ],
+                });
+            }
+        }
+        tint.baked = Some(colours);
+    }
+
     /// Writes the body paint of the car meshes (the `CarExt` materials).
     fn paint_car(&self, car_render: &CarRenderState, color: [f32; 4]) {
         for material in car_render.materials.iter().filter(|m| m.paintable) {
@@ -2366,6 +2470,7 @@ impl Renderer {
     }
     /// The frame: the main view, then the rear-view mirror when the HUD shows one.
     pub fn render(&mut self, target: &wgpu::TextureView) {
+        self.update_interior_tint();
         self.render_view(target);
         self.render_mirror(target);
     }
@@ -6783,6 +6888,11 @@ impl Renderer {
             roof_up,
             roof_down,
             hidden,
+            interior_tint: if cfg!(feature = "experimental-original-port") {
+                InteriorTint::new(scene, &sampler, &material_layout)
+            } else {
+                None
+            },
         });
 
         self.car_glares = scene.car_glares.clone();

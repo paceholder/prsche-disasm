@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 
 pub mod audio;
 pub mod camera;
+pub mod car_tint;
 pub mod cockpit;
 pub mod collision_box;
 pub mod lights;
@@ -370,6 +371,9 @@ pub struct Scene {
     /// Track particle emitters (`ef` type 3 of static articles, `docs/re/particles.md`).
     pub particle_emitters: Vec<particles::TrackEmitter>,
     pub textures: Vec<Texture>,
+    /// Car scenes: per texture page, one flag per texel set where a tile with `tint` (default 1)
+    /// was placed on a page that tints ([`car_tint`], 0x443f60); empty for tracks.
+    pub car_texture_tint: Vec<Vec<bool>>,
     pub materials: Vec<Material>,
     pub bounds: [[f32; 3]; 2],
     pub diagnostics: Vec<String>,
@@ -457,6 +461,7 @@ impl Default for Scene {
             particle_defs: Vec::new(),
             particle_emitters: Vec::new(),
             textures: Vec::new(),
+            car_texture_tint: Vec::new(),
             materials: Vec::new(),
             bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
             diagnostics: Vec::new(),

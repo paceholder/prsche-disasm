@@ -28,6 +28,8 @@ const YEAR_AT: usize = 0x1f8;
 const COLOUR_COUNT_AT: usize = 0x3e6;
 const COLOUR_AT: usize = 0x3ec;
 const COLOUR_END: usize = 0x528;
+const INTERIOR_COUNT_AT: usize = 0x528;
+const INTERIOR_AT: usize = 0x530;
 /// Five i16 ratings at +0x324..+0x32c: acceleration, top speed, braking, handling, overall
 /// (the car compare screen's bars, read by `FUN_004ca790` for `CarCompare.Data(<n>CarCompareCar1|2)`).
 const RATINGS_AT: usize = 0x324;
@@ -72,6 +74,10 @@ pub struct CarEntry {
     pub year: i32,
     /// Paint colours: u16 count at +0x3e6, entries of 4 packed u32 from +0x3ec (raw values).
     pub colours: Vec<[u32; 4]>,
+    /// Interior colours: u16 count at +0x528, one packed u32 (bytes A, R, G, B) per 16-byte
+    /// entry from +0x530 (raw values). `GenericCar` slot 0x78 (0x4f38c0) returns the first one,
+    /// `UsedCar_Create` and OpponentCar apply (0x4f4fa0) a random one.
+    pub interiors: Vec<u32>,
     /// i16 +0x324..+0x32c (`RATINGS_AT`): acceleration, top speed, braking, handling, overall.
     pub ratings: [i32; 5],
 }
@@ -94,6 +100,17 @@ fn parse_colours(r: &[u8]) -> Vec<[u32; 4]> {
                 let o = COLOUR_AT + 16 * i + 4 * j;
                 u32::from_le_bytes([r[o], r[o + 1], r[o + 2], r[o + 3]])
             })
+        })
+        .collect()
+}
+
+fn parse_interiors(r: &[u8]) -> Vec<u32> {
+    let n = (u16::from_le_bytes([r[INTERIOR_COUNT_AT], r[INTERIOR_COUNT_AT + 1]]) as usize)
+        .min((CAR_RECORD_SIZE - INTERIOR_AT) / 16);
+    (0..n)
+        .map(|i| {
+            let o = INTERIOR_AT + 16 * i;
+            u32::from_le_bytes([r[o], r[o + 1], r[o + 2], r[o + 3]])
         })
         .collect()
 }
@@ -137,6 +154,7 @@ pub fn parse_car_catalogue(d: &[u8]) -> Result<Vec<CarEntry>> {
             group: le_i32(r, GROUP_AT),
             year: le_i16(r, YEAR_AT),
             colours: parse_colours(r),
+            interiors: parse_interiors(r),
             ratings: std::array::from_fn(|i| le_i16(r, RATINGS_AT + 2 * i)),
         })
         .collect())
@@ -228,7 +246,7 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
             .map(|c| format!("[{},{},{},{}]", c[0], c[1], c[2], c[3]))
             .collect();
         out.push_str(&format!(
-            "\"logo_shape\":{},\"ratings\":[{}],\"gauges\":[{}],\"style\":{},\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}]}}",
+            "\"logo_shape\":{},\"ratings\":[{}],\"gauges\":[{}],\"style\":{},\"kind\":{},\"class\":{},\"era\":{},\"group\":{},\"year\":{},\"colours\":[{}],\"interiors\":[{}]}}",
             e.logo_shape,
             e.ratings.map(|r| r.to_string()).join(","),
             g.join(","),
@@ -238,7 +256,8 @@ pub fn catalogue_json(entries: &[CarEntry]) -> String {
             e.era,
             e.group,
             e.year,
-            colours.join(",")
+            colours.join(","),
+            e.interiors.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",")
         ));
     }
     out.push(']');
@@ -387,11 +406,12 @@ mod tests {
             group: 503,
             year: 2000,
             colours: vec![[1, 2, 3, 4], [5, 6, 7, 8]],
+            interiors: vec![9, 10],
             ratings: [30, 40, 56, 30, 41],
         };
         assert_eq!(
             catalogue_json(&[e]),
-            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"ratings\":[30,40,56,30,41],\"gauges\":[-0.07,0.14,-0.01,0.17],\"style\":8,\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]]}]"
+            "[{\"index\":7,\"display_name\":\"Coup\u{e9} \\\"x\\\"\\\\\",\"short_name\":\"\",\"logo_pack\":\"finallogos1\",\"model\":\"F996\",\"sim_name\":\"996T\",\"bank\":\"sd7a\",\"logo_shape\":4,\"ratings\":[30,40,56,30,41],\"gauges\":[-0.07,0.14,-0.01,0.17],\"style\":8,\"kind\":0,\"class\":2,\"era\":523,\"group\":503,\"year\":2000,\"colours\":[[1,2,3,4],[5,6,7,8]],\"interiors\":[9,10]}]"
         );
         assert_eq!(catalogue_json(&[]), "[]");
     }
@@ -439,6 +459,9 @@ mod tests {
         let e = parse_car_catalogue(&d).unwrap();
         assert_eq!(e[19].colours.len(), 19);
         assert_eq!(e[19].colours[0][0], 0x964300ff);
+        // '59 356 A: five interiors, the first (Quick Race) 0xff586782 as A, R, G, B bytes.
+        assert_eq!(e[19].interiors.len(), 5);
+        assert_eq!(e[19].interiors[0], 0x826758ff);
         assert_eq!((e[19].kind, e[19].class, e[19].era), (0, 0, 521));
         assert_eq!((e[19].group, e[19].year), (501, 1959));
         assert_eq!(e[42].kind, 2);

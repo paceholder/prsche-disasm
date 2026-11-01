@@ -244,6 +244,14 @@ impl BrowserViewer {
         }
     }
 
+    /// Interior colour of the loaded car (RGBA, the packed catalogue bytes / 255); an empty array
+    /// keeps the untinted interior. Used with `experimental-original-port` only.
+    pub fn set_car_interior(&mut self, rgba: &[f32]) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.car_interior = <[f32; 4]>::try_from(rgba).ok();
+        }
+    }
+
     /// Compare screen: keep the car loaded last as the second car (spot 2).
     pub fn stash_compare_car(&mut self, paint: &[f32]) {
         if let Some(renderer) = &mut self.renderer {

@@ -131,7 +131,7 @@ test("quick race settings follow the original lists (VA 0x4f9790, 0x4fc0b0)", as
 });
 
 test("location and quick race choices reach the race start (VA 0x4fc0b0, 0x4eb470, 0x4ecf00)", async () => {
-  const { QuickRaceSetup, raceStart, raceStartFromUrl, playerPaint, opponentPaints } =
+  const { QuickRaceSetup, raceStart, raceStartFromUrl, playerPaint, playerInterior, opponentPaints } =
     await import("./fe-quickrace.js");
   const strings = { 410: "forward", 411: "backward", 412: "forward/mirrored", 413: "backward/mirrored",
     450: "beginner", 451: "advanced", 452: "expert" };
@@ -168,6 +168,9 @@ test("location and quick race choices reach the race start (VA 0x4fc0b0, 0x4eb47
   // Paints: the chosen list entry (packed A,R,G,B bytes) and a random entry per opponent.
   assert.deepEqual(playerPaint(cars[0], 1), [1, 0, 0, 1]);
   assert.equal(playerPaint(cars[0], 5), null);
+  // Interior: the record's first interior entry (GenericCar slot 0x78), whatever the colour.
+  assert.deepEqual(playerInterior({ interiors: [0x826758ff, 0x646362ff] }), [0x58 / 255, 0x67 / 255, 0x82 / 255, 1]);
+  assert.equal(playerInterior({ interiors: [] }), null);
   const picks = [1, 0, 1];
   let i = 0;
   assert.deepEqual(opponentPaints(cars[0], 3, () => picks[i++]), [[1, 0, 0, 1], [0, 0, 0, 1], [1, 0, 0, 1]]);

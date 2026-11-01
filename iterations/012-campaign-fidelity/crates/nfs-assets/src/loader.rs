@@ -611,15 +611,26 @@ fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
     [v[0], v[1], -v[2]]
 }
 
+/// Alpha-test reference of the car parts (THRASH 0x24 = 10 in 0x43c830, compare GREATER).
+const CAR_ALPHA_REF: f32 = 10.0 / 255.0;
+
 fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8]) -> (AlphaMode, f32) {
     // Exterior intermediate alpha encodes paint, while zero cuts out details.
     if matches!(render, "CarExt" | "CarExtEnv") {
         return (AlphaMode::Mask, 0.0);
     }
     // Interior glass (`intglass.fsh`, a 32-bit page) is translucent: seen from the in-car
-    // view it must not hide the road. Other interior pages stay opaque.
+    // view it must not hide the road. Other interior pages stay opaque, except with
+    // `experimental-original-port`: `R3DCarLOD_DrawParts` 0x43c830 draws the car parts with
+    // THRASH 0x24 = 10, the alpha test of every driver (dx7z `THRASH_setstate` case 0x24:
+    // ALPHATESTENABLE, ALPHAREF 10, ALPHAFUNC default GREATER), so texels of alpha <= 10 (the
+    // cut-out corners of the steering-wheel crest) are not drawn.
     if render == "CarInt" && tpg_bpp != 32 {
-        return (AlphaMode::Opaque, 0.0);
+        return if cfg!(feature = "experimental-original-port") {
+            (AlphaMode::Mask, CAR_ALPHA_REF)
+        } else {
+            (AlphaMode::Opaque, 0.0)
+        };
     }
     let mut alpha = rgba.iter().skip(3).step_by(4);
     if alpha.clone().all(|&value| value == 255) {
@@ -715,6 +726,22 @@ fn place_tile(
     if image.rgba.len() != expected_bytes {
         return Err("FSH tile pixels do not match its dimensions".into());
     }
+    let (width, height) = (atlas.width, atlas.height);
+    tile_targets(width, height, image, offset, rotate, |src, dst| {
+        atlas.rgba[dst..dst + 4].copy_from_slice(&image.rgba[src..src + 4]);
+    })
+}
+
+/// Byte offsets (source tile, page) of every tile pixel `place_tile` writes; an error when
+/// the tile misses the page.
+fn tile_targets(
+    width: u32,
+    height: u32,
+    image: &nfs_formats::Image,
+    offset: [u32; 2],
+    rotate: bool,
+    mut write: impl FnMut(usize, usize),
+) -> Result<(), String> {
     let x = atlas_coordinate(image.x) + i64::from(offset[0]);
     let y = atlas_coordinate(image.y) + i64::from(offset[1]);
     let (placed_width, placed_height) = if rotate {
@@ -724,7 +751,7 @@ fn place_tile(
     };
     let right = x + i64::from(placed_width);
     let bottom = y + i64::from(placed_height);
-    if right <= 0 || bottom <= 0 || x >= i64::from(atlas.width) || y >= i64::from(atlas.height) {
+    if right <= 0 || bottom <= 0 || x >= i64::from(width) || y >= i64::from(height) {
         return Err(format!(
             "tile does not intersect atlas at {x},{y}, size {placed_width},{placed_height}"
         ));
@@ -738,16 +765,12 @@ fn place_tile(
             };
             let dst_x = x + i64::from(dx);
             let dst_y = y + i64::from(dy);
-            if dst_x < 0
-                || dst_y < 0
-                || dst_x >= i64::from(atlas.width)
-                || dst_y >= i64::from(atlas.height)
-            {
+            if dst_x < 0 || dst_y < 0 || dst_x >= i64::from(width) || dst_y >= i64::from(height) {
                 continue;
             }
             let src = ((sy * image.width + sx) * 4) as usize;
-            let dst = ((dst_y as u32 * atlas.width + dst_x as u32) * 4) as usize;
-            atlas.rgba[dst..dst + 4].copy_from_slice(&image.rgba[src..src + 4]);
+            let dst = ((dst_y as u32 * width + dst_x as u32) * 4) as usize;
+            write(src, dst);
         }
     }
     Ok(())
@@ -833,6 +856,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         },
         particle_emitters: Vec::new(),
         textures: Vec::new(),
+        car_texture_tint: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
         diagnostics: vec![format!(
@@ -899,6 +923,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             height,
             rgba: vec![0; bytes],
         });
+        scene.car_texture_tint.push(vec![false; bytes / 4]);
     }
     let filecount = num(&ini, "header", "numfiles", 0)?;
     if filecount > 256 {
@@ -938,6 +963,9 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             texture_source(files, &crp, &ini, f)?
         };
         let images = nfs_formats::parse_fsh(source).map_err(|e| format!("TPG file{f}: {e}"))?;
+        // `tint` (0x439ee0): `fileN.details` (default 1), then the tile's own section.
+        let file_tint = num(&ini, &section, "tint", 1)? != 0;
+        let page_tints = crate::car_tint::page_tints(num(&ini, &format!("tpage{page}.details"), "bpp", 0)?);
         let mut selected = 0;
         for image in images {
             let filter = format!("file{f}.{}", image.name);
@@ -948,17 +976,13 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 continue;
             }
             let rotate = num(&ini, &filter, "rotate", 0)? != 0;
+            let offset = [num(&ini, &section, "offsetx", 0)?, num(&ini, &section, "offsety", 0)?];
             let atlas = &mut scene.textures[(page - 1) as usize];
-            place_tile(
-                atlas,
-                &image,
-                [
-                    num(&ini, &section, "offsetx", 0)?,
-                    num(&ini, &section, "offsety", 0)?,
-                ],
-                rotate,
-            )
-            .map_err(|error| format!("{filter}: {error}"))?;
+            place_tile(atlas, &image, offset, rotate).map_err(|error| format!("{filter}: {error}"))?;
+            let tinted = num(&ini, &filter, "tint", u32::from(file_tint))? != 0;
+            let mask = &mut scene.car_texture_tint[(page - 1) as usize];
+            let (w, h) = (atlas.width, atlas.height);
+            tile_targets(w, h, &image, offset, rotate, |_, dst| mask[dst / 4] = tinted && page_tints)?;
             selected += 1;
         }
         scene.diagnostics.push(format!(
@@ -978,6 +1002,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 return Err("source texture page dimensions differ".into());
             }
             target.rgba = image.rgba;
+            scene.car_texture_tint[(p - 1) as usize] = scene.car_texture_tint[(source - 1) as usize].clone();
         }
     }
     let mut matmap = BTreeMap::new();
@@ -1765,6 +1790,12 @@ mod tests {
             alpha_mode("CarWheel", 4444, &[0, 0, 0, 0, 0, 0, 0, 199]),
             (AlphaMode::Blend, 0.0)
         );
+        let interior = alpha_mode("CarInt", 1555, &[0, 0, 0, 0, 0, 0, 0, 38]);
+        if cfg!(feature = "experimental-original-port") {
+            assert_eq!(interior, (AlphaMode::Mask, CAR_ALPHA_REF));
+        } else {
+            assert_eq!(interior, (AlphaMode::Opaque, 0.0));
+        }
     }
     #[test]
     fn required_shared_fsh_are_named_together() {
@@ -2120,6 +2151,47 @@ mod tests {
         }
         assert!(ext.iter().all(|n| !n.contains("Hand")), "{ext:?}");
         assert!(scene.car_driver_exterior.iter().all(|p| p.pass == InCarPass::Driver));
+    }
+
+    #[test]
+    fn local_356a_interior_tiles_carry_the_interior_code() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("356a.crp").exists() {
+            return;
+        }
+        let mut files = AssetFiles::new();
+        for name in ["356a.crp", "356a.tpg", "INTGLASS.FSH", "Shadow.fsh", "Cabrio.fsh", "Suit.fsh", "Head.fsh"] {
+            files.insert(name.into(), std::fs::read(root.join(name)).unwrap());
+        }
+        let scene = load(&files, "356a", 0).unwrap();
+        let mut by_render: BTreeMap<String, std::collections::BTreeSet<usize>> = BTreeMap::new();
+        for m in &scene.materials {
+            let render = m.name.split(':').nth(1).unwrap_or("").to_string();
+            by_render.entry(render).or_default().extend(m.texture);
+        }
+        let slots = |page: usize| -> BTreeMap<usize, usize> {
+            let mut n = BTreeMap::new();
+            let (rgba, mask) = (&scene.textures[page].rgba, &scene.car_texture_tint[page]);
+            for (t, _) in rgba.chunks_exact(4).zip(mask).filter(|(_, &m)| m) {
+                if let Some(slot) = crate::car_tint::tint_slot(t[3]) {
+                    *n.entry(slot).or_default() += 1;
+                }
+            }
+            n
+        };
+        eprintln!("pages by render method: {by_render:?}");
+        for page in 0..scene.textures.len() {
+            eprintln!("page {page}: tinted slots {:?}", slots(page));
+        }
+        // CarInt draws interior.fsh (page 3 -> index 2): its seats, floor and door cards are
+        // interior-word slots 14/15, the dash tiles body slot 3.
+        let interior = &by_render["CarInt"];
+        assert!(interior.contains(&2));
+        let s = slots(2);
+        assert!(s.get(&15).copied().unwrap_or(0) + s.get(&14).copied().unwrap_or(0) > 10_000, "{s:?}");
+        assert!(s.get(&3).copied().unwrap_or(0) > 1_000, "{s:?}");
     }
 
     #[test]

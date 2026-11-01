@@ -2683,6 +2683,7 @@ function buildQuickRaceCars(records, installedModels, resources) {
       bank: record.bank,
       gauges: record.gauges,
       colours: record.colours,
+      interiors: record.interiors ?? [],
       ratings: record.ratings,
       group: record.group,
       year: record.year,
@@ -2762,7 +2763,7 @@ let lastRaceStart = null;
 // Difficulty (SKILL), mirror and the opponents drawn from nfs5.per for the level (FUN_004e3160);
 // each opponent car gets its driver's skill values. The page flips the picture for MIRROR.
 async function setRaceOptions({ difficulty, mirror, opponents, car = null, colour = null }) {
-  const { playerPaint, opponentPaints } = await import("./fe-quickrace.js");
+  const { playerPaint, playerInterior, opponentPaints } = await import("./fe-quickrace.js");
   const per = await readGamePath("FEData/Data/nfs5.per");
   let skills = [];
   if (per && opponents > 0) {
@@ -2793,6 +2794,9 @@ async function setRaceOptions({ difficulty, mirror, opponents, car = null, colou
   raceCarColours = [own ? rgb24(own) : 0xffffff, ...Array.from({ length: paints.length / 4 }, (_, i) => rgb24(paints.slice(i * 4, i * 4 + 4)))];
   viewer.set_race_options(difficulty, mirror, new Float32Array(skills), new Float32Array(own ?? []),
     new Float32Array(paints));
+  // Interior colour word (COLORCONFIG[3] -> res+0x224): GenericCar slot 0x78 = the record's first
+  // interior entry (0x4f38c0); the texture tint bakes it into the CarInt pages.
+  viewer.set_car_interior?.(new Float32Array(playerInterior(car) ?? []));
   canvas.classList.toggle("mirror", Boolean(mirror));
 }
 let lastRaceDrivers = [];
@@ -4015,7 +4019,7 @@ async function buildFrontEndSetup(strings) {
     .map(i => {
       const installed = quickRaceCars.find(c => c.index === i);
       const r = byIndex.get(i);
-      return installed && r ? { ...installed, short_name: r.short_name, colours: r.colours, ratings: r.ratings, group: r.group, year: r.year,
+      return installed && r ? { ...installed, short_name: r.short_name, colours: r.colours, interiors: r.interiors ?? [], ratings: r.ratings, group: r.group, year: r.year,
         logo_pack: r.logo_pack, logo_shape: r.logo_shape } : null;
     })
     .filter(Boolean);
@@ -4082,7 +4086,7 @@ async function loadFrontEndCompare() {
   if (!frontEndSetup || !viewer.has_room?.()) return;
   const cars3d = frontEnd?.screen?.controls.filter(c => c.type === "3DCAR") ?? [];
   if (cars3d.length < 2) return;
-  const { playerPaint } = await import("./fe-quickrace.js");
+  const { playerPaint, playerInterior } = await import("./fe-quickrace.js");
   const load = async car => {
     const files = await fetchGameFiles(findCarFilesFromCatalog(car.model_name.toLowerCase()));
     viewer.set_car_model(files.names, files.bytes, car.model_name.toLowerCase(), car.style || 0);
@@ -4095,6 +4099,7 @@ async function loadFrontEndCompare() {
   await load(left);
   frontEndCar = `${left.model_name}:${left.style || 0}`;
   viewer.set_room_paint(new Float32Array(playerPaint(left, frontEndSetup.colour) || []));
+  viewer.set_car_interior?.(new Float32Array(playerInterior(left) || []));
   viewer.show_compare_cars(true);
   // Cars above the 2D backdrop (transparent canvas on top of the front-end canvas, A230).
   document.body.classList.add("fe-compare");
@@ -4134,8 +4139,9 @@ async function loadFrontEndRoom(room, carAccessor) {
         applyRoofSetting(0);
       }
       // The colour button's list entry paints the body, as in the race (A127).
-      const { playerPaint } = await import("./fe-quickrace.js");
+      const { playerPaint, playerInterior } = await import("./fe-quickrace.js");
       viewer.set_room_paint?.(new Float32Array((car && playerPaint(car, frontEndSetup?.colour ?? 0)) || []));
+      viewer.set_car_interior?.(new Float32Array((car && playerInterior(car)) || []));
       viewer.show_room_car(Boolean(car));
     } else {
       viewer.show_room_car(false);

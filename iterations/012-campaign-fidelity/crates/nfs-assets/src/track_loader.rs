@@ -382,6 +382,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         particle_defs: Vec::new(),
         particle_emitters: Vec::new(),
         textures: Vec::new(),
+        car_texture_tint: Vec::new(),
         materials: Vec::new(),
         bounds: [[f32::INFINITY; 3], [f32::NEG_INFINITY; 3]],
         diagnostics: vec![format!(

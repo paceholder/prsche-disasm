@@ -32,6 +32,13 @@ export function playerPaint(car, colour) {
   return entry ? carColourRgba(entry[0]) : null;
 }
 
+// Interior colour of a catalogue car: `GenericCar` slot 0x78 (0x4f38c0) has no interior control in
+// Quick Race and returns the record's first interior entry (+0x528 count, words from +0x530).
+export function playerInterior(car) {
+  const packed = car?.interiors?.[0];
+  return packed === undefined ? null : carColourRgba(packed);
+}
+
 // OpponentCar apply (FEOpponentCarAccessor 0x4f4fa0, "same car" mode 0): each of the opponents
 // takes a random entry of the car's colour list (`rand() % count` over record +0x3e6, entries at
 // +0x3ec). Other opponent modes pick other cars; they are not raced yet (A40, A100), so every
