@@ -280,6 +280,8 @@ enum DriveKey {
     Left,
     Right,
     Handbrake,
+    /// B: `I_LOOKBEHIND` (`fe.txt`), held.
+    LookBehind,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -298,6 +300,15 @@ impl DriveInputState {
 
     fn clear(&mut self) {
         self.pressed.clear();
+    }
+
+    /// Camera keys as the original Key getter reads them: Shift masks the unmodified B.
+    fn camera_keys(&self, shift: bool) -> nfs_assets::camera::CameraKeys {
+        nfs_assets::camera::CameraKeys {
+            look_behind: self.pressed.contains(&DriveKey::LookBehind),
+            ..Default::default()
+        }
+        .with_modifier(shift)
     }
 
     fn controls(&self, throttle_multiplier: f32) -> (f32, f32, bool) {
@@ -332,6 +343,7 @@ fn drive_key(code: KeyCode) -> Option<DriveKey> {
         KeyCode::KeyA | KeyCode::ArrowLeft => Some(DriveKey::Left),
         KeyCode::KeyD | KeyCode::ArrowRight => Some(DriveKey::Right),
         KeyCode::Space => Some(DriveKey::Handbrake),
+        KeyCode::KeyB => Some(DriveKey::LookBehind),
         _ => None,
     }
 }
@@ -360,6 +372,17 @@ mod native_input_tests {
             input.set(mapped, false);
             assert_eq!(input.controls(1.0), (0.0, 0.0, false));
         }
+    }
+
+    #[test]
+    fn b_holds_look_behind_unless_shift_is_down() {
+        let mut input = DriveInputState::default();
+        input.set(drive_key(KeyCode::KeyB).unwrap(), true);
+        assert_eq!(input.controls(1.0), (0.0, 0.0, false));
+        assert!(input.camera_keys(false).look_behind);
+        assert!(!input.camera_keys(true).look_behind);
+        input.set(DriveKey::LookBehind, false);
+        assert!(!input.camera_keys(false).look_behind);
     }
 
     #[test]
@@ -1194,6 +1217,9 @@ impl App {
             && renderer.is_drive_mode()
             && renderer.has_car()
         {
+            if !renderer.is_paused() {
+                renderer.set_camera_keys(self.drive_input.camera_keys(self.shift_pressed));
+            }
             renderer.update_car(dt, throttle, steering, handbrake);
             let race_info = if renderer.race_session.is_some() {
                 Some(RaceDriveTelemetry {

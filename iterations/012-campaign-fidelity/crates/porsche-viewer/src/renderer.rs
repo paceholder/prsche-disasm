@@ -5160,6 +5160,26 @@ impl Renderer {
         }
     }
 
+    /// Held camera keys of this frame (B = `I_LOOKBEHIND`, `fe.txt`): the look flags
+    /// `Race_MainLoop` 0x4152e0 reads as levels each poll (`camera::input`, verified). The
+    /// cameras use them as recorded: TailCam/HeliCam jump to the mirrored front point and
+    /// look back at the car, the cockpit cams turn the look angle to 180° (`re/camera.md`).
+    /// Read once per frame like the drive keys (A200). The chase/heli eye flips within one
+    /// 64 Hz step both ways (recorded), so there a change restarts the render blend and the
+    /// flip is not interpolated through the car (A296); the cockpit turn is animated by the
+    /// original (a quarter of the rest per step) and stays blended. Not called while paused:
+    /// the original keeps the flags in the pause menu.
+    pub fn set_camera_keys(&mut self, keys: nfs_assets::camera::CameraKeys) {
+        let look = nfs_assets::camera::look_keys(keys.interface_word());
+        if self.player_camera.keys != look {
+            self.player_camera.keys = look;
+            if !self.player_camera.is_in_car() {
+                self.drawn_states = None;
+                self.proto_view = None;
+            }
+        }
+    }
+
     /// C key: in 6 DOF driving the original cycle (`Camera_Cycle` over the Options →
     /// Kameras defaults BumperCam, BumperCam2, TailCam0, TailCam1, with the settle period), otherwise the arcade views. Leaves the
     /// free camera. Returns the new camera name.

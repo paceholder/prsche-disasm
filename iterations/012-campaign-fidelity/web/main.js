@@ -3059,7 +3059,7 @@ tourButton.addEventListener("click", () => {
   setStatus(
     isDrive
       ? (viewer.has_car()
-          ? "Режим заезда на авто включён (F). W: газ, S: тормоз/назад, A/D: руль, Space: ручник, C: камера, V: свободная камера, R: сброс."
+          ? "Режим заезда на авто включён (F). W: газ, S: тормоз/назад, A/D: руль, Space: ручник, C: камера, B: взгляд назад, V: свободная камера, R: сброс."
           : "Режим прогона включён (F). WASD: полёт вдоль границ, Мышь: обзор, Shift: ускорение.")
       : "Орбитальная камера."
   );
@@ -3287,13 +3287,16 @@ function onKeyDown(event) {
     }
     return;
   }
-  if (event.code === "KeyB" && !event.repeat) {
+  // B (plain) is the original look-behind key (I_LOOKBEHIND = key,SC_B, fe.txt), held:
+  // it goes into activeKeys and updateNavigation passes it on. Shift+B: debug boxes.
+  if (event.code === "KeyB" && event.shiftKey && !event.repeat) {
     if (viewer) {
       const on = viewer.toggle_collision_boxes();
-      setStatus(on ? "Collision boxes: shown (B)" : "Collision boxes: hidden (B)");
+      setStatus(on ? "Collision boxes: shown (Shift+B)" : "Collision boxes: hidden (Shift+B)");
       if (on) console.log(viewer.collision_box_report());
       queueFrame();
     }
+    activeKeys.add(event.code); // still held when Shift is released
     return;
   }
   if (event.code === "KeyC" && !event.repeat) {
@@ -3442,6 +3445,10 @@ function updateNavigation(dt) {
     if (activeKeys.has("KeyD") || activeKeys.has("ArrowRight")) steer += 1.0;
 
     const handbrake = activeKeys.has("Space");
+    // Look behind while B is held; the original Key getter (0x411c20) reads the unmodified
+    // binding as released while Shift is down (camera::input, verified).
+    const shift = activeKeys.has("ShiftLeft") || activeKeys.has("ShiftRight");
+    viewer.set_look_behind?.(activeKeys.has("KeyB") && !shift);
 
     viewer.update_car(dt, throttle, steer, handbrake);
 
@@ -3937,7 +3944,7 @@ function updateDebugPanel() {
     `C ${viewer.get_camera_name?.() ?? "-"}${viewer.get_camera_name?.() === "AnimCam" ? ` (${viewer.get_intro_camera?.() ?? "-"})` : ""}`,
     `V free cam ${onOff(viewer.is_free_camera?.())}`,
     `Shift+V side ${side === 0 ? "off" : `${side > 0 ? "R" : "L"} ${Math.abs(Math.round(side))}\u00b0`}`,
-    `B boxes ${onOff(viewer.is_collision_boxes?.())}`,
+    `Shift+B boxes ${onOff(viewer.is_collision_boxes?.())}`,
     `Y reflection ${onOff(carReflection)}`,
     `H HUD ${onOff(hudVisible)}`,
     `hit: ${viewer.object_hit_report?.() || "-"}`,

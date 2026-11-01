@@ -479,6 +479,17 @@ impl BrowserViewer {
         }
     }
 
+    /// Held camera keys of this frame: B (`I_LOOKBEHIND`) without Shift/Ctrl/Alt
+    /// (`Renderer::set_camera_keys`).
+    pub fn set_look_behind(&mut self, held: bool) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_camera_keys(nfs_assets::camera::CameraKeys {
+                look_behind: held,
+                ..Default::default()
+            });
+        }
+    }
+
     /// Pause menu: freezes or resumes the race clock and scheduler.
     pub fn set_paused(&mut self, paused: bool) {
         if let Some(renderer) = &mut self.renderer {

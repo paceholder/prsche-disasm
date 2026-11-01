@@ -2,6 +2,7 @@
 //!
 //! Research notes: `docs/re/camera.md` in the research workspace.
 pub mod anim;
+pub mod input;
 pub mod original;
 pub mod player;
 
@@ -10,4 +11,5 @@ pub use original::{
     CameraParam, CameraRecord, CameraView, CameraWorld, CarView, DriverCamera, LookKeys, NodeStrip,
     CAMERA_PARAMS, CAMERA_PARAMS_VA, UPDATE_HZ,
 };
+pub use input::{look_keys, CameraKeys};
 pub use player::{camera_name, FlatWorld, PlayerCamera, CYCLE_LIST};

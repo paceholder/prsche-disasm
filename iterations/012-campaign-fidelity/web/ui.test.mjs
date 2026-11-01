@@ -64,6 +64,7 @@ vm.runInContext(source + `\n globalThis.testApi = {
 };`, context);
 let driving = false;
 let lastControls;
+let lookBehind;
 // Original C-key cycle from TailCam0 (Camera_Cycle, list & 3); V is the debug free camera.
 const cameraCycle = ["HeliCam2", "BumperCam2", "BumperCam", "TailCam0"];
 let cameraIndex = 3;
@@ -93,6 +94,7 @@ context.testApi.setViewer({
   has_car: () => true,
   toggle_camera_mode: () => driving = !driving,
   update_car: (...args) => lastControls = args,
+  set_look_behind: (held) => lookBehind = held,
   get_car_speed: () => 0,
   get_car_gear: () => 0,
   get_car_rpm: () => 0,
@@ -141,7 +143,7 @@ const panel = () => element("#debugPanel").textContent.replace(/\u00a0/g, " ");
 context.testApi.updateNavigation(1 / 60);
 context.testApi.syncTourButton();
 for (const part of ["L lights off", "C TailCam0",
-  "V free cam off", "Shift+V side off", "B boxes off", "H HUD on", "R reset", "Shift+R restart", "Esc menu"]) {
+  "V free cam off", "Shift+V side off", "Shift+B boxes off", "H HUD on", "R reset", "Shift+R restart", "Esc menu"]) {
   assert.ok(panel().includes(part), `panel shows "${part}": ${panel()}`);
 }
 assert.ok(panel().includes("wx n812 rain 0 snow 1.00 fog 12.5\u2030"), `weather readout: ${panel()}`);
@@ -153,6 +155,19 @@ for (const gone of ["O car", "K collisions", "M 6 DOF", "J AI"]) {
 for (const code of ["KeyO", "KeyK", "KeyM", "KeyJ"]) key("keydown", code);
 assert.equal(originalModel, true, "O does nothing");
 assert.deepEqual(calls, [], "removed keys call no viewer switch");
+// B: original look-behind (I_LOOKBEHIND = key,SC_B), held, masked by Shift; Shift+B: debug boxes.
+key("keydown", "KeyB");
+context.testApi.updateNavigation(1 / 60);
+assert.equal(lookBehind, true, "B held looks behind");
+key("keydown", "ShiftLeft");
+context.testApi.updateNavigation(1 / 60);
+assert.equal(lookBehind, false, "Shift masks the unmodified B binding");
+key("keyup", "ShiftLeft");
+context.testApi.updateNavigation(1 / 60);
+assert.equal(lookBehind, true);
+key("keyup", "KeyB");
+context.testApi.updateNavigation(1 / 60);
+assert.equal(lookBehind, false, "release looks forward again (hold, not toggle)");
 const shownCameras = [];
 for (let i = 0; i < 4; i++) {
   key("keydown", "KeyC");

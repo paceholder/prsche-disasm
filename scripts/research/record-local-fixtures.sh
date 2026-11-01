@@ -31,6 +31,7 @@ run replay-vehicle-sim.py --out "$OUT/vehicle-sim.tsv"
 for s in tyre engine controls step ground keyboard; do run "replay-vehicle-$s.py" --out-dir "$OUT"; done
 run replay-camera.py --out-dir "$OUT"
 run replay-camera-anim.py --out-dir "$OUT"
+run replay-look-input.py --out-dir "$OUT"
 run replay-engine-audio.py --out-dir "$OUT"
 run replay-ai-track.py --out "$OUT/ai-track-graph.tsv"
 run replay-ai-query.py --out "$OUT/ai-track-query.tsv"
