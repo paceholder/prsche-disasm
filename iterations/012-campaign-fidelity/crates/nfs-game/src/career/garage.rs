@@ -28,6 +28,9 @@ pub struct OwnedCar {
     /// Port-side identity (the original uses the object address): links a garage car to its
     /// used-market listing.
     pub handle: u64,
+    /// In the car registry `[0x69188c]` (built by the constructor `0x4eeba0`; cars loaded
+    /// from a profile are not).
+    pub registered: bool,
 }
 
 macro_rules! field {
@@ -54,7 +57,7 @@ impl OwnedCar {
     pub fn new(record: &CarRecord, colours: [i32; 6], parts: &PartsCatalogue, others_alive: bool) -> Self {
         let mut image = vec![0u8; OWNED_CAR_SIZE];
         image[4..4 + CAR_RECORD_SIZE].copy_from_slice(&record.bytes()[..CAR_RECORD_SIZE]);
-        let mut c = OwnedCar { image, installed: Vec::new(), stock: Vec::new(), handle: 0 };
+        let mut c = OwnedCar { image, installed: Vec::new(), stock: Vec::new(), handle: 0, registered: true };
         c.set_serial(others_alive as i32);
         for (k, v) in colours.iter().enumerate() {
             c.set_i32(0x674 + 4 * k, *v);
@@ -277,8 +280,8 @@ impl Career {
 
     /// Whether any car object exists: the registry `[0x69188c]` (garage and market cars).
     pub(crate) fn cars_alive(&self) -> bool {
-        !self.garage.cars.is_empty()
-            || self.used_market.slots.iter().any(|s| matches!(s, super::used::MarketSlot::Market(_)))
+        self.garage.cars.iter().any(|c| c.registered)
+            || self.used_market.slots.iter().any(|s| matches!(s, super::used::MarketSlot::Market(c) if c.registered))
     }
 
     pub(crate) fn next_handle(&mut self) -> u64 {

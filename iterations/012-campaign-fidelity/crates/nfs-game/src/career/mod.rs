@@ -6,7 +6,7 @@
 //! and `crate::parts` (iteration 010) are not the original and are not used here.
 //!
 //! - [`trn`]: the `nfs5.trn` tournament table (blob edited in place).
-//! - [`save`]: the `Tournament` save section.
+//! - [`save`]: the save sections `Tournament`, `PlayerInfo`, `UsedCarMarket`, `PartsMarket`.
 //! - [`catalogue`], [`garage`]: car and parts records, dealer, car lists, owned cars.
 //! - [`parts`]: part prices, parts market, spare parts, installing, repair.
 //! - [`used`]: car values, the used-car market, selling and buying used cars.
@@ -104,6 +104,8 @@ pub struct Career {
     pub used_market: used::UsedMarket,
     /// Last port-side car handle ([`OwnedCar::handle`]).
     pub handles: u64,
+    /// The rest of the `PlayerInfo` section.
+    pub player: save::PlayerInfo,
     era_lists: [Vec<i32>; 6],
 }
 
@@ -129,6 +131,7 @@ impl Career {
             spare_parts: Vec::new(),
             used_market: used::UsedMarket::default(),
             handles: 0,
+            player: save::PlayerInfo::default(),
             era_lists: Default::default(),
         };
         c.build_era_lists();

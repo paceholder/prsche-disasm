@@ -92,8 +92,14 @@ class Garage:
         m.stubs[0x4aadb0] = lambda _m: self.calls.append('sound') or 0
         m.stubs[0x4fbc10] = lambda _m: self.calls.append('tracks') or 0
 
-        def sprintf(mm):                       # "%s%s.crp" with (dir, model): write the model
-            name = mm.cstr(mm.arg(3), 64).encode('latin1')
+        def sprintf(mm):
+            fmt = mm.cstr(mm.arg(1), 260)
+            if fmt == '%s%s.crp':              # model file name: write the model only
+                name = mm.cstr(mm.arg(3), 64).encode('latin1')
+            elif '%' not in fmt:               # sprintf(dst, text): a plain copy
+                name = fmt.encode('latin1')
+            else:
+                raise RuntimeError(f'sprintf format not stubbed: {fmt!r}')
             mm.uc.mem_write(mm.arg(0), name + b'\0')
             return len(name)
         m.stubs[0x5a0fbf] = sprintf
