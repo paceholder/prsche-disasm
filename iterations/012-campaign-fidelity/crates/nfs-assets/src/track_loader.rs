@@ -222,6 +222,99 @@ fn ambient_layer_colour(rmth: &[u8], flags: u32) -> Option<[f32; 4]> {
     })
 }
 
+/// Tag word of the `sR` render-state layer in `RMth` layer definitions and its key in the
+/// sorted key table (type 8, vtable 0x5b69bc → `Render_ApplyLayerState` 0x540660).
+const RENDER_STATE_KEY: u32 = 0x5273_0001;
+
+/// A track `RMth` record as `RenderMethod` construction 0x44bf70 reads it: the sorted, unique
+/// tag words of its layer definitions (an `mt` layer index points into this table, 0x44a220)
+/// and the method's default `sR` block `{shade, blend enable, blend mode, cull, z bias, -1}`.
+struct RenderMethod<'a> {
+    /// The whole record (also read by `ambient_layer_colour`).
+    data: &'a [u8],
+    keys: Vec<u32>,
+    state: Option<[i32; 6]>,
+}
+
+/// `RMth` layout after the 16-byte name: pass count, layer definition count, default count;
+/// pass records (16 bytes) from +0x1c, then layer definitions `{tag, type, param, mask}`, then
+/// defaults `{key, offset, size, _}`, then the default data blob [VA 0x44bf70].
+fn render_methods(misc: &[Entry]) -> BTreeMap<String, RenderMethod<'_>> {
+    let mut out = BTreeMap::new();
+    for e in misc.iter().filter(|e| e.tag == "RMth") {
+        let d: &[u8] = &e.data;
+        let parse = || -> Option<(String, RenderMethod<'_>)> {
+            let name = c_string(d.get(..16)?);
+            let (passes, defs, defaults) =
+                (u32le(d, 0x10).ok()? as usize, u32le(d, 0x14).ok()? as usize, u32le(d, 0x18).ok()? as usize);
+            let def_base = 0x1c + passes * 16;
+            let mut keys = (0..defs)
+                .map(|i| u32le(d, def_base + i * 16).ok())
+                .collect::<Option<Vec<_>>>()?;
+            keys.sort_unstable();
+            keys.dedup();
+            let default_base = def_base + defs * 16;
+            let blob = default_base + defaults * 16;
+            let mut state = None;
+            for i in 0..defaults {
+                let h = default_base + i * 16;
+                let (key, off, size) =
+                    (u32le(d, h).ok()?, u32le(d, h + 4).ok()? as usize, u32le(d, h + 8).ok()?);
+                if key == RENDER_STATE_KEY && size == 24 {
+                    state = Some(state_block(d, blob + off)?);
+                }
+            }
+            Some((name, RenderMethod { data: d, keys, state }))
+        };
+        if let Some((name, method)) = parse() {
+            out.insert(name, method);
+        }
+    }
+    out
+}
+
+fn state_block(d: &[u8], at: usize) -> Option<[i32; 6]> {
+    let mut s = [0; 6];
+    for (k, v) in s.iter_mut().enumerate() {
+        *v = u32le(d, at + k * 4).ok()? as i32;
+    }
+    Some(s)
+}
+
+/// The `sR` block a material draws with: an `mt` layer whose index names the method's `sR`
+/// key replaces the method default (material loader 0x44a770; layer headers as in
+/// `uv_animate_speed`).
+fn material_render_state(mt: &[u8], method: Option<&RenderMethod<'_>>) -> Option<[i32; 6]> {
+    let method = method?;
+    let mut state = method.state;
+    let counts = u32le(mt, 8).ok()?;
+    let (ntex, nlayers) = ((counts & 0xffff) as usize, (counts >> 16) as usize);
+    let headers = 0x20 + ntex * 0x2c;
+    let blob = headers + nlayers * 16;
+    for i in 0..nlayers {
+        let h = headers + i * 16;
+        let (index, off, size) =
+            (u32le(mt, h).ok()? as usize, u32le(mt, h + 4).ok()? as usize, u32le(mt, h + 8).ok()?);
+        if method.keys.get(index) == Some(&RENDER_STATE_KEY) && size == 24 {
+            state = Some(state_block(mt, blob + off)?);
+        }
+    }
+    state
+}
+
+/// Whether a track material is drawn without back-face culling. The `sR` cull field 1 selects
+/// the view's cull mode (THRASH state 2 = `[[0x69ed0c]+4]+0x10`, set per view by 0x537890),
+/// any other value sets 0, no culling [VA 0x540590]. Every track method default has 1; the
+/// `MatState` materials (posts, bushes, wires) override it with 0. Track masks never set
+/// 0x20, so the per-primitive plane test of 0x449390 (its `$n` plane layer, tag 0x8000) never
+/// runs on track geometry.
+fn track_material_double_sided(state: Option<[i32; 6]>, render_method: &str) -> bool {
+    match state {
+        Some(s) => s[3] != 1,
+        None => render_method != "Opaque",
+    }
+}
+
 /// Preserve the pre-PR26 render-method classification. Alpha distribution alone does
 /// not prove the original method registry's blend state (`FUN_0044a770`, A190).
 fn track_alpha_mode(render_method: &str, rgba: &[u8]) -> AlphaMode {
@@ -336,17 +429,12 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
     }
 
     let mut matmap = BTreeMap::new();
-    let methods: BTreeMap<String, &[u8]> = crp
-        .misc
-        .iter()
-        .filter(|e| e.tag == "RMth" && e.data.len() >= 0x1c)
-        .filter_map(|e| Some((c_string(bytes(&e.data, 0, 16).ok()?), e.data.as_slice())))
-        .collect();
     // Material index -> constant vertex colour of its `LayerAmbient` layer.
     let mut ambient_colour: BTreeMap<usize, [f32; 4]> = BTreeMap::new();
     let mut material_entries: Vec<_> = crp.misc.iter().filter(|e| e.tag == "mt").collect();
     material_entries.sort_by_key(|e| e.index);
 
+    let methods = render_methods(&crp.misc);
     for e in material_entries {
         let render_method = if e.data.len() >= 32 {
             c_string(bytes(&e.data, 16, 16).map_err(|err| format!("mt{}: {err}", e.index))?)
@@ -367,7 +455,10 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             track_alpha_mode(&render_method, &scene.textures[t_idx].rgba)
         });
 
-        let double_sided = render_method != "Opaque";
+        let double_sided = track_material_double_sided(
+            material_render_state(&e.data, methods.get(&render_method)),
+            &render_method,
+        );
         let depth_bias = if e.data.len() >= 0x118 {
             u32le(&e.data, 0x114).unwrap_or(0) as i32
         } else {
@@ -377,7 +468,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         let flags = u32le(&e.data, 0x0c).unwrap_or(0);
         if let Some(c) = methods
             .get(&render_method)
-            .and_then(|m| ambient_layer_colour(m, flags))
+            .and_then(|m| ambient_layer_colour(m.data, flags))
         {
             ambient_colour.insert(scene.materials.len(), c);
         }
@@ -433,7 +524,6 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         .collect();
     scene.particle_emitters = particle_emitters(&crp, &object_articles);
     let mut raw_meshes = Vec::new();
-    let mut single_sided = std::collections::BTreeSet::new();
     // Rendering and source collision resources are assembled separately.
     let mut prop_templates: Vec<(u32, Vec<Mesh>, Vec<PropFrame>)> = Vec::new();
     let mut total_tris = 0;
@@ -543,7 +633,6 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             raw_positions.push(to_scene_coordinates([tx, ty, tz]));
         }
 
-        let article_first_mesh = raw_meshes.len();
         for pr in a
             .children
             .iter()
@@ -575,26 +664,11 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                 }
             }
         }
-        // Signs carry a front and a back plate: two coplanar primitives with opposite
-        // winding. The original culls back-facing primitives per plane in its coordinate
-        // layers (0x449390, 0x448f80), so only one plate shows from each side; drawn
-        // double-sided they z-fight. Approximation A73: such materials are culled.
-        let article_meshes = &raw_meshes[article_first_mesh..];
-        for (i, a_mesh) in article_meshes.iter().enumerate() {
-            for b_mesh in &article_meshes[i + 1..] {
-                if reverse_twins(a_mesh, b_mesh) {
-                    single_sided.insert(a_mesh.material);
-                    single_sided.insert(b_mesh.material);
-                }
-            }
-        }
-    }
-    for &m in &single_sided {
-        scene.materials[m].double_sided = false;
     }
     scene.diagnostics.push(format!(
-        "{} materials single-sided (front/back plate pairs)",
-        single_sided.len()
+        "{} of {} track materials culled by their sR state (0x540590)",
+        scene.materials.iter().filter(|m| !m.double_sided).count(),
+        scene.materials.len()
     ));
 
     let support = physics::original_support_loader::assemble_initial_track_support(&crp, &anim)?;
@@ -1250,30 +1324,6 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
     Ok(scene)
 }
 
-/// Whether `a` and `b` are the two plates of one surface: the same vertex positions
-/// (any triangulation) with opposite facing (a back plate of a front plate).
-fn reverse_twins(a: &Mesh, b: &Mesh) -> bool {
-    let positions = |m: &Mesh| {
-        let mut p: Vec<[u32; 3]> = m
-            .indices
-            .iter()
-            .map(|&i| m.vertices[i as usize].position.map(f32::to_bits))
-            .collect();
-        p.sort_unstable();
-        p.dedup();
-        p
-    };
-    let facing = |m: &Mesh| {
-        let mut n = glam::Vec3::ZERO;
-        for t in m.indices.chunks_exact(3) {
-            let [p, q, r] = [0, 1, 2].map(|k| glam::Vec3::from(m.vertices[t[k] as usize].position));
-            n += (q - p).cross(r - p);
-        }
-        n.normalize_or_zero()
-    };
-    a.indices.len() >= 3 && positions(a) == positions(b) && facing(a).dot(facing(b)) < -0.99
-}
-
 /// A `df` colour (D3D ARGB word, bytes B, G, R, A) as RGBA 0..1.
 ///
 /// Evidence for the byte order: the original packs byte +2 into the high five
@@ -1735,19 +1785,70 @@ mod tests {
         assert_eq!(track_alpha_mode("Opaque", &[]), AlphaMode::Opaque);
     }
 
+    /// `RMth` record: name, one pass, the layer definition tags, one `sR` default.
+    fn rmth_entry(name: &str, tags: &[u32], state: [i32; 6]) -> Entry {
+        let mut d = name.as_bytes().to_vec();
+        d.resize(16, 0);
+        let mut w = vec![1u32, tags.len() as u32, 1];
+        w.extend([0, tags.len() as u32, 0, 1]); // pass record
+        for &t in tags {
+            w.extend([t, 0, 0, 0]);
+        }
+        w.extend([RENDER_STATE_KEY, 0, 24, 0]);
+        w.extend(state.map(|v| v as u32));
+        d.extend(w.iter().flat_map(|x| x.to_le_bytes()));
+        Entry { tag: "RMth".into(), index: 0, count: 1, offset: 0, data: d, children: Vec::new() }
+    }
+
     #[test]
-    fn reverse_twin_quads_are_detected() {
-        let quad = |idx: Vec<u32>| Mesh {
-            name: "q".into(),
-            vertices: [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]]
-                .map(|p| Vertex { position: p, normal: [0.0; 3], uv: [0.0; 2], color: [1.0; 4] })
-                .to_vec(),
-            indices: idx,
-            material: 0,
+    fn material_state_overrides_the_method_cull() {
+        // Tags as alps `Normal`: the sorted keys are 1, '$n', 'Rs', 'vt' (Rs = index 2).
+        let tags = [0x246e_0001, 0x7674_0001, RENDER_STATE_KEY, 1, 0x7674_0001];
+        let entries = [rmth_entry("Normal", &tags, [1, 2, 0, 1, 0, -1])];
+        let methods = render_methods(&entries);
+        let method = methods.get("Normal");
+        assert_eq!(method.unwrap().keys, vec![1, 0x246e_0001, RENDER_STATE_KEY, 0x7674_0001]);
+        // No material layer: method default, cull 1 = the view's cull mode.
+        let plain = material_render_state(&mt_record(&[]), method);
+        assert_eq!(plain, Some([1, 2, 0, 1, 0, -1]));
+        assert!(!track_material_double_sided(plain, "Normal"));
+        // `MatState` style override with cull 0 (alps mt198, sign post).
+        let post = material_render_state(&mt_record(&[(2, vec![1, 2, 0, 0, 0, u32::MAX])]), method);
+        assert!(track_material_double_sided(post, "Normal"));
+        // A 24-byte layer for another key is not a render state.
+        let other = material_render_state(&mt_record(&[(3, vec![1, 2, 0, 0, 0, u32::MAX])]), method);
+        assert_eq!(other, plain);
+        // Unknown method: the old classification.
+        assert!(track_material_double_sided(material_render_state(&mt_record(&[]), None), "Normal"));
+    }
+
+    #[test]
+    fn local_alps_sign_plates_are_culled_and_posts_are_not() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let (Ok(crp), Ok(fsh), Ok(anim)) = (
+            std::fs::read(root.join("alps.crp")),
+            std::fs::read(root.join("alps.fsh")),
+            std::fs::read(root.join("animdefs.txt")),
+        ) else {
+            return;
         };
-        // alps 30 sign: pr0 (4,7,6),(4,6,5) vs pr1 (7,4,5),(7,5,6), here 0..3.
-        assert!(reverse_twins(&quad(vec![0, 3, 2, 0, 2, 1]), &quad(vec![3, 0, 1, 3, 1, 2])));
-        assert!(!reverse_twins(&quad(vec![0, 3, 2]), &quad(vec![0, 3, 2])));
+        let mut files = AssetFiles::new();
+        files.insert("alps.crp".into(), crp);
+        files.insert("alps.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        let scene = load(&files, "alps").unwrap();
+        let mat = |name: &str| scene.materials.iter().find(|m| m.name == name).unwrap();
+        // Article 1626 `30k_Rigid1_SGN`: back plate mt123, face plate mt126 (Normal, method
+        // default cull 1), post mt198 (NormMatState, material state cull 0).
+        assert!(!mat("mt123:Normal").double_sided);
+        assert!(!mat("mt126:Normal").double_sided);
+        assert!(mat("mt198:NormMatState").double_sided);
+        // Bushes (FakeSort with a cull-0 state) stay visible from both sides; FakeSort
+        // trees without one are culled.
+        assert!(mat("mt161:FakeSort").double_sided);
+        assert!(!mat("mt7:FakeSort").double_sided);
+        assert_eq!(scene.materials.iter().filter(|m| m.double_sided).count(), 51);
     }
 
     #[test]
