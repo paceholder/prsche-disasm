@@ -302,15 +302,16 @@ fn material_render_state(mt: &[u8], method: Option<&RenderMethod<'_>>) -> Option
     state
 }
 
-/// Whether a track material is drawn without back-face culling. The `sR` cull field 1 selects
-/// the view's cull mode (THRASH state 2 = `[[0x69ed0c]+4]+0x10`, set per view by 0x537890),
-/// any other value sets 0, no culling [VA 0x540590]. Every track method default has 1; the
-/// `MatState` materials (posts, bushes, wires) override it with 0. Track masks never set
-/// 0x20, so the per-primitive plane test of 0x449390 (its `$n` plane layer, tag 0x8000) never
-/// runs on track geometry.
+/// Whether a track material is drawn without back-face culling: its `sR` block through
+/// `Render_ApplyLayerState` 0x540660 and the THRASH driver ends with `D3DRS_CULLMODE =
+/// D3DCULL_NONE` (cull field 1 selects the view's mode, `[[0x69ed0c]+4]+0x10`, any other
+/// value none [VA 0x540590]); recorded, `render_state::draw_state`. Every track method
+/// default has 1; the `MatState` materials (posts, bushes, wires) override it with 0. Track
+/// masks never set 0x20, so the per-primitive plane test of 0x449390 (its `$n` plane layer,
+/// tag 0x8000) never runs on track geometry.
 fn track_material_double_sided(state: Option<[i32; 6]>, render_method: &str) -> bool {
     match state {
-        Some(s) => s[3] != 1,
+        Some(s) => crate::render_state::draw_state(&s).double_sided,
         None => render_method != "Opaque",
     }
 }
@@ -483,9 +484,14 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             depth_bias = state.map_or(depth_bias, |s| s[4]);
         }
 
+        // `LayerAmbient` materials take the layer's constant instead of `df`. Which layers a
+        // material keeps (mask rule of `RenderMethod` construction 0x44bf70, layer factory
+        // 0x53f230) and the apply 0x448c70 are read, not recorded: behind
+        // `experimental-original-port` (evidence gate; the default keeps `df` everywhere, A22).
         let flags = u32le(&e.data, 0x0c).unwrap_or(0);
         if let Some(c) = methods
             .get(&render_method)
+            .filter(|_| cfg!(feature = "experimental-original-port"))
             .and_then(|m| ambient_layer_colour(m.data, flags))
         {
             ambient_colour.insert(scene.materials.len(), c);
@@ -1639,6 +1645,40 @@ mod tests {
         b
     }
 
+    /// Every `sR` block the shipped tracks draw with lies inside the domain recorded by
+    /// `replay-render-state.py` (shade 0..3, blend enable 0..3, blend mode -1..3, cull 0..2,
+    /// z bias -3..11, field 5 -1), so `render_state::draw_state` is proven for all of them.
+    #[test]
+    fn local_track_render_states_are_in_the_recorded_domain() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let Ok(dir) = std::fs::read_dir(&root) else {
+            eprintln!("SKIPPED: no local game data at {}", root.display());
+            return;
+        };
+        let mut seen = std::collections::BTreeMap::new();
+        for path in dir.flatten().map(|e| e.path()) {
+            if path.extension().is_none_or(|x| x != "crp") {
+                continue;
+            }
+            let crp = parse_track_crp(&std::fs::read(&path).unwrap()).unwrap();
+            let methods = render_methods(&crp.misc);
+            for e in crp.misc.iter().filter(|e| e.tag == "mt" && e.data.len() >= 32) {
+                let name = c_string(bytes(&e.data, 16, 16).unwrap());
+                if let Some(s) = material_render_state(&e.data, methods.get(&name)) {
+                    *seen.entry((s, name)).or_insert(0) += 1;
+                }
+            }
+        }
+        assert!(!seen.is_empty());
+        for ((s, name), n) in &seen {
+            eprintln!("{s:?} {name} x{n}");
+            assert!((0..=3).contains(&s[0]) && (0..=3).contains(&s[1]), "{s:?} {name}");
+            assert!((-1..=3).contains(&s[2]) && (0..=2).contains(&s[3]), "{s:?} {name}");
+            assert!((-3..=11).contains(&s[4]) && s[5] == -1, "{s:?} {name}");
+        }
+    }
+
     #[test]
     fn ambient_layer_colour_follows_the_material_flags() {
         // Entries as in the shipped `Opaque` method: `df` data layer (mask 0x40008) and
@@ -1685,10 +1725,13 @@ mod tests {
         let road = colours("rd74");
         assert!(!road.is_empty());
         assert!(road.iter().any(|c| c[..3] != [1.0; 3]));
-        // Cone (`Opaque`, flags 0x30010): `LayerAmbient` 0xffffffff.
+        // Cone (`Opaque`, flags 0x30010): `LayerAmbient` 0xffffffff (feature only; the default
+        // build keeps its `df` words).
         let cone = colours("cone");
         assert!(!cone.is_empty());
-        assert!(cone.iter().all(|c| *c == [1.0; 4]));
+        if cfg!(feature = "experimental-original-port") {
+            assert!(cone.iter().all(|c| *c == [1.0; 4]));
+        }
     }
 
     #[test]
@@ -1970,14 +2013,16 @@ mod tests {
         }
         // Vertex colours: `df` words (pr channel kind 3) or the `LayerAmbient` constant.
         // Skidpad's `df` words are white where they are drawn; its 90 shaded entries
-        // belong to `LayerAmbient` materials (flag 0x10), which take 0xffffffff.
+        // belong to `LayerAmbient` materials (flag 0x10), which take 0xffffffff with
+        // `experimental-original-port` (the default keeps `df`).
         let colors: Vec<[f32; 4]> = scene
             .meshes
             .iter()
             .flat_map(|m| m.vertices.iter().map(|v| v.color))
             .collect();
         let shaded = colors.iter().filter(|c| c[..3] != [1.0; 3]).count();
-        assert_eq!(shaded, 0, "{shaded} of {} shaded", colors.len());
+        let expected = if cfg!(feature = "experimental-original-port") { 0 } else { 90 };
+        assert_eq!(shaded, expected, "{shaded} of {} shaded", colors.len());
         assert!(scene.materials.iter().all(|m| m.prelit));
         assert_eq!(scene.meshes.len(), 180);
         assert_eq!(scene.prop_articles.len(), 70);
