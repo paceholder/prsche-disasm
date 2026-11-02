@@ -370,6 +370,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         car_collision_box: None,
         car_body_points: Vec::new(),
         car_driver_camera: None,
+        car_headlight_extent: 0.0,
         car_wheels: Vec::new(),
         car_glares: Vec::new(),
         car_in_car: Vec::new(),

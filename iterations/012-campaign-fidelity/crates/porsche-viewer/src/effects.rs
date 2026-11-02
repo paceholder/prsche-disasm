@@ -108,17 +108,27 @@ pub fn glare_intensity(kind: u8, normal_world: Vec3, camera_forward: Vec3, level
 }
 
 /// Add the sprites of every lit glare of one car (model = car body to world).
+/// `headlight_turns` is transform channel 0x11 x (the lamp lid rotation): glares that follow
+/// that channel (`pivot` 0x11) are turned with the lid about their `tr` origin (0x43d800).
 pub fn push_car_glares(
     out: &mut EffectBatches,
     glares: &[CarGlare],
     lights: &LightGroups,
     model: Mat4,
     camera: &CameraFrame,
+    headlight_turns: f32,
 ) {
     for glare in glares {
         if !lights.is_lit(glare.group) {
             continue;
         }
+        let posed;
+        let glare = if glare.pivot == nfs_assets::HEADLIGHT_CHANNEL && headlight_turns != 0.0 {
+            posed = glare.rotated_about_hinge(headlight_turns);
+            &posed
+        } else {
+            glare
+        };
         let normal = model.transform_vector3(Vec3::from(glare.normal)).normalize_or_zero();
         let intensity = glare_intensity(glare.kind, normal, camera.forward, lights.level(glare.group));
         if intensity <= GLARE_MIN_INTENSITY {
@@ -579,6 +589,7 @@ mod tests {
             group: 2,
             beam: false,
             pivot: 0,
+            hinge: [0.0; 3],
         }
     }
 
@@ -622,12 +633,12 @@ mod tests {
         // Camera behind the car (+z), looking forward (-z).
         let behind = CameraFrame::look(Vec3::new(0.0, 1.5, 8.0), Vec3::ZERO);
         let mut out = EffectBatches::default();
-        push_car_glares(&mut out, &[glare.clone()], &lights, Mat4::IDENTITY, &behind);
+        push_car_glares(&mut out, &[glare.clone()], &lights, Mat4::IDENTITY, &behind, 0.0);
         assert_eq!(out.batches["CARG"].len(), 6);
         assert_eq!(out.batches["SPIK"].len(), 6);
         let front = CameraFrame::look(Vec3::new(0.0, 1.5, -8.0), Vec3::ZERO);
         let mut out = EffectBatches::default();
-        push_car_glares(&mut out, &[glare], &lights, Mat4::IDENTITY, &front);
+        push_car_glares(&mut out, &[glare], &lights, Mat4::IDENTITY, &front, 0.0);
         assert!(out.batches.is_empty());
     }
 
@@ -635,7 +646,7 @@ mod tests {
     fn unlit_group_draws_nothing() {
         let behind = CameraFrame::look(Vec3::new(0.0, 0.5, 8.0), Vec3::new(0.0, 0.5, 0.0));
         let mut out = EffectBatches::default();
-        push_car_glares(&mut out, &[brake_glare()], &LightGroups::default(), Mat4::IDENTITY, &behind);
+        push_car_glares(&mut out, &[brake_glare()], &LightGroups::default(), Mat4::IDENTITY, &behind, 0.0);
         assert!(out.batches.is_empty());
     }
 
@@ -656,7 +667,7 @@ mod tests {
         let lights = braking();
         let behind = CameraFrame::look(Vec3::new(-0.5, 0.5, 9.0), Vec3::new(-0.5, 0.5, 1.7));
         let mut out = EffectBatches::default();
-        push_car_glares(&mut out, &[brake_glare()], &lights, Mat4::IDENTITY, &behind);
+        push_car_glares(&mut out, &[brake_glare()], &lights, Mat4::IDENTITY, &behind, 0.0);
         let v = &out.batches["CARG"];
         let width = Vec3::from(v[1].position).distance(Vec3::from(v[0].position));
         assert!((width - 0.4).abs() < 1e-3, "2·|A|·I = 0.4, got {width}");

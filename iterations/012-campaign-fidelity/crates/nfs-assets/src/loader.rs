@@ -260,6 +260,8 @@ fn fsh_textures(name: &str, data: &[u8]) -> Result<Vec<Texture>, String> {
 const EF_GLARE: u32 = 5;
 /// `ef+0x50` bit: also draw a copy mirrored in x (0x43d800, `& 8`).
 const EF_MIRRORED: u32 = 8;
+/// Transform channel of the retractable headlight lid and its glares (`Base+0x4b`).
+pub const HEADLIGHT_CHANNEL: u8 = 0x11;
 
 /// Glare articles selected by the TPG style, with mirrored copies expanded.
 ///
@@ -312,17 +314,18 @@ fn car_glares(
         }
         let name = a.find("Name", 0).map(text).unwrap_or_default();
         let mut position = vec3(&ef.data, 0x08)?;
+        let mut hinge = [0.0; 3];
         if let Some(tr) = a.children.iter().find(|e| e.tag == "tr" && e.data.len() >= 64) {
-            let t = vec3(&tr.data, 48)?;
+            hinge = vec3(&tr.data, 48)?;
             for k in 0..3 {
-                position[k] += t[k];
+                position[k] += hinge[k];
             }
         }
         let (axis_a, axis_b, axis_c) = (vec3(&ef.data, 0x18)?, vec3(&ef.data, 0x28)?, vec3(&ef.data, 0x38)?);
         let colors = [u32le(&ef.data, 0x48)?, u32le(&ef.data, 0x4c)?];
         let flags = u32le(&ef.data, 0x50)?;
         let (kind, mirror_group, beam) = (ef.data[0x54], ef.data[0x56], ef.data[0x57] != 0);
-        let glare = |name: String, p: [f32; 3], a: [f32; 3], b: [f32; 3], group: u8| CarGlare {
+        let glare = |name: String, p: [f32; 3], a: [f32; 3], b: [f32; 3], group: u8, h: [f32; 3]| CarGlare {
             name,
             position: body(p),
             axis_a: body(a),
@@ -333,9 +336,10 @@ fn car_glares(
             group,
             beam,
             pivot: info[7],
+            hinge: body(h),
         };
         let _ = axis_c; // ef+0x38 (mirrored with x negated) has no use in the sprite.
-        let mut found = vec![glare(name.clone(), position, axis_a, axis_b, info[0xc])];
+        let mut found = vec![glare(name.clone(), position, axis_a, axis_b, info[0xc], hinge)];
         if flags & EF_MIRRORED != 0 {
             // 0x43dae8..: pos.x, A (all), B.x, C.x negated.
             found.push(glare(
@@ -344,6 +348,8 @@ fn car_glares(
                 axis_a.map(|x| -x),
                 [-axis_b[0], axis_b[1], axis_b[2]],
                 mirror_group,
+                // 0x43db5b: the copy's frame has the tr x negated too.
+                [-hinge[0], hinge[1], hinge[2]],
             ));
         }
         out.extend(found);
@@ -808,6 +814,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         car_collision_box: crate::collision_box::car_collision_box(&crp).ok(),
         car_body_points: crate::collision_box::body_points(&crp),
         car_driver_camera: Some(driver_camera(&ini, style_index)),
+        car_headlight_extent: tpg_f32(&ini, "headlightextent", 0.0),
         car_wheels: Vec::new(),
         car_glares: car_glares(&crp, &style, scene_lod)?,
         car_in_car: Vec::new(),
@@ -1102,9 +1109,10 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 scene.car_roof_down.extend(scene.meshes.drain(first_mesh..));
             }
         }
-        // Cabrio top (frame channel 1) and hood / trunk lid (transform channels 8, 9).
+        // Cabrio top (frame channel 1), hood / trunk lid (transform channels 8, 9) and the
+        // retractable headlight lid (channel 0x11, 0x438440 / 0x43c830).
         let is_top = info[9] == 1 && info[8] > 1;
-        if (is_top || matches!(info[7], 6..=9)) && first_mesh < scene.meshes.len() {
+        if (is_top || matches!(info[7], 6..=9 | HEADLIGHT_CHANNEL)) && first_mesh < scene.meshes.len() {
             let mut frames: Vec<Vec<Mesh>> = Vec::new();
             if is_top {
                 for f in 1..u16::from(info[8]) {
@@ -1158,9 +1166,17 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
                 channel: if is_top { 1 } else { info[7] },
                 pivot,
                 axis: u8::from(matches!(info[7], 6 | 7) && !is_top),
-                open_sign: if cz > 0.0 { -1.0 } else { 1.0 },
+                // The headlight channel carries its own sign (the signed TPG extent).
+                open_sign: if info[7] == HEADLIGHT_CHANNEL && !is_top {
+                    1.0
+                } else if cz > 0.0 {
+                    -1.0
+                } else {
+                    1.0
+                },
                 extent: match info[7] {
                     _ if is_top => 1.0,
+                    HEADLIGHT_CHANNEL => tpg_f32(&ini, "headlightextent", 0.0),
                     6 | 7 => 0.15,
                     8 => tpg_f32(&ini, "hoodextent", 0.15).abs(),
                     _ => tpg_f32(&ini, "trunkextent", -0.15).abs(),
@@ -1942,6 +1958,56 @@ mod tests {
         assert_eq!(find("GlareMirror1").unwrap().pivot, 6, "follows the left door");
         // Each glare appears once per detail level; only the scene level is used.
         assert_eq!(scene.car_glares.iter().filter(|g| g.name == "GlareHeadLight").count(), 1);
+    }
+
+    #[test]
+    fn local_popup_headlight_lids_rise_with_their_glares() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        if !root.join("944.crp").exists() {
+            return;
+        }
+        for (car, extent) in [("944", 0.14f32), ("914", 0.19), ("928", -0.18), ("356a", 0.0)] {
+            let mut files = AssetFiles::new();
+            for entry in std::fs::read_dir(&root).unwrap() {
+                let path = entry.unwrap().path();
+                let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                if name == format!("{car}.crp") || name == format!("{car}.tpg") || name.ends_with(".fsh") {
+                    files.insert(name, std::fs::read(&path).unwrap());
+                }
+            }
+            let scene = load(&files, car, 0).unwrap();
+            assert_eq!(scene.car_headlight_extent, extent, "{car}");
+            let lid = scene.car_anim_parts.iter().find(|p| p.channel == HEADLIGHT_CHANNEL);
+            let glares: Vec<_> = scene.car_glares.iter().filter(|g| g.pivot == HEADLIGHT_CHANNEL).collect();
+            if extent == 0.0 {
+                assert!(lid.is_none() && glares.is_empty(), "{car}");
+                continue;
+            }
+            let lid = lid.expect("HeadLight lid");
+            assert_eq!((lid.axis, lid.open_sign, lid.extent), (0, 1.0, extent), "{car}");
+            // Body-space lid vertices ([-x, y, -z] of the scene mesh, x5) turned by the full
+            // extent about the hinge rise above the closed lid.
+            let a = extent * std::f32::consts::TAU;
+            let (s, c) = a.sin_cos();
+            let (mut closed, mut open, mut n) = (0.0f32, 0.0f32, 0.0f32);
+            for &i in &lid.base_meshes {
+                for v in &scene.meshes[i].vertices {
+                    let (y, z) = (v.position[1] * 5.0 - lid.pivot[1], -v.position[2] * 5.0 - lid.pivot[2]);
+                    closed += y;
+                    open += y * c - z * s;
+                    n += 1.0;
+                }
+            }
+            assert!(n > 0.0 && open / n > closed / n + 0.03, "{car}: lid y {} -> {}", closed / n, open / n);
+            assert!(!glares.is_empty(), "{car}");
+            for g in glares {
+                let up = g.rotated_about_hinge(extent);
+                assert!(up.position[1] > g.position[1], "{car} {}: {:?} -> {:?}", g.name, g.position, up.position);
+                assert!(up.normal[2] < -0.5, "{car} {}: raised lamp faces forward {:?}", g.name, up.normal);
+            }
+        }
     }
 
     #[test]

@@ -422,6 +422,7 @@ mod gpu_diagnostics {
             car_collision_box: None,
             car_body_points: Vec::new(),
             car_driver_camera: None,
+            car_headlight_extent: 0.0,
             meshes: vec![Mesh {
                 name: "paint regression".into(),
                 vertices,
@@ -547,6 +548,7 @@ mod gpu_diagnostics {
             car_collision_box: None,
             car_body_points: Vec::new(),
             car_driver_camera: None,
+            car_headlight_extent: 0.0,
             // Deliberately put the detail first: article order must not win.
             meshes: vec![mesh(1), mesh(0)],
             textures: vec![

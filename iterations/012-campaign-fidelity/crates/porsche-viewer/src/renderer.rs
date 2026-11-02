@@ -880,6 +880,10 @@ pub struct Renderer {
     pub light_switch: bool,
     /// Tick clock for the light groups (headlight fade, indicator blink).
     light_clock_s: f64,
+    /// `light_clock_s` in ms as of the last light update (the lamp lid channel is read at draw).
+    light_now_ms: u32,
+    /// TPG `headlightextent` of the loaded car (`R3DCar+0x70`), 0 for fixed lamps.
+    headlight_extent: f32,
     /// Original car lighting of the loaded track, if it has `.map` and sky data.
     car_lighting: Option<CarLighting>,
     /// Player's spark emitter (`R3DCarParticle` slot 4, `CSPK`), if carpart.dat loaded.
@@ -2012,6 +2016,8 @@ impl Renderer {
             ai_lights: Vec::new(),
             light_switch: false,
             light_clock_s: 0.0,
+            light_now_ms: 0,
+            headlight_extent: 0.0,
             car_lighting: CarLighting::from_track(scene),
             spark_emitter: None,
             particle_emitters: scene.particle_emitters.clone(),
@@ -2081,6 +2087,48 @@ impl Renderer {
             model_matrix,
             mesh_indices,
         );
+    }
+
+    /// Lamp lid rotation of a car in turns (transform channel 0x11 x, `R3DCar_SetAnimChannels`
+    /// 0x438440, recorded); drawing it (0x43c830, 0x43d800) is read from the binary, so the
+    /// lids stay closed without the feature.
+    fn lid_turns(&self, lights: &nfs_assets::lights::LightGroups) -> f32 {
+        if cfg!(feature = "experimental-original-port") {
+            lights.headlight_channel(self.light_now_ms)
+        } else {
+            0.0
+        }
+    }
+
+    /// Body meshes of a car with the retractable headlight lid (channel 0x11) turned by
+    /// `turns` about its hinge: `R3DCarLOD_DrawParts` 0x43c830 pushes the part `tr` and then
+    /// `Rx(ch[0]·360°)`, so the lid turns about the `tr` origin and its local x (body x: the
+    /// lamp `tr` frames of 914/928/944 are unrotated).
+    fn draw_car_body(
+        &self,
+        target: &wgpu::TextureView,
+        label: &'static str,
+        car_render: &CarRenderState,
+        model_matrix: Mat4,
+        mesh_indices: &[usize],
+        turns: f32,
+    ) {
+        let lid = car_render
+            .anim_parts
+            .iter()
+            .find(|p| p.channel == nfs_assets::HEADLIGHT_CHANNEL && turns != 0.0);
+        let Some(lid) = lid else {
+            self.draw_car_meshes(target, label, car_render, model_matrix, mesh_indices);
+            return;
+        };
+        let (moving, fixed): (Vec<usize>, Vec<usize>) =
+            mesh_indices.iter().partition(|i| lid.base.contains(i));
+        self.draw_car_meshes(target, label, car_render, model_matrix, &fixed);
+        let angle = lid.open_sign * turns * std::f32::consts::TAU;
+        let hinge = Mat4::from_translation(lid.pivot)
+            * Mat4::from_rotation_x(angle)
+            * Mat4::from_translation(-lid.pivot);
+        self.draw_car_meshes(target, "headlight lid", car_render, model_matrix * hinge, &moving);
     }
 
     fn draw_gpu_meshes(
@@ -2793,12 +2841,13 @@ impl Renderer {
                     &self.cockpit_gauges,
                 );
                 self.draw_exterior_driver(target, car_render, body_matrix, Some(&channels));
-                self.draw_car_meshes(
+                self.draw_car_body(
                     target,
                     "original car chassis",
                     car_render,
                     body_matrix,
                     &car_render.chassis_mesh_indices,
+                    self.lid_turns(&self.player_lights),
                 );
                 for wheel in &car_render.wheels {
                     let matrix = body_matrix * original_wheel_matrix(v, wheel, center);
@@ -2818,12 +2867,13 @@ impl Renderer {
                     &self.cockpit_gauges,
                 );
                 self.draw_exterior_driver(target, car_render, body_matrix, Some(&channels));
-                self.draw_car_meshes(
+                self.draw_car_body(
                     target,
                     "sim car chassis",
                     car_render,
                     body_matrix,
                     &car_render.chassis_mesh_indices,
+                    self.lid_turns(&self.player_lights),
                 );
                 for wheel in &car_render.wheels {
                     let Some(wheel_matrix) = prototype_wheel_world_matrix(
@@ -2844,12 +2894,13 @@ impl Renderer {
                 }
             } else {
                 let all_meshes: Vec<usize> = car_render.visible();
-                self.draw_car_meshes(
+                self.draw_car_body(
                     target,
                     "arcade car",
                     car_render,
                     car.model_matrix(),
                     &all_meshes,
+                    self.lid_turns(&self.player_lights),
                 );
             }
 
@@ -2864,12 +2915,14 @@ impl Renderer {
                 let model_matrix = Mat4::from_translation(Vec3::from(ai.position))
                     * Mat4::from_mat3(ai.body_rotation());
                 self.draw_exterior_driver(target, car_render, model_matrix, None);
-                self.draw_car_meshes(
+                let turns = self.ai_lights.get(slot).map_or(0.0, |l| self.lid_turns(l));
+                self.draw_car_body(
                     target,
                     "ai car",
                     car_render,
                     model_matrix,
                     &car_render.chassis_mesh_indices,
+                    turns,
                 );
                 for wheel in &car_render.wheels {
                     let steer = if wheel.wheel_index < 2 {
@@ -3036,7 +3089,8 @@ impl Renderer {
                     .or_else(|| sample_road_elevation_from_edges(&self.road_edges, x, z))
             };
             push_car_shadow(&mut shadows, corners, n, height, car_y - half[1]);
-            push_car_glares(&mut glares, &self.car_glares, lights, model, &camera);
+            let turns = self.lid_turns(lights);
+            push_car_glares(&mut glares, &self.car_glares, lights, model, &camera, turns);
         }
         if let Some(emitter) = &self.spark_emitter {
             push_sparks(
@@ -3875,6 +3929,7 @@ impl Renderer {
         use nfs_assets::lights::{blink_phase, LightInputs};
         self.light_clock_s += f64::from(dt.max(0.0));
         let now_ms = (self.light_clock_s * 1000.0) as u32;
+        self.light_now_ms = now_ms;
         let blink = blink_phase(self.light_clock_s);
         let mut player = player;
         if let Some(v) = self.original_vehicle.as_ref().filter(|_| self.original_active()) {
@@ -3884,7 +3939,10 @@ impl Renderer {
             player.reverse_gear = car.gear_d82 == 0;
         }
         self.player_lights.update(&player, now_ms, blink);
-        self.ai_lights.resize(self.ai_opponents.len(), Default::default());
+        self.ai_lights.resize(
+            self.ai_opponents.len(),
+            nfs_assets::lights::LightGroups::with_headlight_extent(self.headlight_extent),
+        );
         for (lights, ai) in self.ai_lights.iter_mut().zip(&self.ai_opponents) {
             // Approximation A19: AI cars drive with their lights off.
             let inputs = LightInputs {
@@ -6708,6 +6766,10 @@ impl Renderer {
         });
 
         self.car_glares = scene.car_glares.clone();
+        // `R3DCar+0x70` comes with the car (0x441cf5); the lamp state restarts with it.
+        self.headlight_extent = scene.car_headlight_extent;
+        self.player_lights = nfs_assets::lights::LightGroups::with_headlight_extent(self.headlight_extent);
+        self.ai_lights.clear();
         self.flare = scene.flare.clone();
         // Reflection texture slots SPC1..SPC3 of `Car_Load` 0x441a10, side by side.
         if let Some((width, height, rgba)) = specular_atlas(&scene.effect_textures) {

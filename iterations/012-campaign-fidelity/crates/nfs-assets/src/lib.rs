@@ -61,8 +61,37 @@ pub struct CarGlare {
     pub group: u8,
     /// Headlight beam / lens flare flag (`ef+0x57`).
     pub beam: bool,
-    /// Animated part the glare follows (`Base+0x4b`: 6/7 doors, 8 hood), 0 = body.
+    /// Animated part the glare follows (`Base+0x4b`: 6/7 doors, 8 hood, 0x11 retractable
+    /// headlights), 0 = body.
     pub pivot: u8,
+    /// Origin of the glare's frame, the article's `tr` translation (body space; x negated for
+    /// the mirrored copy): `R3DCar_DrawGlares` 0x43d800 rotates `ef+0x08` and the axes in this
+    /// frame by the transform channel `pivot` (x, y, z in turns) before the `tr` translation.
+    pub hinge: [f32; 3],
+}
+
+impl CarGlare {
+    /// The glare with its frame rotated by `turns` about the frame's x axis through
+    /// [`CarGlare::hinge`] (`R3DCar_DrawGlares` 0x43d800: `ch[0]·360°` about x, the only
+    /// nonzero component of channel 0x11; the mirrored copy uses the same angle, 0x43dc46).
+    /// Body space keeps raw y and z, so the raw `Rx` applies unchanged:
+    /// `y' = y cos a − z sin a`, `z' = y sin a + z cos a`.
+    pub fn rotated_about_hinge(&self, turns: f32) -> CarGlare {
+        if turns == 0.0 {
+            return self.clone();
+        }
+        let (s, c) = (turns * std::f32::consts::TAU).sin_cos();
+        let rot = |v: [f32; 3]| [v[0], v[1] * c - v[2] * s, v[1] * s + v[2] * c];
+        let h = self.hinge;
+        let local = rot([self.position[0] - h[0], self.position[1] - h[1], self.position[2] - h[2]]);
+        CarGlare {
+            position: [local[0] + h[0], local[1] + h[1], local[2] + h[2]],
+            axis_a: rot(self.axis_a),
+            axis_b: rot(self.axis_b),
+            normal: rot(self.normal),
+            ..self.clone()
+        }
+    }
 }
 
 /// Selected CRP wheel article, shared by vehicle geometry and articulation.
@@ -284,7 +313,8 @@ pub struct TrackTopology {
 /// [VA 0x438440, 0x43c830; `docs/re/frontend.md` "Clicking the car"].
 #[derive(Debug, Clone)]
 pub struct CarAnimPart {
-    /// 1 = cabrio top frame channel, 6/7 = left/right door, 8 = hood, 9 = trunk lid (the `Base+0x44` bytes 9 / 7).
+    /// 1 = cabrio top frame channel, 6/7 = left/right door, 8 = hood, 9 = trunk lid,
+    /// 0x11 = retractable headlight lid (the `Base+0x44` bytes 9 / 7).
     pub channel: u8,
     /// Hinge: the article's `tr` translation in driving body coordinates ([-x, y, z] raw).
     pub pivot: [f32; 3],
@@ -295,7 +325,8 @@ pub struct CarAnimPart {
     pub open_sign: f32,
     /// Opening angle in turns: TPG `hoodextent` (default 0.15) / `trunkextent` (default -0.15),
     /// magnitude; 0.15 for the doors (`0x4c0520`: level 255 * 0.000588); 1.0 for the cabrio top
-    /// (whole frame range).
+    /// (whole frame range); the signed TPG `headlightextent` for the headlight lid (channel
+    /// 0x11, `open_sign` 1: the race drives the channel itself, see `lights::LightGroups`).
     pub extent: f32,
     /// Indices into `Scene::meshes` of frame 0 / the closed part.
     pub base_meshes: Vec<usize>,
@@ -314,6 +345,9 @@ pub struct Scene {
     /// Cockpit camera from the car `.tpg` (`drivercampos[styleN]`/`drivercamrot[styleN]`,
     /// defaults applied); `None` for tracks and synthetic scenes.
     pub car_driver_camera: Option<camera::DriverCamera>,
+    /// TPG `headlightextent` (`R3DCar+0x70`, 0x441cf5): lamp lid travel in turns, 0 for cars
+    /// without retractable headlights (914 0.19, 928 -0.18, 944 0.14).
+    pub car_headlight_extent: f32,
     pub car_wheels: Vec<CarWheel>,
     /// Light glares of a car scene (empty for tracks).
     pub car_glares: Vec<CarGlare>,
@@ -410,6 +444,7 @@ impl Default for Scene {
             car_collision_box: None,
             car_body_points: Vec::new(),
             car_driver_camera: None,
+            car_headlight_extent: 0.0,
             meshes: Vec::new(),
             car_wheels: Vec::new(),
             car_glares: Vec::new(),
@@ -504,6 +539,7 @@ pub fn load_track_direction(files: &AssetFiles, track: &str, reverse: bool) -> R
 }
 
 mod loader;
+pub use loader::HEADLIGHT_CHANNEL;
 pub mod track_loader;
 
 #[cfg(test)]

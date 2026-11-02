@@ -4,11 +4,19 @@
 //! "group level" (`R3DCar+0x2d8`). Glare sprites (`ef` records of the car CRP)
 //! name a group; a glare is drawn only while its group is lit, at the group's
 //! level. Group meanings are in `docs/re/lighting.md`.
+//!
+//! Retractable lamps (914, 928, 944): `R3DCar+0x70` is the TPG `headlightextent` in turns
+//! (read at 0x441cf5, 0 when absent). With a nonzero extent the headlight animator at
+//! `R3DCar+0x64` (+0x110..+0x11c) runs from its value to the extent (switch on) or to 0 (off)
+//! over 1000 ms; the headlight level is `value / extent`, and `R3DCar_SetAnimChannels`
+//! 0x438440 writes the same value to transform channel 0x11 x, the rotation of the `HeadLight`
+//! lid and of its `GlareHeadLight*` glares ([`LightGroups::headlight_channel`]). With extent 0
+//! the level is 1 or 0 at once. Recorded: `scripts/research/replay-car-lights.py`.
 
 /// Number of light groups the original uses (0..=13).
 pub const LIGHT_GROUP_COUNT: usize = 14;
 
-/// Headlight fade time after the switch changes, ms (`pDVar10[1] = 1000`).
+/// Headlight animator run time after the switch changes, ms (`[+0x114] = 0x3e8`, 0x439620).
 pub const HEADLIGHT_FADE_MS: u32 = 1000;
 /// Brake-group level for tail lights (headlights on, not braking): `0x3f19999a`.
 pub const TAIL_LIGHT_LEVEL: f32 = 0.6;
@@ -37,8 +45,9 @@ pub struct LightInputs {
     pub showroom: bool,
 }
 
-/// Linear fade like the original animator at `R3DCar+0x64` (`+0x110` start,
-/// `+0x114` duration, `+0x118` from, `+0x11c` to).
+/// Linear animator like the original one at `R3DCar+0x64` (`+0x110` start,
+/// `+0x114` duration, `+0x118` from, `+0x11c` to). The original evaluates it on the x87 at
+/// double precision (FPCW 0x27f) and stores f32, hence the f64 arithmetic.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 struct Fade {
     start_ms: u32,
@@ -50,15 +59,20 @@ struct Fade {
 impl Fade {
     /// Current value; a finished fade clears its duration (as the original does).
     fn value(&mut self, now_ms: u32) -> f32 {
+        self.value_f64(now_ms) as f32
+    }
+
+    /// The value before it is stored as f32 (the headlight level divides this x87 value).
+    fn value_f64(&mut self, now_ms: u32) -> f64 {
         if self.duration_ms == 0 {
-            return self.to;
+            return f64::from(self.to);
         }
-        let t = now_ms.wrapping_sub(self.start_ms) as f32 / self.duration_ms as f32;
+        let t = f64::from(now_ms.wrapping_sub(self.start_ms)) / f64::from(self.duration_ms);
         if t > 1.0 {
             self.duration_ms = 0;
-            return self.to;
+            return f64::from(self.to);
         }
-        (self.to - self.from) * t + self.from
+        (f64::from(self.to) - f64::from(self.from)) * t + f64::from(self.from)
     }
 
     fn busy(&self, now_ms: u32) -> bool {
@@ -74,6 +88,8 @@ pub struct LightGroups {
     /// Previous light switch (`R3DCar+0x567`).
     switch_state: bool,
     fade: Fade,
+    /// Lamp lid travel in turns, `R3DCar+0x70` (TPG `headlightextent`); 0 = fixed lamps.
+    extent: f32,
 }
 
 impl Default for LightGroups {
@@ -85,6 +101,7 @@ impl Default for LightGroups {
             level: [1.0; LIGHT_GROUP_COUNT],
             switch_state: false,
             fade: Fade::default(),
+            extent: 0.0,
         }
     }
 }
@@ -96,6 +113,25 @@ pub fn blink_phase(seconds: f64) -> bool {
 }
 
 impl LightGroups {
+    /// Light state of a car whose lamps travel `extent` turns (TPG `headlightextent`,
+    /// `R3DCar+0x70`); 0 for fixed lamps.
+    pub fn with_headlight_extent(extent: f32) -> Self {
+        Self { extent, ..Self::default() }
+    }
+
+    pub fn headlight_extent(&self) -> f32 {
+        self.extent
+    }
+
+    /// Transform channel 0x11 x in turns (`R3DCar_SetAnimChannels` 0x438440): the current
+    /// value of the headlight animator, the lamp lid rotation about its local x axis.
+    /// (Evaluating does not change the state: the original's clearing of a finished
+    /// animator's duration gives the same values.)
+    pub fn headlight_channel(&self, now_ms: u32) -> f32 {
+        let mut fade = self.fade;
+        fade.value(now_ms)
+    }
+
     pub fn is_lit(&self, group: u8) -> bool {
         self.lit.get(group as usize).copied().unwrap_or(false)
     }
@@ -109,6 +145,7 @@ impl LightGroups {
     pub fn update(&mut self, inputs: &LightInputs, now_ms: u32, blink: bool) {
         if inputs.showroom {
             self.update_showroom();
+            self.apply_damage(&inputs.damage);
             return;
         }
         let set = |s: &mut Self, group: usize, on: bool| s.lit[group] = on;
@@ -137,23 +174,28 @@ impl LightGroups {
         set(self, 12, true);
         set(self, 13, true);
 
-        // Headlight fade (R3DCar+0x567, animator at R3DCar+0x64).
-        const MAX_LEVEL: f32 = 1.0; // R3DCar+0x70; Hypothesis: 1.0.
+        // Headlight animator (latch R3DCar+0x567, animator R3DCar+0x64, target R3DCar+0x70).
         if self.switch_state != switch {
             self.switch_state = switch;
             if !self.fade.busy(now_ms) {
                 let current = self.fade.value(now_ms);
                 self.fade.from = current;
-                self.fade.to = if switch { MAX_LEVEL } else { 0.0 };
+                self.fade.to = if switch { self.extent } else { 0.0 };
                 self.fade.start_ms = now_ms;
                 self.fade.duration_ms = HEADLIGHT_FADE_MS;
             }
         }
-        let headlight = self.fade.value(now_ms) / MAX_LEVEL;
-        if !switch && headlight > 0.0 {
-            set(self, 0, true);
-            set(self, 1, true);
-        }
+        let headlight = if self.extent == 0.0 {
+            // Fixed lamps: full level at once (0x43972d).
+            if switch { 1.0 } else { 0.0 }
+        } else {
+            let level = (self.fade.value_f64(now_ms) / f64::from(self.extent)) as f32;
+            if !switch && level > 0.0 {
+                set(self, 0, true);
+                set(self, 1, true);
+            }
+            level
+        };
         self.level[0] = headlight;
         self.level[1] = headlight;
         if !switch || braking {
@@ -250,17 +292,31 @@ mod tests {
     }
 
     #[test]
-    fn headlights_fade_in_over_one_second() {
+    fn fixed_headlights_switch_at_once() {
         let mut g = LightGroups::default();
+        let on = LightInputs { light_switch: true, ..Default::default() };
+        g.update(&on, 5000, false);
+        assert!(g.is_lit(0) && g.is_lit(1));
+        assert_eq!(g.level(0), 1.0);
+        g.update(&LightInputs::default(), 5020, false);
+        assert!(!g.is_lit(0));
+        assert_eq!(g.level(0), 0.0);
+    }
+
+    #[test]
+    fn popup_headlights_rise_over_one_second() {
+        let mut g = LightGroups::with_headlight_extent(0.14);
         let on = LightInputs { light_switch: true, ..Default::default() };
         g.update(&on, 5000, false);
         assert!(g.is_lit(0) && g.is_lit(1));
         assert_eq!(g.level(0), 0.0);
         g.update(&on, 5500, false);
         assert!((g.level(0) - 0.5).abs() < 1e-6);
+        assert!((g.headlight_channel(5500) - 0.07).abs() < 1e-6);
         g.update(&on, 6001, false);
         assert_eq!(g.level(1), 1.0);
-        // Switching off fades out and keeps the groups lit meanwhile.
+        assert_eq!(g.headlight_channel(6001), 0.14);
+        // Switching off lowers the lids and keeps the groups lit meanwhile.
         g.update(&LightInputs::default(), 7000, false);
         assert!(g.is_lit(0));
         assert_eq!(g.level(0), 1.0);
@@ -269,15 +325,16 @@ mod tests {
         g.update(&LightInputs::default(), 8100, false);
         assert!(!g.is_lit(0));
         assert_eq!(g.level(0), 0.0);
+        assert_eq!(g.headlight_channel(8100), 0.0);
     }
 
     #[test]
     fn toggling_during_a_fade_is_ignored() {
-        let mut g = LightGroups::default();
+        let mut g = LightGroups::with_headlight_extent(0.14);
         let on = LightInputs { light_switch: true, ..Default::default() };
         g.update(&on, 0, false);
         g.update(&LightInputs::default(), 500, false);
-        // The fade towards 1 continues; the groups stay lit while level > 0.
+        // The lids keep rising; the groups stay lit while level > 0.
         assert!((g.level(0) - 0.5).abs() < 1e-6);
         assert!(g.is_lit(0));
     }
