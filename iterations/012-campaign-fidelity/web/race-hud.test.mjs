@@ -12,7 +12,7 @@ import {
   mirrorY, DAMAGE_PARTS, gaugePacks, countdownState, countdownDraws, wedgePoints, hudElementsVisible,
   DISPLAY_OPTIONS, OPTION_NAMES, configOptions, hudKey, HUD_KEYS, translucencyAlpha, hudPreviewDraws,
   digitalSpeedText, digitalRpmText, textDamageValues, textDamagePercent, textDamageRowY, textDamageBars,
-  wrongWayBlink, wrongWayLines, mirrorFrameQuads,
+  wrongWayBlink, wrongWayLines, mirrorFrameQuads, tachFactor,
 } from "./race-hud-core.js";
 import { HudOptions } from "./hud-options.js";
 
@@ -47,11 +47,11 @@ test("needle table: start angle at the last unit, clockwise with the value (VA 0
 });
 
 test("dial values (VA 0x42e840, 0x42f660)", () => {
-  assert.equal(speedoUnits(10), 36);
+  assert.equal(speedoUnits(10), 35); // 10 · 3.5999999 = 35.999999, truncated (recorded)
   assert.equal(speedoUnits(27.8), 100);
   assert.equal(speedoUnits(27.8, 1), 62);
   assert.equal(tachUnits(0, 6500), 75); // idle floor 750 rpm
-  assert.equal(tachUnits(6500, 6500), 650);
+  assert.equal(tachUnits(6500, 6500), 649); // 6500 · f32(5750/6500) + 750 = 6499.9998 (recorded)
   assert.equal(tachUnits(3000, 6000), 337);
   assert.deepEqual(gaugePacks(false, 0), { speedFace: "speedK", speedNeedle: "needle2", tachFace: "tach", tachNeedle: "needle", backing: "circletach" });
   assert.equal(gaugePacks(true, 1).speedFace, "speedMN");
@@ -277,8 +277,8 @@ test("HudOptions: per-config edits and layout persist", () => {
 test("digital speed and rpm (VA 0x42e570, 0x42f740)", () => {
   assert.equal(digitalSpeedText(0.5), "000");
   assert.equal(digitalSpeedText(1.5), "005");
-  assert.equal(digitalSpeedText(10), "036");
-  assert.equal(digitalSpeedText(50), "180");
+  assert.equal(digitalSpeedText(10), "035");
+  assert.equal(digitalSpeedText(50), "179"); // 179.999995 (recorded, replay-hud-gauges.py)
   assert.equal(digitalSpeedText(50, 1), "111");
   assert.equal(digitalRpmText(0.4), "0000");
   assert.equal(digitalRpmText(7), "0007");
@@ -333,4 +333,37 @@ test("rear-view mirror slot and bevel frame (VA 0x42c510, 0x435a20)", { skip: !h
   assert.deepEqual(q[0].pts, [[276, -4], [524, -4], [520, 0], [280, 0]]);
   assert.equal(q[0].outer, 0x05ffffff);
   assert.equal(q[1].outer, 0x4c000000);
+});
+
+// Recorded gauge values: nfs5.exe 0x42e840 / 0x42e570 (speedometer needle and digital text),
+// 0x42f501..0x42f532 + 0x42f660 / 0x42f740 (tachometer factor, needle, digital text) executed in
+// Unicorn on synthetic inputs (scripts/research/replay-hud-gauges.py). Bit for bit.
+test("gauge values match the original recording (0x42e840, 0x42e570, 0x42f660, 0x42f740)", () => {
+  const text = readFileSync(
+    fileURLToPath(new URL("../crates/nfs-assets/tests/fixtures/hud-gauges.tsv", import.meta.url)),
+    "utf8",
+  );
+  const f32bits = h => new Float32Array(new Uint32Array([parseInt(h, 16)]).buffer)[0];
+  const counts = {};
+  for (const line of text.split("\n")) {
+    if (!line || line.startsWith("#") || line.startsWith("kind\t")) continue;
+    const [kind, a, b, out] = line.split("\t");
+    counts[kind] = (counts[kind] ?? 0) + 1;
+    if (kind === "speedo") {
+      const [needle, label, digits] = out.split("|");
+      const s = f32bits(a), units = Number(b);
+      assert.equal(speedoUnits(s, units), Number(needle), `needle ${s} units ${units}`);
+      assert.equal(digitalSpeedText(s, units), digits, `text ${s} units ${units}`);
+      assert.equal(Number(label), units ? 20 : 11);
+    } else if (kind === "tach_k") {
+      assert.equal(tachFactor(Number(a)), f32bits(out), `tach factor ${a}`);
+    } else if (kind === "tach") {
+      const [needle, label, digits] = out.split("|");
+      const rpm = f32bits(a), redline = Number(b);
+      assert.equal(tachUnits(rpm, redline), Number(needle), `tach ${rpm} redline ${redline}`);
+      assert.equal(digitalRpmText(rpm), digits, `rpm text ${rpm}`);
+      assert.equal(Number(label), 18144);
+    }
+  }
+  assert.ok(counts.speedo > 1000 && counts.tach > 900 && counts.tach_k === 14, JSON.stringify(counts));
 });

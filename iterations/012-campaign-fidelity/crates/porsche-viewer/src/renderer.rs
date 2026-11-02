@@ -5674,8 +5674,8 @@ impl Renderer {
             vz = fwd.map(|f| f.z * ms).unwrap_or(0.0);
             gear_raw = (self.get_car_gear() + 1).max(0) as f32;
         }
-        let (a, b) = (vx.abs(), vz.abs());
-        let speed = a.max(b) + 0.25 * a.min(b);
+        // `car+0xec4` (0x40eec0, recorded: tests/original_hud_speed.rs).
+        let speed = nfs_assets::cockpit::speed_ec4([vx, 0.0, vz]);
         let mut out = vec![
             speed,
             self.get_car_engine_rpm(),

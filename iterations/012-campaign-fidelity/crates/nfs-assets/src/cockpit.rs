@@ -88,9 +88,12 @@ impl CockpitChannels {
     }
 }
 
-/// `+0xec4` (`Car_UpdateSpeedEc4` 0x40eec0): `max + 0.25·min` of `|v.x|`, `|v.z|`.
+/// `+0xec4` (`Car_UpdateSpeedEc4` 0x40eec0): `max + 0.25·min` of `|v.x|`, `|v.z|`. The
+/// original negates only values `< 0`, so `-0.0` stays `-0.0` (recorded,
+/// `tests/original_hud_speed.rs`).
 pub fn speed_ec4(velocity: [f32; 3]) -> f32 {
-    let (x, z) = (velocity[0].abs(), velocity[2].abs());
+    let abs = |v: f32| if v < 0.0 { -v } else { v };
+    let (x, z) = (abs(velocity[0]), abs(velocity[2]));
     if z < x {
         z * 0.25 + x
     } else {

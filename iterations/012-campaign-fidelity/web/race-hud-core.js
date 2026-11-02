@@ -287,14 +287,20 @@ export function gaugePacks(night, units) {
 
 // Dial value in gauge units [VA 0x42e840, 0x42f660]: speedometer ftol(v * 3.6 or * 2.2374139),
 // v = car+0xec4 in m/s; tachometer ftol(rpm * (R - 750) / R + 750) / 10, R = redline car+0xee0.
+// The x87 runs at 53-bit precision (CRT start-up): f32 · f32 is exact in a double and `ftol`
+// truncates it unrounded, so no f32 rounding before the truncation (recorded,
+// replay-hud-gauges.py: 50 m/s · 3.5999999 = 179.999995 shows 179).
 export function speedoUnits(speedEc4, units = 0) {
-  return Math.trunc(f32(speedEc4 * (units ? 2.2374138832092285 : 3.5999999046325684)));
+  return Math.trunc(f32(speedEc4) * (units ? 2.2374138832092285 : 3.5999999046325684));
+}
+// HTach ctor tail [VA 0x42f501..0x42f532]: this+0xa9d0 = f32((R - 750) / R), R the int car+0xee0.
+export function tachFactor(redline) {
+  const R = Math.trunc(redline);
+  return R > 0 ? f32((R - 750) / R) : 0;
 }
 export function tachUnits(rpm, redline) {
-  const R = Math.trunc(redline);
-  if (!(R > 0)) return 0;
-  const k = f32((R - 750) / R);
-  return Math.trunc(Math.trunc(f32(rpm * k + 750)) / 10);
+  if (!(Math.trunc(redline) > 0)) return 0;
+  return Math.trunc(Math.trunc(f32(rpm) * tachFactor(redline) + 750) / 10);
 }
 
 // Needle angle (radians, counter-clockwise, y up) for a dial value [VA 0x4212a0, 0x421650]:
