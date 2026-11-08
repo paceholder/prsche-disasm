@@ -877,7 +877,7 @@ pub struct Renderer {
     pub height: u32,
     camera_buffer: wgpu::Buffer,
     camera_group: wgpu::BindGroup,
-    pipelines: BTreeMap<(bool, bool, i32), wgpu::RenderPipeline>,
+    pipelines: BTreeMap<(u8, bool, i32), wgpu::RenderPipeline>,
     meshes: Vec<GpuMesh>,
     static_mesh_count: usize,
     materials: Vec<GpuMaterial>,
@@ -1504,11 +1504,11 @@ impl Renderer {
         });
         let mut pipelines = BTreeMap::new();
         let pipeline_factory = MeshPipelineFactory { shader, layout, format };
-        let make_pipeline = |blend: bool, double_sided: bool, depth_bias: i32| {
+        let make_pipeline = |blend: u8, double_sided: bool, depth_bias: i32| {
             pipeline_factory.create(&device, blend, double_sided, depth_bias)
         };
         for material in &scene.materials {
-            let blend = material.alpha_mode == AlphaMode::Blend;
+            let blend = pipe_mode(material.alpha_mode);
             let double_sided = material.double_sided;
             let key = (blend, double_sided, material.depth_bias);
             pipelines
@@ -1516,11 +1516,11 @@ impl Renderer {
                 .or_insert_with(|| make_pipeline(blend, double_sided, material.depth_bias));
         }
         pipelines
-            .entry((false, false, 0))
-            .or_insert_with(|| make_pipeline(false, false, 0));
+            .entry((0, false, 0))
+            .or_insert_with(|| make_pipeline(0, false, 0));
         pipelines
-            .entry((true, false, 0))
-            .or_insert_with(|| make_pipeline(true, false, 0));
+            .entry((1, false, 0))
+            .or_insert_with(|| make_pipeline(1, false, 0));
         let mut meshes = Vec::new();
         for mesh in &scene.meshes {
             if mesh.vertices.is_empty() || mesh.indices.is_empty() {
@@ -2443,7 +2443,7 @@ impl Renderer {
             let eye = self.camera.eye();
             let blended = |i: &usize| {
                 mesh_at(*i).is_some_and(|m| {
-                    materials.get(m.material).is_some_and(|mat| mat.alpha_mode == AlphaMode::Blend)
+                    materials.get(m.material).is_some_and(|mat| is_blended(mat.alpha_mode))
                 })
             };
             let mut order: Vec<usize> = mesh_indices.iter().copied().filter(|i| !blended(i)).collect();
@@ -2462,7 +2462,7 @@ impl Renderer {
                 }
                 let material = &materials[mesh.material];
                 let pipeline_key = (
-                    material.alpha_mode == AlphaMode::Blend,
+                    pipe_mode(material.alpha_mode),
                     material.double_sided,
                     material.depth_bias,
                 );
@@ -2470,7 +2470,7 @@ impl Renderer {
                     .pipelines
                     .get(&pipeline_key)
                     .or_else(|| self.pipelines.get(&(pipeline_key.0, false, 0)))
-                    .or_else(|| self.pipelines.get(&(false, false, 0)));
+                    .or_else(|| self.pipelines.get(&(0, false, 0)));
                 if let Some(pipeline) = pipeline {
                     pass.set_pipeline(pipeline);
                     pass.set_bind_group(1, &material.group, &[]);
@@ -2897,8 +2897,8 @@ impl Renderer {
             order.sort_by(|&a, &b| {
                 let a = &self.meshes[a];
                 let b = &self.meshes[b];
-                let ta = self.materials[a.material].alpha_mode == AlphaMode::Blend;
-                let tb = self.materials[b.material].alpha_mode == AlphaMode::Blend;
+                let ta = is_blended(self.materials[a.material].alpha_mode);
+                let tb = is_blended(self.materials[b.material].alpha_mode);
                 ta.cmp(&tb).then_with(|| {
                     if ta {
                         b.center
@@ -2914,7 +2914,7 @@ impl Renderer {
                 let material = &self.materials[mesh.material];
                 pass.set_pipeline(
                     &self.pipelines[&(
-                        material.alpha_mode == AlphaMode::Blend,
+                        pipe_mode(material.alpha_mode),
                         material.double_sided,
                         material.depth_bias,
                     )],
@@ -2976,7 +2976,7 @@ impl Renderer {
                         let material = &self.materials[mesh.material];
                         pass.set_pipeline(
                             &self.pipelines[&(
-                                material.alpha_mode == AlphaMode::Blend,
+                                pipe_mode(material.alpha_mode),
                                 material.double_sided,
                                 material.depth_bias,
                             )],
@@ -7116,7 +7116,7 @@ impl Renderer {
         // Pipelines for the car's (blend, cull, z bias) combinations; without them the
         // draw fell back to bias 0 and the decals z-fought with the body.
         for m in &car_materials {
-            let key = (m.alpha_mode == AlphaMode::Blend, m.double_sided, m.depth_bias);
+            let key = (pipe_mode(m.alpha_mode), m.double_sided, m.depth_bias);
             if !self.pipelines.contains_key(&key) {
                 let pipeline = self.pipeline_factory.create(&self.device, key.0, key.1, key.2);
                 self.pipelines.insert(key, pipeline);
@@ -7445,11 +7445,26 @@ fn animation_seconds() -> f64 {
     }
 }
 
+/// Pipeline kind of a material: 0 opaque/masked, 1 blended without depth write (glass),
+/// 2 blended with depth write (`AlphaMode::BlendTest`: the shader discards alpha <= 10/255).
+fn pipe_mode(mode: AlphaMode) -> u8 {
+    match mode {
+        AlphaMode::Blend => 1,
+        AlphaMode::BlendTest => 2,
+        _ => 0,
+    }
+}
+
+fn is_blended(mode: AlphaMode) -> bool {
+    pipe_mode(mode) != 0
+}
+
 fn alpha_mode_code(mode: AlphaMode) -> f32 {
     match mode {
         AlphaMode::Opaque => 0.0,
         AlphaMode::Mask => 1.0,
         AlphaMode::Blend => 2.0,
+        AlphaMode::BlendTest => 3.0,
     }
 }
 
@@ -7477,17 +7492,18 @@ impl MeshPipelineFactory {
     fn create(
         &self,
         device: &wgpu::Device,
-        blend: bool,
+        blend_mode: u8,
         double_sided: bool,
         depth_bias: i32,
     ) -> wgpu::RenderPipeline {
+        let blend = blend_mode != 0;
         let (shader, layout, format) = (&self.shader, &self.layout, self.format);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("car"), layout: Some(layout),
             vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4] })] },
             fragment: Some(wgpu::FragmentState { module: shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState { format, blend: if blend { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: wgpu::ColorWrites::ALL })] }),
             primitive: wgpu::PrimitiveState { cull_mode: if double_sided { None } else { Some(wgpu::Face::Back) }, ..Default::default() },
-            depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(!blend), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: depth_bias_state(depth_bias) }),
+            depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(blend_mode != 1), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: depth_bias_state(depth_bias) }),
             multisample: Default::default(), multiview_mask: None, cache: None,
         })
     }

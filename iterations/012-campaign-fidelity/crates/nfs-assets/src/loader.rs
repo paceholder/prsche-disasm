@@ -627,10 +627,29 @@ fn to_scene_coordinates(v: [f32; 3]) -> [f32; 3] {
 /// Alpha-test reference of the car parts (THRASH 0x24 = 10 in 0x43c830, compare GREATER).
 const CAR_ALPHA_REF: f32 = 10.0 / 255.0;
 
-fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8]) -> (AlphaMode, f32) {
+/// Exterior overlay materials (z bias < 0: the rear PORSCHE sign, the script, the plate, lamp
+/// decals) are drawn blended, alpha-tested at 10/255 and with depth write (`AlphaMode::BlendTest`)
+/// instead of alpha-tested only with `experimental-original-port`. Depth write is needed: the
+/// 964 sign lies within 0.5 mm of the lamp strip (same bias -3), and a blend without z write
+/// let the strip, drawn later by part-centre order, cover it.
+/// The original draws every car material with the `sR` block `{1, 2, 0, cull, bias, -1}`
+/// (data, all `mt` and `RMth` of the cars): blend enable 2 is `D3DRS_ALPHABLENDENABLE` with
+/// SRCALPHA/INVSRCALPHA (recorded, `render_state::draw_state`) and the parts also pass the
+/// alpha test of THRASH 0x24 = 10 (0x43c830, read), so the texture alpha is coverage and a
+/// bilinear glyph edge fades into the body behind. Restricting this to z bias < 0 is inferred:
+/// the paint-region alpha of body panels (bias 0) is decoded by `car_tint`, which is not ported.
+fn exterior_overlay_blends(depth_bias: i32) -> bool {
+    cfg!(feature = "experimental-original-port") && depth_bias < 0
+}
+
+fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8], depth_bias: i32) -> (AlphaMode, f32) {
     // Exterior intermediate alpha encodes paint, while zero cuts out details.
     if matches!(render, "CarExt" | "CarExtEnv") {
-        return (AlphaMode::Mask, 0.0);
+        return if exterior_overlay_blends(depth_bias) {
+            (AlphaMode::BlendTest, CAR_ALPHA_REF)
+        } else {
+            (AlphaMode::Mask, 0.0)
+        };
     }
     // Interior glass (`intglass.fsh`, a 32-bit page) is translucent: seen from the in-car
     // view it must not hide the road. Other interior pages stay opaque, except with
@@ -1030,7 +1049,8 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         let render = c_string(bytes(&e.data, 16, 16)?);
         let paintable = matches!(render.as_str(), "CarExt" | "CarExtEnv");
         let tpg_bpp = num(&ini, &format!("tpage{}.details", page + 1), "bpp", 0)?;
-        let (alpha_mode, alpha_cutoff) = alpha_mode(&render, tpg_bpp, &scene.textures[page].rgba);
+        let depth_bias = u32le(&e.data, 0x114)? as i32;
+        let (alpha_mode, alpha_cutoff) = alpha_mode(&render, tpg_bpp, &scene.textures[page].rgba, depth_bias);
         let double_sided = u32le(&e.data, 12)? & 0x20 == 0;
         matmap.insert(e.index, scene.materials.len());
         scene.materials.push(Material {
@@ -1041,7 +1061,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             alpha_mode,
             alpha_cutoff,
             double_sided,
-            depth_bias: u32le(&e.data, 0x114)? as i32,
+            depth_bias,
             prelit: false,
             uv_scroll: None,
             env_slot: if matches!(render.as_str(), "CarExtEnv" | "CarWindow") {
@@ -1826,18 +1846,32 @@ mod tests {
     #[test]
     fn alpha_mode_uses_render_method_and_tpg_coverage() {
         assert_eq!(
-            alpha_mode("CarExt", 1555, &[0, 0, 0, 0]),
+            alpha_mode("CarExt", 1555, &[0, 0, 0, 0], 0),
             (AlphaMode::Mask, 0.0)
         );
         assert_eq!(
-            alpha_mode("CarWheel", 1555, &[0, 0, 0, 0, 0, 0, 0, 255]),
+            alpha_mode("CarWheel", 1555, &[0, 0, 0, 0, 0, 0, 0, 255], 0),
             (AlphaMode::Mask, 0.0)
         );
         assert_eq!(
-            alpha_mode("CarWheel", 4444, &[0, 0, 0, 0, 0, 0, 0, 199]),
+            alpha_mode("CarWheel", 4444, &[0, 0, 0, 0, 0, 0, 0, 199], 0),
             (AlphaMode::Blend, 0.0)
         );
-        let interior = alpha_mode("CarInt", 1555, &[0, 0, 0, 0, 0, 0, 0, 38]);
+        // Exterior overlays (z bias < 0, e.g. the rear PORSCHE strip decal mt8) blend only with
+        // the feature; body panels (bias 0) and non-overlay parts stay alpha-tested.
+        for render in ["CarExt", "CarExtEnv"] {
+            let overlay = alpha_mode(render, 0, &[0, 0, 0, 0, 0, 0, 0, 255], -3);
+            assert_eq!(
+                overlay,
+                if cfg!(feature = "experimental-original-port") {
+                    (AlphaMode::BlendTest, CAR_ALPHA_REF)
+                } else {
+                    (AlphaMode::Mask, 0.0)
+                }
+            );
+            assert_eq!(alpha_mode(render, 0, &[0, 0, 0, 0, 0, 0, 0, 255], 0), (AlphaMode::Mask, 0.0));
+        }
+        let interior = alpha_mode("CarInt", 1555, &[0, 0, 0, 0, 0, 0, 0, 38], 0);
         if cfg!(feature = "experimental-original-port") {
             assert_eq!(interior, (AlphaMode::Mask, CAR_ALPHA_REF));
         } else {

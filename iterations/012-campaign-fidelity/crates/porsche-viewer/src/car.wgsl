@@ -78,13 +78,22 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
     // Exterior alpha encodes paint regions, not opacity. Alpha 255 is fixed
     // artwork (lamps/chrome), 0 is unpainted background; intermediate values
     // select paint regions. Full CLR palette decoding is separate work.
-    let painted = material.params.z > 0.5 && texel.a > 0.5 / 255.0 && texel.a < 254.5 / 255.0;
+    // Blended paintable overlays (alpha_mode 2, `material.params.z` > 0.5: the rear PORSCHE
+    // strip, script, plate) classify paint by the nearest texel, so the bilinear ramp at a
+    // glyph edge stays coverage (blended) and is not mistaken for a paint region.
+    var coverage = texel.a;
+    if material.params.z > 0.5 && material.params.x > 1.5 {
+        let dims = vec2<i32>(textureDimensions(color_texture));
+        let at = vec2<i32>(floor((in.uv + material.anim.xy) * vec2<f32>(dims)));
+        coverage = textureLoad(color_texture, ((at % dims) + dims) % dims, 0).a;
+    }
+    let painted = material.params.z > 0.5 && coverage > 0.5 / 255.0 && coverage < 254.5 / 255.0;
     let tint = select(vec3<f32>(1.0), material.color.rgb, material.params.z < 0.5 || painted);
     let base = vec4<f32>(texel.rgb * tint, texel.a * material.color.a);
     let alpha_mode = material.params.x;
     let alpha_cutoff = material.params.y;
-    if alpha_mode > 0.5 && alpha_mode < 1.5 && base.a <= alpha_cutoff { discard; }
-    let out_alpha = select(1.0, base.a, alpha_mode > 1.5);
+    if alpha_mode > 0.5 && (alpha_mode < 1.5 || alpha_mode > 2.5) && base.a <= alpha_cutoff { discard; }
+    let out_alpha = select(1.0, select(base.a, 1.0, painted), alpha_mode > 1.5);
     if material.params.w > 0.5 && material.params.w < 1.5 {
         // Track geometry: texture times its 8-bit vertex colour (the `df` word, or the
         // `LayerAmbient` constant), D3D COLOROP MODULATE (THRASH 0x29 = 8, set by every

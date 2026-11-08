@@ -211,6 +211,9 @@ pub enum AlphaMode {
     Opaque,
     Mask,
     Blend,
+    /// Blended and alpha-tested (texels of alpha <= 10/255 discarded), writes depth: the car
+    /// exterior overlays (render state `sR` blend + THRASH 0x24 = 10, z write).
+    BlendTest,
 }
 
 #[derive(Debug, Clone)]
