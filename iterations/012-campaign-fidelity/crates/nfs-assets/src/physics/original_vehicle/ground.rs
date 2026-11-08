@@ -530,6 +530,55 @@ mod tests {
         }
     }
 
+    /// Front wheels past the mesh edge (no polygon) read the alternate plane
+    /// `+0x3e8/+0x400`. `Car_TrackLocate` (0x499520, run from the field queue
+    /// with the support arena) keeps that plane on the road under the car, so
+    /// the ground tick sees no step: no vertical-speed jump. A stale plane
+    /// (the placement value, 140 m off) is what launched the car on the
+    /// coast track while the AI field passed no support arena.
+    fn edge_tick(base_y: f32) -> OriginalCar {
+        struct EdgeGround;
+        impl GroundQuery for EdgeGround {
+            fn wheel_ground(&mut self, wheel: usize, point: [f32; 3]) -> Option<GroundHit> {
+                (wheel >= 2).then(|| GroundHit::at(point, 0.0, [0.0, 1.0, 0.0], 1))
+            }
+        }
+        let mut c = car();
+        // Mass and extents of a real car (the zero specs give NaN in the contact).
+        c.specs.mass_40 = 1400.0 * 128.0;
+        c.half_extents_3a8 = [0.9, 0.6, 2.1];
+        c.position_330 = [0.0, 0.6, 0.0];
+        update_world_points(&mut c);
+        c.alt_normal_3e8 = [0.0, 1.0, 0.0];
+        c.alt_base_400 = [0.0, base_y, 0.0];
+        c.ground_41c = 0.0;
+        c.velocity_33c = [0.0, 0.0, 30.0];
+        let mut lcg = OriginalLcg::default();
+        ground_contact_tick_with_tilt_contact(&mut c, &mut EdgeGround, &mut lcg, true).unwrap();
+        c
+    }
+
+    #[test]
+    fn followed_alternate_plane_does_not_launch_the_car() {
+        // Front wheels without a polygon with the plane on the road: the vertical speed stays within a few m/s.
+        let c = edge_tick(0.0);
+        assert!(c.velocity_33c[1].abs() < 5.0, "vy {}", c.velocity_33c[1]);
+        assert!(c.position_330[1] < 1.0, "{:?}", c.position_330);
+    }
+
+    #[test]
+    fn stale_alternate_plane_launches_the_car() {
+        // The same geometry with the placement-time plane 140 m off: the
+        // original ground tick (equal line by line) turns the step into a
+        // huge displacement. Documents why the support arena must reach
+        // `Car_TrackLocate`.
+        let c = edge_tick(140.0);
+        // The tilted-car contact pushes the car out of the stale plane
+        // (a 140 m teleport; on the track the next ticks turn the step
+        // into vy of 2000 m/s).
+        assert!(c.position_330[1] > 100.0, "{:?}", c.position_330);
+    }
+
     #[test]
     fn car_settles_on_a_raised_plane() {
         let mut c = car();

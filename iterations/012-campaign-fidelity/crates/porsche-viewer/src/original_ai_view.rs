@@ -49,6 +49,13 @@ impl FieldQueue for Queue<'_> {
         }
     }
 
+    /// The retained support arena `Car_TrackLocate` queries (0x499a70 body
+    /// polygon search, 0x499520 alternate plane). Without it no car gets a
+    /// body polygon and the alternate plane stays at the placement value.
+    fn support(&self) -> Option<nfs_assets::physics::original_vehicle::locate::SupportArena<'_>> {
+        self.surface.and_then(|s| s.original_arena())
+    }
+
     fn barrier(
         &mut self,
         _index: usize,
