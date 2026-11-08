@@ -704,3 +704,13 @@ export function carHudColour(colours, index) {
   const c = colours?.[index];
   return c === undefined || c === null ? FALLBACK_CAR_COLOURS[index % FALLBACK_CAR_COLOURS.length] : c & 0xffffff;
 }
+
+// Standings rows in rank order, each carrying its grid slot (0 = player, i + 1 = AI i), the index of
+// the car markers and `carColours`; the engine's JSON is already in rank order, so the position in
+// the array is NOT the slot. Rows without a `slot` (old engines) fall back to the array index.
+export function standingsRows(json) {
+  let rows;
+  try { rows = JSON.parse(json); } catch { rows = []; }
+  rows.forEach((r, i) => { r.slot = r.slot ?? i; });
+  return rows.sort((a, b) => a.rank - b.rank);
+}

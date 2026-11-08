@@ -5687,8 +5687,9 @@ impl Renderer {
     }
 
     /// Race standings as a JSON array, one object per participant:
-    /// `{"name","player","rank","laps","progress","finished"}` (`finished` is the total
-    /// time in seconds or null). Empty array without a race.
+    /// `{"name","slot","player","rank","laps","progress","finished"}` (`slot` is the stable
+    /// grid slot, 0 = player, i + 1 = AI i, the index of the car markers and paints, whereas
+    /// the array itself is in rank order; `finished` is the total time in seconds or null). Empty array without a race.
     pub fn get_race_standings_json(&self) -> String {
         let Some(session) = &self.race_session else {
             return "[]".to_string();
@@ -5717,8 +5718,8 @@ impl Renderer {
                     0.0
                 };
                 format!(
-                    "{{\"name\":\"{}\",\"player\":{},\"rank\":{},\"laps\":{},\"progress\":{},\"finished\":{}}}",
-                    name, p.is_player, p.current_position, p.laps_completed, progress, fin
+                    "{{\"name\":\"{}\",\"slot\":{},\"player\":{},\"rank\":{},\"laps\":{},\"progress\":{},\"finished\":{}}}",
+                    name, p.id, p.is_player, p.current_position, p.laps_completed, progress, fin
                 )
             })
             .collect();

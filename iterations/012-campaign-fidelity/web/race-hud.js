@@ -3,7 +3,7 @@
 import {
   parseHudFiles, selectConfig, SLOT, carGauges, gaugePacks, NEEDLE_SIZES, speedoUnits, tachUnits,
   needleAngle, dialCentre, accentColor, gearText, formatTicks, secondsToTicks,
-  BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour,
+  BOX_ALPHA_TOP, BOX_ALPHA_BOTTOM, damageDraws, damageColor, mapZoom, markerScale, carHudColour, standingsRows,
   parseCourseMap, mapTransform, countdownDraws, COUNTDOWN_LAST_STEP, hudElementsVisible,
   translucencyAlpha, hudKey, HUD_KEYS, digitalSpeedText, digitalRpmText, TEXT_DAMAGE_LABELS,
   textDamageValues, textDamagePercent, textDamageRowY, textDamageBars, WRONG_WAY_COLOR,
@@ -393,10 +393,7 @@ export class RaceHud {
   getStandings(viewer) {
     const now = performance.now();
     if (now - this.standings.at > 150) {
-      let rows = [];
-      try { rows = JSON.parse(viewer.get_race_standings_json()); } catch { rows = []; }
-      rows.forEach((r, i) => { r.slot = i; });
-      rows.sort((a, b) => a.rank - b.rank);
+      const rows = standingsRows(viewer.get_race_standings_json());
       this.standings = { at: now, rows };
     }
     return this.standings.rows;

@@ -367,3 +367,12 @@ test("gauge values match the original recording (0x42e840, 0x42e570, 0x42f660, 0
   }
   assert.ok(counts.speedo > 1000 && counts.tach > 900 && counts.tach_k === 14, JSON.stringify(counts));
 });
+
+test("position list colour follows the grid slot, not the rank (list, map markers and paint share one index)", async () => {
+  const { standingsRows, carHudColour } = await import("./race-hud-core.js");
+  const colours = [0x111111, 0x222222, 0x333333];
+  const json = JSON.stringify([
+    { name: "B", slot: 2, rank: 1 }, { name: "P", slot: 0, rank: 2, player: true }, { name: "A", slot: 1, rank: 3 }]);
+  const rows = standingsRows(json);
+  assert.deepEqual(rows.map(r => carHudColour(colours, r.slot)), [0x333333, 0x111111, 0x222222]);
+});

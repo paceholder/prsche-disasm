@@ -2774,7 +2774,8 @@ async function setRaceOptions({ difficulty, mirror, opponents, car = null, colou
   }
   // Colours: the chosen one for the player (null keeps the default paint), a random list entry
   // per opponent (OpponentCar apply 0x4f4fa0).
-  const own = colour === null ? null : playerPaint(car, colour);
+  // A race always has a colour entry for the player (index 0 by default), so list and map agree.
+  const own = playerPaint(car, colour ?? 0);
   const paints = opponentPaints(car, opponents, () => Math.floor(Math.random() * 0x7fff)).flat();
   const rgb24 = c => (Math.round(c[0] * 255) << 16) | (Math.round(c[1] * 255) << 8) | Math.round(c[2] * 255);
   // Driver names: festrings.loc entries of the nfs5.per drivers (the front end's table, or read here).
