@@ -321,7 +321,6 @@ struct Queue<'a> {
     track: &'a Track,
     locator: BodyLocator,
     owners: [OriginalSupportOwner; 4],
-    tilt_contact: bool,
 }
 
 impl StepQueue for Queue<'_> {
@@ -336,14 +335,13 @@ impl StepQueue for Queue<'_> {
         );
     }
     fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
-        nfs_assets::physics::original_vehicle::ground::ground_contact_tick_with_tilt_contact(
+        nfs_assets::physics::original_vehicle::ground::ground_contact_tick(
             car,
             &mut RoadGround {
                 surface: &self.track.surface,
                 owners: &mut self.owners,
             },
             lcg,
-            self.tilt_contact,
         );
     }
     /// Barrier runs: `Car_CollideTrackEdges` 0x495020 on a copy of the body
@@ -419,7 +417,7 @@ fn closed_loops_on_real_tracks_match_the_original() {
 fn border_hill_drives_match_the_original() {
     require_selected_recordings(&[&LAUNCH_RUNS, &LAUNCH_BODY, &LAUNCH_DYN, &fixture::CARS]);
     skip_without_local_fixtures!(LAUNCH_RUNS, LAUNCH_BODY, LAUNCH_DYN, fixture::CARS);
-    closed_loops_with(&LAUNCH_RUNS, &LAUNCH_BODY, &LAUNCH_DYN, false, true);
+    closed_loops_with(&LAUNCH_RUNS, &LAUNCH_BODY, &LAUNCH_DYN, false);
 }
 
 /// The border hill drives with the barrier pass `Car_CollideTrackEdges`
@@ -428,7 +426,7 @@ fn border_hill_drives_match_the_original() {
 fn border_hill_drives_with_the_barrier_match_the_original() {
     require_selected_recordings(&[&BARRIER_RUNS, &BARRIER_BODY, &BARRIER_DYN, &fixture::CARS]);
     skip_without_local_fixtures!(BARRIER_RUNS, BARRIER_BODY, BARRIER_DYN, fixture::CARS);
-    closed_loops_with(&BARRIER_RUNS, &BARRIER_BODY, &BARRIER_DYN, true, true);
+    closed_loops_with(&BARRIER_RUNS, &BARRIER_BODY, &BARRIER_DYN, true);
 }
 
 /// The Schwarzwald (`forest`) roadside banks at 100, 125 and 150 km/h
@@ -445,17 +443,16 @@ fn border_hill_drives_with_the_barrier_match_the_original() {
 fn forest_bank_drives_with_the_barrier_match_the_original() {
     require_selected_recordings(&[&BANK_RUNS, &BANK_BODY, &BANK_DYN, &fixture::CARS]);
     skip_without_local_fixtures!(BANK_RUNS, BANK_BODY, BANK_DYN, fixture::CARS);
-    closed_loops_skipping(&BANK_RUNS, &BANK_BODY, &BANK_DYN, true, true, &["loc_tree"]);
+    closed_loops_skipping(&BANK_RUNS, &BANK_BODY, &BANK_DYN, true, &["loc_tree"]);
 }
 
-/// The same forest bank drives replayed by the port with the default
-/// ground tick (soft snap A27 instead of `0x496610`): prints the peak
-/// height `+0x424` and the peak vertical speed per run next to the
-/// original's (`NFS5_BANK_LOG=1` prints every 32 Hz step). Not a
-/// comparison (A27 is a registered approximation); a record of how far the
-/// default build is from the original on the banks.
+/// The forest bank drives replayed by the port with the default ground tick
+/// (the tilted contact `0x496610` is the default; the soft snap A27 that
+/// launched the car up to 46.5 m is retired from the tilted branch): the
+/// peak height `+0x424` and the peak vertical speed of every run equal the
+/// original's bit for bit (`NFS5_BANK_LOG=1` prints every 32 Hz step).
 #[test]
-fn forest_bank_drives_with_the_default_ground_tick() {
+fn forest_bank_default_ground_tick_peaks_match_the_original() {
     skip_without_local_fixtures!(BANK_RUNS, BANK_BODY, BANK_DYN, fixture::CARS);
     let runs = rows(&BANK_RUNS);
     let dyn_rows = rows(&BANK_DYN);
@@ -469,50 +466,46 @@ fn forest_bank_drives_with_the_default_ground_tick() {
         let d: Vec<&Row> = dyn_rows.iter().filter(|r| r.s("run") == name).collect();
         let orig_peak = d.iter().map(|r| r.f("height_424")).fold(f32::MIN, f32::max);
         let orig_vy = d.iter().map(|r| r.f("vel_33c_1")).fold(f32::MIN, f32::max);
-        let mut port = [(f32::MIN, f32::MIN); 2];
-        for (k, tilt) in [true, false].into_iter().enumerate() {
-            let (mut car, mut lcg, locator) = initial(run);
-            let mut q = Queue {
-                track: &tracks[run.s("track")],
-                locator,
-                owners: Default::default(),
-                tilt_contact: tilt,
-            };
-            for n in 0..run.i("steps") as usize {
-                let even = car.globals.sched_step_606ac4 & 1 == 0;
-                let word = if even { d[n / 2].i("input_word") as u32 } else { 0 };
-                scheduler_step(&mut car, word, &mut lcg, &mut q);
-                if even {
-                    port[k].0 = port[k].0.max(car.height_424);
-                    port[k].1 = port[k].1.max(car.velocity_33c[1]);
-                    if log {
-                        let r = d[n / 2];
-                        eprintln!(
-                            "{name} {} tilt={tilt}: h {:.2} vy {:.2} | original h {:.2} vy {:.2} branch {}",
-                            n / 2,
-                            car.height_424,
-                            car.velocity_33c[1],
-                            r.f("height_424"),
-                            r.f("vel_33c_1"),
-                            r.s("branch")
-                        );
-                    }
+        let (mut peak, mut max_vy) = (f32::MIN, f32::MIN);
+        let (mut car, mut lcg, locator) = initial(run);
+        let mut q = Queue {
+            track: &tracks[run.s("track")],
+            locator,
+            owners: Default::default(),
+        };
+        for n in 0..run.i("steps") as usize {
+            let even = car.globals.sched_step_606ac4 & 1 == 0;
+            let word = if even { d[n / 2].i("input_word") as u32 } else { 0 };
+            scheduler_step(&mut car, word, &mut lcg, &mut q);
+            if even {
+                peak = peak.max(car.height_424);
+                max_vy = max_vy.max(car.velocity_33c[1]);
+                if log {
+                    let r = d[n / 2];
+                    eprintln!(
+                        "{name} {}: h {:.2} vy {:.2} | original h {:.2} vy {:.2} branch {}",
+                        n / 2,
+                        car.height_424,
+                        car.velocity_33c[1],
+                        r.f("height_424"),
+                        r.f("vel_33c_1"),
+                        r.s("branch")
+                    );
                 }
             }
         }
-        eprintln!(
-            "{name}: peak +0x424 / max vy: original {orig_peak:.2} / {orig_vy:.2}, port tilted {:.2} / {:.2}, port default A27 {:.2} / {:.2}",
-            port[0].0, port[0].1, port[1].0, port[1].1
-        );
+        eprintln!("{name}: peak +0x424 / max vy: original {orig_peak:.2} / {orig_vy:.2}, port {peak:.2} / {max_vy:.2}");
+        assert_eq!(peak.to_bits(), orig_peak.to_bits(), "{name}: peak height");
+        assert_eq!(max_vy.to_bits(), orig_vy.to_bits(), "{name}: peak vertical speed");
     }
 }
 
 fn closed_loops(runs: &str, body: &str, dyn_rows: &str) {
-    closed_loops_with(runs, body, dyn_rows, false, false)
+    closed_loops_with(runs, body, dyn_rows, false)
 }
 
-fn closed_loops_with(runs: &str, body: &str, dyn_rows: &str, edges: bool, tilt_contact: bool) {
-    closed_loops_skipping(runs, body, dyn_rows, edges, tilt_contact, &[])
+fn closed_loops_with(runs: &str, body: &str, dyn_rows: &str, edges: bool) {
+    closed_loops_skipping(runs, body, dyn_rows, edges, &[])
 }
 
 /// `skip`: locator columns not compared (the bank recorder runs the overhead
@@ -523,7 +516,6 @@ fn closed_loops_skipping(
     body: &str,
     dyn_rows: &str,
     edges: bool,
-    tilt_contact: bool,
     skip: &[&str],
 ) {
     let runs = rows(runs);
@@ -550,7 +542,6 @@ fn closed_loops_skipping(
             track,
             locator,
             owners: Default::default(),
-            tilt_contact,
         };
         let steps = run.i("steps") as usize;
         assert_eq!(b.len(), steps, "{name}");

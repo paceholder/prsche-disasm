@@ -278,23 +278,6 @@ pub fn ground_contact_tick(
     query: &mut impl GroundQuery,
     lcg: &mut OriginalLcg,
 ) -> Option<WheelGround> {
-    ground_contact_tick_with_tilt_contact(
-        car,
-        query,
-        lcg,
-        cfg!(feature = "experimental-original-port"),
-    )
-}
-
-/// Explicit comparison entry for the recorded tilted-contact composition.
-/// `tilt_contact` opts into A235's cached-normal binding; ordinary gameplay
-/// uses [`ground_contact_tick`] and the Cargo feature gate.
-pub fn ground_contact_tick_with_tilt_contact(
-    car: &mut OriginalCar,
-    query: &mut impl GroundQuery,
-    lcg: &mut OriginalLcg,
-    tilt_contact: bool,
-) -> Option<WheelGround> {
     if car.active_7f == 0 || car.ground_on_7c == 0 || car.frozen_7d != 0 {
         return None;
     }
@@ -346,22 +329,18 @@ pub fn ground_contact_tick_with_tilt_contact(
         }
     } else {
         // The tilted-car contact 0x496610 with the body polygon plane
-        // through the alternate-plane point +0x400 (`tilt.rs`). The normal
-        // is the body owner's (car+8, 0x474420); `+0x3e8` holds it since the
-        // last `Car_TrackLocate` polygon change (approximation A235).
-        if tilt_contact {
-            let s = (car.body_surface_2c & 0xf) as usize;
-            let k = if car.ground_up_3a0 > f32::from_bits(K_ATTITUDE) && car.flags_52c & 0x80 == 0 {
-                f32::from_bits(0x3dcc_cccd)
-            } else {
-                f32::from_bits(super::tilt::FRICTION[s])
-            };
-            let (n, p) = (car.alt_normal_3e8, car.alt_base_400);
-            super::tilt::body_point_contact(car, n, p, k);
-        } else if h < f32::from_bits(K_SNAP) {
-            // Preserve baseline A27 until the actual body-owner normal is bound.
-            soft_contact(car, h, rise, vy);
-        }
+        // through the alternate-plane point +0x400 (`tilt.rs`), recorded
+        // bit for bit on the Forest banks and the Auvergne border hills.
+        // The normal is the body owner's (car+8, 0x474420); `+0x3e8` holds
+        // it since the last `Car_TrackLocate` polygon change (A235).
+        let s = (car.body_surface_2c & 0xf) as usize;
+        let k = if car.ground_up_3a0 > f32::from_bits(K_ATTITUDE) && car.flags_52c & 0x80 == 0 {
+            f32::from_bits(0x3dcc_cccd)
+        } else {
+            f32::from_bits(super::tilt::FRICTION[s])
+        };
+        let (n, p) = (car.alt_normal_3e8, car.alt_base_400);
+        super::tilt::body_point_contact(car, n, p, k);
         if car.ground_up_3a0 < 0.0 {
             car.start_db0 = 0;
         }
@@ -487,13 +466,13 @@ mod tests {
         for _ in 0..4 {
             update_world_points(&mut c);
             let mut probe = c.clone();
-            ground_contact_tick_with_tilt_contact(&mut probe, &mut ground, &mut OriginalLcg::default(), true).unwrap();
+            ground_contact_tick(&mut probe, &mut ground, &mut OriginalLcg::default()).unwrap();
             c.position_330[1] -= probe.height_424 + 0.01;
         }
         update_world_points(&mut c);
         c.ground_41c = -0.5;
         let y0 = c.position_330[1];
-        ground_contact_tick_with_tilt_contact(&mut c, &mut ground, &mut OriginalLcg::default(), true).unwrap();
+        ground_contact_tick(&mut c, &mut ground, &mut OriginalLcg::default()).unwrap();
         assert!(c.ground_up_3a0 < 0.939, "tilted: {}", c.ground_up_3a0);
         assert!(c.height_424 < 0.001, "touching: {}", c.height_424);
         assert!(c.ground_vy_420 > 10.0, "ground rate {}", c.ground_vy_420);
@@ -554,7 +533,7 @@ mod tests {
         c.ground_41c = 0.0;
         c.velocity_33c = [0.0, 0.0, 30.0];
         let mut lcg = OriginalLcg::default();
-        ground_contact_tick_with_tilt_contact(&mut c, &mut EdgeGround, &mut lcg, true).unwrap();
+        ground_contact_tick(&mut c, &mut EdgeGround, &mut lcg).unwrap();
         c
     }
 
