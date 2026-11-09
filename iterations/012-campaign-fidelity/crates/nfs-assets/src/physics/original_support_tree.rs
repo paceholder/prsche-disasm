@@ -180,6 +180,53 @@ impl SupportTree {
         ))
     }
 
+    /// `0x473330 (point, out)` on a locator: the support polygon more than 3.5 above `point`
+    /// (the nearest one; centre callback height minus `point.y`, x87 difference, best stored
+    /// as f32) among the type-1 records of the point's leaf that contain it in XZ, any
+    /// surface. Returns its flags word `+0xa` (0 without one: `R3DCar_UpdateLighting` 0x43a560
+    /// reads `& 0xc000` as "covered road") and the cell cache `+0x2c` it leaves. The cache is
+    /// kept when it contains the point, whether or not it has records (unlike 0x473240).
+    /// Recorded: `scripts/research/replay-car-env-map.py` (`update` rows, Coastal tunnel).
+    pub fn overhead_flags(
+        &self,
+        polygons: &[SupportPolygon],
+        point: [f32; 3],
+        cached: Option<usize>,
+    ) -> (u16, usize) {
+        let node = match cached.filter(|&c| {
+            self.nodes.get(c).is_some_and(|n| self.grid.contains(n.cell.packed, point))
+        }) {
+            Some(c) => c,
+            None => self.grid.query_nodes(|i| &self.nodes[i].cell, point),
+        };
+        let Some(records) = &self.nodes[node].records else {
+            return (0, node);
+        };
+        let mut best = f32::from_bits(0x7e96_7699);
+        let mut flags = None;
+        for record in records {
+            let SceneRef::Polygon(index) = *record else {
+                continue;
+            };
+            let Some(polygon) = polygons.get(index) else {
+                continue;
+            };
+            if !polygon.contains_xz(point) {
+                continue;
+            }
+            let d = polygon.center[1] as f64 - point[1] as f64;
+            // `fcom 3.5; test ah, 0x41`: skipped when d <= 3.5 or unordered.
+            if !(d > 3.5) {
+                continue;
+            }
+            if d < best as f64 {
+                best = d as f32;
+                flags = Some(polygon.flags_word_a);
+            }
+        }
+        (flags.unwrap_or(0), node)
+    }
+
     /// 0x4740d0 requires a nonnull owner polygon before traversing type-2
     /// records. 0x484630 walks leaves using the first endpoint and the source
     /// radius abs(dx)+abs(dz). It does not use a segment's tight AABB.

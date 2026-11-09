@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 pub mod audio;
 pub mod camera;
 pub mod car_damage;
+pub mod car_env;
 pub mod car_tint;
 pub mod cockpit;
 pub mod collision_box;
@@ -482,6 +483,9 @@ pub struct Scene {
     /// Environment textures of `<track>.env` (raw FSH names), drawn on cars by the
     /// planar sky-map layer (`R3DSkyMapTextureLayer` 0x445b10) per `.map` section.
     pub env_textures: Vec<Texture>,
+    /// Sections of `<track>.map` as `TrackLighting_Load` 0x4409d0 reads them
+    /// (`car_env::load_sections`, recorded).
+    pub env_sections: Vec<car_env::EnvSection>,
     /// Track topology (boundaries, junctions, map), if available.
     pub topology: Option<TrackTopology>,
     /// CPU-only support grid constructed from static road candidate geometry.
@@ -584,6 +588,7 @@ impl Default for Scene {
             sun_position: None,
             flare: None,
             env_textures: Vec::new(),
+            env_sections: Vec::new(),
             topology: None,
             road_surface: None,
             course: None,

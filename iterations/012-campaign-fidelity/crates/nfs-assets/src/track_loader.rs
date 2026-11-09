@@ -473,6 +473,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sun_position: None,
         flare: None,
         env_textures: Vec::new(),
+        env_sections: Vec::new(),
         topology: None,
         road_surface: None,
         course: None,
@@ -1302,6 +1303,8 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         }
 
         if let Some(data) = map_data {
+            // The car sky-map sections (0x4409d0, recorded: tests/original_car_env_map.rs).
+            scene.env_sections = crate::car_env::load_sections(data);
             match parse_map(data) {
                 Ok(map) => {
                     let sec_count = map.sections.len();

@@ -1134,8 +1134,8 @@ pub struct Renderer {
     env: (wgpu::TextureView, wgpu::Sampler),
     /// `.env` layer by lower-case texture name.
     env_layers: std::collections::BTreeMap<String, u32>,
-    /// `.map` sections for the car's sky-map layer.
-    env_sections: Vec<crate::env_map::EnvSection>,
+    /// `.map` sections for the car's sky-map layer (0x4409d0).
+    env_sections: Vec<nfs_assets::car_env::EnvSection>,
     /// Debug switch of the car's sky-map layer (browser `toggle_env_map`).
     pub env_map_on: bool,
     /// Debug alpha multiplier of the car's sky-map layer (1 = original; key N, `?envboost=`).
@@ -1144,8 +1144,8 @@ pub struct Renderer {
     env_max_alpha: Vec<u8>,
     /// Last sky-map state of the player car: node, section start, layers, offsets.
     env_debug: std::cell::RefCell<String>,
-    /// Track node of the AI car being drawn (`ai car` pass; -1 unknown).
-    env_ai_node: std::cell::Cell<i32>,
+    /// Sky-map light state and position (scene) of the car being drawn (`begin_car_env`).
+    env_car: std::cell::Cell<Option<(nfs_assets::car_env::EnvLight, Vec3)>>,
     /// Sun sprite and lens flare (`Sun_Draw` 0x460290, `Flare_Draw` 0x460460).
     sun_flare: crate::sun::SunFlareGpu,
     /// Sun point of the track's sky config (`Sky_SunPosition` 0x461090), scene axes.
@@ -2316,12 +2316,7 @@ impl Renderer {
             effects,
             env,
             env_layers: env_layer_names(&scene.env_textures),
-            env_sections: scene
-                .topology
-                .as_ref()
-                .and_then(|t| t.map.as_ref())
-                .map(crate::env_map::sections)
-                .unwrap_or_default(),
+            env_sections: scene.env_sections.clone(),
             env_map_on: true,
             env_boost: 1.0,
             env_max_alpha: scene
@@ -2331,7 +2326,7 @@ impl Renderer {
                 .map(|t| t.rgba.iter().skip(3).step_by(4).copied().max().unwrap_or(0))
                 .collect(),
             env_debug: std::cell::RefCell::new(String::new()),
-            env_ai_node: std::cell::Cell::new(-1),
+            env_car: std::cell::Cell::new(None),
             sun_flare,
             sun_position: scene.sun_position.map(Vec3::from),
             flare: None,
@@ -2561,14 +2556,11 @@ impl Renderer {
         }
 
         let mut uniform = self.car_uniform(model_matrix);
-        // A274: read from the decompile, not recorded; off in the default build.
+        // A274: the pass selection and its colour are read, not recorded: off in the default build.
         if cfg!(feature = "experimental-original-port") {
-            if matches!(label, "original car chassis" | "sim car chassis" | "arcade car" | "in-car part") {
-                self.apply_env_map(&mut uniform, model_matrix, None);
-            } else if label == "ai car" {
-                self.apply_env_map(&mut uniform, model_matrix, Some(self.env_ai_node.get()));
-            }
+            self.apply_env_map(&mut uniform);
         }
+        let _ = label;
         self.queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
 
@@ -3331,6 +3323,15 @@ impl Renderer {
                 } else {
                     car.view_mode == crate::arcade::DriveViewMode::Bumper
                 };
+            // The player car's sky-map light state (0x43a560) for all its meshes.
+            let player_origin = match self.original_vehicle.as_ref().filter(|_| self.original_active()) {
+                Some(v) => self.drawn_body_matrix(&v.car).w_axis.truncate(),
+                None => match (&self.sim_car, self.sim_mode) {
+                    (Some(sim), true) => sim.body.transform_matrix().w_axis.truncate(),
+                    _ => car.model_matrix().w_axis.truncate(),
+                },
+            };
+            self.begin_car_env(None, player_origin);
             if self.mirror_pass {
                 // Mirror view: the player's own car is skipped, the opponents below are drawn.
             } else if bumper_view && self.sim_mode {
@@ -3417,8 +3418,10 @@ impl Renderer {
                 );
             }
 
+            self.end_car_env();
             // Draw AI opponent vehicles on track with the same visible model.
             for (slot, ai) in self.ai_opponents.iter().enumerate() {
+                self.begin_car_env(Some(slot), Vec3::from(ai.position));
                 // Each opponent's own paint; the player's goes back after the loop.
                 if let Some(paint) = self.race_options.opponent_paints.get(slot) {
                     self.paint_car(car_render, *paint);
@@ -3428,12 +3431,6 @@ impl Renderer {
                 let model_matrix = Mat4::from_translation(Vec3::from(ai.position))
                     * Mat4::from_mat3(ai.body_rotation());
                 self.draw_exterior_driver(target, car_render, model_matrix, None);
-                self.env_ai_node.set(
-                    self.original_ai
-                        .as_ref()
-                        .and_then(|f| f.cars.get(slot))
-                        .map_or(-1, |c| i32::from(c.ai.locator_08.node_00)),
-                );
                 let turns = self.ai_lights.get(slot).map_or(0.0, |l| self.lid_turns(l));
                 self.draw_car_body(
                     target,
@@ -3465,6 +3462,7 @@ impl Renderer {
                         &wheel.mesh_indices,
                     );
                 }
+                self.end_car_env();
             }
 
             if let Some(paint) = self.race_options.player_paint {
@@ -4426,100 +4424,134 @@ impl Renderer {
         }
     }
 
-    /// Planar sky-map layer of the player car (`R3DSkyMapTextureLayer` 0x445b10 with
-    /// the `.map` section of the car's track node, `docs/re/lighting.md`). The node is the
-    /// original model's locator node `car+8`, else the nearest track node (A274).
+    /// Sky-map light state of a car this frame (the sky-map part of `R3DCar_UpdateLighting`
+    /// 0x43a560, recorded: `nfs_assets::car_env::update_light`): `ai_slot` None is the player.
+    /// Inputs from the original vehicle runtime: `car+0x330`, the locator node `car+8`, the node
+    /// frame `car+0x3b8`, covered road from 0x473330 on the locator (`overhead_flags` with the
+    /// locator's cell cache). Returns the light state and the car position (scene axes).
     ///
-    /// `ai_node` is the original AI car's own locator node (`locator_08`, -1: none known);
-    /// `None` is the player car.
-    fn apply_env_map(&self, uniform: &mut CameraUniform, model: Mat4, ai_node: Option<i32>) {
+    /// Without the original vehicle (arcade and prototype modes, AI without the original field)
+    /// the car's nearest track node and that node's frame stand in (A274).
+    fn env_light(&self, ai_slot: Option<usize>) -> Option<(nfs_assets::car_env::EnvLight, String)> {
         use nfs_assets::physics::original_adapter::to_original;
-        let Some(track) = self.original_ai_track.as_ref().filter(|_| self.env_map_on) else {
-            if ai_node.is_none() {
-                *self.env_debug.borrow_mut() = format!("off (track nodes {})", self.original_ai_track.is_some());
+        let track = self.original_ai_track.as_ref()?;
+        let nodes = &track.nodes;
+        let vehicle = match ai_slot {
+            None => self.original_vehicle.as_ref().filter(|_| self.original_active()),
+            Some(slot) => self.original_ai.as_ref().and_then(|f| f.cars.get(slot)).map(|c| &c.vehicle),
+        };
+        let car = match vehicle {
+            Some(v) => {
+                let node = v.locator.track.node_00;
+                let covered = self
+                    .road_surface
+                    .as_ref()
+                    .and_then(|s| s.original_arena())
+                    .map(|(tree, polygons)| {
+                        tree.overhead_flags(polygons, v.car.position_330, v.locator.owner.node).0 & 0xc000 != 0
+                    })
+                    .unwrap_or(false);
+                crate::env_map::env_car(&v.car, node, covered, nodes)?
             }
-            return;
+            None => {
+                // A274: no original runtime: the nearest node and its frame.
+                if !cfg!(feature = "experimental-original-port") {
+                    return None;
+                }
+                let pos = match ai_slot {
+                    None => self.car.as_ref().map(|c| c.model_matrix().w_axis.truncate())?,
+                    Some(slot) => Vec3::from(self.ai_opponents.get(slot)?.position),
+                };
+                let p = to_original(pos);
+                let (k, n) = nodes.nodes.iter().enumerate().min_by(|a, b| {
+                    let da = Vec3::from(a.1.pos_04).distance_squared(Vec3::from(p));
+                    let db = Vec3::from(b.1.pos_04).distance_squared(Vec3::from(p));
+                    da.total_cmp(&db)
+                })?;
+                nfs_assets::car_env::EnvCar {
+                    position: p,
+                    node: k as i16,
+                    covered: false,
+                    node_pos: n.pos_04,
+                    node_lat: n.lateral_28,
+                    node_fwd: n.forward_1c,
+                    frame: [n.lateral_28, n.up_10, n.forward_1c],
+                }
+            }
         };
-        let origin = model.w_axis.truncate();
-        let pos = Vec3::from(to_original(origin));
-        let real = match ai_node {
-            Some(n) => Some(n).filter(|&n| n >= 0),
-            None => self
-                .original_vehicle
-                .as_ref()
-                .filter(|_| self.original_active())
-                .map(|v| i32::from(v.locator.track.node_00)),
-        };
-        let nearest = track
-            .nodes
-            .nodes
+        let light = nfs_assets::car_env::update_light(&self.env_sections, &car, true);
+        let sel = nfs_assets::car_env::select_section(&self.env_sections, i32::from(car.node));
+        let names: Vec<String> = light
+            .slots
             .iter()
-            .enumerate()
-            .min_by(|a, b| {
-                let da = Vec3::from(a.1.pos_04).distance_squared(pos);
-                let db = Vec3::from(b.1.pos_04).distance_squared(pos);
-                da.total_cmp(&db)
-            })
-            .map_or(-1, |(i, _)| i as i32);
-        let node = real.unwrap_or(nearest);
-        let Some(section) = crate::env_map::select(&self.env_sections, node) else {
-            if ai_node.is_none() {
-                *self.env_debug.borrow_mut() = format!(
-                    "node {node} (nearest {nearest}) at {pos:?}: no section ({} sections {:?}, {} env textures)",
-                    self.env_sections.len(),
-                    self.env_sections.iter().map(|s| (s.start, s.end)).collect::<Vec<_>>(),
-                    self.env_layers.len()
-                );
-            }
-            return;
-        };
-        let Some(n) = usize::try_from(node).ok().and_then(|i| track.nodes.nodes.get(i)) else {
-            return;
-        };
-        let o = crate::env_map::node_offsets(pos, Vec3::from(n.pos_04), Vec3::from(n.forward_1c), Vec3::from(n.lateral_28));
-        let layer = |k: usize| {
-            section.textures[k]
-                .as_ref()
-                .and_then(|name| self.env_layers.get(&name.to_ascii_lowercase()))
-                .map_or(-1.0, |&l| l as f32)
-        };
-        uniform.env_layers = [layer(0), layer(1), layer(2), 1.0];
-        uniform.env_proj = [
-            1.0 / section.texture_size,
-            section.aspect / section.texture_size,
-            0.1 * o[0] + 0.5,
-            o[1] + 0.5,
-        ];
-        uniform.env_origin = [origin.x, origin.y, origin.z, ENV_NORMAL_OFFSET];
-        let (lat, fwd) = (
-            nfs_assets::physics::original_adapter::from_original(n.lateral_28),
-            nfs_assets::physics::original_adapter::from_original(n.forward_1c),
-        );
-        uniform.env_axis_u = [lat.x, lat.y, lat.z, self.env_boost];
-        uniform.env_axis_v = [fwd.x, fwd.y, fwd.z, 0.0];
-        let names: Vec<String> = (0..3)
-            .map(|k| {
-                let name = section.textures[k].as_deref().unwrap_or("-");
-                let layer = uniform.env_layers[k];
-                let alpha = (layer >= 0.0)
-                    .then(|| self.env_max_alpha.get(layer as usize).copied())
-                    .flatten()
-                    .map_or("-".to_string(), |a| a.to_string());
-                format!("{name}(a{alpha})")
+            .map(|t| {
+                t.map_or("-".to_string(), |c| {
+                    let name = String::from_utf8_lossy(&c.to_le_bytes()).trim_end().to_string();
+                    let alpha = self
+                        .env_layers
+                        .get(&name.to_ascii_lowercase())
+                        .and_then(|&l| self.env_max_alpha.get(l as usize))
+                        .map_or("-".to_string(), |a| a.to_string());
+                    format!("{name}(a{alpha})")
+                })
             })
             .collect();
-        if ai_node.is_some() {
-            return;
-        }
-        *self.env_debug.borrow_mut() = format!(
-            "node {node} (nearest {nearest}) sec {}..{} {} o {:.2},{:.2}{}",
-            section.start,
-            section.end,
+        let report = format!(
+            "node {} sec {} {} covered {} o {:.2},{:.2}{}{}",
+            car.node,
+            sel.map_or("-".to_string(), |i| format!("{}..{}", self.env_sections[i].start, self.env_sections[i].end)),
             names.join(" "),
-            o[0],
-            o[1],
+            car.covered,
+            light.offsets[0],
+            light.offsets[1],
+            if vehicle.is_none() { " (nearest node, A274)" } else { "" },
             if self.env_boost != 1.0 { format!(" x{}", self.env_boost) } else { String::new() }
         );
+        Some((light, report))
+    }
+
+    /// Set the sky-map state of the car about to be drawn (`ai_slot` None: the player);
+    /// `draw_gpu_meshes_with` applies it to every mesh of that car until [`Self::end_car_env`].
+    fn begin_car_env(&self, ai_slot: Option<usize>, origin: Vec3) {
+        if !cfg!(feature = "experimental-original-port") {
+            return;
+        }
+        let state = self.env_map_on.then(|| self.env_light(ai_slot)).flatten();
+        if ai_slot.is_none() {
+            *self.env_debug.borrow_mut() = state.as_ref().map_or("off".to_string(), |(_, r)| r.clone());
+        }
+        self.env_car.set(state.map(|(light, _)| (light, origin)));
+    }
+
+    fn end_car_env(&self) {
+        self.env_car.set(None);
+    }
+
+    /// The planar sky-map layer (`R3DSkyMapTextureLayer` 0x445b10) of the current car into the
+    /// camera uniform: texture-array layers of the slot FourCCs (exact `.env` names), the
+    /// projection and the car's node frame. Not in the mirror view (camera type 1: light state
+    /// `+0x190`, 0x43ad4e, recorded early return of 0x445b10).
+    fn apply_env_map(&self, uniform: &mut CameraUniform) {
+        let Some((light, origin)) = self.env_car.get() else {
+            return;
+        };
+        if self.mirror_pass {
+            return;
+        }
+        let layer = |k: usize| {
+            light.slots[k]
+                .and_then(|c| {
+                    let name = String::from_utf8_lossy(&c.to_le_bytes()).trim_end().to_ascii_lowercase();
+                    self.env_layers.get(&name).copied()
+                })
+                .map_or(-1.0, |l| l as f32)
+        };
+        let u = crate::env_map::uniform(&light);
+        uniform.env_layers = [layer(0), layer(1), layer(2), 1.0];
+        uniform.env_proj = u.proj;
+        uniform.env_origin = [origin.x, origin.y, origin.z, u.push];
+        uniform.env_axis_u = [u.axis_u.x, u.axis_u.y, u.axis_u.z, self.env_boost];
+        uniform.env_axis_v = [u.axis_v.x, u.axis_v.y, u.axis_v.z, 0.0];
     }
 
     /// Debug: the player car's sky-map layer state of the last frame.
@@ -7937,9 +7969,6 @@ fn env_layer_names(textures: &[nfs_assets::Texture]) -> std::collections::BTreeM
         .map(|(i, t)| (t.name.trim().to_ascii_lowercase(), i as u32))
         .collect()
 }
-/// Light state `+0` of the car (`0x440780` copies 3.33 from 0x5b37c0; nothing else
-/// writes it): `R3DSkyMapTextureLayer` 0x445b10 projects `vertex + 3.33·normal`.
-const ENV_NORMAL_OFFSET: f32 = 3.33;
 /// Size of the `.env` textures (all shipped ones are 64×64).
 const ENV_SIZE: u32 = 64;
 
@@ -7988,12 +8017,16 @@ fn env_texture_array(
         dimension: Some(wgpu::TextureViewDimension::D2Array),
         ..Default::default()
     });
+    // 0x4408c0 + 0x536240 -> dx7z (recorded): ADDRESS WRAP, MAG / MIN LINEAR, MIP NONE.
+    let s = nfs_assets::car_env::ENV_SAMPLER;
+    let address = if s.wrap { wgpu::AddressMode::Repeat } else { wgpu::AddressMode::ClampToEdge };
+    let filter = if s.linear { wgpu::FilterMode::Linear } else { wgpu::FilterMode::Nearest };
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("car env sampler"),
-        address_mode_u: wgpu::AddressMode::Repeat,
-        address_mode_v: wgpu::AddressMode::Repeat,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
+        address_mode_u: address,
+        address_mode_v: address,
+        mag_filter: filter,
+        min_filter: filter,
         ..Default::default()
     });
     (view, sampler)

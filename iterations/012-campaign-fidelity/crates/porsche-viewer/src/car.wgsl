@@ -74,6 +74,8 @@ fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
     // against the body when the car turns relative to the road.
     // The point is pushed out along the normal by the light state's `+0` = 3.33
     // (`R3DCarLight` ctor 0x440780 from 0x5b37c0), so the pattern follows the curvature.
+    // Recorded (env_map.rs `shader_formula_matches_the_recorded_layer`); the clipped indexed
+    // loop's swapped operands (k·position + normal) are not drawn (A274).
     let rel = world_pos.xyz + out.normal * camera.env_origin.w - camera.env_origin.xyz;
     out.planar = vec2<f32>(
         dot(rel, camera.env_axis_u.xyz) * camera.env_proj.x + camera.env_proj.z,
@@ -150,14 +152,17 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
                 rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(spc.rgb) * lit, a));
             }
             // Pass 6: the planar sky map of the track section (tree-shade `TT*`, lamp
-            // stars, black `1` outdoors), alpha-blended like the sphere map (A71).
+            // stars, black `1` outdoors). Render state field 2 = 0 (SRCALPHA, INVSRCALPHA) on
+            // the gamma frame buffer; combine MODULATE with the diffuse left by pass 1 (the lit
+            // intensity, read from 0x540ce0 / the method chain, not recorded: A274). An empty
+            // slot skips the pass (0x445b10 -> 0x53f460, recorded).
             if camera.env_layers.w > 0.5 {
                 let layer = camera.env_layers[u32(slot)];
                 if layer >= 0.0 {
                     let env = textureSample(env_maps, env_sampler, in.planar, i32(layer));
-                    // env_axis_u.w: debug alpha multiplier (1 = original).
+                    // env_axis_u.w: debug alpha multiplier (1 = original; key N).
                     let a = clamp(env.a * camera.env_axis_u.w, 0.0, 1.0);
-                    rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(env.rgb), a));
+                    rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(env.rgb) * lit, a));
                 }
             }
         }

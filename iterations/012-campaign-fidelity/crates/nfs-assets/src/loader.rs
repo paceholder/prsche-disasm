@@ -928,6 +928,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         sun_position: None,
         flare: flare_data(files)?,
         env_textures: Vec::new(),
+        env_sections: Vec::new(),
         topology: None,
         road_surface: None,
         course: None,
@@ -1075,7 +1076,9 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             depth_bias,
             prelit: false,
             uv_scroll: None,
-            env_slot: if matches!(render.as_str(), "CarExtEnv" | "CarWindow") {
+            // The methods whose `RMth` has the sky-map pass (0x44bf70, recorded:
+            // tests/original_car_env_map.rs) carry the slot float.
+            env_slot: if matches!(render.as_str(), "CarExtEnv" | "CarExtEnvNS" | "CarWindow") {
                 material_env_slot(&e.data)
             } else {
                 None
@@ -2388,6 +2391,45 @@ mod tests {
             }
         }
         assert_eq!(seen, [true; 3]);
+    }
+
+    /// Every shipped car: the materials whose render method has the sky-map pass (`RMth`
+    /// group of pass 6 with a type 0x8101 entry: `CarExtEnv`, `CarExtEnvNS`, `CarWindow`) carry
+    /// the slot float, and no other material does.
+    #[test]
+    fn local_cars_env_slots_follow_the_sky_map_methods() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../..")
+            .join("local/game/GameData/CarModel");
+        let Ok(dir) = std::fs::read_dir(&root) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        let mut cars = Vec::new();
+        for e in dir.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if let Some(car) = name.strip_suffix(".crp") {
+                cars.push(car.to_string());
+            }
+            files.insert(name, std::fs::read(e.path()).unwrap());
+        }
+        cars.sort();
+        let mut counts = std::collections::BTreeMap::<String, (usize, usize)>::new();
+        for car in &cars {
+            let Ok(scene) = load(&files, car, 0) else {
+                continue;
+            };
+            for m in &scene.materials {
+                let method = m.name.split_once(':').map_or("", |(_, r)| r).to_string();
+                let c = counts.entry(method.clone()).or_default();
+                c.0 += 1;
+                c.1 += m.env_slot.is_some() as usize;
+                let sky = matches!(method.as_str(), "CarExtEnv" | "CarExtEnvNS" | "CarWindow");
+                assert_eq!(m.env_slot.is_some(), sky, "{car} {}", m.name);
+            }
+        }
+        eprintln!("materials by method (count, with slot): {counts:?}");
+        assert!(counts.len() >= 3, "{counts:?}");
     }
 
     #[test]

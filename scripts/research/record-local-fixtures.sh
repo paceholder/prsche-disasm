@@ -46,10 +46,11 @@ run replay-career-save.py --data "$GAME_DIR" --out "$OUT/career-save-car.tsv"
 run replay-car-deform.py --data "$GAME_DIR" --cars 356a,gt1,996 --out "$OUT/car-deform-cars.tsv"
 run replay-sky-draw.py --tracks --out "$OUT/sky-draw-tracks.tsv"
 run replay-sky-sun.py --tracks --out "$OUT/sky-sun-tracks.tsv"
+run replay-lighthouse-anim.py --tracks --out "$OUT/scenery-anim-tracks.tsv"
 
 # Road support: dump the type-1 support polygons with the Rust loader, then record the original.
 # Needs a Rust toolchain (cargo) on PATH.
-SUPPORT_TRACKS="autobahn alps monaco1 canyon castle forest"
+SUPPORT_TRACKS="autobahn alps monaco1 canyon castle forest coastal farmland"
 mkdir -p "$ROOT/local/derived/support"
 echo "== support_dump"
 (cd "$ROOT/iterations/012-campaign-fidelity" && cargo run --release -q -p nfs-assets --example support_dump -- \
@@ -57,6 +58,7 @@ echo "== support_dump"
 run replay-road-support.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"
 run replay-car-launch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"
 run replay-bank-launch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"   # ~15 min
+run replay-car-env-map.py --tracks --polygons "$ROOT/local/derived/support" --out "$OUT/car-env-map-tracks.tsv"   # ~7 min
 
 echo "wrote $(ls "$OUT" | wc -l | tr -d ' ') files to $OUT"
 if [ "${1:-}" = "--check" ]; then
