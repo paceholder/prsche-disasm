@@ -252,7 +252,7 @@ pub mod ffn;
 pub use ffn::{parse_ffn, Font, Glyph};
 
 pub mod sky;
-pub use sky::{parse_sky_dome, parse_sky_horizon, parse_sky_sun, parse_sky_txt, sky_blend, sky_drift_advance, sky_inv_scale, sky_layer_blends, sky_layer_uv, sky_map_mix, sky_map_opaque, sky_vertex_colour, sky_wind_step, SkyDome, SkyDomeHit, SkyMapBlock, SKY_DOME_CELLS, SKY_FAR, SKY_NEAR, sky_cell_tested, sky_cell_visible, sky_cull_planes, HorizonHit, SkyHorizon, SkySun, HORIZON_RADIUS, HORIZON_SEGMENTS};
+pub use sky::{parse_sky_dome, parse_sky_horizon, parse_sky_sun, parse_sky_txt, sky_blend, sky_drift_advance, sky_inv_scale, sky_layer_blends, sky_layer_uv, sky_map_mix, sky_map_opaque, sky_vertex_colour, sky_wind_step, sky_frame_ticks, sky_camera_vector, SkyGridAnim, SkyDome, SkyDomeHit, SkyMapBlock, SKY_DOME_CELLS, SKY_FAR, SKY_NEAR, sky_cell_tested, sky_cell_visible, sky_cull_planes, HorizonHit, SkyHorizon, SkySun, HORIZON_RADIUS, HORIZON_SEGMENTS};
 
 pub mod weather;
 pub use weather::{parse_sky_weather, SkyClear, SkyWeather, Weather, WeatherKey};

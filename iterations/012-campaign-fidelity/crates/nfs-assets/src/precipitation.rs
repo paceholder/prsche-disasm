@@ -29,6 +29,16 @@ impl Default for GameRandom {
 }
 
 impl GameRandom {
+    /// A generator in the given state (the six words `[0x5de910..0x5de924]`).
+    pub fn from_state(s: [u32; 6]) -> Self {
+        Self { s }
+    }
+
+    /// The six words `[0x5de910..0x5de924]`.
+    pub fn state(&self) -> [u32; 6] {
+        self.s
+    }
+
     /// `0x538040`: `s5 += 1`, then each word adds the next one plus carry; returns `s0`.
     pub fn next_raw(&mut self) -> u32 {
         let [s0, s1, s2, s3, s4, s5] = self.s;

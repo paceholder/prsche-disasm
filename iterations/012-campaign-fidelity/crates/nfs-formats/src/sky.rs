@@ -529,9 +529,10 @@ pub fn sky_drift_advance(offset: [f32; 2], step: [f32; 2], ticks: i32) -> [f32; 
 /// Texture coordinates of grid vertex `(column, row)` of a `MULTI*` layer (`FUN_0045ec40`):
 /// `u = f32(column * inv_x + warp_u + f32(drift_u + camera_u))`, rows likewise; `inv` is
 /// `1 / scale` (A/B blended), `warp` the per-vertex warp offset (`FUN_0045f3c0` /
-/// `FUN_0045ee80`, zero without a warp amount), `drift` the wind offset
-/// (`sky_drift_advance`), `camera` the camera-position offset of `FUN_0045ed40` (flag
-/// `+0x73`, move ratio > 1). Recorded bit for bit. So the cloud texture repeats every
+/// `FUN_0045ee80`: random start offsets of +-amount, moving only while the warp speed is
+/// above 0.01; `SkyGridAnim::warp`), `drift` the wind offset (`sky_drift_advance`), `camera`
+/// the camera-position offset of `FUN_0045ed40` (flag `+0x73`, move ratio > 1;
+/// `SkyGridAnim::camera`). Recorded bit for bit. So the cloud texture repeats every
 /// `scale` grid cells (`index / scale`, no spread over the 15 cells).
 pub fn sky_layer_uv(column: u32, row: u32, inv: [f32; 2], warp: [f32; 2], drift: [f32; 2], camera: [f32; 2]) -> [f32; 2] {
     let index = [column, row];
@@ -539,6 +540,238 @@ pub fn sky_layer_uv(column: u32, row: u32, inv: [f32; 2], warp: [f32; 2], drift:
         let offset = (x(drift[k]) + x(camera[k])) as f32;
         (f64::from(index[k]) * x(inv[k]) + x(warp[k]) + x(offset)) as f32
     })
+}
+
+/// Ticks of one sky update (`SkyManager_Update` 0x45d030, once per drawn frame): from the
+/// 64 Hz scheduler step `g_SchedStep [0x606ac4]` of this frame and of the last update: 1 on the
+/// first update and when the step advanced by exactly 1, else half the advance (C division,
+/// towards zero; 0 when the step did not move, negative after a restart), at most 64. So the
+/// sky moves about one tick per frame at 30..64 fps. Recorded bit for bit
+/// (`replay-sky-update.py`).
+pub fn sky_frame_ticks(last: Option<i32>, now: i32) -> i32 {
+    let Some(last) = last else { return 1 };
+    let d = now.wrapping_sub(last);
+    let t = if d == 1 { 1 } else { d / 2 };
+    t.min(64)
+}
+
+/// The camera vector a layer update gets (`SkyManager_Update` 0x45d030): the camera's world
+/// x / z (stored by `SkyManager_Draw` from the camera at `+0x10c` / `+0x114`) turned by minus
+/// the dome angle (`Sky/<track>.bin +0x3c`, or `+0xb3c` for the alternate dome) into the dome
+/// frame: `(f32(cos·x) + sin·z, f32(cos·z) − sin·x)`, x87 at 53 bits. Recorded bit for bit.
+pub fn sky_camera_vector(angle: f32, camera_x: f32, camera_z: f32) -> [f32; 2] {
+    let (sin, cos) = sin_cos_turns(-angle);
+    let (cx, cz) = (x(camera_x), x(camera_z));
+    [(x((cos * cx) as f32) + sin * cz) as f32, (x((cos * cz) as f32) - sin * cx) as f32]
+}
+
+/// Vertices of the UV grid (16 x 16) and of its warp arrays.
+const GRID_VERTICES: usize = 256;
+
+/// The per-frame state of a `MULTI*` layer's UV grid (`FUN_0045e8e0`, vtable 0x5b3f28):
+/// region A / B wind steps and `1 / scale` blended by the weather blend (`FUN_0045f180`),
+/// the wind drift and the camera offset (`FUN_0045ed40`), the UV warp (`FUN_0045f3c0` at
+/// build, `FUN_0045ee80` per update, drawing from the game generator `0x5561d0`), and the
+/// vertex UVs (`FUN_0045ec40`). Recorded bit for bit (`replay-sky-update.py`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkyGridAnim {
+    layers: usize,
+    step_ab: [[[f32; 2]; 2]; 3],
+    inv_ab: [[[f32; 2]; 2]; 3],
+    /// Blended wind step and `1 / scale` per layer (`+0xa4`, `+0xec`).
+    pub step: [[f32; 2]; 3],
+    pub inv: [[f32; 2]; 3],
+    /// Wind drift (`+0x40`) and camera offset (`+0x28`) per layer.
+    pub drift: [[f32; 2]; 3],
+    pub camera: [[f32; 2]; 3],
+    moves: [bool; 3],
+    camera_on: bool,
+    warp_on: bool,
+    ratio_ab: [f32; 2],
+    ratio: f32,
+    warp_speed_ab: [f32; 2],
+    warp_amount_ab: [f32; 2],
+    warp_speed: f32,
+    warp_amount: f32,
+    /// Warp offset per grid vertex (`+0x5c`), added to the UVs of every layer.
+    pub warp: Vec<[f32; 2]>,
+    target: Vec<[f32; 2]>,
+    velocity: Vec<[f32; 2]>,
+    random: [f32; 13],
+    cursor: usize,
+    acc_target: i32,
+    acc_velocity: i32,
+}
+
+impl SkyGridAnim {
+    /// Build the grid of a `MULTI*` block with `layers` layers (`FUN_0045e8e0` from
+    /// `SkyMapLayer_Ctor`): 13 numbers of `unit` (the game's `0x5561d0`) at construction, the
+    /// parameters (`FUN_0045f1b0`), then the warp start (`FUN_0045f3c0`: 13 more numbers,
+    /// random offsets, one warp step).
+    pub fn new(block: &SkyMapBlock, layers: usize, unit: &mut impl FnMut() -> f32) -> Self {
+        let b = block.region_b.as_deref().unwrap_or(block);
+        let regions = [block, b];
+        let mut g = SkyGridAnim {
+            layers: layers.min(3),
+            step_ab: [[[0.0; 2]; 2]; 3],
+            inv_ab: [[[0.0; 2]; 2]; 3],
+            step: [[0.0; 2]; 3],
+            inv: [[0.0; 2]; 3],
+            drift: [[0.0; 2]; 3],
+            camera: [[0.0; 2]; 3],
+            moves: [false; 3],
+            camera_on: false,
+            warp_on: false,
+            ratio_ab: [0.0; 2],
+            ratio: 0.0,
+            warp_speed_ab: [0.0; 2],
+            warp_amount_ab: [0.0; 2],
+            warp_speed: 0.0,
+            warp_amount: 0.0,
+            warp: vec![[0.0; 2]; GRID_VERTICES],
+            target: vec![[0.0; 2]; GRID_VERTICES],
+            velocity: vec![[0.0; 2]; GRID_VERTICES],
+            random: [0.0; 13],
+            cursor: 0,
+            acc_target: 32,
+            acc_velocity: 4,
+        };
+        for r in g.random.iter_mut() {
+            *r = unit();
+        }
+        const INV_180: u32 = 0x3bb6_0b61; // 0.0055555557
+        for (k, reg) in regions.iter().enumerate() {
+            for i in 0..g.layers {
+                g.inv_ab[i][k] = [sky_inv_scale(reg.x_scale[i]), sky_inv_scale(reg.y_scale[i])];
+                let (step, moves) = sky_wind_step(reg.wind_speed[i], reg.wind_direction[i]);
+                g.step_ab[i][k] = step;
+                g.moves[i] |= moves;
+            }
+            g.ratio_ab[k] = if reg.move_ratio == 0.0 { 0.0 } else { sky_inv_scale(reg.move_ratio) };
+            g.warp_amount_ab[k] = reg.warp_amount;
+            g.warp_speed_ab[k] = (x(reg.warp_speed) * x(f32::from_bits(INV_180))) as f32;
+        }
+        g.camera_on = block.move_ratio > 1.0 || b.move_ratio > 1.0;
+        g.warp_on = block.warp_speed > 0.01 || b.warp_speed > 0.01;
+        g.warp_speed = g.warp_speed_ab[0];
+        g.warp_amount = g.warp_amount_ab[0];
+        for i in 0..g.layers {
+            g.step[i] = g.step_ab[i][0];
+            g.inv[i] = g.inv_ab[i][0];
+        }
+        g.ratio = g.ratio_ab[0];
+        // FUN_0045f3c0: new numbers, random start offsets, velocities zero, one step.
+        for r in g.random.iter_mut() {
+            *r = unit();
+        }
+        for k in 0..GRID_VERTICES {
+            g.warp[k] = [g.next_offset(g.warp_amount), g.next_offset(g.warp_amount)];
+        }
+        g.warp_step(1, unit);
+        g
+    }
+
+    /// Next random number of the cycle (`+0x16c` runs 1..11, 0), as an offset in
+    /// `-amount..amount`: `f32(r·amount·2 − amount)`.
+    fn next_offset(&mut self, amount: f32) -> f32 {
+        self.cursor += 1;
+        if self.cursor == 12 {
+            self.cursor = 0;
+        }
+        let ra = x(self.random[self.cursor]) * x(amount);
+        (ra + ra - x(amount)) as f32
+    }
+
+    /// Whether the layers' UVs are rewritten by updates (any move, camera or warp flag).
+    pub fn animated(&self) -> bool {
+        self.moves.iter().any(|&m| m) || self.camera_on || self.warp_on
+    }
+
+    /// One update (`FUN_0045f0a0`): `camera` from `sky_camera_vector`, the weather blend and
+    /// the frame's ticks (`sky_frame_ticks`).
+    pub fn update(&mut self, camera: [f32; 2], blend: f32, ticks: i32, unit: &mut impl FnMut() -> f32) {
+        self.warp_speed = sky_blend(self.warp_speed_ab[0], self.warp_speed_ab[1], blend);
+        self.warp_amount = sky_blend(self.warp_amount_ab[0], self.warp_amount_ab[1], blend);
+        for i in 0..self.layers {
+            let (s, v) = (self.step_ab[i], self.inv_ab[i]);
+            self.step[i] = [sky_blend(s[0][0], s[1][0], blend), sky_blend(s[0][1], s[1][1], blend)];
+            self.inv[i] = [sky_blend(v[0][0], v[1][0], blend), sky_blend(v[0][1], v[1][1], blend)];
+        }
+        self.ratio = sky_blend(self.ratio_ab[0], self.ratio_ab[1], blend);
+        // FUN_0045ed40: drift of moving layers, then the camera offset of every layer.
+        for i in 0..self.layers {
+            if self.moves[i] {
+                self.drift[i] = sky_drift_advance(self.drift[i], self.step[i], ticks);
+            }
+            if self.camera_on {
+                let p = x(self.inv[i][0]) * x(self.ratio) * x(camera[0]);
+                let u = -(p - p.floor());
+                let q = x(self.inv[i][1]) * x(camera[1]) * x(self.ratio);
+                let v = q - q.floor();
+                self.camera[i] = [u as f32, v as f32];
+            }
+        }
+        self.warp_step(ticks, unit);
+    }
+
+    /// `FUN_0045ee80` (only with the warp flag): 13 new numbers per call; every 32 ticks new
+    /// targets in `-amount..amount`; every 4 ticks each velocity steps towards its target by
+    /// `f32(4·ticks·speed·ticks·0.033333335)`, limited to `speed`; the offsets move by
+    /// `ticks · velocity`.
+    fn warp_step(&mut self, ticks: i32, unit: &mut impl FnMut() -> f32) {
+        if !self.warp_on {
+            return;
+        }
+        for r in self.random.iter_mut() {
+            *r = unit();
+        }
+        const C: u32 = 0x3d08_8889; // 0x5b3f30, 0.033333335
+        let t = ticks as f32;
+        self.acc_target = self.acc_target.wrapping_add(ticks);
+        self.acc_velocity = self.acc_velocity.wrapping_add(ticks);
+        let a = x(self.warp_speed);
+        let step = (f64::from(ticks.wrapping_mul(4) as f32) * a * x(t) * x(f32::from_bits(C))) as f32;
+        if self.acc_target >= 32 {
+            self.acc_target -= 32;
+            for k in 0..GRID_VERTICES {
+                let amount = self.warp_amount;
+                self.target[k] = [self.next_offset(amount), self.next_offset(amount)];
+            }
+        }
+        if self.acc_velocity >= 4 {
+            self.acc_velocity -= 4;
+            let neg = -self.warp_speed;
+            for k in 0..GRID_VERTICES {
+                for c in 0..2 {
+                    let vel = &mut self.velocity[k][c];
+                    if self.target[k][c] < self.warp[k][c] {
+                        let v = x(*vel) - x(step);
+                        *vel = v as f32;
+                        if v < x(neg) {
+                            *vel = neg;
+                        }
+                    } else {
+                        let v = x(step) + x(*vel);
+                        *vel = v as f32;
+                        if v > a {
+                            *vel = self.warp_speed;
+                        }
+                    }
+                }
+            }
+        }
+        for k in 0..GRID_VERTICES {
+            for c in 0..2 {
+                self.warp[k][c] = (x(t) * x(self.velocity[k][c]) + x(self.warp[k][c])) as f32;
+            }
+        }
+    }
+
+    /// UV of grid vertex `(column, row)` of layer `i` (`FUN_0045ec40`, `sky_layer_uv`).
+    pub fn uv(&self, i: usize, column: u32, row: u32) -> [f32; 2] {
+        let w = self.warp[(row * 16 + column) as usize];
+        sky_layer_uv(column, row, self.inv[i], w, self.drift[i], self.camera[i])
+    }
 }
 
 /// Texels of a layer map object between its region A and B maps (`FUN_0045e160`, the sky-map
@@ -611,6 +844,11 @@ pub struct SkyMapBlock {
     pub wind_speed: [f32; 3],
     /// Degrees, north 0, east 90.
     pub wind_direction: [f32; 3],
+    /// `MULTI*`: warp speed and warp amount of the region (`FUN_0045f1b0` parameters 1 and 2:
+    /// the warp runs when the speed is above 0.01, velocity limit `speed / 180`, target
+    /// amplitude `amount`; recorded, `SkyGridAnim`).
+    pub warp_speed: f32,
+    pub warp_amount: f32,
     /// `MULTI*`: the three cloud textures after region B (`flat`, `cc1a`, `none`; region A
     /// block only). Layer `i` draws map `i` as vertex colours times cloud texture `i` at
     /// `UV = grid index / scale` (`FUN_0045b5a0`: `flat` is the pack's blank texture
@@ -681,6 +919,8 @@ fn sky_block(t: &[&str]) -> Option<SkyMapBlock> {
             move_ratio: 0.0,
             wind_speed: [0.0; 3],
             wind_direction: [0.0; 3],
+            warp_speed: 0.0,
+            warp_amount: 0.0,
             clouds: Default::default(),
             region_b: None,
         });
@@ -710,6 +950,8 @@ fn multi_region(t: &[&str], base: usize, capability: &str, kind: &str) -> Option
         move_ratio: n(9),
         wind_speed: [n(10), n(11), n(12)],
         wind_direction: [n(13), n(14), n(15)],
+        warp_speed: n(16),
+        warp_amount: n(17),
         clouds: Default::default(),
         region_b: None,
     })

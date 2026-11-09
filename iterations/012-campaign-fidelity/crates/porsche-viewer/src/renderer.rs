@@ -460,8 +460,69 @@ struct SkyState {
     texture_group: wgpu::BindGroup,
     /// Uniform with the horizon placement; only `view_projection` changes per frame.
     uniform: SkyUniform,
-    /// Drift of the two layers, UV per second (`sky_drift_velocity`).
-    drift: [f32; 4],
+    /// Per-frame animation of the `MULTI*` layers' UVs (wind drift, camera offset, warp).
+    anim: SkyAnim,
+}
+
+/// The `MULTI*` layer animation of `SkyManager_Update` 0x45d030 (recorded,
+/// `replay-sky-update.py`): per drawn frame `sky_frame_ticks` of the 64 Hz scheduler step,
+/// the camera vector in the dome frame (`sky_camera_vector`), and the UV grid update
+/// (`SkyGridAnim`: drift, camera offset, warp), whose blended `1 / scale`, offsets and warp
+/// offsets the shader adds to `grid * 1/scale`.
+struct SkyAnim {
+    map: Option<nfs_formats::SkyMapBlock>,
+    angle: f32,
+    grid: Option<nfs_formats::SkyGridAnim>,
+    start: Option<f64>,
+    last_step: Option<i32>,
+}
+
+impl SkyAnim {
+    fn new(map: Option<&nfs_formats::SkyMapBlock>, dome: Option<&nfs_formats::SkyDome>) -> Self {
+        let multi = map.filter(|m| sky_is_multi(Some(m))).cloned();
+        SkyAnim { map: multi, angle: dome.map_or(0.0, |d| d.angle), grid: None, start: None, last_step: None }
+    }
+
+    /// One drawn frame at wall time `now` (seconds): the camera eye in original axes, the
+    /// weather blend; the grid is built on the first frame from the shared generator (the
+    /// original builds it with the sky; its stream position differs, A194).
+    fn frame(&mut self, now: f64, eye: [f32; 3], blend: f32, random: &mut nfs_assets::precipitation::GameRandom) {
+        let Some(map) = &self.map else { return };
+        let grid = self.grid.get_or_insert_with(|| {
+            // The map objects' sprite records draw 2 numbers each, 200 per map (0x45dd90).
+            for _ in 0..map.maps.iter().filter(|m| !m.eq_ignore_ascii_case("none")).count() * 400 {
+                random.unit();
+            }
+            nfs_formats::SkyGridAnim::new(map, map.drawn_layers(), &mut || random.unit())
+        });
+        let start = *self.start.get_or_insert(now);
+        // g_SchedStep [0x606ac4]: 64 steps per second of the engine clock.
+        let step = ((now - start) * 64.0).floor() as i32;
+        let ticks = nfs_formats::sky_frame_ticks(self.last_step, step);
+        self.last_step = Some(step);
+        if grid.animated() {
+            let camera = nfs_formats::sky_camera_vector(self.angle, eye[0], eye[2]);
+            grid.update(camera, blend, ticks, &mut || random.unit());
+        }
+    }
+
+    /// Uniform fields: `uv_inv` (layer 0 and 1 `1 / scale`), `drift` (layer 0 and 1 offset =
+    /// `f32(drift + camera)`), `warp` (the 256 vertex warp offsets, two per vec4).
+    fn fill(&self, u: &mut SkyUniform) {
+        let Some(g) = &self.grid else { return };
+        for i in 0..2 {
+            u.uv_inv[2 * i] = g.inv[i][0];
+            u.uv_inv[2 * i + 1] = g.inv[i][1];
+            for k in 0..2 {
+                u.drift[2 * i + k] = g.drift[i][k] + g.camera[i][k];
+            }
+        }
+        for (k, w) in g.warp.iter().enumerate() {
+            u.warp[k / 2][2 * (k % 2)] = w[0];
+            u.warp[k / 2][2 * (k % 2) + 1] = w[1];
+        }
+        u.blend[1] = 1.0;
+    }
 }
 
 #[repr(C)]
@@ -2829,12 +2890,15 @@ impl Renderer {
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&static_uniform));
 
         // Update sky camera if present
+        if let (Some(sky), false) = (&mut self.sky, self.mirror_pass) {
+            let eye = nfs_assets::physics::original_adapter::to_original(self.camera.eye());
+            sky.anim.frame(animation_seconds(), eye, self.weather.region_b, &mut self.game_random);
+        }
         if let Some(sky) = &self.sky {
             let sky_vp = self.camera.sky_view_projection(self.width, self.height);
             let mut sky_uniform = sky.uniform;
             sky_uniform.view_projection = sky_vp.to_cols_array_2d();
-            let t = animation_seconds();
-            sky_uniform.drift = sky.drift.map(|v| ((f64::from(v) * t).rem_euclid(1.0)) as f32);
+            sky.anim.fill(&mut sky_uniform);
             let f = (self.camera.target() - self.camera.eye()).normalize_or(Vec3::NEG_Z);
             sky_uniform.forward = [f.x, f.y, f.z, 0.0];
             let aspect = self.width as f32 / self.height.max(1) as f32;
@@ -7851,6 +7915,11 @@ struct SkyUniform {
     /// Cull the cells other than the centre (1/0), the centre cell (1/0)
     /// (`nfs_formats::sky_cell_tested`, 0x45bd40), 0, 0.
     cull2: [f32; 4],
+    /// `MULTI*` layer 0 and 1 `1 / scale` of the animated UV grid (`SkyAnim`, used when
+    /// `blend.y = 1`).
+    uv_inv: [f32; 4],
+    /// Warp offsets of the 256 grid vertices (`SkyGridAnim::warp`), two per entry.
+    warp: [[f32; 4]; 128],
 }
 
 /// The cell cull of the `MULTI*` layer draw for this camera (recorded, `replay-sky-draw.py`):
@@ -7861,31 +7930,6 @@ fn sky_cull(forward: Vec3, hfov_deg: f32) -> ([f32; 4], [f32; 4]) {
     let planes = nfs_formats::sky_cull_planes(f, hfov_deg * 0.5);
     let on = |cell| if nfs_formats::sky_cell_tested(cell, f[1]) { 1.0 } else { 0.0 };
     (planes, [on(0), on(4), 0.0, 0.0])
-}
-
-/// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores the step per tick
-/// (`nfs_formats::sky_wind_step`, recorded; only layers faster than 0.25 move) and
-/// `FUN_0045ed40` adds it times the elapsed ticks to the layer offset, wrapped to 0..1
-/// (`sky_drift_advance`, recorded), which `FUN_0045ec40` adds to every vertex UV `index / scale`
-/// of the cloud texture (the 16x16 maps are vertex colours and do not move). The tick count per
-/// frame is not recorded (128 ticks/s is a Hypothesis, A194) and the offset is taken as
-/// `velocity * t` mod 1 instead of the per-frame sum: feature only.
-fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
-    if !cfg!(feature = "experimental-original-port") {
-        return [0.0; 4];
-    }
-    let mut v = [0.0; 4];
-    if let Some(m) = map {
-        for k in 0..2 {
-            // Step per tick of `FUN_0045f1b0` (recorded, `nfs_formats::sky_wind_step`).
-            let (step, moves) = nfs_formats::sky_wind_step(m.wind_speed[k], m.wind_direction[k]);
-            if moves {
-                v[2 * k] = step[0] * 128.0;
-                v[2 * k + 1] = step[1] * 128.0;
-            }
-        }
-    }
-    v
 }
 
 impl SkyUniform {
@@ -8266,7 +8310,7 @@ fn create_sky_state(
         camera_group,
         texture_group,
         uniform: sky_uniform,
-        drift: sky_drift_velocity(map),
+        anim: SkyAnim::new(map, dome),
     }
 }
 
@@ -8375,6 +8419,8 @@ mod sky_tests {
             move_ratio: 400.0,
             wind_speed: [0.0, 2.0, 0.0],
             wind_direction: [90.0, 40.0, 0.0],
+            warp_speed: 0.0,
+            warp_amount: 0.0,
             clouds: clouds.map(String::from),
             region_b: None,
         }
@@ -8388,15 +8434,29 @@ mod sky_tests {
         let expect_basic = if cfg!(feature = "experimental-original-port") { SKY_SHADER } else { SKY_BASELINE_SHADER };
         assert_eq!(sky_shader_source(Some(&basic)), expect_basic);
         assert_eq!(sky_shader_source(None), expect_basic);
-        // Drift (tick rate, A194) stays behind the feature.
-        let v = sky_drift_velocity(Some(&multi));
-        if cfg!(feature = "experimental-original-port") {
-            let (step, moves) = nfs_formats::sky_wind_step(2.0, 40.0);
-            assert!(moves);
-            assert_eq!(v, [0.0, 0.0, step[0] * 128.0, step[1] * 128.0]);
-        } else {
-            assert_eq!(v, [0.0; 4]);
-        }
+    }
+
+    #[test]
+    fn sky_anim_moves_the_cloud_layer_once_per_frame() {
+        // Alps-like: layer 1 wind 2 at 40 degrees, ratio 400 (camera offset).
+        let mut multi = block("MULTINORMAL", ["flat", "cc1a", "none"]);
+        multi.region_b = Some(Box::new(multi.clone()));
+        let dome = nfs_formats::SkyDome { angle: 0.0, size: 1000.0, curvature: 0.0002, height: 125.0, scale: 1.5 };
+        let mut anim = SkyAnim::new(Some(&multi), Some(&dome));
+        let mut random = nfs_assets::precipitation::GameRandom::default();
+        anim.frame(10.0, [0.0; 3], 0.0, &mut random);
+        // Frame 2 at 60 fps: the 64 Hz step advanced by 1 -> one tick of the wind step.
+        anim.frame(10.0 + 1.0 / 60.0, [0.0; 3], 0.0, &mut random);
+        let g = anim.grid.as_ref().unwrap();
+        let (step, moves) = nfs_formats::sky_wind_step(2.0, 40.0);
+        assert!(moves);
+        let one = nfs_formats::sky_drift_advance([0.0; 2], step, 1);
+        assert_eq!(g.drift[1], nfs_formats::sky_drift_advance(one, step, 1));
+        assert_eq!(g.drift[0], [0.0; 2], "the map layer has no wind");
+        let mut u = SkyUniform::zeroed();
+        anim.fill(&mut u);
+        assert_eq!(u.blend[1], 1.0);
+        assert_eq!(u.uv_inv, [1.0, 1.0, 0.5, 0.5]);
     }
 
     #[test]

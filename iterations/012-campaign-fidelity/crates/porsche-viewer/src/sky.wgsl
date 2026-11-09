@@ -15,9 +15,11 @@ struct SkyCamera {
     forward: vec4<f32>, // camera forward, scene axes
     clear: vec4<f32>,   // clear colour (0x459a70), sRGB; w = 1 when known
     dome_b: vec4<f32>,  // region B layer 0 1/xscale, 1/yscale, layer 1 1/xscale, 1/yscale
-    blend: vec4<f32>,   // sky-map blend A -> B (0x45a350), 0, 0, 0
+    blend: vec4<f32>,   // sky-map blend A -> B (0x45a350), animated MULTI* grid (1/0), 0, 0
     cull: vec4<f32>,    // wedge planes of the cell cull (0x45aaf0): n1x, n1z, n2x, n2z
     cull2: vec4<f32>,   // cull other cells (1/0), cull the centre cell (1/0), 0, 0
+    uv_inv: vec4<f32>,  // MULTI* animated grid: layer 0 / 1 1/scale (blend.y = 1)
+    warp: array<vec4<f32>, 128>, // warp offsets of the 256 grid vertices, two per entry
 };
 @group(0) @binding(0) var<uniform> sky_camera: SkyCamera;
 @group(1) @binding(0) var sky_texture: texture_2d<f32>;
@@ -157,6 +159,27 @@ fn cell_culled(grid: vec2<f32>) -> bool {
     }
     return true;
 }
+// Warp offset of grid vertex (column, row) (`SkyGridAnim::warp`, shared by the layers).
+fn warp_vertex(c: u32, r: u32) -> vec2<f32> {
+    let k = r * 16u + c;
+    let e = sky_camera.warp[k / 2u];
+    return select(e.xy, e.zw, (k & 1u) == 1u);
+}
+// The warp offsets interpolated over the dome triangle like the vertex UVs
+// (`FUN_0045ec40` adds them per vertex).
+fn warp_at(grid: vec2<f32>) -> vec2<f32> {
+    let g = clamp(grid, vec2<f32>(0.0), vec2<f32>(15.0));
+    let base = min(vec2<u32>(floor(g)), vec2<u32>(14u));
+    let f = g - vec2<f32>(base);
+    let v0 = warp_vertex(base.x, base.y);
+    let v1 = warp_vertex(base.x + 1u, base.y);
+    let v2 = warp_vertex(base.x + 1u, base.y + 1u);
+    let v3 = warp_vertex(base.x, base.y + 1u);
+    if f.x >= f.y {
+        return v0 + f.x * (v1 - v0) + f.y * (v2 - v1);
+    }
+    return v0 + f.x * (v2 - v3) + f.y * (v3 - v0);
+}
 fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
     return select(pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
 }
@@ -282,9 +305,15 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
         let b0 = textureSampleGrad(sky_map_b, layer_sampler, uv0, g0x, g0y);
         let a1 = textureSampleGrad(cloud_map, layer_sampler, uv1, g1x, g1y);
         let b1 = textureSampleGrad(cloud_map_b, layer_sampler, uv1, g1x, g1y);
-        // MULTI*: cloud textures at the literal UV `index / scale` + wind offset (`FUN_0045ec40`).
-        let tuv0 = vec2<f32>(col, row) * inv0 + sky_camera.drift.xy;
-        let tuv1 = vec2<f32>(col, row) * inv1 + sky_camera.drift.zw;
+        // MULTI*: cloud textures at UV `index / scale` + warp + (drift + camera offset)
+        // (`FUN_0045ec40`); with the animated grid (`SkyAnim`, recorded) the 1/scale is the
+        // grid's blend and the warp its per-vertex offsets.
+        let animated = sky_camera.blend.y > 0.5;
+        let warp = select(vec2<f32>(0.0), warp_at(vec2<f32>(col, row)), animated);
+        let tinv0 = select(inv0, sky_camera.uv_inv.xy, animated);
+        let tinv1 = select(inv1, sky_camera.uv_inv.zw, animated);
+        let tuv0 = vec2<f32>(col, row) * tinv0 + warp + sky_camera.drift.xy;
+        let tuv1 = vec2<f32>(col, row) * tinv1 + warp + sky_camera.drift.zw;
         let t0 = textureSampleGrad(cloud_tex0, layer_sampler, tuv0, dpdx(tuv0), dpdy(tuv0));
         let t1 = textureSampleGrad(cloud_tex1, layer_sampler, tuv1, dpdx(tuv1), dpdy(tuv1));
         // Far plane 700 of the sky pass (0x45d4f0 -> 0x467120; the clip code cuts the dome

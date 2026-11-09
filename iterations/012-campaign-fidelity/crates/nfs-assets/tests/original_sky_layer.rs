@@ -17,10 +17,11 @@
 
 use std::collections::HashMap;
 
+use nfs_assets::precipitation::GameRandom;
 use nfs_assets::render_state::{apply_layer_state, D3dCall, DriverCaps, Dx7Driver, View, CACHE_SENTINEL};
 use nfs_formats::{
     parse_fsh_entries, parse_sky_txt, sky_blend, sky_drift_advance, sky_inv_scale, sky_layer_blends, sky_layer_uv,
-    sky_map_mix, sky_map_opaque, sky_vertex_colour, sky_wind_step, SkyDome, SkyMapBlock,
+    sky_map_mix, sky_map_opaque, sky_vertex_colour, sky_wind_step, SkyDome, SkyGridAnim, SkyMapBlock,
 };
 
 const RECORDING: &str = include_str!("fixtures/sky-layer.tsv");
@@ -113,6 +114,18 @@ fn bgra(rgba: &[u8]) -> Vec<u8> {
     rgba.chunks_exact(4).flat_map(|p| [p[2], p[1], p[0], p[3]]).collect()
 }
 
+/// The warp case's grid as the build leaves it: the generator in its .data state (the
+/// recorder starts every case from the pristine images), the map objects' 200 sprites x 2
+/// numbers per map (0x45dd90), then `SkyGridAnim::new` (0x45e8e0).
+fn warp_grid(b: &SkyMapBlock) -> (SkyGridAnim, GameRandom, Option<String>) {
+    let mut rng = GameRandom::default();
+    for _ in 0..b.maps.iter().filter(|m| m.as_str() != "none").count() * 400 {
+        rng.unit();
+    }
+    let anim = SkyGridAnim::new(b, b.drawn_layers(), &mut || rng.unit());
+    (anim, rng, None)
+}
+
 #[test]
 fn sky_layer_build_matches_the_original_bit_for_bit() {
     let rows = rows();
@@ -125,7 +138,8 @@ fn sky_layer_build_matches_the_original_bit_for_bit() {
     let mut cases: HashMap<&str, Case> = HashMap::new();
     let mut names: HashMap<&str, &str> = HashMap::new();
     let mut counts: HashMap<&str, usize> = HashMap::new();
-    let mut skipped_warp = 0;
+    let mut warped = 0;
+    let mut warp_anim: Option<(SkyGridAnim, GameRandom, Option<String>)> = None;
     // Drift state per (case, layer): offset.
     let mut offsets: HashMap<(String, usize), [f32; 2]> = HashMap::new();
     for r in &rows {
@@ -190,7 +204,10 @@ fn sky_layer_build_matches_the_original_bit_for_bit() {
                 assert_eq!(colour, engine_vertex_bgra(rgba, col, row), "{label}: vertex colour");
                 let uv = [f(p.next().unwrap()), f(p.next().unwrap())];
                 if warp {
-                    skipped_warp += 1;
+                    // The build's warp start (0x45e8e0 -> 0x45f3c0 on the game generator).
+                    let (anim, _, _) = warp_anim.get_or_insert_with(|| warp_grid(b));
+                    assert_eq!(uv.map(f32::to_bits), anim.uv(i, col, row).map(f32::to_bits), "{label}: warped uv");
+                    warped += 1;
                     continue;
                 }
                 let inv = [sky_inv_scale(b.x_scale[i]), sky_inv_scale(b.y_scale[i])];
@@ -251,7 +268,20 @@ fn sky_layer_build_matches_the_original_bit_for_bit() {
                 assert_eq!(pair(fl["offset"]).map(f32::to_bits), offset.map(f32::to_bits), "{label}: drift offset");
                 let camera = pair(fl["camoff"]);
                 if warp {
-                    skipped_warp += 1;
+                    // Camera offset and warp: one update per call (`SkyGridAnim`), the camera
+                    // argument is the recorder's position (x, z).
+                    let (call, _) = r.key.split_once('.').unwrap();
+                    let (anim, rng, last) = warp_anim.get_or_insert_with(|| warp_grid(b));
+                    if last.as_deref() != Some(call) {
+                        let cam: Vec<f32> = fl["cam"].split(',').map(f).collect();
+                        anim.update([cam[0], cam[2]], t, ticks, &mut || rng.unit());
+                        *last = Some(call.to_string());
+                    }
+                    assert_eq!(camera.map(f32::to_bits), anim.camera[i].map(f32::to_bits), "{label}: camera offset");
+                    for (uv, v) in fl["uv"].split('|').zip([0u32, 1, 17, 255]) {
+                        assert_eq!(pair(uv).map(f32::to_bits), anim.uv(i, v % 16, v / 16).map(f32::to_bits), "{label}: uv of vertex {v}");
+                    }
+                    warped += 1;
                     continue;
                 }
                 assert_eq!(camera.map(|c| c == 0.0), [true; 2], "{label}: no camera offset");
@@ -288,8 +318,8 @@ fn sky_layer_build_matches_the_original_bit_for_bit() {
     assert!(counts.get("vertex").copied().unwrap_or(0) >= 30 * 256);
     assert!(counts.get("drift").copied().unwrap_or(0) >= 100);
     assert!(counts.get("mix").copied().unwrap_or(0) >= 30);
-    // Warp (0x45f3c0 / 0x45ee80) and the camera offset are not ported: their UVs are skipped.
-    assert_eq!(skipped_warp, 2 * 256 + 6);
+    // Warp (0x45f3c0 / 0x45ee80) and the camera offset: `SkyGridAnim` (replay-sky-update.py).
+    assert_eq!(warped, 2 * 256 + 6);
 }
 
 #[test]
