@@ -16,6 +16,8 @@ struct SkyCamera {
     clear: vec4<f32>,   // clear colour (0x459a70), sRGB; w = 1 when known
     dome_b: vec4<f32>,  // region B layer 0 1/xscale, 1/yscale, layer 1 1/xscale, 1/yscale
     blend: vec4<f32>,   // sky-map blend A -> B (0x45a350), 0, 0, 0
+    cull: vec4<f32>,    // wedge planes of the cell cull (0x45aaf0): n1x, n1z, n2x, n2z
+    cull2: vec4<f32>,   // cull other cells (1/0), cull the centre cell (1/0), 0, 0
 };
 @group(0) @binding(0) var<uniform> sky_camera: SkyCamera;
 @group(1) @binding(0) var sky_texture: texture_2d<f32>;
@@ -67,6 +69,93 @@ fn vertex_colour(map: texture_2d<f32>, grid: vec2<f32>) -> vec4<f32> {
         return v0 + f.x * (v1 - v0) + f.y * (v2 - v1);
     }
     return v0 + f.x * (v2 - v3) + f.y * (v3 - v0);
+}
+// Dome vertex at grid (column, row) (`FUN_00460f40`, `nfs_formats::SkyDome::vertices`),
+// original axes.
+fn dome_vertex(c: f32, r: f32) -> vec3<f32> {
+    let step = sky_camera.dome.y / 15.0;
+    let a = (7.5 - c) * step;
+    let b = (r - 7.5) * step;
+    let turn = 6.28318530718 * sky_camera.dome.x;
+    let cs = cos(turn);
+    let sn = sin(turn);
+    let s = sky_camera.dome2.x;
+    return vec3<f32>((cs * a + sn * b) * s, (sky_camera.dome.w - (a * a + b * b) * sky_camera.dome.z) * s, (cs * b - sn * a) * s);
+}
+// Ray t * d against triangle (p0, p1, p2): (t, b1, b2, hit).
+fn ray_triangle(d: vec3<f32>, p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>) -> vec4<f32> {
+    let e1 = p1 - p0;
+    let e2 = p2 - p0;
+    let p = cross(d, e2);
+    let det = dot(e1, p);
+    if abs(det) < 1e-12 {
+        return vec4<f32>(0.0);
+    }
+    let s = -p0;
+    let b1 = dot(s, p) / det;
+    let q = cross(s, e1);
+    let b2 = dot(d, q) / det;
+    let t = dot(e2, q) / det;
+    let ok = b1 >= -1e-5 && b2 >= -1e-5 && b1 + b2 <= 1.0 + 1e-5 && t > 0.0;
+    return vec4<f32>(t, b1, b2, select(0.0, 1.0, ok));
+}
+// The dome is drawn as the flat triangles (i, i+1, i+17), (i, i+17, i+16) of the 16x16 grid
+// (recorded down to D3D7: `SkyDome::triangles`, `SkyDome::hit`): the first triangle the ray
+// meets around the paraboloid estimate `g`, with the grid position interpolated over it
+// (the perspective-correct mix of the TL vertices). Returns (column, row, distance, hit).
+fn dome_hit(d: vec3<f32>, g: vec2<f32>) -> vec4<f32> {
+    let base = vec2<i32>(clamp(floor(g), vec2<f32>(0.0), vec2<f32>(14.0)));
+    var best = vec4<f32>(0.0, 0.0, 1e30, 0.0);
+    for (var dr = -1; dr <= 1; dr++) {
+        for (var dc = -1; dc <= 1; dc++) {
+            let c = base.x + dc;
+            let r = base.y + dr;
+            if c < 0 || c > 14 || r < 0 || r > 14 {
+                continue;
+            }
+            let fc = f32(c);
+            let fr = f32(r);
+            let v0 = dome_vertex(fc, fr);
+            let v1 = dome_vertex(fc + 1.0, fr);
+            let v2 = dome_vertex(fc + 1.0, fr + 1.0);
+            let v3 = dome_vertex(fc, fr + 1.0);
+            let h0 = ray_triangle(d, v0, v1, v2);
+            if h0.w > 0.5 && h0.x < best.z {
+                best = vec4<f32>(fc + h0.y + h0.z, fr + h0.z, h0.x, 1.0);
+            }
+            let h1 = ray_triangle(d, v0, v2, v3);
+            if h1.w > 0.5 && h1.x < best.z {
+                best = vec4<f32>(fc + h1.y, fr + h1.y + h1.z, h1.x, 1.0);
+            }
+        }
+    }
+    return best;
+}
+// The layer draw's wedge cull (0x45bd40 / `FUN_0045abb0`, `nfs_formats::sky_cell_visible`):
+// a cell of 5 x 5 quads is not drawn when its four corners and four edge midpoints all lie
+// outside the horizontal field of view (only while the camera is nearly level).
+fn cell_culled(grid: vec2<f32>) -> bool {
+    let cc = min(u32(max(grid.x, 0.0) / 5.0), 2u);
+    let cr = min(u32(max(grid.y, 0.0) / 5.0), 2u);
+    let centre = cc == 1u && cr == 1u;
+    if (centre && sky_camera.cull2.y < 0.5) || (!centre && sky_camera.cull2.x < 0.5) {
+        return false;
+    }
+    let c = f32(cc * 5u);
+    let r = f32(cr * 5u);
+    let p0 = dome_vertex(c, r).xz;
+    let p1 = dome_vertex(c + 5.0, r).xz;
+    let p2 = dome_vertex(c, r + 5.0).xz;
+    let p3 = dome_vertex(c + 5.0, r + 5.0).xz;
+    let pts = array<vec2<f32>, 8>(p0, p1, p2, p3, (p1 + p0) * 0.5, (p3 + p1) * 0.5, (p3 + p2) * 0.5, (p2 + p0) * 0.5);
+    let n1 = sky_camera.cull.xy;
+    let n2 = sky_camera.cull.zw;
+    for (var i = 0; i < 8; i++) {
+        if dot(n1, pts[i]) < 0.0 && dot(n2, pts[i]) < 0.0 {
+            return false;
+        }
+    }
+    return true;
 }
 fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
     return select(pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
@@ -168,8 +257,13 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
         let b_g = (px * sn + pz * cs) / scale;
         let half_size = sky_camera.dome.y * 0.5;
         let cell = sky_camera.dome.y / 15.0;
-        let col = (half_size - a_g) / cell;
-        let row = (b_g + half_size) / cell;
+        let col_p = (half_size - a_g) / cell;
+        let row_p = (b_g + half_size) / cell;
+        let multi = sky_camera.dome3.z > 0.5;
+        // MULTI*: the flat triangles of the draw; BASIC (A195): the paraboloid.
+        let hit = dome_hit(d, vec2<f32>(col_p, row_p));
+        let col = select(col_p, hit.x, multi);
+        let row = select(row_p, hit.y, multi);
         // Region A -> B blend (weather keys): the texture scale and the maps mix by `blend.x`.
         let b = sky_camera.blend.x;
         let has_b0 = sky_camera.dome_b.x > 0.0;
@@ -193,10 +287,12 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
         let tuv1 = vec2<f32>(col, row) * inv1 + sky_camera.drift.zw;
         let t0 = textureSampleGrad(cloud_tex0, layer_sampler, tuv0, dpdx(tuv0), dpdy(tuv0));
         let t1 = textureSampleGrad(cloud_tex1, layer_sampler, tuv1, dpdx(tuv1), dpdy(tuv1));
-        let multi = sky_camera.dome3.z > 0.5;
-        if multi && abs(a_g) <= half_size && abs(b_g) <= half_size {
+        // Far plane 700 of the sky pass (0x45d4f0 -> 0x467120; the clip code cuts the dome
+        // triangles at view depth 700, recorded) and the wedge cull of the cells.
+        let multi_depth = hit.z * facing;
+        if multi && hit.w > 0.5 && multi_depth <= 700.0 && !cell_culled(vec2<f32>(col, row)) {
             covered = true;
-            dome_depth = t * facing;
+            dome_depth = multi_depth;
             // Layer i = vertex colour of map i (texels A/B mixed, `FUN_0045e160`) times cloud
             // texture i (MODULATE, alpha too), in the gamma frame buffer; layer 1 blends over
             // layer 0 by its alpha (`sR` blend 2: SRCALPHA, INVSRCALPHA).

@@ -230,11 +230,12 @@ impl SkyDome {
 /// vertex) of the 16x16 grid whose vertex `row * 16 + column` sits at `FUN_00460f40`'s grid
 /// point; texel `(x, y)` colours vertex `(column x, row y)`. Gouraud shading across each quad
 /// `[i, i+1, i+17, i+16]` (`FUN_0045e8e0`) split as `(0, 1, 2)`, `(0, 2, 3)`. Recorded
-/// (`replay-sky-layer.py`): the colour channel bytes per vertex, the grid quad order, and the
-/// driver's quad split (nfs5 0x57e000 -> `THRASH_drawquad` -> dx7z.dll TRIANGLELIST
-/// `0,1,2, 0,2,3`, Gouraud shade mode); the path from the mesh draw `FUN_00468410` to 0x57e000
-/// is not run. The interpolation itself is the rasteriser's. Returns RGBA in 0..1 as stored
-/// (gamma-space bytes / 255).
+/// (`replay-sky-layer.py`: the colour channel bytes per vertex and the grid quad order;
+/// `replay-sky-draw.py`: the layer draw 0x45bd40 down to dx7z.dll hands D3D7 exactly these
+/// bytes as the TL vertex diffuse of triangles `(0, 1, 2)`, `(0, 2, 3)`, Gouraud shade mode).
+/// Linear in grid space inside each triangle = the perspective-correct mix of the flat
+/// triangle (`SkyDome::hit`); whether D3D7 hardware iterates the diffuse perspective-correct
+/// is the rasteriser's, not the game's. Returns RGBA in 0..1 as stored (gamma-space bytes / 255).
 pub fn sky_vertex_colour(rgba: &[u8], column: f32, row: f32) -> [f32; 4] {
     const N: usize = 16;
     if rgba.len() < N * N * 4 {
@@ -300,6 +301,186 @@ impl SkyDome {
         }
         out
     }
+}
+
+/// Near and far plane of the sky pass: `SkyManager_Draw` 0x45d4f0 calls 0x467120(0.15, 700)
+/// before its layers and moves the camera to the origin. The transform / clip code of the
+/// layer draw (0x540bc0 -> 0x5385b0, clip 0x545ad0) cuts the dome triangles at view depth
+/// 700 (the new vertices have z = 1, rhw = 1/700) and at the screen edges. Recorded
+/// (`replay-sky-draw.py`).
+pub const SKY_NEAR: f32 = 0.15;
+pub const SKY_FAR: f32 = 700.0;
+
+/// Where a view ray meets the dome's flat triangles (`SkyDome::hit`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkyDomeHit {
+    /// Grid position (0..15) of the hit, interpolated over the hit triangle.
+    pub column: f32,
+    pub row: f32,
+    /// Ray parameter: the hit point is `distance * d`.
+    pub distance: f32,
+    /// The triangle (vertex indices, `SkyDome::triangles` order).
+    pub triangle: [usize; 3],
+}
+
+impl SkyDome {
+    /// The dome triangles in the order the original draws them: grid quad `(c, r)` =
+    /// vertices `(i, i+1, i+17, i+16)`, `i = r * 16 + c` (`FUN_0045e8e0`), emitted by the layer
+    /// draw `SkyMapLayer_Draw` 0x45bd40 (9 cells of 5 x 5 quads) through the mesh draw
+    /// 0x468410 -> 0x53f1b0 -> the transform / clip / emit code 0x545ad0 -> 0x54c030 ->
+    /// `THRASH_drawtrimesh` as triangles `(0, 1, 2)`, `(0, 2, 3)`; clipped triangles keep this
+    /// split. Recorded (`replay-sky-draw.py`, every unclipped drawn triangle).
+    pub fn triangles() -> impl Iterator<Item = [usize; 3]> {
+        (0..15).flat_map(|r| {
+            (0..15).flat_map(move |c| {
+                let i = r * 16 + c;
+                [[i, i + 1, i + 17], [i, i + 17, i + 16]]
+            })
+        })
+    }
+
+    /// The first dome triangle hit by the ray `t * d` from the camera (original axes), with the
+    /// grid position interpolated over that flat triangle: the dome is drawn as the 450 flat
+    /// triangles of `triangles` between the vertices of `vertices`, so a pixel's vertex colour
+    /// and UV are the triangle's barycentric (perspective-correct) mix, not a point of the
+    /// smooth paraboloid. The cell is found from the paraboloid (`grid_position`) and its
+    /// neighbours are searched. `sky.wgsl` does the same per pixel.
+    pub fn hit(&self, d: [f32; 3]) -> Option<SkyDomeHit> {
+        let verts = self.vertices();
+        let (gc, gr) = self.grid_estimate(d)?;
+        let (c0, r0) = (gc.floor().clamp(0.0, 14.0) as i32, gr.floor().clamp(0.0, 14.0) as i32);
+        let mut best: Option<SkyDomeHit> = None;
+        for r in (r0 - 1).max(0)..=(r0 + 1).min(14) {
+            for c in (c0 - 1).max(0)..=(c0 + 1).min(14) {
+                let i = (r * 16 + c) as usize;
+                for tri in [[i, i + 1, i + 17], [i, i + 17, i + 16]] {
+                    let Some((t, b1, b2)) = ray_triangle(d, verts[tri[0]], verts[tri[1]], verts[tri[2]]) else {
+                        continue;
+                    };
+                    if best.is_some_and(|h| h.distance <= t) {
+                        continue;
+                    }
+                    let g = |v: usize| ((v % 16) as f32, (v / 16) as f32);
+                    let (g0, g1, g2) = (g(tri[0]), g(tri[1]), g(tri[2]));
+                    let b0 = 1.0 - b1 - b2;
+                    best = Some(SkyDomeHit {
+                        column: b0 * g0.0 + b1 * g1.0 + b2 * g2.0,
+                        row: b0 * g0.1 + b1 * g1.1 + b2 * g2.1,
+                        distance: t,
+                        triangle: tri,
+                    });
+                }
+            }
+        }
+        best
+    }
+
+    /// Grid position of the ray's paraboloid hit, not limited to the square (`None` only
+    /// when the ray misses the paraboloid).
+    fn grid_estimate(&self, d: [f32; 3]) -> Option<(f32, f32)> {
+        let h2 = d[0] * d[0] + d[2] * d[2];
+        let disc = d[1] * d[1] + 4.0 * self.curvature * h2 * self.height;
+        if disc < 0.0 {
+            return None;
+        }
+        let denom = (d[1] + disc.sqrt()).max(1e-6);
+        let t = 2.0 * self.scale * self.height / denom;
+        let (x, z) = (t * d[0], t * d[2]);
+        let turn = self.angle * std::f32::consts::TAU;
+        let (sn, cs) = turn.sin_cos();
+        let a = (x * cs - z * sn) / self.scale;
+        let b = (x * sn + z * cs) / self.scale;
+        let half = self.size * 0.5;
+        let cell = self.size / SKY_DOME_CELLS;
+        Some(((half - a) / cell, (b + half) / cell))
+    }
+}
+
+/// The wedge of the layer draw's cell cull (`FUN_0045aaf0`, planes through the eye): from the
+/// camera's forward vector (`camera + 0x100`, `+0x108`: x, z of the view direction, original
+/// axes) and its horizontal half field of view in degrees (`camera + 0x130`), turned by
+/// `t = max(half_fov / 360, 0.104166664) + 1/4` turns each way. Returns `[n1x, n1z, n2x, n2z]`
+/// (x87 at 53 bits, f32 stores as in the code). Recorded (`replay-sky-draw.py`).
+pub fn sky_cull_planes(forward: [f32; 3], half_fov: f32) -> [f32; 4] {
+    const K: u32 = 0x3b36_0b61; // 0x5b3e84, 1/360
+    const MIN: u32 = 0x3dd5_5555; // 0x5b3e80, 0.104166664
+    let mut t = x(half_fov) * x(f32::from_bits(K));
+    if t < x(f32::from_bits(MIN)) {
+        t = x(f32::from_bits(MIN));
+    }
+    let t = (t + 0.25) as f32;
+    let (sin, cos) = sin_cos_turns(t);
+    let s = x(sin as f32);
+    let (fx, fz) = (x(forward[0]), x(forward[2]));
+    let a = (fx * cos) as f32;
+    let fzs = fz * s;
+    let b = fzs as f32;
+    [
+        (fzs + x(a)) as f32,
+        (cos * fz - fx * s) as f32,
+        (x(a) - x(b)) as f32,
+        (fx * s + cos * fz) as f32,
+    ]
+}
+
+/// Whether the layer draw `SkyMapLayer_Draw` 0x45bd40 tests cell `cell` (0..9, cell
+/// `(row / 5) * 3 + column / 5` of the 15 x 15 quads) with the wedge: only while the camera is nearly level,
+/// `|forward.y| < 0.4`, and the centre cell 4 only while `|forward.y| <= 0.35`; otherwise the
+/// cell is drawn. Recorded.
+pub fn sky_cell_tested(cell: usize, forward_y: f32) -> bool {
+    let y = forward_y.abs();
+    y < 0.4 && (cell != 4 || y <= 0.35)
+}
+
+/// The wedge test `FUN_0045abb0` of one cell: drawn when any of its four corner vertices
+/// (x, z of the dome vertices at grid `(5c, 5r)`, `(5c+5, 5r)`, `(5c, 5r+5)`, `(5c+5, 5r+5)`)
+/// or the four edge midpoints (f32) lies inside both planes (`n1 . p < 0` and `n2 . p < 0`).
+/// So a cell is dropped when all eight points are outside the horizontal field of view; parts
+/// of it can still be on screen (top corners of a camera pitched up), where the original then
+/// shows no sky layer. Recorded bit for bit (`replay-sky-draw.py`, every camera).
+pub fn sky_cell_visible(planes: [f32; 4], corners: [[f32; 2]; 4]) -> bool {
+    let [n1x, n1z, n2x, n2z] = planes.map(x);
+    let inside = |p: [f32; 2]| {
+        let (px, pz) = (x(p[0]), x(p[1]));
+        n1x * px + n1z * pz < 0.0 && n2x * px + n2z * pz < 0.0
+    };
+    let mid = |a: [f32; 2], b: [f32; 2]| [((x(a[0]) + x(b[0])) * 0.5) as f32, ((x(a[1]) + x(b[1])) * 0.5) as f32];
+    let [c0, c1, c2, c3] = corners;
+    [c0, c1, c2, c3, mid(c1, c0), mid(c3, c1), mid(c3, c2), mid(c2, c0)].into_iter().any(inside)
+}
+
+impl SkyDome {
+    /// Corner vertices (x, z) of cell `cell` for `sky_cell_visible`.
+    pub fn cell_corners(vertices: &[[f32; 3]], cell: usize) -> [[f32; 2]; 4] {
+        let (r, c) = ((cell / 3) * 5, (cell % 3) * 5);
+        [(c, r), (c + 5, r), (c, r + 5), (c + 5, r + 5)].map(|(c, r)| {
+            let v = vertices[r * 16 + c];
+            [v[0], v[2]]
+        })
+    }
+}
+
+/// Ray `t * d` (from the origin) against triangle `(p0, p1, p2)` (both sides): `(t, b1, b2)`
+/// with the barycentric weights of `p1`, `p2` (Moller-Trumbore, f64).
+fn ray_triangle(d: [f32; 3], p0: [f32; 3], p1: [f32; 3], p2: [f32; 3]) -> Option<(f32, f32, f32)> {
+    let v = |p: [f32; 3]| p.map(f64::from);
+    let (d, p0, p1, p2) = (v(d), v(p0), v(p1), v(p2));
+    let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let cross = |a: [f64; 3], b: [f64; 3]| [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let (e1, e2) = (sub(p1, p0), sub(p2, p0));
+    let p = cross(d, e2);
+    let det = dot(e1, p);
+    if det.abs() < 1e-12 {
+        return None;
+    }
+    let s = sub([0.0; 3], p0);
+    let b1 = dot(s, p) / det;
+    let q = cross(s, e1);
+    let b2 = dot(d, q) / det;
+    let t = dot(e2, q) / det;
+    const EPS: f64 = 1e-7;
+    (b1 >= -EPS && b2 >= -EPS && b1 + b2 <= 1.0 + EPS && t > 0.0).then_some((t as f32, b1 as f32, b2 as f32))
 }
 
 /// `1 / scale` of a layer (`FUN_0045f1b0`: `fld 1.0; fdiv scale`, stored as f32).

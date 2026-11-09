@@ -2837,6 +2837,10 @@ impl Renderer {
             sky_uniform.drift = sky.drift.map(|v| ((f64::from(v) * t).rem_euclid(1.0)) as f32);
             let f = (self.camera.target() - self.camera.eye()).normalize_or(Vec3::NEG_Z);
             sky_uniform.forward = [f.x, f.y, f.z, 0.0];
+            let aspect = self.width as f32 / self.height.max(1) as f32;
+            let vfov = self.camera.fov_near(aspect).0;
+            let hfov = (2.0 * ((vfov * 0.5).tan() * aspect).atan()).to_degrees();
+            (sky_uniform.cull, sky_uniform.cull2) = sky_cull(f, hfov);
             let w = &self.weather;
             sky_uniform.blend = [w.region_b, 0.0, 0.0, 0.0];
             // Sky fog and the clear colour are not recorded (A281, A317): feature only.
@@ -7842,6 +7846,21 @@ struct SkyUniform {
     /// Sky-map blend A → B of the weather keys (`0x45a350`; texels `0x45e160`, scales
     /// `0x45f0a0`), 0, 0, 0.
     blend: [f32; 4],
+    /// Wedge planes of the layer draw's cell cull (`nfs_formats::sky_cull_planes`, 0x45aaf0).
+    cull: [f32; 4],
+    /// Cull the cells other than the centre (1/0), the centre cell (1/0)
+    /// (`nfs_formats::sky_cell_tested`, 0x45bd40), 0, 0.
+    cull2: [f32; 4],
+}
+
+/// The cell cull of the `MULTI*` layer draw for this camera (recorded, `replay-sky-draw.py`):
+/// planes from the view direction (original axes: scene z negated) and the horizontal half
+/// field of view, and which cells the nearly level camera tests.
+fn sky_cull(forward: Vec3, hfov_deg: f32) -> ([f32; 4], [f32; 4]) {
+    let f = [forward.x, forward.y, -forward.z];
+    let planes = nfs_formats::sky_cull_planes(f, hfov_deg * 0.5);
+    let on = |cell| if nfs_formats::sky_cell_tested(cell, f[1]) { 1.0 } else { 0.0 };
+    (planes, [on(0), on(4), 0.0, 0.0])
 }
 
 /// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores the step per tick
