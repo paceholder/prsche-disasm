@@ -678,6 +678,13 @@ fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8], depth_bias: i32) -> (Alph
     }
     if alpha.all(|&value| matches!(value, 0 | 255)) {
         (AlphaMode::Mask, 0.0)
+    } else if render == "CarWheel" && cfg!(feature = "experimental-original-port") {
+        // The wheel page (tyre, rim; soft rim edges) is drawn like every car part: blended with
+        // the alpha test of THRASH 0x24 = 10 and z write on (see `exterior_overlay_blends`).
+        // Plain `Blend` writes no depth, so the rim part drawn after the tyre part showed
+        // through the tyre's outer surface at angles where the sort put it second (the two
+        // parts share a centre). The 4444 shadow page keeps `Blend` (returned above).
+        (AlphaMode::BlendTest, CAR_ALPHA_REF)
     } else {
         (AlphaMode::Blend, 0.0)
     }
@@ -1858,6 +1865,15 @@ mod tests {
         assert_eq!(
             alpha_mode("CarWheel", 4444, &[0, 0, 0, 0, 0, 0, 0, 199], 0),
             (AlphaMode::Blend, 0.0)
+        );
+        // The wheel page (soft rim edges, not 4444) blends with depth write under the feature.
+        assert_eq!(
+            alpha_mode("CarWheel", 0, &[0, 0, 0, 0, 0, 0, 0, 120], 0),
+            if cfg!(feature = "experimental-original-port") {
+                (AlphaMode::BlendTest, CAR_ALPHA_REF)
+            } else {
+                (AlphaMode::Blend, 0.0)
+            }
         );
         // Exterior overlays (z bias < 0, e.g. the rear PORSCHE strip decal mt8) blend only with
         // the feature; body panels (bias 0) and non-overlay parts stay alpha-tested.
