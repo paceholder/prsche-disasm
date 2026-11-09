@@ -89,7 +89,7 @@ pub async fn create_viewer(canvas: HtmlCanvasElement) -> Result<BrowserViewer, J
         room_started_ms: 0.0,
         premultiplied_ok,
         default_alpha,
-        car_reflection: false,
+        car_reflection: true,
     })
 }
 

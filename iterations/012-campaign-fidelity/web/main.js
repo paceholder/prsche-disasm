@@ -2144,9 +2144,9 @@ detailsButton.addEventListener("click", () => {
 });
 
 let viewer = null;
-// Car sphere-map reflection (approximation A71): off by default, Y or ?reflection=1 opts in.
-let carReflection = typeof location !== "undefined" && typeof URLSearchParams !== "undefined"
-  && new URLSearchParams(location.search).get("reflection") === "1";
+// Car sphere-map reflection (approximation A71): on by default, Y or ?reflection=0 turns it off.
+let carReflection = !(typeof location !== "undefined" && typeof URLSearchParams !== "undefined"
+  && new URLSearchParams(location.search).get("reflection") === "0");
 let selectedFiles = [];
 let localGameAvailable = false;
 let localGameFiles = [];

@@ -2173,7 +2173,7 @@ impl Renderer {
             topology: topology_renderer,
             show_topology: false,
             show_collision_boxes: false,
-            car_reflection: false,
+            car_reflection: true,
             box_overlay: box_overlay_init,
             road_surface: scene.road_surface.clone(),
             road_edges,
