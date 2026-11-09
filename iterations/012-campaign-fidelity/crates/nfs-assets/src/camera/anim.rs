@@ -120,16 +120,59 @@ pub fn next_index(last: u32, count: usize) -> usize {
 
 /// Key index and blend factor at `elapsed` steps (`0x470e90`), `None` when finished.
 fn key_at(count: usize, elapsed: i32) -> Option<(usize, f32)> {
-    let steps_per_key = (d(KEY_SECONDS) / d(STEP_SECONDS)) as f32;
+    sampler_key(count, KEY_SECONDS, false, elapsed)
+}
+
+/// `CamAnim_Sample 0x470e90` key selection for a sampler with `key_seconds` per key (record
+/// +4) and the loop flag (record byte +0, bit 0): `f = elapsed / f32(key_seconds / step)`,
+/// key `trunc(f)`, blend `f32(f - key)`. Without the loop flag the sampler is finished once the
+/// key reaches `count - 2`; with it the key is `trunc(f) % (count - 2)` (0x470ee4 `div`) and
+/// the sampler never finishes.
+fn sampler_key(count: usize, key_seconds: f32, looped: bool, elapsed: i32) -> Option<(usize, f32)> {
+    let steps_per_key = (d(key_seconds) / d(STEP_SECONDS)) as f32;
     let t = elapsed.max(0) as f64;
     let f = t / d(steps_per_key);
     let idx = f.trunc();
     let frac = (f - idx) as f32;
-    let idx = idx as usize;
-    if count < 2 || idx >= count - 2 {
+    let idx = idx as u32 as usize;
+    if count < 3 && looped || count < 2 {
+        return None;
+    }
+    if looped {
+        return Some((idx % (count - 2), frac));
+    }
+    if idx >= count - 2 {
         return None;
     }
     Some((idx, frac))
+}
+
+/// Seconds per key of the scenery animations (`WAnimBundle` 0x4777f0 builds every player with
+/// `0x471490(count, keys, loop 0, flags 1, 0x3dcccccd, 0)`: 0.1 s per key, loop flag set).
+pub const SCENERY_KEY_SECONDS: f32 = f32::from_bits(0x3dcccccd);
+
+/// Parses `Anqt` article data: `0x34`-byte keys from offset 0 (the same record as a `CmAn`
+/// key; `0x4777f0` hands the entry data and its count to the sampler).
+pub fn parse_anqt_keys(data: &[u8]) -> Vec<AnimKey> {
+    data.chunks_exact(KEY_SIZE)
+        .map(|k| AnimKey {
+            quat: [0, 4, 8, 12].map(|i| f32_at(k, i)),
+            pos: [0x10, 0x14, 0x18].map(|i| f32_at(k, i)),
+            scale: [0x20, 0x24, 0x28].map(|i| f32_at(k, i)),
+        })
+        .collect()
+}
+
+/// Pose of a looping scenery animation (`WAnimBundle`, `CamAnim` slot 1 `0x4715a0` ->
+/// `0x470e90` -> `0x470f70`) `elapsed` 64 Hz steps after its player started: rotation rows and
+/// world position (original coordinates, row vectors: `world = local * rows + pos`).
+/// Verified bit for bit against the original players (`scripts/research/replay-lighthouse-anim.py`,
+/// `tests/original_scenery_anim.rs`: synthetic articles and every `Anqt` article of the track
+/// CRPs; `elapsed = g_SchedStep - start`, negative counts as 0; the pose depends on nothing else,
+/// so frame rate and call count do not change it).
+pub fn sample_scenery(keys: &[AnimKey], elapsed: i32) -> Option<(Mat3, Vec3)> {
+    let (i, frac) = sampler_key(keys.len(), SCENERY_KEY_SECONDS, true, elapsed)?;
+    Some(pose(&keys[i], &keys[i + 1], frac))
 }
 
 #[inline]
@@ -159,7 +202,8 @@ fn quat_matrix(q: [f32; 4]) -> Mat3 {
     ]
 }
 
-/// `CamAnim_Pose 0x470f70` without the flag-8/16 spins (the intro player's flags are 0).
+/// `CamAnim_Pose 0x470f70` without the flag-8/16 spins (the intro and scenery players have
+/// neither flag).
 fn pose(a: &AnimKey, b: &AnimKey, frac: f32) -> (Mat3, Vec3) {
     let q = [0, 1, 2, 3].map(|k| lerp(a.quat[k], b.quat[k], frac));
     let p = [0, 1, 2].map(|k| lerp(a.pos[k], b.pos[k], frac));
@@ -167,8 +211,31 @@ fn pose(a: &AnimKey, b: &AnimKey, frac: f32) -> (Mat3, Vec3) {
     let keep = 1.0 - d(frac);
     let s = [0, 1, 2].map(|k| (keep * d(a.scale[k]) + d(frac) * d(b.scale[k])) as f32);
     let m = [0, 1, 2].map(|row| r[row].map(|v| (d(v) * d(s[row])) as f32));
+    let m = spin_zero(&m, &p);
     // The zero drift vector of the player (+0x14) is added to the translation.
     (m, p.map(|v| v + 0.0))
+}
+
+/// The tail of `0x470f70` without flag 16: the 4x4 is always multiplied by
+/// `0x539bd0(0 turns, (0, 1, 0))`, which is the exact identity with `+0` off the diagonal
+/// (recorded), as `0x559230(R, M, M)` = `R * M`. Every value is unchanged; the products
+/// `+0 * M[k][j]` only decide the sign of a zero: `M[i][j] = -0` stays `-0` only when the other
+/// rows' entries of that column, the translation included, all have the sign bit set
+/// (`scenery-anim-tracks.tsv`, Alps rotor at step 26).
+fn spin_zero(m: &Mat3, p: &Vec3) -> Mat3 {
+    let col = |j: usize| [d(m[0][j]), d(m[1][j]), d(m[2][j]), d(p[j])];
+    let mut out = *m;
+    for j in 0..3 {
+        let c = col(j);
+        for (i, row) in out.iter_mut().enumerate() {
+            let sum = (0..4).fold(None, |acc: Option<f64>, k| {
+                let t = if k == i { c[k] } else { 0.0 * c[k] };
+                Some(acc.map_or(t, |s| s + t))
+            });
+            row[j] = sum.unwrap() as f32;
+        }
+    }
+    out
 }
 
 /// Rows of `0x539bd0(90 degrees, (1, 0, 0))`.
@@ -277,6 +344,31 @@ mod tests {
         let (_, p0) = anim.sample(0).unwrap();
         assert_eq!(p0, anim.keys[0].pos);
         assert!(CameraAnimation::parse(&synthetic(121)[..100]).is_err());
+    }
+
+    #[test]
+    fn scenery_sampler_loops_over_count_minus_two_keys() {
+        // 0.1 s per key on the 64 Hz clock: 6.4 steps per key.
+        let keys = parse_anqt_keys(&synthetic(121)[HEADER_SIZE..HEADER_SIZE + 121 * KEY_SIZE]);
+        assert_eq!(keys.len(), 121);
+        assert_eq!(sampler_key(121, SCENERY_KEY_SECONDS, true, 0), Some((0, 0.0)));
+        // f32(0.1 / (1/64)) = 6.4000001: step 64 is still key 9 (blend just below 1).
+        let (i, f) = sampler_key(121, SCENERY_KEY_SECONDS, true, 64).unwrap();
+        assert_eq!(i, 9);
+        assert!(f > 0.9999 && f < 1.0, "{f}");
+        assert_eq!(sampler_key(121, SCENERY_KEY_SECONDS, true, 65).unwrap().0, 10);
+        // 119 keys per loop: step 762 is key 119.0625 -> 0, frac 0.0625 (wrap, never finished).
+        let (i, f) = sampler_key(121, SCENERY_KEY_SECONDS, true, 762).unwrap();
+        assert_eq!(i, 0);
+        assert!((f - 0.0625).abs() < 1e-5, "{f}");
+        let (_, p) = sample_scenery(&keys, 0).unwrap();
+        assert_eq!(p, keys[0].pos);
+        assert!(sample_scenery(&keys, 1_000_000).is_some());
+        // Negative elapsed counts as 0; fewer than three keys cannot loop.
+        assert_eq!(sampler_key(121, SCENERY_KEY_SECONDS, true, -5), Some((0, 0.0)));
+        assert!(sample_scenery(&keys[..2], 0).is_none());
+        // The intro (non-loop) path is unchanged.
+        assert_eq!(sampler_key(121, KEY_SECONDS, false, 273), None);
     }
 
     #[test]

@@ -903,6 +903,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         track_objects: Vec::new(),
         smashables: Vec::new(),
         smack_props: Vec::new(),
+        animated_articles: Vec::new(),
         scenario_start: None,
         scenario_end: None,
         scenario_name: None,

@@ -207,6 +207,17 @@ fn ambient_layer_colour(rmth: &[u8], flags: u32) -> Option<[f32; 4]> {
     let entry_base = 0x1c + groups.checked_mul(16)?;
     let param_base = entry_base + entries.checked_mul(16)?;
     let blob = param_base + params.checked_mul(16)?;
+    // `LayerFullAmbient` (type 0x8005, `AF`; apply 0x448c30): fills the vertex colour table with
+    // 0xffffffff once, and the `FullAmbient` methods have no `fd` data layer, so their vertices
+    // draw white (texture unmodulated, alpha from the texture). Read, not recorded.
+    let full_ambient = (0..entries).any(|i| {
+        let e = entry_base + i * 16;
+        u32le(rmth, e + 4).ok() == Some(0x8005)
+            && u32le(rmth, e + 12).ok().is_some_and(|mask| mask == 0 || flags & mask != 0)
+    });
+    if full_ambient {
+        return Some([1.0; 4]);
+    }
     let tag = (0..entries).find_map(|i| {
         let e = entry_base + i * 16;
         let (ty, mask) = (u32le(rmth, e + 4).ok()?, u32le(rmth, e + 12).ok()?);
@@ -343,6 +354,18 @@ fn translucent_sheet(rgba: &[u8]) -> bool {
     n > 0 && mid * 2 >= n && clear * 100 <= n * 15
 }
 
+/// The lighthouse beam methods `FullAmbient` / `FullAmbMatState` (`lthl`, `lths`): their `sR`
+/// block enables SRCALPHA/INVSRCALPHA blending, so the texture alpha (12..119 on `lths`) is a
+/// soft ramp, not a cut-out; as a mask it vanished completely. Read from the `RMth` data, not
+/// recorded; behind `experimental-original-port` (A315).
+fn track_blend_method(render_method: &str, state: Option<[i32; 6]>) -> bool {
+    cfg!(feature = "experimental-original-port")
+        && render_method.starts_with("FullAmb")
+        && state.is_some_and(|s| {
+            crate::render_state::draw_state(&s).blend.is_some_and(|(src, dst)| (src, dst) == (5, 6))
+        })
+}
+
 /// Alpha mode of a track material. `state` is the material's `sR` block (method default or
 /// the `mt` override). With `experimental-original-port`: when that block resolves to
 /// `SRCALPHA`/`INVSRCALPHA` blending through `Render_ApplyLayerState` 0x540660 and the dx7
@@ -360,7 +383,10 @@ fn track_alpha_mode(render_method: &str, state: Option<[i32; 6]>, rgba: &[u8]) -
     };
     if !rgba.as_chunks::<4>().0.iter().any(|p| p[3] < 255) {
         AlphaMode::Opaque
-    } else if render_method == "Transparency" || track_shadow_method(render_method) || blended_sheet() {
+    } else if render_method == "Transparency" || track_shadow_method(render_method)
+        || track_blend_method(render_method, state)
+        || blended_sheet()
+    {
         AlphaMode::Blend
     } else {
         AlphaMode::Mask
@@ -429,6 +455,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         track_objects: Vec::new(),
         smashables: Vec::new(),
         smack_props: Vec::new(),
+        animated_articles: Vec::new(),
         scenario_start: None,
         scenario_end: None,
         scenario_name: None,
@@ -579,6 +606,33 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         .chain(smack_records.iter().map(|r| r.article_index))
         .collect();
     scene.particle_emitters = particle_emitters(&crp, &object_articles);
+    // Animated scenery (`WAnimBundle` 0x4777f0): the scene build 0x4879d0 offers the articles
+    // to WSceneBundle 0x482970 and WInstanceBundle 0x4781a0 first, which take every article with
+    // a `tr` entry (`0x59f220(0)` = tag 'tr' index 0); WAnimBundle then takes the rest that
+    // carry an `Anqt` entry and plays it with a looping `CamAnim` sampler (0.1 s per key)
+    // started at the build, i.e. race step 0. Recorded (`replay-lighthouse-anim.py`,
+    // `tests/original_scenery_anim.rs`): 0x4777f0 takes every offered `Anqt` article and the
+    // player pose for a given `g_SchedStep - start`, bit for bit. Still read: which articles
+    // reach the bundle (the `tr` claim of the earlier bundles), the start step and the draw;
+    // so behind `experimental-original-port`; without it they stay static at their local
+    // coordinates.
+    let scenery_articles: BTreeMap<usize, Vec<crate::camera::anim::AnimKey>> = crp
+        .articles
+        .iter()
+        .enumerate()
+        .filter(|_| cfg!(feature = "experimental-original-port"))
+        .filter(|(_, a)| {
+            let base = a.children.iter().find(|c| c.tag == "Base" && c.index == 0);
+            let library = base.and_then(|b| u32le(&b.data, 0).ok()).unwrap_or(0) & 0x8000 != 0;
+            !library && !a.children.iter().any(|c| c.tag == "tr" && c.index == 0)
+        })
+        .filter_map(|(i, a)| {
+            let anqt = a.children.iter().find(|c| c.tag == "Anqt")?;
+            let keys = crate::camera::anim::parse_anqt_keys(&anqt.data);
+            (keys.len() >= 3).then_some((i, keys))
+        })
+        .collect();
+    let mut scenery_meshes: BTreeMap<usize, Vec<Mesh>> = BTreeMap::new();
     let mut raw_meshes = Vec::new();
     // Rendering and source collision resources are assembled separately.
     let mut prop_templates: Vec<(u32, Vec<Mesh>, Vec<PropFrame>)> = Vec::new();
@@ -703,7 +757,9 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                 &ambient_colour,
                 format!("{article_name}#{ai}/{}", pr.index),
             )?;
-            if !m.indices.is_empty() {
+            if !m.indices.is_empty() && scenery_articles.contains_key(&ai) {
+                scenery_meshes.entry(ai).or_default().push(m);
+            } else if !m.indices.is_empty() {
                 total_tris += m.indices.len() / 3;
                 for v in &m.vertices {
                     for k in 0..3 {
@@ -843,6 +899,19 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         scene.smack_props.push(SmackProp {
             record: smack_records[record_index].clone(),
             meshes: start..scene.meshes.len(),
+        });
+    }
+
+    for (article_index, keys) in scenery_articles {
+        let Some(meshes) = scenery_meshes.remove(&article_index) else {
+            continue;
+        };
+        let start = scene.meshes.len();
+        scene.meshes.extend(meshes);
+        scene.animated_articles.push(AnimatedArticle {
+            name: names[article_index].clone(),
+            meshes: start..scene.meshes.len(),
+            keys,
         });
     }
 
@@ -1719,6 +1788,9 @@ mod tests {
         let always = rmth_chunk(&[(b"mA", 0x8007, 0)], 0xffff_ffff);
         assert_eq!(ambient_layer_colour(&always, 0), Some([1.0; 4]));
         assert_eq!(ambient_layer_colour(&[0; 8], 0x10), None);
+        // `FullAmbient` (`AF` 0x8005, mask 0): white whatever the flags.
+        let full = rmth_chunk(&[(b"FA", 0x8005, 0)], 0);
+        assert_eq!(ambient_layer_colour(&full, 0x0b), Some([1.0; 4]));
     }
 
     #[test]
@@ -1908,6 +1980,46 @@ mod tests {
             .find(|m| m.texture.is_some_and(|t| scene.textures[t].name == "ch07"))
             .unwrap();
         assert_eq!(fol.alpha_mode, AlphaMode::Mask);
+    }
+
+    #[cfg(feature = "experimental-original-port")]
+    #[test]
+    fn local_coastal_lighthouse_beam_is_animated_scenery() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../local/game/GameData/Track");
+        let (Ok(crp), Ok(fsh), Ok(anim)) = (
+            std::fs::read(root.join("coastal.crp")),
+            std::fs::read(root.join("coastal.fsh")),
+            std::fs::read(root.join("animdefs.txt")),
+        ) else {
+            return;
+        };
+        let mut files = AssetFiles::new();
+        files.insert("coastal.crp".into(), crp);
+        files.insert("coastal.fsh".into(), fsh);
+        files.insert("animdefs.txt".into(), anim);
+        let scene = load(&files, "coastal").unwrap();
+        let names: Vec<_> = scene.animated_articles.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["BOX01", "OBJECT01"]);
+        for a in &scene.animated_articles {
+            assert_eq!(a.keys.len(), 401);
+            assert!(!a.meshes.is_empty());
+            // `FullAmbient` beam materials draw white (0x448c30), not the dark `df` words.
+            for m in &scene.meshes[a.meshes.clone()] {
+                // `lths` (alpha 12..119) must blend, not mask away.
+                if scene.materials[m.material].texture.is_some_and(|t| scene.textures[t].name == "lths") {
+                    assert_eq!(scene.materials[m.material].alpha_mode, AlphaMode::Blend);
+                }
+                assert!(m.vertices.iter().all(|v| v.color == [1.0; 4]), "{} {}", a.name, m.name);
+            }
+            // Pivot at the lantern; one full turn about y over 400 keys.
+            let (r0, p0) = crate::camera::anim::sample_scenery(&a.keys, 0).unwrap();
+            assert!((p0[0] - 3247.5).abs() < 0.1 && (p0[1] - 75.73).abs() < 0.1, "{p0:?}");
+            // 100 keys = 640 steps (10 s): a quarter turn.
+            let (r1, _) = crate::camera::anim::sample_scenery(&a.keys, 640).unwrap();
+            let dot: f32 = (0..3).map(|k| r0[0][k] * r1[0][k]).sum();
+            assert!(dot.abs() < 0.01, "{}: x rows {:?} {:?}", a.name, r0[0], r1[0]);
+        }
     }
 
     #[test]

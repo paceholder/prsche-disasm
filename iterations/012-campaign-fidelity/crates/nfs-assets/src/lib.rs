@@ -270,6 +270,18 @@ pub struct PropFrame {
     pub position: [f32; 3],
 }
 
+/// An animated scenery article (`WAnimBundle` 0x4777f0, docs `re/track-objects.md`): its
+/// meshes hold the article's local vertices (scene coordinates); the renderer places them with
+/// [`camera::anim::sample_scenery`] of `keys`, `g_SchedStep` steps after the race start.
+#[derive(Debug, Clone)]
+pub struct AnimatedArticle {
+    pub name: String,
+    /// Meshes in `Scene::meshes`.
+    pub meshes: std::ops::Range<usize>,
+    /// The article's `Anqt` keys (original coordinates).
+    pub keys: Vec<camera::anim::AnimKey>,
+}
+
 /// A smackable article (sign, cone, post, bin): a flag-0x80 object car in the
 /// original (`physics::original_smackable`). Its meshes are kept out of the
 /// static scene; the renderer draws them at the car's pose.
@@ -422,6 +434,11 @@ pub struct Scene {
     pub smashables: Vec<Smashable>,
     /// Smackable objects (signs, cones, posts).
     pub smack_props: Vec<SmackProp>,
+    /// Animated scenery (`WAnimBundle` 0x4777f0): placed articles without `tr` that carry
+    /// `Anqt` keys (Cote d'Azur lighthouse beam, Alps rescue helicopter, Autobahn train...).
+    /// Filled only with `experimental-original-port`; without it these articles stay static
+    /// meshes at their local coordinates (approximation).
+    pub animated_articles: Vec<AnimatedArticle>,
     /// Scenario Start trigger center and direction, when a selected `.scn` supplies one.
     /// The original vehicle staging offset has not been recovered.
     pub scenario_start: Option<ScenarioStart>,
@@ -539,6 +556,7 @@ impl Default for Scene {
             track_objects: Vec::new(),
             smashables: Vec::new(),
             smack_props: Vec::new(),
+            animated_articles: Vec::new(),
             scenario_start: None,
             scenario_end: None,
             scenario_name: None,

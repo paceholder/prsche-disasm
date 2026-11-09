@@ -946,6 +946,8 @@ pub struct Renderer {
     /// Smackable objects (signs, cones, posts) as flag-0x80 object cars.
     smack_world: nfs_assets::physics::original_smackable::SmackWorld,
     smack_props: Vec<nfs_assets::SmackProp>,
+    /// Animated scenery (`WAnimBundle` 0x4777f0; lighthouse beam, helicopter, train).
+    animated_scenery: Vec<nfs_assets::AnimatedArticle>,
     smack_owners: [nfs_assets::physics::original_support_owner::OriginalSupportOwner; 4],
     pair_globals: nfs_assets::physics::original_pair::PairGlobals,
     /// Car setup screen choices (transmission, damage) for the original vehicle.
@@ -2072,6 +2074,7 @@ impl Renderer {
                     .collect::<Vec<_>>(),
             ),
             smack_props: scene.smack_props.clone(),
+            animated_scenery: scene.animated_articles.clone(),
             smack_owners: Default::default(),
             device,
             queue,
@@ -2937,6 +2940,7 @@ impl Renderer {
                 mesh_range: d.mesh_range,
             })
             .chain(self.smack_draws())
+            .chain(self.scenery_draws())
             .collect();
         if !self.prop_draws.is_empty() || !crate_draws.is_empty() {
             for prop_draw in self.prop_draws.iter().chain(crate_draws.iter()) {
@@ -6142,6 +6146,66 @@ impl Renderer {
     }
 
     /// Draw calls of the smackable objects at their poses.
+    /// Animated scenery (`WAnimBundle` 0x4777f0): each article's `CamAnim` player started at
+    /// the scene build, so in a race its clock is `g_SchedStep` (0 at the countdown start, A29
+    /// timing); outside a race the wall clock at 64 steps/s. Pose from `0x470e90`/`0x470f70`
+    /// (looping, 0.1 s per key): `world = local * rows + pos` in original coordinates.
+    fn scenery_draws(&self) -> Vec<PropDraw> {
+        use glam::{Mat4, Vec4};
+        if self.animated_scenery.is_empty() {
+            return Vec::new();
+        }
+        let steps = self.scenery_steps();
+        let flip = Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0));
+        self.animated_scenery
+            .iter()
+            .filter_map(|a| {
+                let (rows, pos) = nfs_assets::camera::anim::sample_scenery(&a.keys, steps)?;
+                let m = Mat4::from_cols(
+                    Vec3::from(rows[0]).extend(0.0),
+                    Vec3::from(rows[1]).extend(0.0),
+                    Vec3::from(rows[2]).extend(0.0),
+                    Vec4::new(pos[0], pos[1], pos[2], 1.0),
+                );
+                Some(PropDraw {
+                    model: flip * m * flip,
+                    mesh_range: a.meshes.clone(),
+                })
+            })
+            .collect()
+    }
+
+    /// Clock of the scenery players: the race `g_SchedStep`, else the wall clock at 64 Hz.
+    fn scenery_steps(&self) -> i32 {
+        if self.race_session.is_some() && !self.is_mission_mode {
+            self.original_race_sched()
+        } else {
+            (animation_seconds() * 64.0).rem_euclid(1.0e8) as i32
+        }
+    }
+
+    /// See `browser::debug_scenery`.
+    pub fn debug_scenery(&self) -> Vec<f32> {
+        let mut out = vec![
+            self.animated_scenery.len() as f32,
+            self.meshes.len() as f32,
+            self.scenery_steps() as f32,
+        ];
+        for d in self.scenery_draws() {
+            let t = d.model.w_axis;
+            out.extend([
+                d.mesh_range.start as f32,
+                d.mesh_range.len() as f32,
+                t.x,
+                t.y,
+                t.z,
+                d.model.x_axis.x,
+                d.model.x_axis.z,
+            ]);
+        }
+        out
+    }
+
     fn smack_draws(&self) -> Vec<PropDraw> {
         use glam::{Mat3, Mat4};
         let flip = Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0));
