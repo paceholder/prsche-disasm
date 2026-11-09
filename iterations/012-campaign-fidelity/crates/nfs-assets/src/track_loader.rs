@@ -326,10 +326,41 @@ fn track_shadow_method(render_method: &str) -> bool {
     cfg!(feature = "experimental-original-port") && render_method == "S_UVAnimate"
 }
 
-fn track_alpha_mode(render_method: &str, rgba: &[u8]) -> AlphaMode {
+/// A texture whose alpha is a soft sheet (sea `wtr3`/`wtr4`, shore foam `seaa`/`seaf..h`,
+/// rivers, waterfalls, some windows): at least half of its texels partly transparent (alpha
+/// 9..246) and at most 15 % clear (0..8). Foliage and decals (mostly 0/255 or many clear
+/// texels) are not.
+fn translucent_sheet(rgba: &[u8]) -> bool {
+    let n = rgba.len() / 4;
+    let (mut mid, mut clear) = (0usize, 0usize);
+    for p in rgba.as_chunks::<4>().0 {
+        match p[3] {
+            0..=8 => clear += 1,
+            9..=246 => mid += 1,
+            _ => {}
+        }
+    }
+    n > 0 && mid * 2 >= n && clear * 100 <= n * 15
+}
+
+/// Alpha mode of a track material. `state` is the material's `sR` block (method default or
+/// the `mt` override). With `experimental-original-port`: when that block resolves to
+/// `SRCALPHA`/`INVSRCALPHA` blending through `Render_ApplyLayerState` 0x540660 and the dx7
+/// driver (recorded, `render_state::draw_state`; every `Normal`, `UVAnimate`, `FakeSort`,
+/// `FullAmbient`, `FA_UVAnim` and `S_*` default `{1, 2, 0, 1, z, -1}`), a soft-alpha sheet
+/// ([`translucent_sheet`]) is drawn blended. Other textures of those methods stay cut out:
+/// for 0/255 alpha the blend gives the same pixels, and our blend path (sorted, no depth
+/// write) is not the original's draw order (A190). Without the feature the method name alone
+/// decides.
+fn track_alpha_mode(render_method: &str, state: Option<[i32; 6]>, rgba: &[u8]) -> AlphaMode {
+    let blended_sheet = || {
+        cfg!(feature = "experimental-original-port")
+            && state.is_some_and(|s| crate::render_state::draw_state(&s).alpha_blended())
+            && translucent_sheet(rgba)
+    };
     if !rgba.as_chunks::<4>().0.iter().any(|p| p[3] < 255) {
         AlphaMode::Opaque
-    } else if render_method == "Transparency" || track_shadow_method(render_method) {
+    } else if render_method == "Transparency" || track_shadow_method(render_method) || blended_sheet() {
         AlphaMode::Blend
     } else {
         AlphaMode::Mask
@@ -463,15 +494,12 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         };
 
         let texture = tex_map.get(&tex_name).copied();
+        let state = material_render_state(&e.data, methods.get(&render_method));
         let alpha_mode = texture.map_or(AlphaMode::Opaque, |t_idx| {
-            track_alpha_mode(&render_method, &scene.textures[t_idx].rgba)
+            track_alpha_mode(&render_method, state, &scene.textures[t_idx].rgba)
         });
 
-        let double_sided = track_material_double_sided(
-            material_render_state(&e.data, methods.get(&render_method)),
-            &render_method,
-        );
-        let state = material_render_state(&e.data, methods.get(&render_method));
+        let double_sided = track_material_double_sided(state, &render_method);
         let mut depth_bias = if e.data.len() >= 0x118 {
             u32le(&e.data, 0x114).unwrap_or(0) as i32
         } else {
@@ -1828,7 +1856,9 @@ mod tests {
                             && m.texture.is_some_and(|t| scene.textures[t].name == tex)
                     })
                     .unwrap_or_else(|| panic!("{track} {tex} {speed}"));
-                let expected_alpha = if m.name.ends_with(":Transparency") {
+                let sheet = cfg!(feature = "experimental-original-port")
+                    && translucent_sheet(&scene.textures[m.texture.unwrap()].rgba);
+                let expected_alpha = if m.name.ends_with(":Transparency") || sheet {
                     AlphaMode::Blend
                 } else {
                     AlphaMode::Mask
@@ -1860,7 +1890,11 @@ mod tests {
                 .iter()
                 .find(|m| m.texture.is_some_and(|t| scene.textures[t].name == tex))
                 .unwrap_or_else(|| panic!("no material for {tex}"));
-            let expected_alpha = if mat.name.ends_with(":Transparency") {
+            // Every sea and shore sheet is a soft sheet of a blended method (`Normal`,
+            // `UVAnimate`: recorded `sR` blend).
+            let expected_alpha = if mat.name.ends_with(":Transparency")
+                || cfg!(feature = "experimental-original-port")
+            {
                 AlphaMode::Blend
             } else {
                 AlphaMode::Mask
@@ -1879,16 +1913,36 @@ mod tests {
     #[test]
     fn partial_alpha_does_not_invent_a_blend_render_method() {
         let sea = [200, 170, 180, 95].repeat(64);
-        assert_eq!(track_alpha_mode("Opaque", &sea), AlphaMode::Mask);
-        assert_eq!(track_alpha_mode("Water", &sea), AlphaMode::Mask);
-        assert_eq!(track_alpha_mode("Transparency", &sea), AlphaMode::Blend);
+        assert_eq!(track_alpha_mode("Opaque", None, &sea), AlphaMode::Mask);
+        assert_eq!(track_alpha_mode("Water", None, &sea), AlphaMode::Mask);
+        assert_eq!(track_alpha_mode("Transparency", None, &sea), AlphaMode::Blend);
         let opaque = [10, 90, 20, 255].repeat(64);
-        assert_eq!(track_alpha_mode("Transparency", &opaque), AlphaMode::Opaque);
-        assert_eq!(track_alpha_mode("Opaque", &[]), AlphaMode::Opaque);
+        assert_eq!(track_alpha_mode("Transparency", None, &opaque), AlphaMode::Opaque);
+        assert_eq!(track_alpha_mode("Opaque", None, &[]), AlphaMode::Opaque);
         assert_eq!(
-            track_alpha_mode("S_UVAnimate", &sea),
+            track_alpha_mode("S_UVAnimate", None, &sea),
             if cfg!(feature = "experimental-original-port") { AlphaMode::Blend } else { AlphaMode::Mask }
         );
+    }
+
+    /// The recorded `sR` blend (`{1, 2, 0, 1, 0, -1}`: `SRCALPHA`/`INVSRCALPHA`) blends a soft
+    /// sheet with the feature; cut-out textures and unblended states stay masked.
+    #[test]
+    fn recorded_blend_state_blends_soft_sheets_with_the_feature() {
+        const NORMAL: [i32; 6] = [1, 2, 0, 1, 0, -1];
+        const OPAQUE: [i32; 6] = [1, 0, 0, 1, 0, -1];
+        let on = cfg!(feature = "experimental-original-port");
+        let sea = [200, 170, 180, 95].repeat(64);
+        let blend = if on { AlphaMode::Blend } else { AlphaMode::Mask };
+        assert_eq!(track_alpha_mode("Normal", Some(NORMAL), &sea), blend);
+        assert_eq!(track_alpha_mode("UVAnimate", Some(NORMAL), &sea), blend);
+        assert_eq!(track_alpha_mode("Opaque", Some(OPAQUE), &sea), AlphaMode::Mask);
+        assert_eq!(track_alpha_mode("Normal", None, &sea), AlphaMode::Mask);
+        // Foliage: 0/255 alpha.
+        let mut leaf = [30, 90, 20, 255].repeat(32);
+        leaf.extend([0, 0, 0, 0].repeat(32));
+        assert_eq!(track_alpha_mode("Normal", Some(NORMAL), &leaf), AlphaMode::Mask);
+        assert!(translucent_sheet(&sea) && !translucent_sheet(&leaf) && !translucent_sheet(&[]));
     }
 
     /// `RMth` record: name, one pass, the layer definition tags, one `sR` default.
@@ -2357,3 +2411,4 @@ mod tests {
         }
     }
 }
+
