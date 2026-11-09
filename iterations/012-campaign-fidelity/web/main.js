@@ -3221,6 +3221,13 @@ function onKeyDown(event) {
     toggleHud();
     return;
   }
+  // Debug: alpha boost of the car's sky-map layer (1 = original, 4, 10).
+  if (event.code === "KeyN" && !event.repeat && viewer?.set_env_boost) {
+    const next = { 1: 4, 4: 10, 10: 1 }[viewer.get_env_boost()] ?? 1;
+    viewer.set_env_boost(next);
+    updateDebugPanel();
+    return;
+  }
   if (event.code === "Backquote" && !event.repeat) {
     debugPanelVisible = !debugPanelVisible;
     try { localStorage.setItem("nfs5.debugPanel", debugPanelVisible ? "1" : "0"); } catch {}
@@ -3904,6 +3911,7 @@ async function autostartRace(params) {
     syncTourButton();
     // Always the original vehicle model, collisions and AI; the old `model=` URL param is ignored.
     if (params.get("lights") === "1") lightsOn = Boolean(viewer.toggle_lights());
+    if (params.has("envboost")) viewer.set_env_boost?.(Number(params.get("envboost")) || 1);
     const cam = params.get("cam");
     // The C key is ignored during the race intro (AnimCam, Camera_Cycle 0x465a60), and the
     // race only steps once the frame loop runs: animate() switches after the intro.
@@ -3954,6 +3962,7 @@ function updateDebugPanel() {
     `H HUD ${onOff(hudVisible)}`,
     `hit: ${viewer.object_hit_report?.() || "-"}`,
     ...weatherReadout(),
+    `N env: ${viewer.env_map_report?.() || "-"}`,
     "R reset", "Shift+R restart", "Esc menu", "` panel",
   ];
   const text = items.map((item) => item.replace(/ /g, "\u00a0")).join(" \u00b7 ");

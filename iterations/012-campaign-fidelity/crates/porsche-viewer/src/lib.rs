@@ -7,6 +7,7 @@ mod shade_sample;
 mod sun;
 mod mirror;
 mod shader_check;
+mod env_map;
 pub mod engine_audio;
 pub mod tyre_audio;
 pub mod game_audio;

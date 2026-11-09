@@ -232,7 +232,7 @@ fn effect_textures(files: &AssetFiles) -> Result<Vec<Texture>, String> {
     Ok(out)
 }
 
-fn fsh_textures(name: &str, data: &[u8]) -> Result<Vec<Texture>, String> {
+pub(crate) fn fsh_textures(name: &str, data: &[u8]) -> Result<Vec<Texture>, String> {
     let images = nfs_formats::parse_fsh(data).map_err(|e| format!("{name}: {e}"))?;
     // parse_fsh lowercases names, but common.fsh has both `spik` and `SPIK`;
     // the original looks textures up by exact FourCC, so keep the raw names.
@@ -927,6 +927,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         sky_weather: None,
         sun_position: None,
         flare: flare_data(files)?,
+        env_textures: Vec::new(),
         topology: None,
         road_surface: None,
         course: None,

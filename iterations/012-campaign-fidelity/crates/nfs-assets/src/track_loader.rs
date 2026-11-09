@@ -472,6 +472,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sky_weather: None,
         sun_position: None,
         flare: None,
+        env_textures: Vec::new(),
         topology: None,
         road_surface: None,
         course: None,
@@ -1226,6 +1227,16 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                         .push(format!("Sky {sky_key}: parse error: {e}"));
                 }
             }
+        }
+    }
+
+    // --- Car environment textures (`<track>.env`, TrackLighting_Load 0x4409d0) ---
+    // Read from the decompile, not recorded (A274): loaded only with experimental-original-port.
+    let env_key = format!("{track}.env");
+    if let Some(data) = cfg!(feature = "experimental-original-port").then(|| find(files, &env_key).ok()).flatten() {
+        match crate::loader::fsh_textures(&env_key, data) {
+            Ok(textures) => scene.env_textures = textures,
+            Err(e) => scene.diagnostics.push(format!("ENV {env_key}: {e}")),
         }
     }
 

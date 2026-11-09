@@ -479,6 +479,9 @@ pub struct Scene {
     /// Sun sprite and lens flare records of `Render/flare.dat` and `flarepos.dat`
     /// (`SunFlare_Init` 0x460780), loaded with a car.
     pub flare: Option<nfs_formats::FlareData>,
+    /// Environment textures of `<track>.env` (raw FSH names), drawn on cars by the
+    /// planar sky-map layer (`R3DSkyMapTextureLayer` 0x445b10) per `.map` section.
+    pub env_textures: Vec<Texture>,
     /// Track topology (boundaries, junctions, map), if available.
     pub topology: Option<TrackTopology>,
     /// CPU-only support grid constructed from static road candidate geometry.
@@ -580,6 +583,7 @@ impl Default for Scene {
             sky_weather: None,
             sun_position: None,
             flare: None,
+            env_textures: Vec::new(),
             topology: None,
             road_surface: None,
             course: None,

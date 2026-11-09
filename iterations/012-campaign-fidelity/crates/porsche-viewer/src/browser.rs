@@ -509,6 +509,33 @@ impl BrowserViewer {
         self.renderer.as_ref().map(|r| r.is_paused()).unwrap_or(false)
     }
 
+    /// Debug (tools/browser-shot.mjs): the player car's planar sky-map layer state.
+    pub fn env_map_report(&self) -> String {
+        self.renderer.as_ref().map(|r| r.env_map_report()).unwrap_or_default()
+    }
+
+    /// Debug (key N, `?envboost=`): alpha multiplier of the car's sky-map layer.
+    pub fn set_env_boost(&mut self, boost: f32) {
+        if let Some(r) = &mut self.renderer {
+            r.env_boost = boost.max(0.0);
+        }
+    }
+
+    pub fn get_env_boost(&self) -> f32 {
+        self.renderer.as_ref().map_or(1.0, |r| r.env_boost)
+    }
+
+    /// Debug: switch the car's planar sky-map layer on or off; returns the new state.
+    pub fn toggle_env_map(&mut self) -> bool {
+        match &mut self.renderer {
+            Some(r) => {
+                r.env_map_on = !r.env_map_on;
+                r.env_map_on
+            }
+            None => false,
+        }
+    }
+
     /// Debug panel: the last solid object hit ("name [tag] size at x,y,z"), empty before a hit.
     pub fn object_hit_report(&self) -> String {
         self.renderer
@@ -529,6 +556,14 @@ impl BrowserViewer {
     pub fn debug_start(&mut self, x: f32, y: f32, z: f32, yaw: f32) -> f32 {
         match &mut self.renderer {
             Some(renderer) => renderer.debug_start([x, y, z], yaw),
+            None => -1000.0,
+        }
+    }
+
+    /// Debug (tools/browser-shot.mjs): places the car at a track node.
+    pub fn debug_start_node(&mut self, node: u32) -> f32 {
+        match &mut self.renderer {
+            Some(renderer) => renderer.debug_start_node(node as usize),
             None => -1000.0,
         }
     }

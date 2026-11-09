@@ -336,6 +336,11 @@ impl Camera {
                 let f = (self.target() - eye).normalize_or(Vec3::NEG_Z);
                 [f.x, f.y, f.z, 0.0]
             },
+            env_layers: [-1.0, -1.0, -1.0, 0.0],
+            env_proj: [0.0; 4],
+            env_origin: [0.0; 4],
+            env_axis_u: [0.0; 4],
+            env_axis_v: [0.0; 4],
         }
     }
 }
@@ -363,6 +368,17 @@ struct CameraUniform {
     fog: [f32; 4],
     /// Camera forward in world space (fog depth).
     forward: [f32; 4],
+    /// Planar sky-map layer (`R3DSkyMapTextureLayer` 0x445b10): array layer of texture
+    /// slots 0..2 (−1: none) and `w = 1` to enable.
+    env_layers: [f32; 4],
+    /// `1/texturesize`, `aspect/texturesize`, `0.1·o1 + 0.5`, `o2 + 0.5`.
+    env_proj: [f32; 4],
+    /// Car position (scene) the projection is centred on.
+    env_origin: [f32; 4],
+    /// Node lateral (`u`) and forward (`v`) axes in scene coordinates: the layer's
+    /// matrix ends with the inverse of the car's node frame `car+0x3b8` (0x43a862).
+    env_axis_u: [f32; 4],
+    env_axis_v: [f32; 4],
 }
 
 /// Alpha scale of the car sphere-map reflection (`car.wgsl`, `camera.specular.x`). The original
@@ -1114,6 +1130,22 @@ pub struct Renderer {
     pub stunt_detector: Option<nfs_game::factory_driver::StuntDetector>,
     /// Car glares and shadows (`docs/re/lighting.md`).
     effects: crate::effects::Effects,
+    /// `.env` texture array and sampler of the track (planar sky-map layer).
+    env: (wgpu::TextureView, wgpu::Sampler),
+    /// `.env` layer by lower-case texture name.
+    env_layers: std::collections::BTreeMap<String, u32>,
+    /// `.map` sections for the car's sky-map layer.
+    env_sections: Vec<crate::env_map::EnvSection>,
+    /// Debug switch of the car's sky-map layer (browser `toggle_env_map`).
+    pub env_map_on: bool,
+    /// Debug alpha multiplier of the car's sky-map layer (1 = original; key N, `?envboost=`).
+    pub env_boost: f32,
+    /// Largest alpha (0..255) of each `.env` layer, for the debug readout.
+    env_max_alpha: Vec<u8>,
+    /// Last sky-map state of the player car: node, section start, layers, offsets.
+    env_debug: std::cell::RefCell<String>,
+    /// Track node of the AI car being drawn (`ai car` pass; -1 unknown).
+    env_ai_node: std::cell::Cell<i32>,
     /// Sun sprite and lens flare (`Sun_Draw` 0x460290, `Flare_Draw` 0x460460).
     sun_flare: crate::sun::SunFlareGpu,
     /// Sun point of the track's sky config (`Sky_SunPosition` 0x461090), scene axes.
@@ -1446,8 +1478,26 @@ impl Renderer {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                // Track `.env` textures of the planar sky-map layer (0x445b10), one per layer.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
             ],
         });
+        let env = env_texture_array(&device, &queue, &scene.env_textures);
         let specular_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("specular map sampler"),
             mag_filter: wgpu::FilterMode::Linear,
@@ -1456,7 +1506,7 @@ impl Renderer {
         });
         let no_specular = upload_texture(&device, &queue, 1, 1, &[0, 0, 0, 0]);
         let camera_group =
-            camera_bind_group(&device, &camera_layout, &camera_buffer, &no_specular, &specular_sampler);
+            camera_bind_group(&device, &camera_layout, &camera_buffer, &no_specular, &specular_sampler, &env);
         let material_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("material"),
             entries: &[
@@ -2264,6 +2314,24 @@ impl Renderer {
             mission_elapsed_time: 0.0,
             stunt_detector: None,
             effects,
+            env,
+            env_layers: env_layer_names(&scene.env_textures),
+            env_sections: scene
+                .topology
+                .as_ref()
+                .and_then(|t| t.map.as_ref())
+                .map(crate::env_map::sections)
+                .unwrap_or_default(),
+            env_map_on: true,
+            env_boost: 1.0,
+            env_max_alpha: scene
+                .env_textures
+                .iter()
+                .filter(|t| t.width == ENV_SIZE && t.height == ENV_SIZE && t.rgba.len() == (ENV_SIZE * ENV_SIZE * 4) as usize)
+                .map(|t| t.rgba.iter().skip(3).step_by(4).copied().max().unwrap_or(0))
+                .collect(),
+            env_debug: std::cell::RefCell::new(String::new()),
+            env_ai_node: std::cell::Cell::new(-1),
             sun_flare,
             sun_position: scene.sun_position.map(Vec3::from),
             flare: None,
@@ -2492,7 +2560,15 @@ impl Renderer {
             return;
         }
 
-        let uniform = self.car_uniform(model_matrix);
+        let mut uniform = self.car_uniform(model_matrix);
+        // A274: read from the decompile, not recorded; off in the default build.
+        if cfg!(feature = "experimental-original-port") {
+            if matches!(label, "original car chassis" | "sim car chassis" | "arcade car" | "in-car part") {
+                self.apply_env_map(&mut uniform, model_matrix, None);
+            } else if label == "ai car" {
+                self.apply_env_map(&mut uniform, model_matrix, Some(self.env_ai_node.get()));
+            }
+        }
         self.queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
 
@@ -3352,6 +3428,12 @@ impl Renderer {
                 let model_matrix = Mat4::from_translation(Vec3::from(ai.position))
                     * Mat4::from_mat3(ai.body_rotation());
                 self.draw_exterior_driver(target, car_render, model_matrix, None);
+                self.env_ai_node.set(
+                    self.original_ai
+                        .as_ref()
+                        .and_then(|f| f.cars.get(slot))
+                        .map_or(-1, |c| i32::from(c.ai.locator_08.node_00)),
+                );
                 let turns = self.ai_lights.get(slot).map_or(0.0, |l| self.lid_turns(l));
                 self.draw_car_body(
                     target,
@@ -4344,6 +4426,107 @@ impl Renderer {
         }
     }
 
+    /// Planar sky-map layer of the player car (`R3DSkyMapTextureLayer` 0x445b10 with
+    /// the `.map` section of the car's track node, `docs/re/lighting.md`). The node is the
+    /// original model's locator node `car+8`, else the nearest track node (A274).
+    ///
+    /// `ai_node` is the original AI car's own locator node (`locator_08`, -1: none known);
+    /// `None` is the player car.
+    fn apply_env_map(&self, uniform: &mut CameraUniform, model: Mat4, ai_node: Option<i32>) {
+        use nfs_assets::physics::original_adapter::to_original;
+        let Some(track) = self.original_ai_track.as_ref().filter(|_| self.env_map_on) else {
+            if ai_node.is_none() {
+                *self.env_debug.borrow_mut() = format!("off (track nodes {})", self.original_ai_track.is_some());
+            }
+            return;
+        };
+        let origin = model.w_axis.truncate();
+        let pos = Vec3::from(to_original(origin));
+        let real = match ai_node {
+            Some(n) => Some(n).filter(|&n| n >= 0),
+            None => self
+                .original_vehicle
+                .as_ref()
+                .filter(|_| self.original_active())
+                .map(|v| i32::from(v.locator.track.node_00)),
+        };
+        let nearest = track
+            .nodes
+            .nodes
+            .iter()
+            .enumerate()
+            .min_by(|a, b| {
+                let da = Vec3::from(a.1.pos_04).distance_squared(pos);
+                let db = Vec3::from(b.1.pos_04).distance_squared(pos);
+                da.total_cmp(&db)
+            })
+            .map_or(-1, |(i, _)| i as i32);
+        let node = real.unwrap_or(nearest);
+        let Some(section) = crate::env_map::select(&self.env_sections, node) else {
+            if ai_node.is_none() {
+                *self.env_debug.borrow_mut() = format!(
+                    "node {node} (nearest {nearest}) at {pos:?}: no section ({} sections {:?}, {} env textures)",
+                    self.env_sections.len(),
+                    self.env_sections.iter().map(|s| (s.start, s.end)).collect::<Vec<_>>(),
+                    self.env_layers.len()
+                );
+            }
+            return;
+        };
+        let Some(n) = usize::try_from(node).ok().and_then(|i| track.nodes.nodes.get(i)) else {
+            return;
+        };
+        let o = crate::env_map::node_offsets(pos, Vec3::from(n.pos_04), Vec3::from(n.forward_1c), Vec3::from(n.lateral_28));
+        let layer = |k: usize| {
+            section.textures[k]
+                .as_ref()
+                .and_then(|name| self.env_layers.get(&name.to_ascii_lowercase()))
+                .map_or(-1.0, |&l| l as f32)
+        };
+        uniform.env_layers = [layer(0), layer(1), layer(2), 1.0];
+        uniform.env_proj = [
+            1.0 / section.texture_size,
+            section.aspect / section.texture_size,
+            0.1 * o[0] + 0.5,
+            o[1] + 0.5,
+        ];
+        uniform.env_origin = [origin.x, origin.y, origin.z, ENV_NORMAL_OFFSET];
+        let (lat, fwd) = (
+            nfs_assets::physics::original_adapter::from_original(n.lateral_28),
+            nfs_assets::physics::original_adapter::from_original(n.forward_1c),
+        );
+        uniform.env_axis_u = [lat.x, lat.y, lat.z, self.env_boost];
+        uniform.env_axis_v = [fwd.x, fwd.y, fwd.z, 0.0];
+        let names: Vec<String> = (0..3)
+            .map(|k| {
+                let name = section.textures[k].as_deref().unwrap_or("-");
+                let layer = uniform.env_layers[k];
+                let alpha = (layer >= 0.0)
+                    .then(|| self.env_max_alpha.get(layer as usize).copied())
+                    .flatten()
+                    .map_or("-".to_string(), |a| a.to_string());
+                format!("{name}(a{alpha})")
+            })
+            .collect();
+        if ai_node.is_some() {
+            return;
+        }
+        *self.env_debug.borrow_mut() = format!(
+            "node {node} (nearest {nearest}) sec {}..{} {} o {:.2},{:.2}{}",
+            section.start,
+            section.end,
+            names.join(" "),
+            o[0],
+            o[1],
+            if self.env_boost != 1.0 { format!(" x{}", self.env_boost) } else { String::new() }
+        );
+    }
+
+    /// Debug: the player car's sky-map layer state of the last frame.
+    pub fn env_map_report(&self) -> String {
+        self.env_debug.borrow().clone()
+    }
+
     /// Camera uniform for a car at `model`, lit with the road colour under it.
     fn car_uniform(&self, model: Mat4) -> CameraUniform {
         let mut uniform = self.camera.uniform(self.width, self.height);
@@ -4608,6 +4791,17 @@ impl Renderer {
         }
         self.restart_original_vehicle();
         hit.map_or(-1000.0, |h| h.height)
+    }
+
+    /// Debug (tools/browser-shot.mjs): start the car at track node `node`, facing along it.
+    pub fn debug_start_node(&mut self, node: usize) -> f32 {
+        use nfs_assets::physics::original_adapter::from_original;
+        let Some(n) = self.original_ai_track.as_ref().and_then(|t| t.nodes.nodes.get(node)) else {
+            return -1000.0;
+        };
+        let pos = from_original(n.pos_04);
+        let f = from_original(n.forward_1c);
+        self.debug_start([pos.x, pos.y + 1.0, pos.z], (-f.x).atan2(-f.z))
     }
 
     pub fn reset_car(&mut self) {
@@ -7313,6 +7507,7 @@ impl Renderer {
                 &self.camera_buffer,
                 &view,
                 &self.specular_sampler,
+                &self.env,
             );
         }
         self.spark_emitter = scene
@@ -7703,6 +7898,7 @@ fn camera_bind_group(
     buffer: &wgpu::Buffer,
     specular: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
+    env: &(wgpu::TextureView, wgpu::Sampler),
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("camera"),
@@ -7720,8 +7916,87 @@ fn camera_bind_group(
                 binding: 2,
                 resource: wgpu::BindingResource::Sampler(sampler),
             },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(&env.0),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::Sampler(&env.1),
+            },
         ],
     })
+}
+
+/// Lower-case name → array layer of the `.env` textures that fit a 64×64 layer.
+fn env_layer_names(textures: &[nfs_assets::Texture]) -> std::collections::BTreeMap<String, u32> {
+    textures
+        .iter()
+        .filter(|t| t.width == ENV_SIZE && t.height == ENV_SIZE && t.rgba.len() == (ENV_SIZE * ENV_SIZE * 4) as usize)
+        .enumerate()
+        .map(|(i, t)| (t.name.trim().to_ascii_lowercase(), i as u32))
+        .collect()
+}
+/// Light state `+0` of the car (`0x440780` copies 3.33 from 0x5b37c0; nothing else
+/// writes it): `R3DSkyMapTextureLayer` 0x445b10 projects `vertex + 3.33·normal`.
+const ENV_NORMAL_OFFSET: f32 = 3.33;
+/// Size of the `.env` textures (all shipped ones are 64×64).
+const ENV_SIZE: u32 = 64;
+
+/// The `.env` textures as one texture array (layer order of `env_layer_names`) and a
+/// repeating sampler; one transparent layer when there are none.
+fn env_texture_array(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    textures: &[nfs_assets::Texture],
+) -> (wgpu::TextureView, wgpu::Sampler) {
+    let names = env_layer_names(textures);
+    let mut layers: Vec<&[u8]> = textures
+        .iter()
+        .filter(|t| t.width == ENV_SIZE && t.height == ENV_SIZE && t.rgba.len() == (ENV_SIZE * ENV_SIZE * 4) as usize)
+        .map(|t| t.rgba.as_slice())
+        .collect();
+    let empty = vec![0u8; (ENV_SIZE * ENV_SIZE * 4) as usize];
+    if layers.is_empty() {
+        layers.push(&empty);
+    }
+    debug_assert!(names.len() <= layers.len());
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("car env textures"),
+        size: wgpu::Extent3d { width: ENV_SIZE, height: ENV_SIZE, depth_or_array_layers: layers.len() as u32 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    for (i, rgba) in layers.iter().enumerate() {
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y: 0, z: i as u32 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * ENV_SIZE), rows_per_image: Some(ENV_SIZE) },
+            wgpu::Extent3d { width: ENV_SIZE, height: ENV_SIZE, depth_or_array_layers: 1 },
+        );
+    }
+    let view = texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        ..Default::default()
+    });
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("car env sampler"),
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+    (view, sampler)
 }
 
 /// Brake pedal 0..1 as the original's brake byte (`car+0xd80`, 0..255).

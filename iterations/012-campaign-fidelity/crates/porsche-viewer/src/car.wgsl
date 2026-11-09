@@ -12,9 +12,20 @@ struct Camera {
     // World fog (0x45d3b0, docs/re/weather.md): sRGB colour, EXP density (0 = off).
     fog: vec4<f32>,
     forward: vec4<f32>,
+    // Planar sky-map layer (R3DSkyMapTextureLayer 0x445b10): texture-array layer of
+    // slots 0..2 (-1 none), w = 1 enables; 1/texturesize, aspect/texturesize, u and v
+    // offsets; centre of the projection (car position).
+    env_layers: vec4<f32>,
+    env_proj: vec4<f32>,
+    env_origin: vec4<f32>,
+    // Node frame of the car (lateral, forward), scene axes.
+    env_axis_u: vec4<f32>,
+    env_axis_v: vec4<f32>,
 };
 @group(0) @binding(1) var specular_map: texture_2d<f32>;
 @group(0) @binding(2) var specular_sampler: sampler;
+@group(0) @binding(3) var env_maps: texture_2d_array<f32>;
+@group(0) @binding(4) var env_sampler: sampler;
 struct Material { color: vec4<f32>, params: vec4<f32>, anim: vec4<f32> };
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var color_texture: texture_2d<f32>;
@@ -29,6 +40,8 @@ struct Output {
     // Sphere-map coordinates of R3DSpecularTextureLayer 0x445520, per vertex as the
     // original writes them into the vertex UVs (interpolated across the polygon).
     @location(4) sphere: vec2<f32>,
+    // Planar sky-map coordinates (per vertex, as the layer writes them).
+    @location(5) planar: vec2<f32>,
 };
 // sRGB-encoded vertex colour to linear: modulating in linear space by the
 // linearised colour equals the original's modulation of gamma-space values.
@@ -55,6 +68,17 @@ fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
     let nz = dot(out.normal, normalize(cross(camera.view_up.xyz, camera.view_right.xyz)));
     let k = 0.5 / sqrt(1.0 + abs(nz));
     out.sphere = vec2<f32>(0.5 + nx * k, 0.5 + ny * k);
+    // 0x445b10: the body point relative to the car in the car's node frame (lateral,
+    // forward; 0x43a862 inverts the frame car+0x3b8), u = lateral/texturesize + 0.1·o1
+    // + 0.5, v = forward·aspect/texturesize + o2 + 0.5: road-aligned, so the pattern turns
+    // against the body when the car turns relative to the road.
+    // The point is pushed out along the normal by the light state's `+0` = 3.33
+    // (`R3DCarLight` ctor 0x440780 from 0x5b37c0), so the pattern follows the curvature.
+    let rel = world_pos.xyz + out.normal * camera.env_origin.w - camera.env_origin.xyz;
+    out.planar = vec2<f32>(
+        dot(rel, camera.env_axis_u.xyz) * camera.env_proj.x + camera.env_proj.z,
+        dot(rel, camera.env_axis_v.xyz) * camera.env_proj.y + camera.env_proj.w,
+    );
     return out;
 }
 // D3D table fog EXP (driver dx7z.dll: THRASH state 0x15 = 4 -> FOGTABLEMODE EXP): the
@@ -108,7 +132,7 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
         let slot = select(0, 1, material.params.w > 1.5 && material.params.w < 2.5);
         let lit = min(camera.ambient[slot].rgb + camera.diffuse[slot].rgb * max(dot(normal, camera.sun.xyz), 0.0), vec3<f32>(1.0));
         var rgb = base.rgb * srgb_to_linear(lit);
-        if material.params.w > 2.5 && camera.specular.w > 0.5 {
+        if material.params.w > 2.5 && (camera.specular.w > 0.5 || camera.env_layers.w > 0.5) {
             // Texture slot k = params.w − 3 (layer parameter of the material). Render state
             // blend field 0 = THRASH 0x38 SRCALPHA/INVSRCALPHA in every driver: the map is
             // alpha-blended over the paint on gamma-encoded values (frame buffer). The pass
@@ -121,8 +145,21 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
             let texel = 0.5 / f32(textureDimensions(specular_map).y);
             let u = (slot + clamp(in.sphere.x, texel, 1.0 - texel)) / 3.0;
             let spc = textureSample(specular_map, specular_sampler, vec2<f32>(u, in.sphere.y));
-            let a = spc.a * camera.specular.x;
-            rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(spc.rgb) * lit, a));
+            if camera.specular.w > 0.5 {
+                let a = spc.a * camera.specular.x;
+                rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(spc.rgb) * lit, a));
+            }
+            // Pass 6: the planar sky map of the track section (tree-shade `TT*`, lamp
+            // stars, black `1` outdoors), alpha-blended like the sphere map (A71).
+            if camera.env_layers.w > 0.5 {
+                let layer = camera.env_layers[u32(slot)];
+                if layer >= 0.0 {
+                    let env = textureSample(env_maps, env_sampler, in.planar, i32(layer));
+                    // env_axis_u.w: debug alpha multiplier (1 = original).
+                    let a = clamp(env.a * camera.env_axis_u.w, 0.0, 1.0);
+                    rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(env.rgb), a));
+                }
+            }
         }
         return vec4<f32>(rgb, out_alpha);
     }
