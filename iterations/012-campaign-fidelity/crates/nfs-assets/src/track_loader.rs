@@ -467,6 +467,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sky_map: None,
         sky_map_b: None,
         sky_layers_b: [None, None],
+        sky_clouds: [None, None],
         sky_weather: None,
         sun_position: None,
         flare: None,
@@ -1167,6 +1168,17 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                             .as_ref()
                             .map(|b| b.maps[slot].as_str())
                             .filter(|n| !n.eq_ignore_ascii_case("none"))
+                            .and_then(by_name)
+                            .map(tex);
+                    }
+                    // Cloud textures of the MULTI* layers (`FUN_0045b5a0`: `flat` is the blank
+                    // texture of the pack, `none` no layer).
+                    for slot in 0..2 {
+                        scene.sky_clouds[slot] = scene
+                            .sky_map
+                            .as_ref()
+                            .map(|b| b.clouds[slot].as_str())
+                            .filter(|n| !n.is_empty() && !n.eq_ignore_ascii_case("none") && !n.eq_ignore_ascii_case("flat"))
                             .and_then(by_name)
                             .map(tex);
                     }

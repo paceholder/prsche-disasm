@@ -9,7 +9,7 @@ struct SkyCamera {
     bottom_colors: array<vec4<f32>, 16>,
     dome: vec4<f32>,    // angle (turns), size, curvature, height
     dome2: vec4<f32>,   // scale, dome present, layer 0 1/xscale, 1/yscale
-    dome3: vec4<f32>,   // layer 1 1/xscale, 1/yscale
+    dome3: vec4<f32>,   // layer 1 1/xscale, 1/yscale, MULTI* layers (1/0)
     drift: vec4<f32>,   // layer texture offsets u0 v0 u1 v1
     fog: vec4<f32>,     // sky fog (0x45d2e0): sRGB colour, EXP density (0 = off)
     forward: vec4<f32>, // camera forward, scene axes
@@ -30,14 +30,42 @@ struct SkyCamera {
 // blend, `FUN_0045f0a0` the `1/scale` factors.
 @group(1) @binding(6) var sky_map_b: texture_2d<f32>;
 @group(1) @binding(7) var cloud_map_b: texture_2d<f32>;
+// Cloud textures of the MULTI* layers (`cc1a`; white for `flat`): `FUN_0045b5a0` draws layer i
+// as map i in the dome vertex colours times cloud texture i at UV = grid index / scale.
+@group(1) @binding(8) var cloud_tex0: texture_2d<f32>;
+@group(1) @binding(9) var cloud_tex1: texture_2d<f32>;
 struct SkyOutput {
     @builtin(position) clip: vec4<f32>,
     @location(0) direction: vec3<f32>,
 };
-// Texture coordinates over the dome: the 16x16 grid index over 15 cells times `1 / scale`
-// (approximation A195: `FUN_0045ec40` takes `index / scale` per cell without the 1/15).
+// BASIC layers (`0x45bf80`, not read): the map as a texture spread over the 15 cells times
+// `1 / scale` (approximation A195).
 fn sky_scale(inv: vec2<f32>) -> vec2<f32> {
     return inv / 15.0;
+}
+// MULTI* map texel = colour of dome vertex (column, row) (`FUN_0045b5a0` passes the 16x16
+// texels to `FUN_00468630` as the per-vertex colour channel of the 16x16 grid), Gouraud over
+// the quad split (0,1,2), (0,2,3) (split inferred; `nfs_formats::sky_vertex_colour`).
+// Returns the stored (gamma-space) value.
+fn map_texel(map: texture_2d<f32>, x: u32, y: u32) -> vec4<f32> {
+    let t = textureLoad(map, vec2<u32>(x, y), 0);
+    return vec4<f32>(linear_to_srgb(t.rgb), t.a);
+}
+fn vertex_colour(map: texture_2d<f32>, grid: vec2<f32>) -> vec4<f32> {
+    if textureDimensions(map).x < 16u {
+        return textureLoad(map, vec2<u32>(0u, 0u), 0);
+    }
+    let g = clamp(grid, vec2<f32>(0.0), vec2<f32>(15.0));
+    let base = min(vec2<u32>(floor(g)), vec2<u32>(14u));
+    let f = g - vec2<f32>(base);
+    let v0 = map_texel(map, base.x, base.y);
+    let v1 = map_texel(map, base.x + 1u, base.y);
+    let v2 = map_texel(map, base.x + 1u, base.y + 1u);
+    let v3 = map_texel(map, base.x, base.y + 1u);
+    if f.x >= f.y {
+        return v0 + f.x * (v1 - v0) + f.y * (v2 - v1);
+    }
+    return v0 + f.x * (v2 - v3) + f.y * (v3 - v0);
 }
 fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
     return select(pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
@@ -149,7 +177,33 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
         let b0 = textureSampleGrad(sky_map_b, layer_sampler, uv0, g0x, g0y);
         let a1 = textureSampleGrad(cloud_map, layer_sampler, uv1, g1x, g1y);
         let b1 = textureSampleGrad(cloud_map_b, layer_sampler, uv1, g1x, g1y);
-        if abs(a_g) <= half_size && abs(b_g) <= half_size {
+        // MULTI*: cloud textures at the literal UV `index / scale` + wind offset (`FUN_0045ec40`).
+        let tuv0 = vec2<f32>(col, row) * inv0 + sky_camera.drift.xy;
+        let tuv1 = vec2<f32>(col, row) * inv1 + sky_camera.drift.zw;
+        let t0 = textureSampleGrad(cloud_tex0, layer_sampler, tuv0, dpdx(tuv0), dpdy(tuv0));
+        let t1 = textureSampleGrad(cloud_tex1, layer_sampler, tuv1, dpdx(tuv1), dpdy(tuv1));
+        let multi = sky_camera.dome3.z > 0.5;
+        if multi && abs(a_g) <= half_size && abs(b_g) <= half_size {
+            covered = true;
+            dome_depth = t * facing;
+            // Layer i = vertex colour of map i (texels A/B mixed, `FUN_0045e160`) times cloud
+            // texture i (MODULATE, alpha too), in the gamma frame buffer; layer 1 blends over
+            // layer 0 by its alpha (`sR` blend 2: SRCALPHA, INVSRCALPHA).
+            let grid = vec2<f32>(col, row);
+            var g = vec3<f32>(0.0);
+            if sky_camera.dome2.z > 0.0 {
+                let va = vertex_colour(sky_map, grid);
+                let v = select(va, mix(va, vertex_colour(sky_map_b, grid), b), has_b0);
+                g = v.rgb * linear_to_srgb(t0.rgb);
+            }
+            if sky_camera.dome3.x > 0.0 {
+                let va = vertex_colour(cloud_map, grid);
+                let v = select(va, mix(va, vertex_colour(cloud_map_b, grid), b), has_b1);
+                let c = v * vec4<f32>(linear_to_srgb(t1.rgb), t1.a);
+                g = mix(g, c.rgb, c.a);
+            }
+            sky = srgb_to_linear(clamp(g, vec3<f32>(0.0), vec3<f32>(1.0)));
+        } else if !multi && abs(a_g) <= half_size && abs(b_g) <= half_size {
             covered = true;
             dome_depth = t * facing;
             if sky_camera.dome2.z > 0.0 {

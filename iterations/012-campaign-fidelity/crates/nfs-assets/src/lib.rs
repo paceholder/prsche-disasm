@@ -464,6 +464,9 @@ pub struct Scene {
     pub sky_map_b: Option<nfs_formats::SkyMapBlock>,
     /// Region B sky map and cloud map images (`sky_layers[0..2]` are region A).
     pub sky_layers_b: [Option<SkyTexture>; 2],
+    /// Cloud textures of the two `MULTI*` layers (`cc1a` ...; `None` for `flat`, `none` or a
+    /// name missing from the pack): the textures the vertex-coloured maps modulate.
+    pub sky_clouds: [Option<SkyTexture>; 2],
     /// Weather keys of `Sky/<track>.bin` (fog, rain, snow, sky blend per track node).
     pub sky_weather: Option<nfs_formats::SkyWeather>,
     /// Sun position of `Sky/<track>.bin` in scene coordinates (`Sky_SunPosition`
@@ -568,6 +571,7 @@ impl Default for Scene {
             sky_map: None,
             sky_map_b: None,
             sky_layers_b: [None, None],
+            sky_clouds: [None, None],
             sky_weather: None,
             sun_position: None,
             flare: None,

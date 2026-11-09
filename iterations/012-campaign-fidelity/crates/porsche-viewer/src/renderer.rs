@@ -1643,6 +1643,7 @@ impl Renderer {
                 scene.sky_map.as_ref(),
                 &scene.sky_layers_b,
                 scene.sky_map_b.as_ref(),
+                &scene.sky_clouds,
             )
         });
 
@@ -7806,7 +7807,8 @@ struct SkyUniform {
     dome: [f32; 4],
     /// Dome scale, dome present (1/0), layer 0 `1/x scale`, `1/y scale` (0 = no layer).
     dome2: [f32; 4],
-    /// Layer 1 `1/x scale`, `1/y scale` (0 = no layer), 0, 0.
+    /// Layer 1 `1/x scale`, `1/y scale` (0 = no layer); 1 when the layers are `MULTI*`
+    /// (maps are dome vertex colours times the cloud textures), 0.
     dome3: [f32; 4],
     /// Texture offsets of the two layers (u0, v0, u1, v1), wind drift (A194).
     drift: [f32; 4],
@@ -7826,9 +7828,8 @@ struct SkyUniform {
 /// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores
 /// `(sin, cos)(-direction / 360 turns) * speed * 0.00025` and `FUN_0045ed40` adds it times the
 /// elapsed ticks to the layer offset, wrapped to 0..1, which `FUN_0045ec40` adds to every vertex
-/// UV `index / scale`. The engine spreads the texture over 15 cells (A195), so the offset is
-/// divided by 15 too to keep the original speed over the dome; 128 ticks/s is a Hypothesis
-/// (A194).
+/// UV `index / scale` of the cloud texture (the 16x16 maps are vertex colours and do not
+/// move); 128 ticks/s is a Hypothesis (A194).
 fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
     if !cfg!(feature = "experimental-original-port") {
         return [0.0; 4];
@@ -7837,7 +7838,7 @@ fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
     if let Some(m) = map {
         for k in 0..2 {
             let turns = -m.wind_direction[k] / 360.0 * std::f32::consts::TAU;
-            let step = m.wind_speed[k] * 0.00025 * 128.0 / 15.0;
+            let step = m.wind_speed[k] * 0.00025 * 128.0;
             v[2 * k] = turns.sin() * step;
             v[2 * k + 1] = turns.cos() * step;
         }
@@ -7884,7 +7885,8 @@ impl SkyUniform {
             let (l0, l1) = (on(0), on(1));
             u.dome = [d.angle, d.size, d.curvature, d.height];
             u.dome2 = [d.scale, 1.0, l0.0, l0.1];
-            u.dome3 = [l1.0, l1.1, 0.0, 0.0];
+            let multi = map.is_some_and(|m| m.kind.starts_with("MULTI"));
+            u.dome3 = [l1.0, l1.1, if multi { 1.0 } else { 0.0 }, 0.0];
             if let Some(b) = map_b {
                 let on_b = |k: usize| {
                     if layers[k] && layers_b[k] { (inv(b.x_scale[k]), inv(b.y_scale[k])) } else { (0.0, 0.0) }
@@ -7966,6 +7968,7 @@ fn create_sky_state(
     map: Option<&nfs_formats::SkyMapBlock>,
     layers_b: &[Option<nfs_assets::SkyTexture>; 2],
     map_b: Option<&nfs_formats::SkyMapBlock>,
+    clouds: &[Option<nfs_assets::SkyTexture>; 2],
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
@@ -8010,6 +8013,8 @@ fn create_sky_state(
             sky_layer_entry(4),
             sky_layer_entry(6),
             sky_layer_entry(7),
+            sky_layer_entry(8),
+            sky_layer_entry(9),
             wgpu::BindGroupLayoutEntry {
                 binding: 5,
                 visibility: wgpu::ShaderStages::FRAGMENT,
@@ -8122,6 +8127,17 @@ fn create_sky_state(
             _ => upload_texture(device, queue, 1, 1, &[0; 4]),
         })
         .collect();
+    // Cloud textures of the MULTI* layers; `flat` (and a missing one) is the blank texture of
+    // the pack, white under the vertex colours.
+    let cloud_views: Vec<wgpu::TextureView> = clouds
+        .iter()
+        .map(|layer| match layer {
+            Some(t) if t.rgba.len() as u64 == u64::from(t.width) * u64::from(t.height) * 4 => {
+                upload_texture_mipmapped(device, queue, t.width, t.height, &t.rgba)
+            }
+            _ => upload_texture(device, queue, 1, 1, &[255; 4]),
+        })
+        .collect();
     let layer_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("sky layer sampler"),
         address_mode_u: wgpu::AddressMode::Repeat,
@@ -8166,6 +8182,14 @@ fn create_sky_state(
             wgpu::BindGroupEntry {
                 binding: 7,
                 resource: wgpu::BindingResource::TextureView(&layer_b_views[1]),
+            },
+            wgpu::BindGroupEntry {
+                binding: 8,
+                resource: wgpu::BindingResource::TextureView(&cloud_views[0]),
+            },
+            wgpu::BindGroupEntry {
+                binding: 9,
+                resource: wgpu::BindingResource::TextureView(&cloud_views[1]),
             },
         ],
     });
