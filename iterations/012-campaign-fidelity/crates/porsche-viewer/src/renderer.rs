@@ -820,11 +820,27 @@ struct CarWheelRender {
 
 /// Car, track and object shader (`car.wgsl`).
 pub(crate) const CAR_SHADER: &str = include_str!("car.wgsl");
-/// Sky dome mapping remains experimental; default retains the pre-PR26 A4 mapping.
-#[cfg(feature = "experimental-original-port")]
+/// Sky pass with the original dome (`sky.wgsl`). `MULTI*` sky-map layers are recorded
+/// (`replay-sky-layer.py`, `tests/original_sky_layer.rs`) and use it in every build; BASIC
+/// layers (A195), the wind drift (A194), the sky fog and the clear colour (A317) stay behind
+/// `experimental-original-port`.
 pub(crate) const SKY_SHADER: &str = include_str!("sky.wgsl");
-#[cfg(not(feature = "experimental-original-port"))]
-pub(crate) const SKY_SHADER: &str = include_str!("sky-baseline.wgsl");
+/// Pre-PR26 sky (A4 flat plane behind the horizon ring): the default for BASIC layers.
+pub(crate) const SKY_BASELINE_SHADER: &str = include_str!("sky-baseline.wgsl");
+
+/// Shader of the sky pass: the original dome for `MULTI*` blocks (recorded), otherwise the
+/// baseline unless `experimental-original-port` is on.
+pub(crate) fn sky_shader_source(map: Option<&nfs_formats::SkyMapBlock>) -> &'static str {
+    if cfg!(feature = "experimental-original-port") || sky_is_multi(map) {
+        SKY_SHADER
+    } else {
+        SKY_BASELINE_SHADER
+    }
+}
+
+fn sky_is_multi(map: Option<&nfs_formats::SkyMapBlock>) -> bool {
+    map.is_some_and(|m| m.kind.starts_with("MULTI"))
+}
 /// Topology debug lines (colour per vertex, pulled slightly toward the camera).
 pub(crate) const TOPOLOGY_LINE_SHADER: &str = r#"
 struct Camera {
@@ -1644,6 +1660,7 @@ impl Renderer {
                 &scene.sky_layers_b,
                 scene.sky_map_b.as_ref(),
                 &scene.sky_clouds,
+                scene.sky_layer_blends,
             )
         });
 
@@ -2822,11 +2839,13 @@ impl Renderer {
             sky_uniform.forward = [f.x, f.y, f.z, 0.0];
             let w = &self.weather;
             sky_uniform.blend = [w.region_b, 0.0, 0.0, 0.0];
-            if w.sky_fog_density > 0.0 {
+            // Sky fog and the clear colour are not recorded (A281, A317): feature only.
+            let original_sky = cfg!(feature = "experimental-original-port");
+            if original_sky && w.sky_fog_density > 0.0 {
                 let [r, g, b] = argb_unit(w.sky_fog_color);
                 sky_uniform.fog = [r, g, b, w.sky_fog_density];
             }
-            if let (Some(sw), Some(t)) = (&self.sky_weather, &self.original_ai_track) {
+            if let (true, Some(sw), Some(t)) = (original_sky, &self.sky_weather, &self.original_ai_track) {
                 // 0x459950: the record of the sky detail level (highest present); 0x459a70.
                 let rec = sw.clear_record(3);
                 let rgb = if rec.use_fog_color {
@@ -7825,11 +7844,13 @@ struct SkyUniform {
     blend: [f32; 4],
 }
 
-/// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores
-/// `(sin, cos)(-direction / 360 turns) * speed * 0.00025` and `FUN_0045ed40` adds it times the
-/// elapsed ticks to the layer offset, wrapped to 0..1, which `FUN_0045ec40` adds to every vertex
-/// UV `index / scale` of the cloud texture (the 16x16 maps are vertex colours and do not
-/// move); 128 ticks/s is a Hypothesis (A194).
+/// Wind drift of the sky-map layers in UV per second: `FUN_0045f1b0` stores the step per tick
+/// (`nfs_formats::sky_wind_step`, recorded; only layers faster than 0.25 move) and
+/// `FUN_0045ed40` adds it times the elapsed ticks to the layer offset, wrapped to 0..1
+/// (`sky_drift_advance`, recorded), which `FUN_0045ec40` adds to every vertex UV `index / scale`
+/// of the cloud texture (the 16x16 maps are vertex colours and do not move). The tick count per
+/// frame is not recorded (128 ticks/s is a Hypothesis, A194) and the offset is taken as
+/// `velocity * t` mod 1 instead of the per-frame sum: feature only.
 fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
     if !cfg!(feature = "experimental-original-port") {
         return [0.0; 4];
@@ -7837,10 +7858,12 @@ fn sky_drift_velocity(map: Option<&nfs_formats::SkyMapBlock>) -> [f32; 4] {
     let mut v = [0.0; 4];
     if let Some(m) = map {
         for k in 0..2 {
-            let turns = -m.wind_direction[k] / 360.0 * std::f32::consts::TAU;
-            let step = m.wind_speed[k] * 0.00025 * 128.0;
-            v[2 * k] = turns.sin() * step;
-            v[2 * k + 1] = turns.cos() * step;
+            // Step per tick of `FUN_0045f1b0` (recorded, `nfs_formats::sky_wind_step`).
+            let (step, moves) = nfs_formats::sky_wind_step(m.wind_speed[k], m.wind_direction[k]);
+            if moves {
+                v[2 * k] = step[0] * 128.0;
+                v[2 * k + 1] = step[1] * 128.0;
+            }
         }
     }
     v
@@ -7858,6 +7881,7 @@ impl SkyUniform {
         layers: [bool; 2],
         map_b: Option<&nfs_formats::SkyMapBlock>,
         layers_b: [bool; 2],
+        blends: [bool; 2],
     ) -> Self {
         let pixel = |column: usize, row: usize| -> [f32; 4] {
             let Some(t) = hzcl.filter(|t| t.width == 16 && t.height >= 2 && t.rgba.len() >= 16 * 2 * 4)
@@ -7881,12 +7905,17 @@ impl SkyUniform {
             // Without the txt the layers repeat once per cell.
             let inv = |scale: f32| if scale > 0.0 { 1.0 / scale } else { 0.0 };
             let (x, y) = map.map_or(([1.0; 3], [1.0; 3]), |m| (m.x_scale, m.y_scale));
-            let on = |k: usize| if layers[k] { (inv(x[k]), inv(y[k])) } else { (0.0, 0.0) };
+            let multi = sky_is_multi(map);
+            // MULTI*: the original draws as many layers as there are cloud textures that are not
+            // `none` (`SkyMapBlock::drawn_layers`, recorded).
+            let drawn = if multi { map.map_or(2, |m| m.drawn_layers()) } else { 2 };
+            let on = |k: usize| if layers[k] && k < drawn { (inv(x[k]), inv(y[k])) } else { (0.0, 0.0) };
             let (l0, l1) = (on(0), on(1));
             u.dome = [d.angle, d.size, d.curvature, d.height];
             u.dome2 = [d.scale, 1.0, l0.0, l0.1];
-            let multi = map.is_some_and(|m| m.kind.starts_with("MULTI"));
-            u.dome3 = [l1.0, l1.1, if multi { 1.0 } else { 0.0 }, 0.0];
+            // dome3.w: material blending of layer 0 (bit 0) and 1 (bit 1), `sky_layer_blends`.
+            let bits = f32::from(u8::from(blends[0]) | (u8::from(blends[1]) << 1));
+            u.dome3 = [l1.0, l1.1, if multi { 1.0 } else { 0.0 }, bits];
             if let Some(b) = map_b {
                 let on_b = |k: usize| {
                     if layers[k] && layers_b[k] { (inv(b.x_scale[k]), inv(b.y_scale[k])) } else { (0.0, 0.0) }
@@ -7969,10 +7998,11 @@ fn create_sky_state(
     layers_b: &[Option<nfs_assets::SkyTexture>; 2],
     map_b: Option<&nfs_formats::SkyMapBlock>,
     clouds: &[Option<nfs_assets::SkyTexture>; 2],
+    blends: [bool; 2],
 ) -> SkyState {
     let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sky shader"),
-        source: wgpu::ShaderSource::Wgsl(SKY_SHADER.into()),
+        source: wgpu::ShaderSource::Wgsl(sky_shader_source(map).into()),
     });
 
     let sky_camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -8079,6 +8109,7 @@ fn create_sky_state(
         [layers[0].is_some(), layers[1].is_some()],
         map_b,
         [layers_b[0].is_some(), layers_b[1].is_some()],
+        blends,
     );
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("sky camera"),
@@ -8314,6 +8345,55 @@ mod sim_loading_tests {
 #[cfg(test)]
 mod sky_tests {
     use super::*;
+
+    fn block(kind: &str, clouds: [&str; 3]) -> nfs_formats::SkyMapBlock {
+        nfs_formats::SkyMapBlock {
+            capability: "HIGH".into(),
+            kind: kind.into(),
+            maps: ["st1a".into(), "sc1a".into(), "none".into()],
+            x_scale: [1.0, 2.0, 0.0],
+            y_scale: [1.0, 2.0, 0.0],
+            move_ratio: 400.0,
+            wind_speed: [0.0, 2.0, 0.0],
+            wind_direction: [90.0, 40.0, 0.0],
+            clouds: clouds.map(String::from),
+            region_b: None,
+        }
+    }
+
+    #[test]
+    fn multi_sky_uses_the_original_dome_in_every_build() {
+        let multi = block("MULTINORMAL", ["flat", "cc1a", "none"]);
+        let basic = block("BASIC", ["", "", ""]);
+        assert_eq!(sky_shader_source(Some(&multi)), SKY_SHADER);
+        let expect_basic = if cfg!(feature = "experimental-original-port") { SKY_SHADER } else { SKY_BASELINE_SHADER };
+        assert_eq!(sky_shader_source(Some(&basic)), expect_basic);
+        assert_eq!(sky_shader_source(None), expect_basic);
+        // Drift (tick rate, A194) stays behind the feature.
+        let v = sky_drift_velocity(Some(&multi));
+        if cfg!(feature = "experimental-original-port") {
+            let (step, moves) = nfs_formats::sky_wind_step(2.0, 40.0);
+            assert!(moves);
+            assert_eq!(v, [0.0, 0.0, step[0] * 128.0, step[1] * 128.0]);
+        } else {
+            assert_eq!(v, [0.0; 4]);
+        }
+    }
+
+    #[test]
+    fn multi_sky_draws_one_layer_per_cloud_texture_with_its_blending() {
+        let horizon = default_sky_horizon();
+        let dome = nfs_formats::SkyDome { angle: 0.62, size: 1500.0, curvature: 0.0002, height: 44.4, scale: 0.236 };
+        let one = block("MULTINORMAL", ["flat", "none", "none"]);
+        let u = SkyUniform::new(Mat4::IDENTITY, &horizon, None, Some(&dome), Some(&one), [true, true], None, [false; 2], [false, true]);
+        // Layer 1 has a map but no cloud texture: not drawn (`drawn_layers` = 1).
+        assert_eq!((u.dome2[2], u.dome3[0]), (1.0, 0.0));
+        assert_eq!((u.dome3[2], u.dome3[3]), (1.0, 2.0));
+        let two = block("MULTINORMAL", ["flat", "cc1a", "none"]);
+        let u = SkyUniform::new(Mat4::IDENTITY, &horizon, None, Some(&dome), Some(&two), [true, true], None, [false; 2], [true, true]);
+        assert_eq!((u.dome2[2], u.dome3[0], u.dome3[1]), (1.0, 0.5, 0.5));
+        assert_eq!(u.dome3[3], 3.0);
+    }
 
     fn drive_camera(target: Vec3) -> Camera {
         let mut cam = Camera::new([[-1.0; 3], [1.0; 3]]);

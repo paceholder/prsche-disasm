@@ -9,7 +9,7 @@ struct SkyCamera {
     bottom_colors: array<vec4<f32>, 16>,
     dome: vec4<f32>,    // angle (turns), size, curvature, height
     dome2: vec4<f32>,   // scale, dome present, layer 0 1/xscale, 1/yscale
-    dome3: vec4<f32>,   // layer 1 1/xscale, 1/yscale, MULTI* layers (1/0)
+    dome3: vec4<f32>,   // layer 1 1/xscale, 1/yscale, MULTI* layers (1/0), layer blending bits
     drift: vec4<f32>,   // layer texture offsets u0 v0 u1 v1
     fog: vec4<f32>,     // sky fog (0x45d2e0): sRGB colour, EXP density (0 = off)
     forward: vec4<f32>, // camera forward, scene axes
@@ -45,7 +45,8 @@ fn sky_scale(inv: vec2<f32>) -> vec2<f32> {
 }
 // MULTI* map texel = colour of dome vertex (column, row) (`FUN_0045b5a0` passes the 16x16
 // texels to `FUN_00468630` as the per-vertex colour channel of the 16x16 grid), Gouraud over
-// the quad split (0,1,2), (0,2,3) (split inferred; `nfs_formats::sky_vertex_colour`).
+// the quad split (0,1,2), (0,2,3) (recorded: grid quads (i, i+1, i+17, i+16) of `FUN_0045e8e0`,
+// dx7z.dll draws a quad as triangles (0,1,2), (0,2,3); `nfs_formats::sky_vertex_colour`).
 // Returns the stored (gamma-space) value.
 fn map_texel(map: texture_2d<f32>, x: u32, y: u32) -> vec4<f32> {
     let t = textureLoad(map, vec2<u32>(x, y), 0);
@@ -136,6 +137,16 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
 
     // Sky-map dome behind the panorama (`FUN_00460f40`, `FUN_00460ec0`, `FUN_0045ec40`,
     // docs/re/sky.md): a paraboloid grid over the eye, UV = grid cell / scale factor.
+    // What shows where no dome covers the sky (and below a blending layer 0): the clear colour
+    // (0x459a70: the sky fog colour or the record colours of `Sky/<track>.bin +0xce8`; feature
+    // only, A317), else the top row of the panorama (approximation A193).
+    var background = vec3<f32>(0.0);
+    if sky_camera.clear.w > 0.5 {
+        background = srgb_to_linear(sky_camera.clear.rgb);
+    } else {
+        let top = textureSampleLevel(sky_texture, sky_sampler, vec2<f32>(u, (row + 0.01) / rows), 0.0);
+        background = top.rgb * top_col.rgb;
+    }
     var sky = vec3<f32>(0.0);
     var covered = false;
     var dome_depth = 0.0;
@@ -189,18 +200,23 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
             // Layer i = vertex colour of map i (texels A/B mixed, `FUN_0045e160`) times cloud
             // texture i (MODULATE, alpha too), in the gamma frame buffer; layer 1 blends over
             // layer 0 by its alpha (`sR` blend 2: SRCALPHA, INVSRCALPHA).
+            // A layer whose material blends (`dome3.w` bits, `sky_layer_blends`: SRCALPHA,
+            // INVSRCALPHA) goes over what is below by its alpha, else it replaces it; below
+            // layer 0 is the clear colour (or the A193 stand-in).
             let grid = vec2<f32>(col, row);
-            var g = vec3<f32>(0.0);
+            let blend_bits = u32(sky_camera.dome3.w + 0.5);
+            var g = linear_to_srgb(clamp(background, vec3<f32>(0.0), vec3<f32>(1.0)));
             if sky_camera.dome2.z > 0.0 {
                 let va = vertex_colour(sky_map, grid);
                 let v = select(va, mix(va, vertex_colour(sky_map_b, grid), b), has_b0);
-                g = v.rgb * linear_to_srgb(t0.rgb);
+                let c = v * vec4<f32>(linear_to_srgb(t0.rgb), t0.a);
+                g = select(c.rgb, mix(g, c.rgb, c.a), (blend_bits & 1u) != 0u);
             }
             if sky_camera.dome3.x > 0.0 {
                 let va = vertex_colour(cloud_map, grid);
                 let v = select(va, mix(va, vertex_colour(cloud_map_b, grid), b), has_b1);
                 let c = v * vec4<f32>(linear_to_srgb(t1.rgb), t1.a);
-                g = mix(g, c.rgb, c.a);
+                g = select(c.rgb, mix(g, c.rgb, c.a), (blend_bits & 2u) != 0u);
             }
             sky = srgb_to_linear(clamp(g, vec3<f32>(0.0), vec3<f32>(1.0)));
         } else if !multi && abs(a_g) <= half_size && abs(b_g) <= half_size {
@@ -217,14 +233,8 @@ fn sky_fog(c: vec3<f32>, depth: f32) -> vec3<f32> {
     }
     if covered {
         sky = sky_fog(sky, dome_depth);
-    } else if sky_camera.clear.w > 0.5 {
-        // Outside the dome the clear colour shows (0x459a70: the sky fog colour or the
-        // record colours of `Sky/<track>.bin +0xce8`).
-        sky = srgb_to_linear(sky_camera.clear.rgb);
     } else {
-        // Without weather data the top row of the panorama stands in (approximation A193).
-        let top = textureSampleLevel(sky_texture, sky_sampler, vec2<f32>(u, (row + 0.01) / rows), 0.0);
-        sky = top.rgb * top_col.rgb;
+        sky = background;
     }
     // Above the band only the sky shows.
     let cover = select(panorama.a, 0.0, down < 0.0);

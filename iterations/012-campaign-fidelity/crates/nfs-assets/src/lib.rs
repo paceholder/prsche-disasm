@@ -467,6 +467,10 @@ pub struct Scene {
     /// Cloud textures of the two `MULTI*` layers (`cc1a` ...; `None` for `flat`, `none` or a
     /// name missing from the pack): the textures the vertex-coloured maps modulate.
     pub sky_clouds: [Option<SkyTexture>; 2],
+    /// Material blending of the two `MULTI*` layers (`nfs_formats::sky_layer_blends`, recorded):
+    /// off for `flat` and for an opaque map under a cloud without alpha; on = SRCALPHA,
+    /// INVSRCALPHA over what is below.
+    pub sky_layer_blends: [bool; 2],
     /// Weather keys of `Sky/<track>.bin` (fog, rain, snow, sky blend per track node).
     pub sky_weather: Option<nfs_formats::SkyWeather>,
     /// Sun position of `Sky/<track>.bin` in scene coordinates (`Sky_SunPosition`
@@ -572,6 +576,7 @@ impl Default for Scene {
             sky_map_b: None,
             sky_layers_b: [None, None],
             sky_clouds: [None, None],
+            sky_layer_blends: [false, true],
             sky_weather: None,
             sun_position: None,
             flare: None,

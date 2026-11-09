@@ -923,6 +923,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
         sky_map_b: None,
         sky_layers_b: [None, None],
         sky_clouds: [None, None],
+        sky_layer_blends: [false, true],
         sky_weather: None,
         sun_position: None,
         flare: flare_data(files)?,

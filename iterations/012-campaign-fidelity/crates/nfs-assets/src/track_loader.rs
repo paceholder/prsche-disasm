@@ -468,6 +468,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
         sky_map_b: None,
         sky_layers_b: [None, None],
         sky_clouds: [None, None],
+        sky_layer_blends: [false, true],
         sky_weather: None,
         sun_position: None,
         flare: None,
@@ -1181,6 +1182,25 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
                             .filter(|n| !n.is_empty() && !n.eq_ignore_ascii_case("none") && !n.eq_ignore_ascii_case("flat"))
                             .and_then(by_name)
                             .map(tex);
+                    }
+                    // Material blending per layer (`FUN_0045b5a0` -> 0x5379f0 / 0x537a40,
+                    // recorded): needs the cloud's FSH format and the maps' alpha.
+                    if let Some(b) = scene.sky_map.as_ref() {
+                        let formats: std::collections::HashMap<String, u32> = nfs_formats::parse_fsh_entries(sky_data)
+                            .map(|e| e.into_iter().map(|e| (e.name, e.format)).collect())
+                            .unwrap_or_default();
+                        for slot in 0..2 {
+                            let same = scene
+                                .sky_map_b
+                                .as_ref()
+                                .is_none_or(|rb| rb.maps[slot].eq_ignore_ascii_case(&b.maps[slot]));
+                            let a = scene.sky_layers[slot].as_ref().map(|t| t.rgba.as_slice());
+                            let bm = scene.sky_layers_b[slot].as_ref().map(|t| t.rgba.as_slice());
+                            let opaque = nfs_formats::sky_map_opaque(a, bm, same);
+                            let cloud = b.clouds[slot].as_str();
+                            let format = formats.get(&cloud.to_ascii_lowercase()).copied();
+                            scene.sky_layer_blends[slot] = nfs_formats::sky_layer_blends(cloud, format, opaque);
+                        }
                     }
                     // Look for the horizon panorama texture ("horz")
                     if let Some(horz) = sky_images.iter().find(|img| img.name == "horz") {
