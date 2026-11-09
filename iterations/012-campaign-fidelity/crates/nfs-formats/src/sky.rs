@@ -52,15 +52,17 @@ pub fn parse_sky_sun(data: &[u8]) -> Result<SkySun> {
 
 impl SkySun {
     /// `Sky_SunPosition` 0x461090 in original world coordinates:
-    /// `((sin θ·b + cos θ·a)·s, (h − (a²+b²)·k)·s, (cos θ·b − sin θ·a)·s)`.
+    /// `((cos θ·a + sin θ·b)·s, (h − (a²+b²)·k)·s, (cos θ·b − sin θ·a)·s)`, x87 at 53 bits with
+    /// `cos θ` stored as f32 (`CosTurns` 0x5327f0 result spilled to the stack) and `sin θ` kept.
+    /// Recorded bit for bit (`replay-sky-sun.py`).
     pub fn position(&self) -> [f32; 3] {
-        let turn = f64::from(self.rotation) * std::f64::consts::TAU;
-        let (sin, cos) = (turn.sin(), turn.cos());
-        let [a, b] = self.offset.map(f64::from);
-        let s = f64::from(self.scale);
+        let (sin, cos) = sin_cos_turns(self.rotation);
+        let cos = x(cos as f32);
+        let [a, b] = self.offset.map(x);
+        let s = x(self.scale);
         [
-            ((sin * b + cos * a) * s) as f32,
-            ((f64::from(self.height) - (a * a + b * b) * f64::from(self.curvature)) * s) as f32,
+            ((cos * a + sin * b) * s) as f32,
+            ((x(self.height) - (a * a + b * b) * x(self.curvature)) * s) as f32,
             ((cos * b - sin * a) * s) as f32,
         ]
     }
