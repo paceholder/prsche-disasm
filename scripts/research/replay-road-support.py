@@ -99,10 +99,13 @@ def unbits(b):
 def load_polygons(path):
     out = []
     for line in path.read_text().splitlines()[1:]:
-        i, n, v, flags = line.split('\t')
+        # index, count, vertices, flags[, RGB555 colours (support_dump.rs since 2026-11-10)]
+        cols = line.split('\t')
+        i, n, v, flags = cols[:4]
         vals = [unbits(int(h, 16)) for h in v.split(',')]
         pts = [tuple(vals[3 * k:3 * k + 3]) for k in range(int(n))]
-        out.append((pts, int(flags)))
+        colours = [int(c, 16) for c in cols[4].split(',')] if len(cols) > 4 and cols[4] else []
+        out.append((pts, int(flags), colours))
     return out
 
 
@@ -188,11 +191,14 @@ class SupportRecorder(vg.GroundRecorder):
         verts = self.alloc(n * 0x40)
         ptrs = self.alloc(0x10)
         colours = self.alloc(0x10)
-        for i, (pts, flags) in enumerate(polygons):
+        for i, (pts, flags, *rest) in enumerate(polygons):
             vb = verts + i * 0x40
             for k, p in enumerate(pts):
                 m.put(vb + 16 * k, *p, 0.0)
                 m.put_u32(ptrs + 4 * k, vb + 16 * k)
+            # The polygon colours (RGB555, stored at +0x1c): zero when the dump has none.
+            cw = (list(rest[0]) if rest else []) + [0] * 4
+            m.put_bytes(colours, struct.pack('<4H', *cw[:4]))
             obj = self.poly_base + i * POLY_STRIDE
             m.call_thiscall(TRI_NEW if len(pts) == 3 else QUAD_NEW, obj, ptrs, colours, flags)
         tree = self.alloc(8)
@@ -409,11 +415,11 @@ def query_streams(polygons, rec, rng, track):
         return [sum(w[k] * pts[k][c] for k in range(len(pts))) / s for c in range(3)]
 
     for k in range(150):
-        pts, _ = polygons[rng.randrange(len(polygons))]
+        pts = polygons[rng.randrange(len(polygons))][0]
         p = interior(pts)
         streams.append((f'interior{k}', [((f32(p[0]), f32(p[1] + rng.uniform(-2, 2)), f32(p[2])), 1)]))
     for k in range(60):
-        pts, _ = polygons[rng.randrange(len(polygons))]
+        pts = polygons[rng.randrange(len(polygons))][0]
         v = pts[rng.randrange(len(pts))]
         streams.append((f'vertex{k}', [((v[0], f32(v[1] + 0.5), v[2]), 1)]))
         a, b = pts[0], pts[1]

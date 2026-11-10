@@ -59,6 +59,10 @@ run replay-road-support.py --polygons "$ROOT/local/derived/support" --out-dir "$
 run replay-car-launch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"
 run replay-bank-launch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"   # ~15 min
 run replay-car-env-map.py --tracks --polygons "$ROOT/local/derived/support" --out "$OUT/car-env-map-tracks.tsv"   # ~7 min
+# Car lighting (change original-lighting): the support dumps carry the polygon colours.
+run replay-car-light.py --tracks --polygons "$ROOT/local/derived/support" --out "$OUT/car-light-tracks.tsv"   # ~5 min
+# Reads car-light-tracks.tsv and car-env-map-tracks.tsv (the light states it draws with).
+run replay-car-draw.py --fixtures "$OUT" --out "$OUT/car-draw-cars.tsv"
 
 echo "wrote $(ls "$OUT" | wc -l | tr -d ' ') files to $OUT"
 if [ "${1:-}" = "--check" ]; then

@@ -381,9 +381,12 @@ pub fn layer_draw(light: &EnvLight, param: f32, disabled: bool, layer_type: u32,
 
 /// Which vertex loop of 0x445b10 writes the coordinates. All of them project
 /// `M·(k·a + b)` with `M` = model-to-world · translate(−car) · node frame transposed, but the
-/// clipped indexed loop (a polygon list with an index channel and some vertex of the draw
-/// outside the view: draw-context flag `+0x117e4 & 0x100` clear, 0x540bc0) swaps the
-/// operands: `k·position + normal` instead of `position + k·normal` [VA 0x445dca..0x445e4e].
+/// clipped indexed loop (a polygon list with an index channel and the draw-context flag
+/// `+0x117e4 & 0x100` clear) swaps the operands: `k·position + normal` instead of
+/// `position + k·normal` [VA 0x445dca..0x445e4e]. The flag is clear when a vertex of the
+/// part is outside the view (0x540bc0) or, for methods with the plane channel, when any
+/// polygon of the group faces away (0x449390): on most body groups in every view
+/// (`car_light::unclipped`, recorded: tests/original_car_light.rs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UvPath {
     /// `position + k·normal` (unclipped draws, and lists without an index channel).

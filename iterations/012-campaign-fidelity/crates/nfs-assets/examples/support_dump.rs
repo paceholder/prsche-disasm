@@ -9,7 +9,8 @@
 //!
 //! Writes `<out>/<track>-polygons.tsv`: index, vertex count, 12 vertex
 //! coordinates as f32 hex bits (original axes; zero for the fourth vertex of
-//! a triangle) and the polygon flags word (`+0xa`).
+//! a triangle), the polygon flags word (`+0xa`) and the RGB555 vertex colours the
+//! polygon constructor stores at `+0x1c` (`Road_SampleColour` 0x474700 reads them).
 
 use std::path::PathBuf;
 
@@ -32,7 +33,7 @@ fn main() {
         let raw = std::fs::read(dir.join(format!("{track}.crp"))).expect("crp");
         let crp = nfs_formats::track::parse_track_crp(&raw).expect("parse crp");
         let load = assemble_initial_track_support(&crp, &anim).expect("support");
-        let mut text = String::from("index\tcount\tvertices\tflags\n");
+        let mut text = String::from("index\tcount\tvertices\tflags\tcolours\n");
         for (i, p) in load.polygons.iter().enumerate() {
             let (n, v): (usize, Vec<[f32; 3]>) = match &p.polygon.vertices {
                 SupportVertices::Triangle(v) => (3, v.to_vec()),
@@ -44,7 +45,13 @@ fn main() {
                     bits.push(format!("{:08x}", v.get(k).map_or(0, |p| p[c].to_bits())));
                 }
             }
-            text += &format!("{i}\t{n}\t{}\t{}\n", bits.join(","), p.polygon.flags_word_a);
+            let colours: Vec<String> = p.colors.iter().map(|c| format!("{c:04x}")).collect();
+            text += &format!(
+                "{i}\t{n}\t{}\t{}\t{}\n",
+                bits.join(","),
+                p.polygon.flags_word_a,
+                colours.join(",")
+            );
         }
         let path = PathBuf::from(out).join(format!("{track}-polygons.tsv"));
         std::fs::write(&path, text).expect("write");

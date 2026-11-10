@@ -51,6 +51,8 @@ iterations/**/tests/fixtures/career-*-car.tsv
 iterations/**/tests/fixtures/car-deform-cars.tsv
 iterations/**/tests/fixtures/scenery-anim-tracks.tsv
 iterations/**/tests/fixtures/car-env-map-tracks.tsv
+iterations/**/tests/fixtures/car-light-tracks.tsv
+iterations/**/tests/fixtures/car-draw-cars.tsv
 
 # Screenshots and browser-shot output (debugging captures must not be committed).
 # Upstream's own run evidence stays tracked via the existing runs/ exceptions.

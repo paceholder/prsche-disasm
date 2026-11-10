@@ -5,6 +5,7 @@ pub mod audio;
 pub mod camera;
 pub mod car_damage;
 pub mod car_env;
+pub mod car_light;
 pub mod car_tint;
 pub mod cockpit;
 pub mod collision_box;
