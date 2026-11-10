@@ -2,10 +2,11 @@ struct Camera {
     view_projection: mat4x4<f32>,
     eye: vec4<f32>,
     model: mat4x4<f32>,
-    // Original car lighting (R3DLightLayer_Apply 0x446530): sun.w = 1 enables it.
+    // Original car lighting (R3DLightLayer_Apply 0x446530): towards the light (-L), w = 1
+    // enables it; light slots 0..2: ambient (r, g, b, a), diffuse x light colour (r, g, b).
     sun: vec4<f32>,
-    ambient: array<vec4<f32>, 2>,
-    diffuse: array<vec4<f32>, 2>,
+    ambient: array<vec4<f32>, 3>,
+    diffuse: array<vec4<f32>, 3>,
     view_right: vec4<f32>,
     view_up: vec4<f32>,
     specular: vec4<f32>,
@@ -18,7 +19,8 @@ struct Camera {
     env_layers: vec4<f32>,
     env_proj: vec4<f32>,
     env_origin: vec4<f32>,
-    // Node frame of the car (lateral, forward), scene axes.
+    // Node frame of the car (lateral, forward), scene axes; env_axis_u.w debug alpha boost,
+    // env_axis_v.w = 1: the swapped operands of the clipped indexed loop (0x445dca).
     env_axis_u: vec4<f32>,
     env_axis_v: vec4<f32>,
 };
@@ -26,7 +28,8 @@ struct Camera {
 @group(0) @binding(2) var specular_sampler: sampler;
 @group(0) @binding(3) var env_maps: texture_2d_array<f32>;
 @group(0) @binding(4) var env_sampler: sampler;
-struct Material { color: vec4<f32>, params: vec4<f32>, anim: vec4<f32> };
+// light: R3DLightLayer slot, kA, kD of the material, w = 1 original per-vertex lighting.
+struct Material { color: vec4<f32>, params: vec4<f32>, anim: vec4<f32>, light: vec4<f32> };
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var color_texture: texture_2d<f32>;
 @group(1) @binding(1) var color_sampler: sampler;
@@ -42,7 +45,15 @@ struct Output {
     @location(4) sphere: vec2<f32>,
     // Planar sky-map coordinates (per vertex, as the layer writes them).
     @location(5) planar: vec2<f32>,
+    // The vertex colour of R3DLightLayer 0x446530 (gamma bytes / 255), Gouraud-interpolated
+    // as Direct3D does; the sphere-map and sky-map passes modulate with the same colour.
+    @location(6) lit: vec4<f32>,
 };
+// The colour bytes of 0x446530: x + 1.5·2^23 stored f32, low 22 bits, clamped to 255; so
+// nearest-even rounding and negative sums (below -0.5) give 255.
+fn light_bytes(x: vec3<f32>) -> vec3<f32> {
+    return select(min(round(x), vec3<f32>(255.0)), vec3<f32>(255.0), x < vec3<f32>(-0.5));
+}
 // sRGB-encoded vertex colour to linear: modulating in linear space by the
 // linearised colour equals the original's modulation of gamma-space values.
 fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
@@ -51,7 +62,7 @@ fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
 fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
     return select(1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - vec3<f32>(0.055), c * 12.92, c <= vec3<f32>(0.0031308));
 }
-@vertex fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) color: vec4<f32>) -> Output {
+@vertex fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) color: vec4<f32>, @location(4) sky: vec3<f32>) -> Output {
     var out: Output;
     let world_pos = camera.model * vec4<f32>(position, 1.0);
     out.clip = camera.view_projection * world_pos;
@@ -74,13 +85,34 @@ fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
     // against the body when the car turns relative to the road.
     // The point is pushed out along the normal by the light state's `+0` = 3.33
     // (`R3DCarLight` ctor 0x440780 from 0x5b37c0), so the pattern follows the curvature.
-    // Recorded (env_map.rs `shader_formula_matches_the_recorded_layer`); the clipped indexed
-    // loop's swapped operands (k·position + normal) are not drawn (A274).
-    let rel = world_pos.xyz + out.normal * camera.env_origin.w - camera.env_origin.xyz;
+    // Recorded (env_map.rs `shader_formula_matches_the_recorded_layer`). The clipped indexed
+    // loop (env_axis_v.w = 1) projects k·position + normal in the part's model space: the
+    // vertex attribute `sky` is that point in body space (renderer.rs `car_gpu_vertex`).
+    var q = world_pos.xyz + out.normal * camera.env_origin.w;
+    if camera.env_axis_v.w > 0.5 {
+        q = (camera.model * vec4<f32>(sky, 1.0)).xyz;
+    }
+    let rel = q - camera.env_origin.xyz;
     out.planar = vec2<f32>(
         dot(rel, camera.env_axis_u.xyz) * camera.env_proj.x + camera.env_proj.z,
         dot(rel, camera.env_axis_v.xyz) * camera.env_proj.y + camera.env_proj.w,
     );
+    // R3DLightLayer::Apply 0x446530 per vertex (recorded: nfs_assets::car_light::VertexLight):
+    // d = n·(−255 L); unlit (d < 0): kA·255·ambient; lit: kD·diffuse·d + kA·255·ambient.
+    out.lit = vec4<f32>(1.0);
+    if camera.sun.w > 0.5 && material.light.w > 0.5 {
+        let s = u32(clamp(material.light.x, 0.0, 2.0));
+        let amb = camera.ambient[s].rgb * (material.light.y * 255.0);
+        let d = dot(out.normal, camera.sun.xyz) * 255.0;
+        var c = light_bytes(amb);
+        if d >= 0.0 {
+            c = light_bytes(camera.diffuse[s].rgb * material.light.z * d + amb);
+        }
+        out.lit = vec4<f32>(c / 255.0, 1.0);
+    } else if camera.sun.w > 0.5 {
+        // Not an original car material (the procedural fallback car): slot 0, kA = kD = 1.
+        out.lit = vec4<f32>(min(camera.ambient[0].rgb + camera.diffuse[0].rgb * max(dot(out.normal, camera.sun.xyz), 0.0), vec3<f32>(1.0)), 1.0);
+    }
     return out;
 }
 // D3D table fog EXP (driver dx7z.dll: THRASH state 0x15 = 4 -> FOGTABLEMODE EXP): the
@@ -129,10 +161,8 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
     }
     let normal = normalize(select(-in.normal, in.normal, front));
     if camera.sun.w > 0.5 {
-        // Vertex colour min(1, ambient + diffuse·max(0, n·sun)) modulating the
-        // texture in gamma space (approximation A23: per pixel, S = 1).
-        let slot = select(0, 1, material.params.w > 1.5 && material.params.w < 2.5);
-        let lit = min(camera.ambient[slot].rgb + camera.diffuse[slot].rgb * max(dot(normal, camera.sun.xyz), 0.0), vec3<f32>(1.0));
+        // The vertex colour of 0x446530 modulating the texture in gamma space (MODULATE).
+        let lit = in.lit.rgb;
         var rgb = base.rgb * srgb_to_linear(lit);
         if material.params.w > 2.5 && (camera.specular.w > 0.5 || camera.env_layers.w > 0.5) {
             // Texture slot k = params.w − 3 (layer parameter of the material). Render state
@@ -152,10 +182,10 @@ fn shade(in: Output, front: bool) -> vec4<f32> {
                 rgb = srgb_to_linear(mix(linear_to_srgb(rgb), linear_to_srgb(spc.rgb) * lit, a));
             }
             // Pass 6: the planar sky map of the track section (tree-shade `TT*`, lamp
-            // stars, black `1` outdoors). Render state field 2 = 0 (SRCALPHA, INVSRCALPHA) on
-            // the gamma frame buffer; combine MODULATE with the diffuse left by pass 1 (the lit
-            // intensity, read from 0x540ce0 / the method chain, not recorded: A274). An empty
-            // slot skips the pass (0x445b10 -> 0x53f460, recorded).
+            // stars, black `1` outdoors). SRCALPHA / INVSRCALPHA on the gamma frame buffer,
+            // the texture modulated by the pass-1 vertex colour (the draw sends the pass-1
+            // vertices with other u, v: recorded, replay-car-draw.py). An empty slot skips
+            // the pass (0x445b10 -> 0x53f460, recorded).
             if camera.env_layers.w > 0.5 {
                 let layer = camera.env_layers[u32(slot)];
                 if layer >= 0.0 {

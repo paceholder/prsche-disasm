@@ -79,6 +79,8 @@ struct IndexedTriangle {
 #[derive(Debug)]
 struct OriginalSupportSurface {
     polygons: Vec<SupportPolygon>,
+    /// RGB555 vertex colours per polygon (constructor `+0x1c`, `Road_SampleColour` 0x474700).
+    colours: Vec<Vec<u16>>,
     identities: Vec<RoadTriangleIdentity>,
     tree: SupportTree,
     objects: Vec<SceneObject>,
@@ -114,6 +116,7 @@ impl RoadSurface {
     ) -> Result<Self, String> {
         let mut surface = Self::default();
         let mut polygons = Vec::with_capacity(load.polygons.len());
+        let mut colours = Vec::with_capacity(load.polygons.len());
         let mut identities = Vec::with_capacity(load.polygons.len());
         for assembled in load.polygons {
             let identity = RoadTriangleIdentity {
@@ -143,6 +146,7 @@ impl RoadSurface {
                 });
             }
             identities.push(identity);
+            colours.push(assembled.colors);
             polygons.push(assembled.polygon);
         }
         let mut tree = SupportTree::original_scene();
@@ -156,6 +160,7 @@ impl RoadSurface {
         surface.report.rejected_degenerate = load.rejected_degenerate;
         surface.original = Some(Arc::new(OriginalSupportSurface {
             polygons,
+            colours,
             identities,
             tree,
             objects,
@@ -284,6 +289,25 @@ impl RoadSurface {
     /// Original support polygon `index` (original axes), for audits.
     pub fn original_polygon(&self, index: usize) -> Option<&SupportPolygon> {
         self.original.as_ref()?.polygons.get(index)
+    }
+
+    /// The road colour `S` under `point` (original axes) as `Road_SampleColour` 0x4746a0 takes
+    /// it: the support polygon the probe 0x474060 selects there and its RGB555 vertex colours
+    /// (`car_light::road_colour`; no polygon: white). `None` without the original support.
+    pub fn original_road_colour(&self, point: [f32; 3]) -> Option<[f32; 4]> {
+        let source = self.original.as_ref()?;
+        let mut owner = OriginalSupportOwner::default();
+        let hit = owner.select(&source.tree, &source.polygons, point, true).ok()?;
+        Some(match hit {
+            Some(h) => {
+                let vertices: Vec<[f32; 3]> = match &source.polygons[h.polygon].vertices {
+                    SupportVertices::Triangle(v) => v.to_vec(),
+                    SupportVertices::Quad(v) => v.to_vec(),
+                };
+                crate::car_light::road_colour(Some((&vertices, &source.colours[h.polygon])), point)
+            }
+            None => crate::car_light::road_colour(None, point),
+        })
     }
 
     /// The retained support tree and its polygons (original axes), for the

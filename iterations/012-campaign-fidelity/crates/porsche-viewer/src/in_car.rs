@@ -106,6 +106,7 @@ impl InCarPartRender {
                         normal: n.into(),
                         uv: va.uv,
                         color: va.color,
+                        sky: lerp(va.position, vb.position),
                     }
                 })
                 .collect();
@@ -131,6 +132,7 @@ pub(crate) fn build(device: &wgpu::Device, parts: &[InCarPart]) -> Vec<InCarPart
                         normal: body_dir(v.normal),
                         uv: v.uv,
                         color: v.color,
+                        sky: body(v.position),
                     })
                     .collect();
                 let per_frame: Vec<Vec<GpuVertex>> = m
@@ -142,6 +144,7 @@ pub(crate) fn build(device: &wgpu::Device, parts: &[InCarPart]) -> Vec<InCarPart
                             .map(|((p, n), v)| GpuVertex {
                                 position: body(*p),
                                 normal: body_dir(*n),
+                                sky: body(*p),
                                 ..*v
                             })
                             .collect()
@@ -166,6 +169,7 @@ pub(crate) fn build(device: &wgpu::Device, parts: &[InCarPart]) -> Vec<InCarPart
                     count: m.mesh.indices.len() as u32,
                     material: m.mesh.material,
                     center,
+                    sky: None,
                 });
                 frames.push(per_frame);
                 drawn.push(vertices);

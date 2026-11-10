@@ -451,6 +451,7 @@ mod gpu_diagnostics {
                 vertices,
                 indices: vec![0, 1, 2, 0, 2, 3],
                 material: 0,
+                part: None,
             }],
             textures: vec![Texture {
                 name: "lamp / paint / cutout".into(),
@@ -485,6 +486,7 @@ mod gpu_diagnostics {
                 prelit: false,
                 uv_scroll: None,
                 env_slot: None,
+                light: None,
                 clamp_uv: false,
             }],
             bounds: [[-1., -1., 0.], [1., 1., 0.]],
@@ -566,6 +568,7 @@ mod gpu_diagnostics {
             vertices: vertices.clone(),
             indices: vec![0, 1, 2, 0, 2, 3],
             material,
+            part: None,
         };
         let scene = Scene {
             car_collision_box: None,
@@ -601,6 +604,7 @@ mod gpu_diagnostics {
                     prelit: false,
                     uv_scroll: None,
                     env_slot: None,
+                    light: None,
                 clamp_uv: false,
                 })
                 .collect(),

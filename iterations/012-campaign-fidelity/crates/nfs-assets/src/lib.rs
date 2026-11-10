@@ -41,6 +41,17 @@ pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     pub material: usize,
+    /// Car meshes: the CRP article and the scene position of its model origin (the part's
+    /// `tr` translation), for the per-group tests of the planar sky map (`car_light`).
+    pub part: Option<MeshPart>,
+}
+
+/// The CRP part a car mesh (one `pr` group) belongs to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MeshPart {
+    pub article: usize,
+    /// Scene coordinates (as the mesh vertices) of the article's model origin.
+    pub origin: [f32; 3],
 }
 
 /// A car light glare: a `Glare*` CRP article with an `ef` record of type 5
@@ -238,6 +249,8 @@ pub struct Material {
     /// (`R3DSpecularTextureLayer` 0x445520), for materials whose render method has one
     /// (`CarExtEnv`, `CarWindow`); `None` otherwise.
     pub env_slot: Option<u8>,
+    /// Car materials: the light-layer parameters and method flags of the `mt` record.
+    pub light: Option<crate::car_light::CarMaterialLight>,
     /// Sampled with clamp-to-edge addressing instead of repeat (decal textures with a zero
     /// alpha border, the track shadow sheet).
     pub clamp_uv: bool,

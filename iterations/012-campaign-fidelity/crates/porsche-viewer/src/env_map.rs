@@ -144,4 +144,63 @@ mod tests {
         }
         assert!(checked > 300, "{checked}");
     }
+
+    /// The swapped loop (indexed, flag 0x100 clear) as car.wgsl draws it: the model matrix maps
+    /// the `sky` point `k·p + n` (renderer.rs `car_gpu_vertex`), then the same projection.
+    #[test]
+    fn shader_swapped_formula_matches_the_recorded_clipped_indexed_loop() {
+        let mut light: Option<EnvLight> = None;
+        let mut checked = 0;
+        for line in FIXTURE.lines().filter(|l| !l.starts_with('#')) {
+            let c: Vec<&str> = line.splitn(4, '\t').collect();
+            if c.len() < 4 {
+                continue;
+            }
+            let x = fields(c[3]);
+            match c[0] {
+                "light" => {
+                    let fr = words(x["frame"]);
+                    let o = words(x["o"]);
+                    let p = words(x["pos"]);
+                    light = Some(EnvLight {
+                        slots: [None; 3],
+                        k: words(x["k"])[0],
+                        inv_size: words(x["inv_size"])[0],
+                        aspect: words(x["aspect"])[0],
+                        position: [p[0], p[1], p[2]],
+                        frame_t: std::array::from_fn(|i| fr[i]),
+                        offsets: [o[0], o[1]],
+                    });
+                }
+                "draw" if x["index"] != "-" && x["off"] == "0" && u32::from_str_radix(x["flags"], 16).unwrap() & 0x100 == 0 => {
+                    let l = light.as_ref().unwrap();
+                    let m = words(x["model"]);
+                    let model: [f32; 16] = std::array::from_fn(|i| m[i]);
+                    let u = uniform(l);
+                    let origin = from_original(l.position);
+                    let verts: Vec<&str> = x["verts"].split('|').collect();
+                    let index: Vec<usize> = x["index"].split(',').map(|v| v.parse().unwrap()).collect();
+                    for (slot, rec) in x["uv"].split('|').enumerate() {
+                        if rec == "-" {
+                            continue;
+                        }
+                        let c = words(verts[index[slot]]);
+                        let k = l.k;
+                        let q = [0, 1, 2].map(|i| k * c[i] + c[3 + i]);
+                        let world = [0, 1, 2].map(|j| q[0] * model[j] + q[1] * model[4 + j] + q[2] * model[8 + j] + model[12 + j]);
+                        let rel = from_original(world) - origin;
+                        let got = [rel.dot(u.axis_u) * u.proj[0] + u.proj[2], rel.dot(u.axis_v) * u.proj[1] + u.proj[3]];
+                        let want = words(rec);
+                        for k in 0..2 {
+                            let tol = 2e-5 * (1.0 + want[k].abs()) * 4.0;
+                            assert!((got[k] - want[k]).abs() <= tol, "slot {slot}: {got:?} vs {want:?}");
+                        }
+                        checked += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(checked > 20, "{checked}");
+    }
 }

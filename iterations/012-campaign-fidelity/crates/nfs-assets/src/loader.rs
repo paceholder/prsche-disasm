@@ -1083,6 +1083,12 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             } else {
                 None
             },
+            light: Some(crate::car_light::CarMaterialLight {
+                params: crate::car_light::material_light_params(&e.data)
+                    .unwrap_or(crate::car_light::LightParams { ka: 1.0, kd: 1.0, slot: 0 }),
+                plane_test: crate::car_light::material_plane_test(u32le(&e.data, 12)?),
+                indexed: crate::car_light::material_indexed(u32le(&e.data, 12)?),
+            }),
             clamp_uv: false,
         });
     }
@@ -1154,6 +1160,7 @@ pub fn load(files: &AssetFiles, car: &str, style_index: u32) -> Result<Scene, St
             );
             let (mut m, vt_indices) =
                 result.map_err(|e| format!("{name}, CRP offset 0x{:x}: {e}", pr.offset))?;
+            m.part = Some(crate::MeshPart { article: ai, origin: to_scene_coordinates(translation) });
             if !m.indices.is_empty() {
                 if let Some(d) = &mut damage {
                     d.meshes.push((scene.meshes.len(), vt_indices));
@@ -1496,6 +1503,7 @@ fn mesh_with_vt_indices(
             vertices,
             indices,
             material,
+            part: None,
         },
         vt_indices,
     ))

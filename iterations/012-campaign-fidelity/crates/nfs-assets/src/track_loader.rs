@@ -569,6 +569,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             prelit: true,
             uv_scroll: uv_animate_speed(&e.data),
             env_slot: None,
+            light: None,
             // The shadow decal texture has alpha 0 on its whole border and the sheet's UVs
             // run far outside 0..1 (-5..15 on canyon): clamped addressing fades each decal out
             // at its border, repeat shows the wrong tile as a hard cut along road polygons.
@@ -829,6 +830,7 @@ pub fn load_direction(files: &AssetFiles, track: &str, reverse: bool) -> Result<
             vertices: Vec::new(),
             indices: Vec::new(),
             material: m.material,
+            part: None,
         });
         let base_idx = entry.vertices.len() as u32;
         entry.vertices.extend(m.vertices);
@@ -1685,6 +1687,7 @@ fn parse_mesh(
         vertices,
         indices,
         material,
+        part: None,
     })
 }
 

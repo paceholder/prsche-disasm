@@ -205,6 +205,16 @@ pub fn material_light_params(mt: &[u8]) -> Option<LightParams> {
     })
 }
 
+/// What a car material's render method does in pass 1 and for the sky-map path.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CarMaterialLight {
+    pub params: LightParams,
+    /// `mt+0xc & 0x20`: the plane channel (back-face test of 0x449390).
+    pub plane_test: bool,
+    /// `mt+0xc & 0x10000`: the byte index channel.
+    pub indexed: bool,
+}
+
 /// The `mt+0xc` method flags that shape the car layers (0x44bf70 definitions, recorded for all
 /// cars: replay-car-env-map.py `method` rows): `0x20` adds the plane channel `$n` (back-face
 /// test of 0x449390), `0x10000` the byte index channel (the clipped indexed loops).

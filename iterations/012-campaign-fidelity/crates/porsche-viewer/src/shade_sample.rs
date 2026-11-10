@@ -95,6 +95,7 @@ mod tests {
                     .collect(),
                 indices: vec![],
                 material: 0,
+                part: None,
             }],
             materials: vec![Material {
                 name: "mt0".into(),
@@ -108,6 +109,7 @@ mod tests {
                 prelit: true,
                 uv_scroll: None,
                 env_slot: None,
+                light: None,
                 clamp_uv: false,
             }],
             ..Default::default()

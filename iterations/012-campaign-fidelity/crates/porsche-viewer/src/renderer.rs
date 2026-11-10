@@ -319,8 +319,8 @@ impl Camera {
             eye: [eye.x, eye.y, eye.z, 1.0],
             model: Mat4::IDENTITY.to_cols_array_2d(),
             sun: [0.0; 4],
-            ambient: [[0.0; 4]; 2],
-            diffuse: [[0.0; 4]; 2],
+            ambient: [[0.0; 4]; 3],
+            diffuse: [[0.0; 4]; 3],
             view_right: {
                 let r = (self.target() - eye).cross(Vec3::Y).normalize_or(Vec3::X);
                 [r.x, r.y, r.z, 0.0]
@@ -351,11 +351,13 @@ struct CameraUniform {
     matrix: [[f32; 4]; 4],
     eye: [f32; 4],
     model: [[f32; 4]; 4],
-    /// Unit vector towards the sun; `w = 1` enables the original car lighting.
+    /// Towards the light (`−L` of `R3DCar_UpdateLighting` 0x43a560: the sun, or straight up
+    /// on covered road), scene axes; `w = 1` enables the original car lighting.
     sun: [f32; 4],
-    /// Light slots 0 (body) and 1 (interior): ambient and diffuse colours.
-    ambient: [[f32; 4]; 2],
-    diffuse: [[f32; 4]; 2],
+    /// Light slots 0..2 (`+0x18`/`+0x58` of the light state): ambient `r, g, b, a` and
+    /// diffuse × light colour `r, g, b` (car.wgsl applies kA, kD per material, 0x446530).
+    ambient: [[f32; 4]; 3],
+    diffuse: [[f32; 4]; 3],
     /// Camera right/up in world space (sphere map of the specular texture layer).
     view_right: [f32; 4],
     view_up: [f32; 4],
@@ -388,44 +390,55 @@ struct CameraUniform {
 /// with the original `· lit` factor), not from the original.
 pub(crate) const REFLECTION_ALPHA_SCALE: f32 = 0.8;
 
-/// Car light state of `R3DCar_UpdateLighting` 0x43a560 for one track: slot 0
-/// `ambient`/`tint`, slot 1 `ambient·interior`/`interiordiffuse` from
-/// `<track>.map [header]`, light from the sun of `Sky/<track>.bin`.
-/// Approximation A23: road colour sample `S = 1`, layer factors 1, no tunnels.
+/// The track part of the car light state (`R3DCar_UpdateLighting` 0x43a560): the
+/// `<track>.map [header]` colours and the sun of `Sky/<track>.bin` (original axes). Per car,
+/// [`Self::apply`] adds the road colour `S` under the car and the covered flag and fills the
+/// uniform with `nfs_assets::car_light::light_state` (recorded bit for bit).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CarLighting {
-    pub sun: Vec3,
-    pub ambient: [[f32; 3]; 2],
-    pub diffuse: [[f32; 3]; 2],
+    pub header: nfs_assets::car_light::TrackLightHeader,
+    pub sun: [f32; 4],
 }
 
 impl CarLighting {
     pub(crate) fn from_track(scene: &Scene) -> Option<Self> {
         let header = &scene.topology.as_ref()?.map.as_ref()?.header;
-        let sun = Vec3::from(scene.sun_position?).normalize_or_zero();
-        if sun == Vec3::ZERO {
+        let s = scene.sun_position?;
+        if s == [0.0; 3] {
             return None;
         }
-        let rgb = |c: [f32; 4]| [c[1], c[2], c[3]];
-        let mul = |a: [f32; 3], b: [f32; 3]| [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
-        let ambient = rgb(header.ambient);
-        Some(Self {
-            sun,
-            ambient: [ambient, mul(ambient, rgb(header.interior))],
-            diffuse: [rgb(header.tint), rgb(header.interiordiffuse)],
-        })
+        let [x, y, z] = nfs_assets::physics::original_adapter::to_original(Vec3::from(s));
+        Some(Self { header: nfs_assets::car_light::TrackLightHeader::from_map(header), sun: [x, y, z, 1.0] })
     }
 
-    /// Fill the uniform; `road` is the road colour `S` under the car (both
-    /// slot colours are multiplied by it, 0x43a560).
-    fn apply(&self, uniform: &mut CameraUniform, road: [f32; 3]) {
-        uniform.sun = [self.sun.x, self.sun.y, self.sun.z, 1.0];
+    /// The car light state for road colour `road` (`1, r, g, b`) and covered road.
+    pub(crate) fn state(&self, road: [f32; 4], covered: bool) -> nfs_assets::car_light::CarLightState {
+        nfs_assets::car_light::light_state(
+            &self.header,
+            &nfs_assets::car_light::LightInputs {
+                road,
+                covered,
+                sun: self.sun,
+                specular_option: false,
+                mirror_camera: false,
+            },
+        )
+    }
+
+    /// Fill the uniform from the state of [`Self::state`].
+    fn apply(&self, uniform: &mut CameraUniform, road: [f32; 4], covered: bool) {
+        let st = self.state(road, covered);
+        let l = nfs_assets::physics::original_adapter::from_original([st.light_dir[0], st.light_dir[1], st.light_dir[2]]);
+        uniform.sun = [-l.x, -l.y, -l.z, 1.0];
         uniform.specular = [REFLECTION_ALPHA_SCALE, 0.0, 0.0, 1.0];
-        for slot in 0..2 {
-            let [r, g, b] = self.ambient[slot];
-            uniform.ambient[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
-            let [r, g, b] = self.diffuse[slot];
-            uniform.diffuse[slot] = [r * road[0], g * road[1], b * road[2], 1.0];
+        let c = st.light_colour;
+        for slot in 0..3 {
+            let [a, r, g, b] = st.ambient[slot];
+            uniform.ambient[slot] = [r, g, b, a];
+            let d = st.diffuse[slot];
+            // f32(dif.r * light.r) etc.; car.wgsl multiplies by kD (0x446530 keeps the red
+            // product unrounded before kD: equal here, the light colour is 1).
+            uniform.diffuse[slot] = [d[1] * c[1], d[2] * c[2], d[3] * c[3], 1.0];
         }
     }
 }
@@ -437,6 +450,8 @@ pub(crate) struct GpuVertex {
     pub(crate) uv: [f32; 2],
     /// sRGB-encoded vertex colour (track prelit colours, white for cars).
     pub(crate) color: [f32; 4],
+    /// Car meshes: the swapped sky-map point (`car_gpu_vertex`); elsewhere the position.
+    pub(crate) sky: [f32; 3],
 }
 pub(crate) struct GpuMesh {
     pub(crate) vertex: wgpu::Buffer,
@@ -444,6 +459,8 @@ pub(crate) struct GpuMesh {
     pub(crate) count: u32,
     pub(crate) material: usize,
     pub(crate) center: Vec3,
+    /// Car `pr` groups: what the sky-map path test reads (`SkyGroup`).
+    pub(crate) sky: Option<std::sync::Arc<SkyGroup>>,
 }
 struct GpuMaterial {
     group: wgpu::BindGroup,
@@ -457,6 +474,8 @@ struct GpuMaterial {
     alpha_cutoff: f32,
     double_sided: bool,
     depth_bias: i32,
+    /// Car materials: light-layer parameters and the method's plane / index channels.
+    light: Option<nfs_assets::car_light::CarMaterialLight>,
 }
 
 /// A prop instance draw call: model matrix + range of mesh indices to draw.
@@ -666,20 +685,31 @@ struct CarMorph {
 
 /// Body-space vertices of a scene mesh (like the `set_car_model` loop).
 fn body_vertices(mesh: &nfs_assets::Mesh) -> Vec<GpuVertex> {
+    let origin = car_body_point(mesh.part.map_or([0.0; 3], |p| p.origin));
+    mesh.vertices.iter().map(|v| car_gpu_vertex(v, origin)).collect()
+}
+
+/// Scene mesh coordinates of a car to body space (the scale and handedness of the car draw).
+fn car_body_point(p: [f32; 3]) -> Vec3 {
     const CAR_SCALE: f32 = 5.0;
-    mesh.vertices
-        .iter()
-        .map(|v| GpuVertex {
-            position: [
-                -v.position[0] * CAR_SCALE,
-                v.position[1] * CAR_SCALE,
-                -v.position[2] * CAR_SCALE,
-            ],
-            normal: [-v.normal[0], v.normal[1], -v.normal[2]],
-            uv: v.uv,
-            color: v.color,
-        })
-        .collect()
+    Vec3::new(-p[0] * CAR_SCALE, p[1] * CAR_SCALE, -p[2] * CAR_SCALE)
+}
+
+/// A car vertex in body space. `sky` is the point the planar sky map's swapped loop projects
+/// (0x445dca..0x445e4e: `k·position + normal` in the part's model space): with the part's
+/// model origin `origin` (body space), `k·(p − origin) + n + origin`, so that the model matrix
+/// maps it as the original's model matrix maps `k·p + n` (`car_light::sky_uv_path`).
+fn car_gpu_vertex(v: &nfs_assets::Vertex, origin: Vec3) -> GpuVertex {
+    let p = car_body_point(v.position);
+    let n = Vec3::new(-v.normal[0], v.normal[1], -v.normal[2]);
+    let k = nfs_assets::car_env::NORMAL_PUSH;
+    GpuVertex {
+        position: p.to_array(),
+        normal: n.to_array(),
+        uv: v.uv,
+        color: v.color,
+        sky: ((p - origin) * k + n + origin).to_array(),
+    }
 }
 
 /// GPU mesh whose vertex buffer can be rewritten each frame.
@@ -701,7 +731,29 @@ fn dynamic_car_mesh(device: &wgpu::Device, mesh: &nfs_assets::Mesh) -> GpuMesh {
         count: mesh.indices.len() as u32,
         material: mesh.material,
         center,
+        sky: sky_group(mesh),
     }
+}
+
+/// The geometry of a car `pr` group the sky-map path test needs (`car_light::unclipped`):
+/// its CRP article, its triangles in the part's model axes (body space with x negated: the
+/// original's `vt` plus the part's `tr`), its body-space points.
+pub(crate) struct SkyGroup {
+    article: usize,
+    triangles: Vec<[[f32; 3]; 3]>,
+    points: Vec<Vec3>,
+}
+
+fn sky_group(mesh: &nfs_assets::Mesh) -> Option<std::sync::Arc<SkyGroup>> {
+    let part = mesh.part?;
+    let body: Vec<Vec3> = mesh.vertices.iter().map(|v| car_body_point(v.position)).collect();
+    let model = |p: Vec3| [-p.x, p.y, p.z];
+    let triangles = mesh
+        .indices
+        .chunks_exact(3)
+        .filter_map(|t| Some([model(*body.get(t[0] as usize)?), model(*body.get(t[1] as usize)?), model(*body.get(t[2] as usize)?)]))
+        .collect();
+    Some(std::sync::Arc::new(SkyGroup { article: part.article, triangles, points: body }))
 }
 
 struct CarRenderState {
@@ -853,6 +905,7 @@ impl CarDamageRender {
                     count: gpu.count,
                     material: gpu.material,
                     center: gpu.center,
+                    sky: gpu.sky.clone(),
                 };
                 (slot, (vertices, mesh))
             })
@@ -1146,6 +1199,8 @@ pub struct Renderer {
     env_debug: std::cell::RefCell<String>,
     /// Sky-map light state and position (scene) of the car being drawn (`begin_car_env`).
     env_car: std::cell::Cell<Option<(nfs_assets::car_env::EnvLight, Vec3)>>,
+    /// Road colour and covered flag of the car being drawn (`begin_car_env`).
+    car_light_inputs: std::cell::Cell<Option<([f32; 4], bool)>>,
     /// Sun sprite and lens flare (`Sun_Draw` 0x460290, `Flare_Draw` 0x460460).
     sun_flare: crate::sun::SunFlareGpu,
     /// Sun point of the track's sky config (`Sky_SunPosition` 0x461090), scene axes.
@@ -1528,7 +1583,7 @@ impl Renderer {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -1582,6 +1637,7 @@ impl Renderer {
                 if material.paintable { 1.0 } else { 0.0 },
                 if material.prelit { 1.0 } else { 0.0 },
                 0.0, 0.0, 0.0, 0.0, // anim: uv offset
+                0.0, 0.0, 0.0, 0.0, // light: not a car material
             ];
             let color = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&material.name),
@@ -1620,6 +1676,7 @@ impl Renderer {
                 alpha_cutoff: material.alpha_cutoff,
                 double_sided: material.double_sided,
                 depth_bias: material.depth_bias,
+                light: material.light,
             });
         }
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -1671,6 +1728,7 @@ impl Renderer {
                     normal: v.normal,
                     uv: v.uv,
                     color: v.color,
+                    sky: v.position,
                 })
                 .collect();
             let center = mesh
@@ -1693,6 +1751,7 @@ impl Renderer {
                 count: mesh.indices.len() as u32,
                 material: mesh.material,
                 center,
+                sky: None,
             });
         }
         let static_mesh_count = scene
@@ -2002,6 +2061,10 @@ impl Renderer {
                     0.0,
                     0.0,
                     0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
                 ];
                 let color_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("procedural car color"),
@@ -2036,6 +2099,7 @@ impl Renderer {
                     alpha_cutoff: 0.0,
                     double_sided: false,
                     depth_bias: 0,
+                    light: None,
                 });
             }
 
@@ -2049,6 +2113,7 @@ impl Renderer {
                         normal: v.normal,
                         uv: v.uv,
                         color: [1.0; 4],
+                        sky: v.pos,
                     })
                     .collect();
                 let center = vertices
@@ -2070,6 +2135,7 @@ impl Renderer {
                     count: part.indices.len() as u32,
                     material: idx,
                     center,
+                    sky: None,
                 });
             }
             car_render = Some(CarRenderState {
@@ -2327,6 +2393,7 @@ impl Renderer {
                 .collect(),
             env_debug: std::cell::RefCell::new(String::new()),
             env_car: std::cell::Cell::new(None),
+            car_light_inputs: std::cell::Cell::new(None),
             sun_flare,
             sun_position: scene.sun_position.map(Vec3::from),
             flare: None,
@@ -2556,81 +2623,144 @@ impl Renderer {
         }
 
         let mut uniform = self.car_uniform(model_matrix);
-        // A274: the pass selection and its colour are read, not recorded: off in the default build.
-        if cfg!(feature = "experimental-original-port") {
-            self.apply_env_map(&mut uniform);
-        }
+        self.apply_env_map(&mut uniform);
         let _ = label;
-        self.queue
-            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
-
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some(label),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
+        // Opaque and masked parts first, then the blended ones (glass) far to near,
+        // so the interior behind a window is not drawn over the window.
+        let eye = self.camera.eye();
+        let blended = |i: &usize| {
+            mesh_at(*i).is_some_and(|m| {
+                materials.get(m.material).is_some_and(|mat| is_blended(mat.alpha_mode))
+            })
+        };
+        let swapped = self.sky_swapped(&mesh_at, materials, model_matrix, mesh_indices, uniform.env_layers[3] > 0.5);
+        let mut order: Vec<usize> = mesh_indices.iter().copied().filter(|i| !blended(i)).collect();
+        // Opaque order does not matter (depth test): the swapped groups go last, so the
+        // planar sky map needs at most one uniform change for them.
+        order.sort_by_key(|i| swapped.contains(i));
+        let mut glass: Vec<usize> = mesh_indices.iter().copied().filter(blended).collect();
+        let distance = |i: &usize| {
+            mesh_at(*i).map_or(0.0, |m| model_matrix.transform_point3(m.center).distance_squared(eye))
+        };
+        glass.sort_by(|a, b| distance(b).total_cmp(&distance(a)));
+        order.extend(glass);
+        // Runs of meshes with the same sky-map loop (`env_axis_v.w`: 1 = the swapped operands
+        // of 0x445dca, `car_light::sky_uv_path`), one uniform write and pass each.
+        let mut start = 0;
+        while start < order.len() {
+            let flag = swapped.contains(&order[start]);
+            let end = order[start..].iter().position(|i| swapped.contains(i) != flag).map_or(order.len(), |k| start + k);
+            uniform.env_axis_v[3] = if flag { 1.0 } else { 0.0 };
+            self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
+            let mut encoder = self.device.create_command_encoder(&Default::default());
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some(label),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: target,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &self.depth,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
                     }),
-                    stencil_ops: None,
-                }),
-                ..Default::default()
-            });
-            pass.set_bind_group(0, &self.camera_group, &[]);
-            // Opaque and masked parts first, then the blended ones (glass) far to near,
-            // so the interior behind a window is not drawn over the window.
-            let eye = self.camera.eye();
-            let blended = |i: &usize| {
-                mesh_at(*i).is_some_and(|m| {
-                    materials.get(m.material).is_some_and(|mat| is_blended(mat.alpha_mode))
-                })
-            };
-            let mut order: Vec<usize> = mesh_indices.iter().copied().filter(|i| !blended(i)).collect();
-            let mut glass: Vec<usize> = mesh_indices.iter().copied().filter(blended).collect();
-            let distance = |i: &usize| {
-                mesh_at(*i).map_or(0.0, |m| model_matrix.transform_point3(m.center).distance_squared(eye))
-            };
-            glass.sort_by(|a, b| distance(b).total_cmp(&distance(a)));
-            order.extend(glass);
-            for &mesh_index in &order {
-                let Some(mesh) = mesh_at(mesh_index) else {
-                    continue;
-                };
-                if mesh.material >= materials.len() {
-                    continue;
+                    ..Default::default()
+                });
+                pass.set_bind_group(0, &self.camera_group, &[]);
+                for &mesh_index in &order[start..end] {
+                    let Some(mesh) = mesh_at(mesh_index) else {
+                        continue;
+                    };
+                    if mesh.material >= materials.len() {
+                        continue;
+                    }
+                    let material = &materials[mesh.material];
+                    let pipeline_key = (
+                        pipe_mode(material.alpha_mode),
+                        material.double_sided,
+                        material.depth_bias,
+                    );
+                    let pipeline = self
+                        .pipelines
+                        .get(&pipeline_key)
+                        .or_else(|| self.pipelines.get(&(pipeline_key.0, false, 0)))
+                        .or_else(|| self.pipelines.get(&(0, false, 0)));
+                    if let Some(pipeline) = pipeline {
+                        pass.set_pipeline(pipeline);
+                        pass.set_bind_group(1, &material.group, &[]);
+                        pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+                        pass.set_index_buffer(mesh.index.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.draw_indexed(0..mesh.count, 0, 0..1);
+                    }
                 }
-                let material = &materials[mesh.material];
-                let pipeline_key = (
-                    pipe_mode(material.alpha_mode),
-                    material.double_sided,
-                    material.depth_bias,
-                );
-                let pipeline = self
-                    .pipelines
-                    .get(&pipeline_key)
-                    .or_else(|| self.pipelines.get(&(pipeline_key.0, false, 0)))
-                    .or_else(|| self.pipelines.get(&(0, false, 0)));
-                if let Some(pipeline) = pipeline {
-                    pass.set_pipeline(pipeline);
-                    pass.set_bind_group(1, &material.group, &[]);
-                    pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-                    pass.set_index_buffer(mesh.index.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.draw_indexed(0..mesh.count, 0, 0..1);
+            }
+            self.queue.submit([encoder.finish()]);
+            start = end;
+        }
+        if order.is_empty() {
+            self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
+        }
+    }
+
+    /// The car groups whose planar sky map takes the swapped operands this frame: the method
+    /// has the index channel (`mt` flags 0x10000) and the group's draw-context flag 0x100 is
+    /// clear (`car_light::unclipped`): some polygon of the group faces away from the eye
+    /// (methods with the plane channel, 0x449390, recorded) or, with experimental-original-port,
+    /// some vertex of the part is outside the view (0x540bc0, read; the default build takes
+    /// every part as inside: A274).
+    fn sky_swapped<'m>(
+        &self,
+        mesh_at: &dyn Fn(usize) -> Option<&'m GpuMesh>,
+        materials: &[GpuMaterial],
+        model_matrix: Mat4,
+        mesh_indices: &[usize],
+        env_on: bool,
+    ) -> BTreeSet<usize> {
+        let mut out = BTreeSet::new();
+        if !env_on {
+            return out;
+        }
+        let eye_body = model_matrix.inverse().transform_point3(self.camera.eye());
+        let eye_model = [-eye_body.x, eye_body.y, eye_body.z];
+        let view_projection = Mat4::from_cols_array_2d(&self.camera.uniform(self.width, self.height).matrix) * model_matrix;
+        let mut outside: BTreeMap<usize, bool> = BTreeMap::new();
+        if cfg!(feature = "experimental-original-port") {
+            for &i in mesh_indices {
+                if let Some(g) = mesh_at(i).and_then(|m| m.sky.as_ref()) {
+                    let o = outside.entry(g.article).or_insert(false);
+                    if !*o {
+                        *o = g.points.iter().any(|p| {
+                            let c = view_projection * p.extend(1.0);
+                            !(c.x.abs() <= c.w && c.y.abs() <= c.w && c.z >= 0.0 && c.z <= c.w)
+                        });
+                    }
                 }
             }
         }
-        self.queue.submit([encoder.finish()]);
+        for &i in mesh_indices {
+            let Some(mesh) = mesh_at(i) else { continue };
+            let (Some(g), Some(light)) = (mesh.sky.as_ref(), materials.get(mesh.material).and_then(|m| m.light)) else {
+                continue;
+            };
+            if !light.indexed {
+                continue;
+            }
+            let inside = !outside.get(&g.article).copied().unwrap_or(false);
+            let back = light.plane_test && nfs_assets::car_light::any_back_face(&g.triangles, eye_model);
+            if !nfs_assets::car_light::unclipped(inside, light.plane_test, back) {
+                out.insert(i);
+            }
+        }
+        out
     }
 
     /// Drawn box centre and forward (scene axes) of the original car, for telemetry.
@@ -3242,6 +3372,7 @@ impl Renderer {
                                             .to_array(),
                                         uv: p.uv,
                                         color: p.color,
+                                        sky: Vec3::from(p.sky).lerp(Vec3::from(q.sky), t).to_array(),
                                     })
                                     .collect();
                                 self.queue.write_buffer(&dynamic.vertex, 0, bytemuck::cast_slice(&blended));
@@ -4342,7 +4473,7 @@ impl Renderer {
     fn scene_uniform(&self) -> CameraUniform {
         let mut uniform = self.camera.uniform(self.width, self.height);
         if let Some(lighting) = &self.car_lighting {
-            lighting.apply(&mut uniform, [1.0; 3]);
+            lighting.apply(&mut uniform, [1.0; 4], false);
             uniform.specular[3] = if self.car_reflection { 1.0 } else { 0.0 };
         }
         self.apply_fog(&mut uniform);
@@ -4513,9 +4644,7 @@ impl Renderer {
     /// Set the sky-map state of the car about to be drawn (`ai_slot` None: the player);
     /// `draw_gpu_meshes_with` applies it to every mesh of that car until [`Self::end_car_env`].
     fn begin_car_env(&self, ai_slot: Option<usize>, origin: Vec3) {
-        if !cfg!(feature = "experimental-original-port") {
-            return;
-        }
+        self.car_light_inputs.set(Some(self.light_inputs_at(origin)));
         let state = self.env_map_on.then(|| self.env_light(ai_slot)).flatten();
         if ai_slot.is_none() {
             *self.env_debug.borrow_mut() = state.as_ref().map_or("off".to_string(), |(_, r)| r.clone());
@@ -4525,6 +4654,7 @@ impl Renderer {
 
     fn end_car_env(&self) {
         self.env_car.set(None);
+        self.car_light_inputs.set(None);
     }
 
     /// The planar sky-map layer (`R3DSkyMapTextureLayer` 0x445b10) of the current car into the
@@ -4563,18 +4693,38 @@ impl Renderer {
     fn car_uniform(&self, model: Mat4) -> CameraUniform {
         let mut uniform = self.camera.uniform(self.width, self.height);
         if let Some(lighting) = &self.car_lighting {
-            let road = self
-                .shade_grid
-                .as_ref()
-                .and_then(|grid| grid.sample(model.w_axis.truncate()))
-                .map(crate::shade_sample::desaturate)
-                .unwrap_or([1.0; 3]);
-            lighting.apply(&mut uniform, road);
+            let (road, covered) = self
+                .car_light_inputs
+                .get()
+                .unwrap_or_else(|| self.light_inputs_at(model.w_axis.truncate()));
+            lighting.apply(&mut uniform, road, covered);
             uniform.specular[3] = if self.car_reflection { 1.0 } else { 0.0 };
         }
         uniform.model = model.to_cols_array_2d();
         self.apply_fog(&mut uniform);
         uniform
+    }
+
+    /// Road colour `S` and covered road at a car position (scene axes), the per-car inputs of
+    /// `R3DCar_UpdateLighting` 0x43a560: `Road_SampleColour` 0x4746a0 on the original support
+    /// polygon there (recorded), the overhead query 0x473330 `& 0xc000` (recorded). Tracks
+    /// without the original support keep the nearest prelit track vertex (A23).
+    fn light_inputs_at(&self, origin: Vec3) -> ([f32; 4], bool) {
+        let p = nfs_assets::physics::original_adapter::to_original(origin);
+        let surface = self.road_surface.as_ref();
+        let road = surface.and_then(|s| s.original_road_colour(p)).unwrap_or_else(|| {
+            let [r, g, b] = self
+                .shade_grid
+                .as_ref()
+                .and_then(|grid| grid.sample(origin))
+                .map(crate::shade_sample::desaturate)
+                .unwrap_or([1.0; 3]);
+            [1.0, r, g, b]
+        });
+        let covered = surface
+            .and_then(|s| s.original_arena())
+            .is_some_and(|(tree, polygons)| tree.overhead_flags(polygons, p, None).0 & 0xc000 != 0);
+        (road, covered)
     }
 
     /// Light groups of the player and AI cars (`R3DCar_UpdateLights` 0x439360).
@@ -7221,7 +7371,7 @@ impl Renderer {
                         },
                         wgpu::BindGroupLayoutEntry {
                             binding: 2,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Uniform,
                                 has_dynamic_offset: false,
@@ -7258,12 +7408,9 @@ impl Renderer {
                 alpha_mode_code(material.alpha_mode),
                 material.alpha_cutoff,
                 if material.paintable { 1.0 } else { 0.0 },
-                // Light slot 1 for the interior (approximation A23: by render method).
                 // 3 + k = reflection layer with texture slot k (`CarExtEnv`, `CarWindow`).
                 if let Some(slot) = material.env_slot {
                     3.0 + f32::from(slot)
-                } else if material.name.ends_with(":CarInt") {
-                    2.0
                 } else {
                     0.0
                 },
@@ -7271,6 +7418,12 @@ impl Renderer {
                 0.0,
                 0.0,
                 0.0,
+                // light: `R3DLightLayer` slot, kA, kD of the `mt` record (0x446530, recorded:
+                // nfs_assets::car_light), w = 1 per-vertex original lighting.
+                material.light.map_or(0.0, |l| l.params.slot.min(2) as f32),
+                material.light.map_or(1.0, |l| l.params.ka),
+                material.light.map_or(1.0, |l| l.params.kd),
+                1.0,
             ];
             let color = self
                 .device
@@ -7307,6 +7460,7 @@ impl Renderer {
                 alpha_cutoff: material.alpha_cutoff,
                 double_sided: material.double_sided,
                 depth_bias: material.depth_bias,
+                light: material.light,
             });
         }
 
@@ -7324,20 +7478,7 @@ impl Renderer {
                 continue;
             }
             const CAR_SCALE: f32 = 5.0;
-            let vertices: Vec<GpuVertex> = mesh
-                .vertices
-                .iter()
-                .map(|v| GpuVertex {
-                    position: [
-                        -v.position[0] * CAR_SCALE,
-                        v.position[1] * CAR_SCALE,
-                        -v.position[2] * CAR_SCALE,
-                    ],
-                    normal: [-v.normal[0], v.normal[1], -v.normal[2]],
-                    uv: v.uv,
-                    color: v.color,
-                })
-                .collect();
+            let vertices: Vec<GpuVertex> = body_vertices(mesh);
             let material_name = scene
                 .materials
                 .get(mesh.material)
@@ -7384,6 +7525,7 @@ impl Renderer {
                 count: mesh.indices.len() as u32,
                 material: mesh.material,
                 center,
+                sky: sky_group(mesh),
             });
         }
 
@@ -7879,7 +8021,7 @@ impl MeshPipelineFactory {
         let (shader, layout, format) = (&self.shader, &self.layout, self.format);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("car"), layout: Some(layout),
-            vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4] })] },
+            vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: std::mem::size_of::<GpuVertex>() as u64, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4, 4 => Float32x3] })] },
             fragment: Some(wgpu::FragmentState { module: shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState { format, blend: if blend { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: wgpu::ColorWrites::ALL })] }),
             primitive: wgpu::PrimitiveState { cull_mode: if double_sided { None } else { Some(wgpu::Face::Back) }, ..Default::default() },
             depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(blend_mode != 1), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: depth_bias_state(depth_bias) }),
@@ -8810,18 +8952,82 @@ mod sky_tests {
         assert!(east.z < -0.99, "{east:?}");
     }
 
+    /// car.wgsl `vs_main` lighting (f32, world axes) against the recorded 0x446530 colours of
+    /// the synthetic draws (nfs-assets fixtures/car-light.tsv): every channel within one step.
+    #[test]
+    fn shader_vertex_lighting_matches_recorded_0x446530_within_one_step() {
+        const FIXTURE: &str = include_str!("../../nfs-assets/tests/fixtures/car-light.tsv");
+        let f = |w: &str| f32::from_bits(u32::from_str_radix(w, 16).unwrap());
+        let mut state = None;
+        let mut checked = 0;
+        for line in FIXTURE.lines().filter(|l| !l.starts_with('#')) {
+            let c: Vec<&str> = line.splitn(4, '\t').collect();
+            if c.len() < 4 {
+                continue;
+            }
+            let x: std::collections::HashMap<&str, &str> = c[3].split(';').filter_map(|p| p.split_once('=')).collect();
+            match c[0] {
+                "light" => {
+                    let w: Vec<u32> = x["state"].split(',').map(|v| u32::from_str_radix(v, 16).unwrap()).collect();
+                    state = Some(nfs_assets::car_light::CarLightState::from_words(&w.try_into().unwrap(), false));
+                }
+                "vertex" if x["flags"] == "0" && x["index"] == "-" && x["skip"] == "-" => {
+                    let st = state.as_ref().unwrap();
+                    let p: Vec<&str> = x["param"].split(',').collect();
+                    let (ka, kd, slot) = (f(p[0]), f(p[1]), p[2].parse::<usize>().unwrap());
+                    if slot > 2 || kd <= 0.0 {
+                        continue;
+                    }
+                    let m: Vec<f32> = x["model"].split(',').map(f).collect();
+                    let rot = glam::Mat3::from_cols_array(&[m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]);
+                    // Uniform: towards the light, ambient / diffuse of the slot (CarLighting::apply).
+                    let sun = -Vec3::new(st.light_dir[0], st.light_dir[1], st.light_dir[2]);
+                    let a = st.ambient[slot];
+                    let d = st.diffuse[slot];
+                    let bytes = |v: Vec3| v.to_array().map(|c| if c < -0.5 { 255.0 } else { c.round_ties_even().min(255.0) });
+                    for (n, want) in x["normals"].split('|').zip(x["colour"].split('|')) {
+                        let n: Vec<f32> = n.split(',').map(f).collect();
+                        let nw = (rot * Vec3::new(n[0], n[1], n[2])).normalize();
+                        let amb = Vec3::new(a[1], a[2], a[3]) * (ka * 255.0);
+                        let dot = nw.dot(sun) * 255.0;
+                        let got = if dot >= 0.0 { bytes(Vec3::new(d[1], d[2], d[3]) * kd * dot + amb) } else { bytes(amb) };
+                        let w = u32::from_str_radix(want, 16).unwrap();
+                        let want = [(w >> 16) & 255, (w >> 8) & 255, w & 255].map(|v| v as f32);
+                        for k in 0..3 {
+                            assert!((got[k] - want[k]).abs() <= 1.0, "{} {}: {got:?} vs {want:?}", c[1], c[2]);
+                        }
+                        checked += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(checked > 500, "{checked}");
+    }
+
     #[test]
     fn car_lighting_passes_the_reflection_alpha_scale() {
+        let q = |v: f32| [1.0, v, v, v];
         let lighting = CarLighting {
-            sun: Vec3::Y,
-            ambient: [[0.3; 3], [0.3; 3]],
-            diffuse: [[0.7; 3], [0.7; 3]],
+            header: nfs_assets::car_light::TrackLightHeader {
+                tint: q(0.7),
+                ambient: q(0.3),
+                interior: q(1.0),
+                interior_diffuse: q(1.0),
+                light_decal: q(1.0),
+            },
+            sun: [0.0, 10.0, 0.0, 1.0],
         };
         let mut uniform = CameraUniform::zeroed();
-        lighting.apply(&mut uniform, [0.5; 3]);
+        lighting.apply(&mut uniform, [1.0, 0.5, 0.5, 0.5], false);
         assert_eq!(uniform.specular, [REFLECTION_ALPHA_SCALE, 0.0, 0.0, 1.0]);
         assert!(REFLECTION_ALPHA_SCALE > 0.0 && REFLECTION_ALPHA_SCALE <= 1.0);
         assert_eq!(uniform.ambient[0], [0.15, 0.15, 0.15, 1.0]);
+        assert_eq!(uniform.sun, [0.0, 1.0, 0.0, 1.0]);
+        // Covered road: the light comes from straight above whatever the sun.
+        let covered = CarLighting { sun: [5.0, -3.0, 1.0, 1.0], ..lighting };
+        covered.apply(&mut uniform, [1.0, 0.5, 0.5, 0.5], true);
+        assert_eq!(uniform.sun, [0.0, 1.0, 0.0, 1.0]);
     }
 
     #[test]
