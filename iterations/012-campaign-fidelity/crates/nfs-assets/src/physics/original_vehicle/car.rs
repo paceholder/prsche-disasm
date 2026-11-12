@@ -301,6 +301,11 @@ pub struct OriginalCar {
     pub filter_e08: f32,
     pub ai_side_eb0: i32,
     pub ai_side_ed0: f32,
+    /// Reset watch timer `+0x1100` (32 Hz ticks): armed to 0xc0 by a hard hit of
+    /// `Car_ApplyImpact` 0x494500 (strength above 80) and by `Car_ResetWatch`
+    /// 0x40f740, which counts it down ([`crate::race::reset::ResetWatch`] runs on a
+    /// copy that its caller syncs).
+    pub timer_1100: i32,
     /// Effect events queued by `0x40f020` (`+0x110c` count, up to 7
     /// records of 6 dwords at `+0x1110`): landing, flip. Nothing in the
     /// ported code consumes them.
@@ -418,6 +423,7 @@ impl OriginalCar {
             filter_e08: 0.0,
             ai_side_eb0: 0,
             ai_side_ed0: 0.0,
+            timer_1100: 0,
             events_1110: Vec::new(),
             lights_1230: 0,
             lights_1232: 0,

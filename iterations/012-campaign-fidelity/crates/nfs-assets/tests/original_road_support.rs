@@ -66,6 +66,10 @@ static BARRIER_DYN: Fixture = Fixture::new("car-barrier-dyn.tsv");
 static BANK_RUNS: Fixture = Fixture::new("car-bank-runs.tsv");
 static BANK_BODY: Fixture = Fixture::new("car-bank-body.tsv");
 static BANK_DYN: Fixture = Fixture::new("car-bank-dyn.tsv");
+static RESET_RUNS: Fixture = Fixture::new("car-reset-runs.tsv");
+static RESET_BODY: Fixture = Fixture::new("car-reset-body.tsv");
+static RESET_DYN: Fixture = Fixture::new("car-reset-dyn.tsv");
+static RESET_WATCH: Fixture = Fixture::new("car-reset-watch.tsv");
 
 fn game() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../local/game/GameData/Track")
@@ -500,6 +504,259 @@ fn forest_bank_default_ground_tick_peaks_match_the_original() {
     }
 }
 
+/// `Car_ResetWatch` 0x40f740 on the forest bank runs, 24 s each
+/// (`scripts/research/replay-reset-watch.py`, change
+/// original-wall-crash-response task 2.2): the watch runs after the barrier
+/// pass of every 32 Hz step, unmodified, and so does the reset it starts
+/// (`Car_ResetToTrack` 0x40f540 mode 0, `0x40f480`, `0x49e220`, `0x49b090`
+/// with its ground queries, `0x40f400`). The port's [`ResetWatch`] gives the
+/// same timers `+0x1100`/`+0xb4c` on every tick and resets on the same tick,
+/// and [`reset_to_track`] puts the car on the same node and pose; every step
+/// before and after the reset (pos, vel, ω, axes, ground, wheels, owners)
+/// matches bit for bit. `NFS5_RESET_LOG=1` prints the watch timeline.
+#[test]
+fn forest_bank_reset_watch_matches_the_original() {
+    use nfs_assets::physics::original_vehicle::locate::reset_to_track;
+    use nfs_assets::race::reset::{dot_532910, ResetMode, ResetWatch, WatchInputs};
+    require_selected_recordings(&[
+        &RESET_RUNS,
+        &RESET_BODY,
+        &RESET_DYN,
+        &RESET_WATCH,
+        &fixture::CARS,
+    ]);
+    skip_without_local_fixtures!(
+        RESET_RUNS,
+        RESET_BODY,
+        RESET_DYN,
+        RESET_WATCH,
+        fixture::CARS
+    );
+    let runs = rows(&RESET_RUNS);
+    let body = rows(&RESET_BODY);
+    let dyn_rows = rows(&RESET_DYN);
+    let watch_rows = rows(&RESET_WATCH);
+    let Some(tracks) = tracks_with(runs.iter().map(|r| r.s("track").to_string()), true) else {
+        assert!(
+            std::env::var_os("NFS_LOCAL_FIXTURES").is_none(),
+            "recording acceptance requires game assets at {}",
+            game().display()
+        );
+        eprintln!("skipped: no local/game");
+        return;
+    };
+    let log = std::env::var_os("NFS5_RESET_LOG").is_some();
+    let mut resets = 0;
+    for run in &runs {
+        let name = run.s("run");
+        let track = &tracks[run.s("track")];
+        let (tree, _) = track.arena();
+        let b: Vec<&Row> = body.iter().filter(|r| r.s("run") == name).collect();
+        let d: Vec<&Row> = dyn_rows.iter().filter(|r| r.s("run") == name).collect();
+        let w: Vec<&Row> = watch_rows.iter().filter(|r| r.s("run") == name).collect();
+        let (mut car, mut lcg, locator) = initial(run);
+        let mut q = Queue {
+            track,
+            locator,
+            owners: Default::default(),
+        };
+        let mut watch = ResetWatch::default();
+        let steps = run.i("steps") as usize;
+        assert_eq!(b.len(), steps, "{name}");
+        let mut reset_ticks = vec![];
+        for n in 0..steps {
+            let even = car.globals.sched_step_606ac4 & 1 == 0;
+            let word = if even {
+                d[n / 2].i("input_word") as u32
+            } else {
+                0
+            };
+            struct Watched<'a, 'b> {
+                q: &'a mut Queue<'b>,
+                watch: &'a mut ResetWatch,
+                dyn_row: Option<&'a Row<'a>>,
+                watch_row: Option<&'a Row<'a>>,
+                tree: &'a SupportTree,
+                what: String,
+                reset: Option<i32>,
+                log: bool,
+            }
+            impl StepQueue for Watched<'_, '_> {
+                fn track_locate(&mut self, car: &mut OriginalCar) {
+                    self.q.track_locate(car);
+                }
+                fn ground(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
+                    self.q.ground(car, lcg);
+                }
+                fn collide(&mut self, car: &mut OriginalCar, lcg: &mut OriginalLcg) {
+                    self.q.collide(car, lcg);
+                    let (r, wr, what) =
+                        (self.dyn_row.unwrap(), self.watch_row.unwrap(), &self.what);
+                    // The 32 Hz rows are taken after the barrier pass, before the watch.
+                    check(what, dyn_values(car), r);
+                    check(what, ground_values(car, false), r);
+                    let mut loc = locate_values(car, &self.q.locator, &self.q.owners, self.tree);
+                    loc.retain(|(k, _)| k != "loc_tree");
+                    check(what, loc, r);
+                    assert_eq!(lcg.state_5d1028 as i64, r.i("rand_state"), "{what}");
+                    // `Car_ResetWatch` 0x40f740 (prio 0x32).
+                    let inputs = WatchInputs {
+                        request: wr.i("event_d8b") == 5 || wr.i("event_d89") != 0,
+                        sched_step: car.globals.sched_step_606ac4,
+                        out_b50: car.field_b50 != 0,
+                        speed_35c: car.speed_35c,
+                        node_up_dot: dot_532910(car.track.node_up_3c4, car.axes_364[1]),
+                        ground_up_3a0: car.ground_up_3a0,
+                        controls_db0: car.start_db0 != 0,
+                        surface_464: car.surface_464,
+                        angular_388: car.angular_388,
+                        wheels_off_418: car.wheels_off_418,
+                        height_424: car.height_424,
+                        locator_12: self.q.locator.missing_12(),
+                    };
+                    for (k, got) in [
+                        ("speed_35c", inputs.speed_35c),
+                        ("up_3a0", inputs.ground_up_3a0),
+                        ("height_424", inputs.height_424),
+                        ("ang_388_0", inputs.angular_388[0]),
+                        ("ang_388_2", inputs.angular_388[2]),
+                    ] {
+                        assert_eq!(got.to_bits(), wr.f(k).to_bits(), "{what}: watch input {k}");
+                    }
+                    for k in 0..3 {
+                        assert_eq!(
+                            car.track.node_up_3c4[k].to_bits(),
+                            wr.f(&format!("node_up_3c4_{k}")).to_bits(),
+                            "{what}"
+                        );
+                        assert_eq!(
+                            car.axes_364[1][k].to_bits(),
+                            wr.f(&format!("car_up_370_{k}")).to_bits(),
+                            "{what}"
+                        );
+                    }
+                    assert_eq!(car.start_db0 as i64, wr.i("start_db0"), "{what}: +0xdb0");
+                    assert_eq!(
+                        car.surface_464 as i64,
+                        wr.i("surface_464"),
+                        "{what}: +0x464"
+                    );
+                    assert_eq!(
+                        car.wheels_off_418 as i64,
+                        wr.i("flags_418"),
+                        "{what}: +0x418"
+                    );
+                    assert_eq!(inputs.locator_12, wr.i("loc_b12") != 0, "{what}: car+0x12");
+                    // `+0x1100` lives in the car (a hard hit of `Car_ApplyImpact` arms it).
+                    assert_eq!(
+                        car.timer_1100 as i64,
+                        wr.i("in_timer_1100"),
+                        "{what}: +0x1100 in"
+                    );
+                    self.watch.timer_1100 = car.timer_1100;
+                    let fired = self.watch.tick(&inputs);
+                    car.timer_1100 = self.watch.timer_1100;
+                    if self.log
+                        && (wr.i("out_timer_1100") != wr.i("in_timer_1100")
+                            || wr.i("reset_mode") >= 0)
+                    {
+                        eprintln!(
+                            "{what}: +0x1100 {} -> {} (port {}), 0x40f540 mode {} moved {} node {}; dot {:.3} 3a0 {:.3} db0 {} 464 {}",
+                            wr.s("in_timer_1100"), wr.s("out_timer_1100"), self.watch.timer_1100,
+                            wr.s("reset_mode"), wr.s("moved"), wr.s("place_node"),
+                            inputs.node_up_dot, inputs.ground_up_3a0, wr.s("start_db0"), wr.s("surface_464"),
+                        );
+                    }
+                    assert_eq!(fired.is_some(), wr.i("moved") != 0, "{what}: reset");
+                    if let Some(mode) = fired {
+                        assert_eq!(mode, ResetMode::Conditional);
+                        assert_eq!(wr.i("reset_mode"), 0, "{what}");
+                        let me = car.position_330;
+                        let node = reset_to_track(
+                            car,
+                            &mut self.q.locator,
+                            &mut self.q.owners,
+                            &self.q.track.nodes,
+                            &self.q.track.surface,
+                            lcg,
+                            false,
+                            false,
+                            &[],
+                            &[me],
+                        );
+                        assert_eq!(node as i64, wr.i("place_node"), "{what}: reset node");
+                        self.reset = Some(node);
+                    }
+                    assert_eq!(
+                        self.watch.timer_1100 as i64,
+                        wr.i("out_timer_1100"),
+                        "{what}: +0x1100"
+                    );
+                    assert_eq!(
+                        self.watch.cooldown_b4c as i64,
+                        wr.i("out_cooldown_b4c"),
+                        "{what}: +0xb4c"
+                    );
+                    let pos: Vec<f32> = (0..3).map(|k| wr.f(&format!("out_pos_330_{k}"))).collect();
+                    assert_eq!(
+                        car.position_330.map(f32::to_bits).to_vec(),
+                        pos.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                        "{what}: pose after the watch {:?} original {pos:?}",
+                        car.position_330
+                    );
+                    let axes: Vec<f32> =
+                        (0..9).map(|k| wr.f(&format!("out_axes_364_{k}"))).collect();
+                    assert_eq!(
+                        car.axes_364
+                            .concat()
+                            .iter()
+                            .map(|v| v.to_bits())
+                            .collect::<Vec<_>>(),
+                        axes.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                        "{what}: axes after the watch {:?} original {axes:?}",
+                        car.axes_364
+                    );
+                    assert_eq!(
+                        car.start_db0 as i64,
+                        wr.i("out_start_db0"),
+                        "{what}: +0xdb0 after the watch"
+                    );
+                    assert_eq!(
+                        self.q.locator.track.node_00 as i64,
+                        wr.i("out_node_08"),
+                        "{what}: car+8 after the watch"
+                    );
+                }
+            }
+            let mut wq = Watched {
+                q: &mut q,
+                watch: &mut watch,
+                dyn_row: even.then(|| d[n / 2]),
+                watch_row: even.then(|| w[n / 2]),
+                tree,
+                what: format!("{name} 32 Hz step {}", n / 2),
+                reset: None,
+                log,
+            };
+            scheduler_step(&mut car, word, &mut lcg, &mut wq);
+            if let Some(node) = wq.reset {
+                reset_ticks.push((n / 2, node));
+            }
+            for (k, v) in body_values(&car) {
+                assert_eq!(
+                    b[n].f(&k).to_bits(),
+                    v.to_bits(),
+                    "{name} step {n}: {k} = {v:?}, original {}",
+                    b[n].s(&k)
+                );
+            }
+        }
+        resets += reset_ticks.len();
+        eprintln!("{name}: {steps} steps matched, resets (32 Hz tick, node) {reset_ticks:?}");
+    }
+    assert!(resets > 0, "the recording has resets");
+}
+
 fn closed_loops(runs: &str, body: &str, dyn_rows: &str) {
     closed_loops_with(runs, body, dyn_rows, false)
 }
@@ -665,7 +922,7 @@ fn autobahn_ramp_bumps_follow_the_support_polygons() {
 
 /// Reset on the node graph (`Car_ResetNodeFree` 0x40f480, `Car_PlaceOnNode`
 /// 0x49b090, ported from pseudo-C): from a node, the car ends at a node
-/// centre with support under it, surface 1 and the node's frame.
+/// centre with support under it, surface 1 and the body polygon's frame.
 #[test]
 fn reset_places_the_car_on_a_supported_node() {
     require_selected_recordings(&[&fixture::CARS]);
@@ -682,7 +939,17 @@ fn reset_places_the_car_on_a_supported_node() {
         let mut loc = BodyLocator::at_node(start);
         let support = track.surface.original_arena();
         let node = reset_node(&mut loc, &track.nodes, support, &[start as i16 + 1], false);
-        place_on_node(&mut car, &mut loc, &track.nodes, support, node, false, &[]);
+        let mut owners = Default::default();
+        place_on_node(
+            &mut car,
+            &mut loc,
+            &mut owners,
+            &track.nodes,
+            support,
+            node,
+            false,
+            &[],
+        );
         let n = &track.nodes.nodes[node as usize];
         assert_eq!(car.position_330, n.pos_04, "start {start}");
         assert!(
@@ -690,10 +957,9 @@ fn reset_places_the_car_on_a_supported_node() {
             "start {start}: on asphalt"
         );
         assert_eq!(car.axes_364[2], car.track.node_fwd_3d0);
-        assert_eq!(
-            car.track.node_up_3c4,
-            track.nodes.nodes[loc.track.node_00 as usize].up_10
-        );
+        // The frame's up is the body polygon's normal (`0x474420` on car+8), as the
+        // alternate plane's (recorded: `forest_bank_reset_watch_matches_the_original`).
+        assert_eq!(car.track.node_up_3c4, car.alt_normal_3e8, "start {start}");
         assert_ne!(
             car.alt_base_400, [0.0; 3],
             "alternate plane from the body polygon"

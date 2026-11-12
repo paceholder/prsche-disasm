@@ -58,6 +58,7 @@ echo "== support_dump"
 run replay-road-support.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"
 run replay-car-launch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"
 run replay-bank-launch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"   # ~15 min
+run replay-reset-watch.py --polygons "$ROOT/local/derived/support" --out-dir "$OUT"   # ~50 min
 run replay-car-env-map.py --tracks --polygons "$ROOT/local/derived/support" --out "$OUT/car-env-map-tracks.tsv"   # ~7 min
 # Car lighting (change original-lighting): the support dumps carry the polygon colours.
 run replay-car-light.py --tracks --polygons "$ROOT/local/derived/support" --out "$OUT/car-light-tracks.tsv"   # ~5 min

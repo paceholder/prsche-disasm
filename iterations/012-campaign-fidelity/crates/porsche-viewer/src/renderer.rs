@@ -5219,7 +5219,7 @@ impl Renderer {
             sched_step,
             out_b50,
             speed_35c: 0.0,
-            node_up_dot: node_up.dot(up),
+            node_up_dot: node_up.dot(up) as f64,
             ground_up_3a0: ground
                 .as_ref()
                 .map_or(up.y, |h| Vec3::from(h.normal).dot(up)),
@@ -5233,7 +5233,7 @@ impl Renderer {
         if let (true, Some(v)) = (self.original_active(), &self.original_vehicle) {
             let car = &v.car;
             inputs.speed_35c = car.speed_35c;
-            inputs.node_up_dot = node_up.dot(from_original(car.axes_364[1]));
+            inputs.node_up_dot = node_up.dot(from_original(car.axes_364[1])) as f64;
             inputs.ground_up_3a0 = car.ground_up_3a0;
             inputs.controls_db0 = car.start_db0 != 0;
             inputs.angular_388 = car.angular_388;
@@ -5242,8 +5242,10 @@ impl Renderer {
             if self.original_ai_track.is_some() {
                 // `Car_TrackLocate` runs (prio 6): node up `+0x3c4`, surface `+0x464`
                 // and the body owner's "no polygon" byte `car+0x12`.
-                inputs.node_up_dot =
-                    Vec3::from(car.track.node_up_3c4).dot(Vec3::from(car.axes_364[1]));
+                inputs.node_up_dot = nfs_assets::race::reset::dot_532910(
+                    car.track.node_up_3c4,
+                    car.axes_364[1],
+                );
                 inputs.surface_464 = car.surface_464;
                 inputs.locator_12 = v.locator.missing_12();
             }
@@ -5276,7 +5278,20 @@ impl Renderer {
                     break;
                 };
                 self.reset_request = false;
-                if self.reset_watch.tick(&inputs).is_some() {
+                // `+0x1100` is the car's (a hard hit of `Car_ApplyImpact` arms it).
+                let original = self.original_active();
+                if original {
+                    if let Some(v) = &self.original_vehicle {
+                        self.reset_watch.timer_1100 = v.car.timer_1100;
+                    }
+                }
+                let fired = self.reset_watch.tick(&inputs);
+                if original {
+                    if let Some(v) = &mut self.original_vehicle {
+                        v.car.timer_1100 = self.reset_watch.timer_1100;
+                    }
+                }
+                if fired.is_some() {
                     moved |= self.reset_car_to_track(&course);
                 }
             }
@@ -5290,11 +5305,11 @@ impl Renderer {
     /// Lap, checkpoint and race state stay. Works for both vehicle models.
     /// `Car_ResetToTrack` 0x40f540 for the original model on the node graph: the locator
     /// node `car+8`, the first free node (`0x40f480`: support polygon at the node centre,
-    /// no original AI car on it), `0x49e220` + `0x40f400`, `Car_PlaceOnNode` 0x49b090, then
-    /// the probe placement (A39). False without the original model or the graph.
+    /// no original AI car on it), `0x49e220`, `Car_PlaceOnNode` 0x49b090 with its own ground
+    /// queries, `0x40f400` ([`reset_to_track`], recorded). False without the original model
+    /// or the graph.
     fn reset_original_on_nodes(&mut self) -> bool {
-        use nfs_assets::physics::original_vehicle::RoadGround;
-        use nfs_assets::physics::original_vehicle::locate::{place_on_node, reset_node};
+        use nfs_assets::physics::original_vehicle::locate::reset_to_track;
         if !self.original_active() {
             return false;
         }
@@ -5303,9 +5318,9 @@ impl Renderer {
         else {
             return false;
         };
-        let Some(support) = surface.original_arena() else {
+        if surface.original_arena().is_none() {
             return false;
-        };
+        }
         let others: Vec<i16> = self
             .original_ai
             .as_ref()
@@ -5319,38 +5334,25 @@ impl Renderer {
         let Some(v) = self.original_vehicle.as_mut() else {
             return false;
         };
-        let node = reset_node(
-            &mut v.locator,
-            &track.nodes,
-            Some(support),
-            &others,
-            track.reverse,
-        );
-        v.reset_drive_state();
         let mut racers = racers;
         racers.push(v.car.position_330);
-        place_on_node(
+        // Recorded (`forest_bank_reset_watch_matches_the_original`): node search,
+        // `0x49e220`, `0x49b090` with its ground queries, `0x40f400`. The gear after the
+        // reset takes `res+0xc` as the automatic box flag (A98).
+        let first_gear = v.car.globals.auto_box_658098 == 1;
+        reset_to_track(
             &mut v.car,
             &mut v.locator,
+            &mut v.owners,
             &track.nodes,
-            Some(support),
-            node,
+            surface,
+            &mut v.lcg,
+            first_gear,
             track.reverse,
+            &others,
             &racers,
         );
-        let (pos, axes) = (v.car.position_330, v.car.axes_364);
-        let mut owners = v.owners.clone();
-        v.set_pose(
-            pos,
-            axes,
-            [0.0; 3],
-            [0.0; 3],
-            &mut RoadGround {
-                surface,
-                owners: &mut owners,
-            },
-        );
-        v.owners = owners;
+        v.ground = Default::default();
         self.body_support_owner = Default::default();
         self.sync_sim_from_original(false);
         true
@@ -5399,7 +5401,16 @@ impl Renderer {
         };
         let nodes = &track.nodes;
         let racers = vec![v.car.position_330];
-        place_on_node(&mut v.car, &mut v.locator, nodes, Some(support), node, track.reverse, &racers);
+        place_on_node(
+            &mut v.car,
+            &mut v.locator,
+            &mut v.owners,
+            nodes,
+            Some(support),
+            node,
+            track.reverse,
+            &racers,
+        );
         let (pos, axes) = (v.car.position_330, v.car.axes_364);
         let vel = axes[2].map(|f| f * speed);
         let mut owners = v.owners.clone();

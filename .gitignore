@@ -46,6 +46,7 @@ iterations/**/tests/fixtures/support-*.tsv
 iterations/**/tests/fixtures/car-launch-*.tsv
 iterations/**/tests/fixtures/car-barrier-*.tsv
 iterations/**/tests/fixtures/car-bank-*.tsv
+iterations/**/tests/fixtures/car-reset-*.tsv
 iterations/**/tests/fixtures/career-*-trn.tsv
 iterations/**/tests/fixtures/career-*-car.tsv
 iterations/**/tests/fixtures/car-deform-cars.tsv

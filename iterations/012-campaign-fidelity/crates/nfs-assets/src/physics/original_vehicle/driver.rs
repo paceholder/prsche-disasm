@@ -114,6 +114,7 @@ pub fn pair_car(car: &OriginalCar, half_extents: [f32; 3]) -> PairCar {
         field_db0: car.start_db0,
         contacts_418: car.wheels_off_418 as i16,
         damage_4e4: damage,
+        field_1100: car.timer_1100,
         ..PairCar::default()
     }
 }
@@ -132,6 +133,8 @@ pub fn store_pair_car(car: &mut OriginalCar, pair: &PairCar) {
     car.wheels_off_418 = pair.contacts_418 as u16;
     car.start_db0 = pair.field_db0;
     car.damage_4e4[..9].copy_from_slice(&pair.damage_4e4);
+    // A hard hit (strength above 80) arms the reset watch: `+0x1100 = 0xc0`.
+    car.timer_1100 = pair.field_1100;
 }
 
 /// Barrier-response state (`Car_CollideTrackEdges` `0x495020`) of the car

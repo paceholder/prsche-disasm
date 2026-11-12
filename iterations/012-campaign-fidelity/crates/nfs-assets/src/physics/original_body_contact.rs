@@ -108,13 +108,17 @@ pub fn first_body_contact(
         if length != 0. {
             normal = normal.map(|v| (v as f64 / length) as f32);
         }
-        // 0x489f10 projects onto the infinite XZ line. dx remains in x87,
-        // dz and projection parameter are explicit f32 stores.
+        // 0x489f10 projects onto the infinite XZ line. dx remains in x87;
+        // dz is stored as f32 (`fst`, 0x489f38) for the numerator and the
+        // projection, but the denominator squares the still-live x87 dz
+        // (0x489f5a `fld st(1); fmul st(2)`), and the projection parameter is
+        // an explicit f32 store.
         let dx = b[0] as f64 - a[0] as f64;
-        let dz = (b[2] as f64 - a[2] as f64) as f32;
+        let dz_x87 = b[2] as f64 - a[2] as f64;
+        let dz = dz_x87 as f32;
         let t = (((point[0] as f64 - a[0] as f64) * dx
             + (point[2] as f64 - a[2] as f64) * dz as f64)
-            / (dx * dx + dz as f64 * dz as f64)) as f32;
+            / (dx * dx + dz_x87 * dz_x87)) as f32;
         let projection = [
             (a[0] as f64 + dx * t as f64) as f32,
             0.,

@@ -41,8 +41,9 @@ pub struct WatchInputs {
     pub out_b50: bool,
     /// `+0x35c`.
     pub speed_35c: f32,
-    /// Node up `+0x3c4` · car up `+0x370`.
-    pub node_up_dot: f32,
+    /// Node up `+0x3c4` · car up `+0x370`, as `0x532910` leaves it on the x87
+    /// stack (53-bit precision, see [`dot_532910`]).
+    pub node_up_dot: f64,
     /// Ground normal · car up `+0x3a0`.
     pub ground_up_3a0: f32,
     /// `+0xdb0 != 0`: controls not cut by a roll.
@@ -57,6 +58,13 @@ pub struct WatchInputs {
     pub height_424: f32,
     /// Locator byte `car+0x12` (`car+8` + 0xa); a reset needs it 0 or another failed check.
     pub locator_12: bool,
+}
+
+/// `0x532910` (→ `0x56e8d1`): `(a.x·b.x + a.y·b.y) + a.z·b.z` with f32
+/// operands at the x87's 53-bit precision (the products are exact).
+pub fn dot_532910(a: [f32; 3], b: [f32; 3]) -> f64 {
+    let p = |k: usize| a[k] as f64 * b[k] as f64;
+    (p(0) + p(1)) + p(2)
 }
 
 /// Timers of `0x40f740`: the manual cooldown `+0xb4c` and the watch timer `+0x1100`.
@@ -77,7 +85,11 @@ impl ResetWatch {
     }
 
     /// One 32 Hz tick of `0x40f740` [VA 0x40f7db..0x40fbac]. Returns the reset to run now; the
-    /// caller then moves the car (`0x40f540` also clears `+0x1100`, done here).
+    /// caller then moves the car (`0x40f540` also clears `+0x1100`, done here). The timer is
+    /// the car's `+0x1100` (a hard hit of `Car_ApplyImpact` arms it too): the caller copies
+    /// it in and out. Recorded: `tests/original_road_support.rs`
+    /// `forest_bank_reset_watch_matches_the_original` (the timers and the reset tick of 24
+    /// forest bank runs, bit for bit).
     pub fn tick(&mut self, i: &WatchInputs) -> Option<ResetMode> {
         if i.request
             && !i.out_b50
@@ -107,7 +119,8 @@ impl ResetWatch {
                 self.timer_1100 = 0;
             }
         }
-        if self.timer_1100 < 1 && (i.node_up_dot < 0.1 || i.surface_464 == 0) {
+        // `fcomp dword [0x5b2604]`: the f32 constant 0.1 against the x87 dot.
+        if self.timer_1100 < 1 && (i.node_up_dot < 0.1f32 as f64 || i.surface_464 == 0) {
             self.timer_1100 = WATCH_ARM_1100;
         }
         None

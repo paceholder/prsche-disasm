@@ -247,15 +247,24 @@ fn copy_frame(car: &mut OriginalCar, negate: bool) {
 }
 
 /// `Car_PlaceOnNode` `0x49b090` for a car without the traffic offset, up
-/// to its ground queries (the engine's probe placement follows, A39).
-/// `0x473210` resets the locator to `max(node, 1)` (it also runs inside
-/// the vertex loop, so `+0x400` sums four zero vertices), the plane comes
-/// from the stale owner normal, the position is the node centre, and the
-/// final frame is the one `Car_TrackLocate` copies from the located node.
-/// `reverse` is `+0xeac != 1`.
+/// to its ground queries ([`place_on_node_ground`] is the rest).
+/// `0x473210` resets the body locator `car+8` to `max(node, 1)` and
+/// `0x474060` selects the polygon at that node's centre (reuse). The vertex
+/// loop resets each wheel owner `w+4` to the node (`0x473210` with `ECX =
+/// car+0x7bc + k·0xc4`; the decompile hides the `this`) and sums the body
+/// polygon's four vertices (`0x4745f0`) into `+0x400` (×0.25; x from the
+/// x87 sum, y and z from the stores). The frame: forward = node forward,
+/// up = the body polygon normal (`0x474420`), lateral = up × forward, then
+/// forward = lateral × up; the alternate plane `+0x3e8/+0x3f4` from the same
+/// polygon. Position = the node centre, speed 0, `+0x7e = 0`, then
+/// `Car_TrackLocate` (same polygon: the frame stays) and the frame copy
+/// again. `reverse` is `+0xeac != 1`. Recorded:
+/// `forest_bank_reset_watch_matches_the_original`.
+#[allow(clippy::too_many_arguments)]
 pub fn place_on_node(
     car: &mut OriginalCar,
     locator: &mut BodyLocator,
+    owners: &mut [OriginalSupportOwner; 4],
     nodes: &TrackNodes,
     support: Option<SupportArena<'_>>,
     node: i32,
@@ -267,24 +276,36 @@ pub fn place_on_node(
     else {
         return;
     };
-    let reset = |l: &mut BodyLocator| {
-        // 0x473210: keeps the normal +0x0c and the edge direction +0x18.
-        l.track = TrackLocator {
-            node_00: k as i16,
-            section_04: -1,
-            ..Default::default()
-        };
-        let o = &mut l.owner;
+    // 0x473210: keeps the normal +0x0c and the edge direction +0x18.
+    let reset_owner = |o: &mut OriginalSupportOwner| {
         (o.polygon, o.node, o.flags_24) = (None, None, 0);
         (o.normal_valid_02, o.changed_09, o.missing_0a) = (false, false, false);
     };
-    reset(locator);
+    locator.track = TrackLocator {
+        node_00: k as i16,
+        section_04: -1,
+        ..Default::default()
+    };
+    reset_owner(&mut locator.owner);
     let polygons = support.map_or(&[][..], |(_, p)| p);
     if let Some((tree, polygons)) = support {
         let _ = locator.owner.locate(tree, polygons, n.pos_04, true);
     }
-    reset(locator);
-    car.alt_base_400 = [0.0; 3];
+    let mut acc = [0.0f32; 3];
+    let mut last_x = 0.0f64;
+    for (i, owner) in owners.iter_mut().enumerate() {
+        reset_owner(owner);
+        let v = locator.owner.vertex(polygons, i as i32);
+        last_x = x(v[0]) + x(acc[0]);
+        acc[0] = last_x as f32;
+        acc[1] = (x(v[1]) + x(acc[1])) as f32;
+        acc[2] = (x(v[2]) + x(acc[2])) as f32;
+    }
+    car.alt_base_400 = [
+        (last_x * 0.25) as f32,
+        (x(acc[1]) * 0.25) as f32,
+        (x(acc[2]) * 0.25) as f32,
+    ];
     car.track.node_fwd_3d0 = nodes.nodes[locator.track.node_00 as usize].forward_1c;
     car.track.node_up_3c4 = locator.owner.normal(polygons);
     let lat = super::step::normalize(cross(car.track.node_up_3c4, car.track.node_fwd_3d0));
@@ -299,6 +320,164 @@ pub fn place_on_node(
     car.track.flag_7e = 0;
     track_locate(car, locator, nodes, support, racers);
     copy_frame(car, reverse);
+}
+
+/// `Car_ResetDriveState` `0x49e220` on the car in place (`0x40f540` calls it
+/// after the node search): the inputs, the gear (`d7e = d82 = 2` when
+/// `first_gear`, i.e. `res+0xc == 1`, else 1 = N; `d81 = 1`), the wheel
+/// records (each wheel owner `w+4` becomes a copy of the body owner `car+8`,
+/// `0x473190`; `w+0x34..+0x7c`, `+0x84`, `+0x88`, `+0xb4`, `+0xb8` cleared,
+/// normal `w+0x4c = (0, 1, 0)`, `w+0x8c = 1`, front flag `w+0xc0` 1, 1, 0,
+/// 0), the force and acceleration sums, the ground-frame velocities, rpm,
+/// spin, slip, the filters `+0xdc4/+0xdc8/+0xe04/+0xe08`, `+0x54c`,
+/// `+0xd2c`, `+0x540` and the locator section `car+0xc = −1`; `+0xdb0`
+/// becomes 0x3c, or 1 if a roll had cut the controls. Everything else stays
+/// (pose, velocity, `+0x3a0`, `+0x41c`, `+0x424`, the wheel `+0x80`,
+/// `+0x90..+0xb0`, `+0xbc`). Recorded: `tests/original_road_support.rs`
+/// `forest_bank_reset_watch_matches_the_original`.
+pub fn reset_drive_state_49e220(
+    car: &mut OriginalCar,
+    locator: &mut BodyLocator,
+    owners: &mut [OriginalSupportOwner; 4],
+    first_gear: bool,
+) {
+    let gear = if first_gear { 2 } else { 1 };
+    car.gear_req_d7e = gear;
+    car.gear_d82 = gear;
+    car.reverse_d98 = 0;
+    car.event_d8b = 0;
+    car.event_d8c = 0;
+    car.gas_d7c = 0;
+    car.brake_d7d = 0;
+    car.steer_in_d90 = 0;
+    car.downshift_d83 = 0;
+    car.shift_timer_d84 = 0;
+    car.gas_eff_d7f = 0;
+    car.brake_eff_d80 = 0;
+    car.steer_d94 = 0;
+    car.prev_gear_d81 = 1;
+    car.handbrake_d85 = 0;
+    for (k, w) in car.wheels.iter_mut().enumerate() {
+        owners[k] = locator.owner.clone();
+        w.query_34 = [0.0; 3];
+        w.point_40 = [0.0; 3];
+        w.normal_4c = [0.0, 1.0, 0.0];
+        w.disp_58 = [0.0; 3];
+        w.gap_64 = 0.0;
+        w.compression_68 = 0.0;
+        w.load_6c = 0.0;
+        w.angle_70 = 0.0;
+        w.noise_74 = [0.0; 3];
+        w.airborne_84 = 0;
+        w.spin_88 = 0.0;
+        w.tyre.surface_8c = 1;
+        w.tyre.skid_b8 = 0.0;
+        w.tyre.steer_b4 = 0.0;
+        w.tyre.is_front_c0 = (k < 2) as i32;
+    }
+    car.steer_smooth_ac8 = [0.0; 2];
+    car.filter_e08 = 0.0;
+    car.filter_e04 = 0.0;
+    car.accel_d40 = [0.0; 3];
+    car.angular_accel_d34 = [0.0; 3];
+    car.accel_d4c = [0.0; 3];
+    car.vel_ground_d58 = [0.0; 3];
+    car.angular_ground_d64 = [0.0; 3];
+    car.start_db0 = if car.start_db0 != 0 { 0x3c } else { 1 };
+    car.rpm_db4 = 0.0;
+    car.spin_front_dbc = 0;
+    car.slip_ratio_dc0 = 0.0;
+    car.boost_54c = 0.0;
+    car.spin_rear_db8 = 0;
+    car.field_d2c = 0;
+    car.field_540 = 0;
+    car.pitch_filter_dc4 = 0.0;
+    car.roll_filter_dc8 = 0.0;
+    locator.track.section_04 = -1;
+}
+
+/// `0x40f400` (end of `0x40f540`, after the velocity `+0x33c` is cleared):
+/// ω `+0x388`, `d64..d6c`, `d4c..d54`, `+0x418`, `+0x420`, `+0x35c`,
+/// `+0x40c` (and the contact fields `+0x42c..+0x43c`, `+0x450`, `+0x1104`,
+/// which the port keeps outside the car).
+pub fn clear_motion_40f400(car: &mut OriginalCar) {
+    car.velocity_33c = [0.0; 3];
+    car.angular_388 = [0.0; 3];
+    car.angular_ground_d64 = [0.0; 3];
+    car.accel_d4c = [0.0; 3];
+    car.wheels_off_418 = 0;
+    car.ground_vy_420 = 0.0;
+    car.speed_35c = 0.0;
+    car.ground_ay_40c = 0.0;
+}
+
+/// The tail of `Car_PlaceOnNode` `0x49b090` after [`place_on_node`]:
+/// `0x49ae30`, the wheel contact points `w+0x34`/`w+0x40` = the first four
+/// world points (car without `+0x52c & 0x80`), and for an active car
+/// (`+0x7f`) the ground query `0x499a70` (`+0x41c` = its mean y), `pos.y −=
+/// +0x424`, `+0x424 = 0`, a second query, then `w+0x68`, `w+0x70`, `w+0x84`
+/// cleared; `0x49ae30` again and the surface `+0x464` from the body flags
+/// `car+0x2c` (`+0x460` too, which the port keeps in `track`).
+pub fn place_on_node_ground(
+    car: &mut OriginalCar,
+    query: &mut impl super::ground::GroundQuery,
+    lcg: &mut crate::physics::original_lcg::OriginalLcg,
+) {
+    use super::attitude::wheel_ground_and_attitude;
+    use super::step::update_world_points;
+    update_world_points(car);
+    if car.flags_52c & 0x80 == 0 {
+        for k in 0..4 {
+            let p = car.world_points_1dc[k];
+            car.wheels[k].query_34 = p;
+            car.wheels[k].point_40 = p;
+        }
+    }
+    if car.active_7f != 0 {
+        car.ground_41c = wheel_ground_and_attitude(car, query, lcg).mean[1];
+        let h = car.height_424;
+        car.height_424 = 0.0;
+        car.position_330[1] = (x(car.position_330[1]) - x(h)) as f32;
+        car.ground_41c = wheel_ground_and_attitude(car, query, lcg).mean[1];
+        for w in car.wheels.iter_mut() {
+            w.compression_68 = 0.0;
+            w.angle_70 = 0.0;
+            w.airborne_84 = 0;
+        }
+    }
+    update_world_points(car);
+    car.track.surface_460 = car.body_surface_2c as i32;
+    car.surface_464 = (car.body_surface_2c & 0xf) as i32;
+}
+
+/// `Car_ResetToTrack` `0x40f540` past its early exits, for a car without the
+/// traffic offset: the node search ([`reset_node`]: the locator node, then
+/// the next free one), [`reset_drive_state_49e220`], `Car_PlaceOnNode`
+/// `0x49b090` ([`place_on_node`] and [`place_on_node_ground`]), velocity 0
+/// and [`clear_motion_40f400`]. The camera snap `0x4618b0` and the timers
+/// `+0x1100`/`+0x1104` (cleared at its entry) are the caller's. Returns the
+/// node. `first_gear` is `res+0xc == 1`; `others`: other racers' locator
+/// nodes; `racers`: race car positions for `0x417190`.
+#[allow(clippy::too_many_arguments)]
+pub fn reset_to_track(
+    car: &mut OriginalCar,
+    locator: &mut BodyLocator,
+    owners: &mut [OriginalSupportOwner; 4],
+    nodes: &TrackNodes,
+    surface: &crate::RoadSurface,
+    lcg: &mut crate::physics::original_lcg::OriginalLcg,
+    first_gear: bool,
+    reverse: bool,
+    others: &[i16],
+    racers: &[[f32; 3]],
+) -> i32 {
+    let support = surface.original_arena();
+    let node = reset_node(locator, nodes, support, others, reverse);
+    reset_drive_state_49e220(car, locator, owners, first_gear);
+    place_on_node(car, locator, owners, nodes, support, node, reverse, racers);
+    place_on_node_ground(car, &mut super::ground::RoadGround { surface, owners }, lcg);
+    clear_motion_40f400(car);
+    node
 }
 
 #[cfg(test)]

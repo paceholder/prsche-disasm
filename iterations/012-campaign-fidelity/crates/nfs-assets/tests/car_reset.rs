@@ -239,7 +239,7 @@ fn drive_reset_and_continue(name: &str, course: &TrackCourse, world: &World) {
         sched_step: START_SCHED_STEP + 64 * 43,
         out_b50: false,
         speed_35c: v.car.speed_35c,
-        node_up_dot: up.dot(from_original(v.car.axes_364[1])),
+        node_up_dot: up.dot(from_original(v.car.axes_364[1])) as f64,
         ground_up_3a0: v.car.ground_up_3a0,
         controls_db0: v.car.start_db0 != 0,
         surface_464: 1,
