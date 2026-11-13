@@ -15,7 +15,13 @@ pub const LAYER_STATE_IDS: [u32; 6] = [6, 0xa, 0x38, 2, 0x18, 0];
 pub const CACHE_SENTINEL: i32 = 0x7fff_ffff;
 
 /// `D3DRENDERSTATETYPE` values the driver sets.
+pub const D3DRS_ZENABLE: u32 = 7;
 pub const D3DRS_SHADEMODE: u32 = 9;
+pub const D3DRS_ZWRITEENABLE: u32 = 14;
+pub const D3DRS_ALPHATESTENABLE: u32 = 15;
+pub const D3DRS_ZFUNC: u32 = 23;
+pub const D3DRS_ALPHAREF: u32 = 24;
+pub const D3DRS_ALPHAFUNC: u32 = 25;
 pub const D3DRS_SRCBLEND: u32 = 19;
 pub const D3DRS_DESTBLEND: u32 = 20;
 pub const D3DRS_CULLMODE: u32 = 22;
@@ -23,6 +29,10 @@ pub const D3DRS_ALPHABLENDENABLE: u32 = 27;
 pub const D3DRS_SPECULARENABLE: u32 = 29;
 /// `D3DCULL`.
 pub const D3DCULL_NONE: u32 = 1;
+/// `D3DCMPFUNC`.
+pub const D3DCMP_GREATER: u32 = 5;
+pub const D3DCMP_LESSEQUAL: u32 = 4;
+pub const D3DCMP_ALWAYS: u32 = 8;
 /// `D3DBLEND`.
 pub const D3DBLEND_SRCALPHA: u32 = 5;
 pub const D3DBLEND_INVSRCALPHA: u32 = 6;
@@ -70,6 +80,26 @@ pub struct DriverCaps {
     pub gouraud_specular: bool,
     /// `[0x6005a960]` / `[0x6005a990]`: the per-stage word THRASH 0x29 = 8 returns.
     pub stage_ready: bool,
+    /// `[0x6005aaf4]`: the device has a z buffer (THRASH 4 accepted).
+    pub z_buffer: bool,
+    /// `[0x6005aba0]`: alpha compare (THRASH 0x24 accepted).
+    pub alpha_compare: bool,
+    /// `[0x6005abe0 + 4·f]`, f = 0..7: every z compare function (THRASH 0x28 accepted).
+    pub compare_functions: bool,
+}
+
+impl DriverCaps {
+    /// A Direct3D 7 HAL device with a z buffer, alpha compare and every compare function: what
+    /// `THRASH_init` reports on any card the game runs on (the recorded car draws use it).
+    pub const HAL: DriverCaps = DriverCaps {
+        modulate_alpha: false,
+        additive_one_one: false,
+        gouraud_specular: false,
+        stage_ready: false,
+        z_buffer: true,
+        alpha_compare: true,
+        compare_functions: true,
+    };
 }
 
 /// The driver's state as far as the ported THRASH ids reach.
@@ -80,6 +110,9 @@ pub struct Dx7Driver {
     states: std::collections::BTreeMap<u32, i32>,
     /// `[0x6001885c]`.
     pub z_offset: f32,
+    /// `[0x600170d4]`: the `D3DCMPFUNC` THRASH 4 = 1 sends as z function (THRASH 0x28 sets it;
+    /// `None` = the file's value, `LESSEQUAL`).
+    z_func: Option<u32>,
     pub thrash: Vec<ThrashCall>,
     pub d3d: Vec<D3dCall>,
 }
@@ -173,6 +206,49 @@ impl Dx7Driver {
                 1
             }
             (0x29, 0 | 8) => self.combine(stage, value),
+            // Alpha test: 0 = off (function ALWAYS), else on with the reference = value and the
+            // function `[0x600170d8]` (GREATER in the file; THRASH 0x25 is refused) [0x60004188].
+            (0x24, 0) if self.caps.alpha_compare => {
+                rs(self, D3DRS_ALPHATESTENABLE, 0);
+                rs(self, D3DRS_ALPHAFUNC, D3DCMP_ALWAYS);
+                1
+            }
+            (0x24, 1..=255) if self.caps.alpha_compare => {
+                rs(self, D3DRS_ALPHATESTENABLE, 1);
+                rs(self, D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+                rs(self, D3DRS_ALPHAREF, value as u32);
+                1
+            }
+            (0x24, 0..=255) => 0,
+            (0x25, 0..=8) => 0,
+            // z function 0..7 = D3DCMP_NEVER..ALWAYS, kept for THRASH 4 [0x60004f30].
+            (0x28, 0..=7) if self.caps.compare_functions => {
+                self.z_func = Some(value as u32 + 1);
+                rs(self, D3DRS_ZFUNC, value as u32 + 1);
+                1
+            }
+            (0x28, 0..=8) => 0,
+            // z buffer: 0 = off (z write off, function ALWAYS), 1 = on with the kept function;
+            // 2 (w buffer) sends the same as 1 and fails without its cap [0x60005092].
+            (4, 0) if self.caps.z_buffer => {
+                rs(self, D3DRS_ZWRITEENABLE, 0);
+                rs(self, D3DRS_ZENABLE, 0);
+                rs(self, D3DRS_ZFUNC, D3DCMP_ALWAYS);
+                1
+            }
+            (4, 1 | 2) if self.caps.z_buffer => {
+                let func = self.z_func.unwrap_or(D3DCMP_LESSEQUAL);
+                rs(self, D3DRS_ZWRITEENABLE, 1);
+                rs(self, D3DRS_ZENABLE, 1);
+                rs(self, D3DRS_ZFUNC, func);
+                u32::from(value == 1)
+            }
+            (4, 0..=2) => 0,
+            // z write [0x6000505b] (no cap).
+            (0x39, 0 | 1) => {
+                rs(self, D3DRS_ZWRITEENABLE, value as u32);
+                1
+            }
             (2 | 6 | 0xa | 0x38, _) => 0,
             _ => unimplemented!("THRASH state {id:#x} = {value} is outside the recorded domain"),
         };
@@ -328,6 +404,83 @@ pub fn single_texture_combine(caps: DriverCaps) -> Vec<D3dCall> {
     driver.set_state(0x29, 8);
     driver.set_state(0x10029, 0);
     driver.d3d
+}
+
+/// The render states a draw ends up with, by `D3DRENDERSTATETYPE` (last value sent).
+pub type D3dStates = std::collections::BTreeMap<u32, u32>;
+
+/// The states that decide how a car part covers what is behind it: z, alpha test, blend, cull,
+/// shading.
+pub const CAR_PART_STATES: [u32; 11] = [
+    D3DRS_ZENABLE,
+    D3DRS_SHADEMODE,
+    D3DRS_ZWRITEENABLE,
+    D3DRS_ALPHATESTENABLE,
+    D3DRS_SRCBLEND,
+    D3DRS_DESTBLEND,
+    D3DRS_CULLMODE,
+    D3DRS_ZFUNC,
+    D3DRS_ALPHAREF,
+    D3DRS_ALPHAFUNC,
+    D3DRS_ALPHABLENDENABLE,
+];
+
+/// The `sR` block of every car render method (`RMth` data): Gouraud, blend enable 2, blend mode
+/// 0 (SRCALPHA, INVSRCALPHA), cull 1 (the view's mode), z bias 0.
+pub const CAR_METHOD_BLOCK: [i32; 6] = [1, 2, 0, 1, 0, -1];
+
+/// The THRASH state a car part is drawn with in the race view: the view's render state object
+/// (constructor 0x537700: 0x28 = 3, 4 = 1, ..., 0x39 = 1), 0x468ae0 before the scene
+/// (0x537870(1): 0x39 = 1, 0x537830(3): 0x28 = 3), `R3DCarLOD_DrawParts` 0x43c830 (0x24 = 10),
+/// then the part's `sR` block (0x540660). Every state another scene draw changes in between
+/// (0x39 = 0 of the car shadow 0x43b820, rain 0x459020, ...) is restored by it.
+pub fn car_part_states(block: &[i32; 6], caps: DriverCaps) -> D3dStates {
+    let mut driver = Dx7Driver::new(caps);
+    for (id, value) in [(0x28, 3), (4, 1), (0x39, 1), (0x39, 1), (0x28, 3), (0x24, 10)] {
+        driver.set_state(id, value);
+    }
+    let mut cache = [CACHE_SENTINEL; 6];
+    apply_layer_state(&mut cache, block, &VIEW, &mut driver);
+    let mut out = D3dStates::new();
+    for call in &driver.d3d {
+        if let D3dCall::RenderState(s, v) = *call {
+            if CAR_PART_STATES.contains(&s) {
+                out.insert(s, v);
+            }
+        }
+    }
+    out
+}
+
+/// The viewer's car mesh pipeline in the same terms (`porsche-viewer` `renderer.rs`: depth
+/// test `LessEqual` always, depth write unless `Blend`, `ALPHA_BLENDING` for `Blend` /
+/// `BlendTest`, `car.wgsl` discards `alpha <= cutoff` for `Mask` / `BlendTest`, back faces
+/// culled unless double-sided; Gouraud vertex colours).
+pub fn viewer_car_states(mode: crate::AlphaMode, cutoff: f32, double_sided: bool) -> D3dStates {
+    use crate::AlphaMode::*;
+    let blend = matches!(mode, Blend | BlendTest);
+    let test = matches!(mode, Mask | BlendTest);
+    let mut out = D3dStates::from([
+        (D3DRS_ZENABLE, 1),
+        (D3DRS_SHADEMODE, 2),
+        (D3DRS_ZWRITEENABLE, u32::from(mode != Blend)),
+        (D3DRS_ZFUNC, D3DCMP_LESSEQUAL),
+        (D3DRS_ALPHATESTENABLE, u32::from(test)),
+        (D3DRS_ALPHABLENDENABLE, u32::from(blend)),
+        (D3DRS_CULLMODE, if double_sided { D3DCULL_NONE } else { 2 }),
+    ]);
+    if test {
+        // discard `a <= cutoff` = pass `round(255 a) > round(255 cutoff)` on 8-bit alpha.
+        out.insert(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+        out.insert(D3DRS_ALPHAREF, (cutoff * 255.0).round() as u32);
+    } else {
+        out.insert(D3DRS_ALPHAFUNC, D3DCMP_ALWAYS);
+    }
+    if blend {
+        out.insert(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+        out.insert(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    }
+    out
 }
 
 #[cfg(test)]

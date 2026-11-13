@@ -33,6 +33,7 @@ fn caps(mask: i32) -> DriverCaps {
         additive_one_one: mask & 2 != 0,
         gouraud_specular: mask & 4 != 0,
         stage_ready: mask & 8 != 0,
+        ..DriverCaps::default()
     }
 }
 

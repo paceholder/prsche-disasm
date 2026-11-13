@@ -64,6 +64,8 @@ run replay-car-env-map.py --tracks --polygons "$ROOT/local/derived/support" --ou
 run replay-car-light.py --tracks --polygons "$ROOT/local/derived/support" --out "$OUT/car-light-tracks.tsv"   # ~5 min
 # Reads car-light-tracks.tsv and car-env-map-tracks.tsv (the light states it draws with).
 run replay-car-draw.py --fixtures "$OUT" --out "$OUT/car-draw-cars.tsv"
+# The D3D7 state of every car part draw and the draw order (change original-car-materials, wheel page).
+run replay-car-wheel-draw.py --fixtures "$OUT" --out "$OUT/car-wheel-draw.tsv"
 
 echo "wrote $(ls "$OUT" | wc -l | tr -d ' ') files to $OUT"
 if [ "${1:-}" = "--check" ]; then

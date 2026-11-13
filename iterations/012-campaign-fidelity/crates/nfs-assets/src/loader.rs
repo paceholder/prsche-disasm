@@ -643,6 +643,17 @@ fn exterior_overlay_blends(depth_bias: i32) -> bool {
 }
 
 fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8], depth_bias: i32) -> (AlphaMode, f32) {
+    // The wheel pages (tyre and rim, the 4444 wheel shadow quads) are drawn exactly like the
+    // original: every `CarWheel` draw of the 356A and the 993 (scripts/research/
+    // replay-car-wheel-draw.py, nfs5.exe 0x444e00 -> 0x43c830 -> 0x53f1b0 -> dx7z.dll, recorded
+    // in Unicorn) has ZENABLE, ZWRITEENABLE, ZFUNC LESSEQUAL, ALPHATESTENABLE with ALPHAFUNC
+    // GREATER / ALPHAREF 10 (THRASH 0x24 = 10 of 0x43c830), ALPHABLENDENABLE SRCALPHA /
+    // INVSRCALPHA (`sR` blend 2 / mode 0) and the view's cull: `BlendTest` (test
+    // `original_car_wheel_state.rs`). Plain `Blend` wrote no depth, so the rim part drawn after
+    // the tyre part showed through the tyre's outer surface.
+    if render == "CarWheel" {
+        return (AlphaMode::BlendTest, CAR_ALPHA_REF);
+    }
     // Exterior intermediate alpha encodes paint, while zero cuts out details.
     if matches!(render, "CarExt" | "CarExtEnv") {
         return if exterior_overlay_blends(depth_bias) {
@@ -678,13 +689,6 @@ fn alpha_mode(render: &str, tpg_bpp: u32, rgba: &[u8], depth_bias: i32) -> (Alph
     }
     if alpha.all(|&value| matches!(value, 0 | 255)) {
         (AlphaMode::Mask, 0.0)
-    } else if render == "CarWheel" && cfg!(feature = "experimental-original-port") {
-        // The wheel page (tyre, rim; soft rim edges) is drawn like every car part: blended with
-        // the alpha test of THRASH 0x24 = 10 and z write on (see `exterior_overlay_blends`).
-        // Plain `Blend` writes no depth, so the rim part drawn after the tyre part showed
-        // through the tyre's outer surface at angles where the sort put it second (the two
-        // parts share a centre). The 4444 shadow page keeps `Blend` (returned above).
-        (AlphaMode::BlendTest, CAR_ALPHA_REF)
     } else {
         (AlphaMode::Blend, 0.0)
     }
@@ -1871,23 +1875,17 @@ mod tests {
             alpha_mode("CarExt", 1555, &[0, 0, 0, 0], 0),
             (AlphaMode::Mask, 0.0)
         );
-        assert_eq!(
-            alpha_mode("CarWheel", 1555, &[0, 0, 0, 0, 0, 0, 0, 255], 0),
-            (AlphaMode::Mask, 0.0)
-        );
-        assert_eq!(
-            alpha_mode("CarWheel", 4444, &[0, 0, 0, 0, 0, 0, 0, 199], 0),
-            (AlphaMode::Blend, 0.0)
-        );
-        // The wheel page (soft rim edges, not 4444) blends with depth write under the feature.
-        assert_eq!(
-            alpha_mode("CarWheel", 0, &[0, 0, 0, 0, 0, 0, 0, 120], 0),
-            if cfg!(feature = "experimental-original-port") {
-                (AlphaMode::BlendTest, CAR_ALPHA_REF)
-            } else {
-                (AlphaMode::Blend, 0.0)
-            }
-        );
+        // Every wheel page (tyre / rim, 1555, the 4444 shadow quads, opaque) is drawn blended,
+        // alpha-tested at 10 and with depth write, in both feature modes (recorded).
+        for (bpp, rgba) in [
+            (1555, [0, 0, 0, 0, 0, 0, 0, 255]),
+            (4444, [0, 0, 0, 0, 0, 0, 0, 199]),
+            (0, [0, 0, 0, 0, 0, 0, 0, 120]),
+            (0, [0, 0, 0, 255, 0, 0, 0, 255]),
+        ] {
+            assert_eq!(alpha_mode("CarWheel", bpp, &rgba, 0), (AlphaMode::BlendTest, CAR_ALPHA_REF));
+        }
+        assert_eq!(alpha_mode("CarWindow", 4444, &[0, 0, 0, 0, 0, 0, 0, 199], 0).0, AlphaMode::Blend);
         // Exterior overlays (z bias < 0, e.g. the rear PORSCHE strip decal mt8) blend only with
         // the feature; body panels (bias 0) and non-overlay parts stay alpha-tested.
         for render in ["CarExt", "CarExtEnv"] {

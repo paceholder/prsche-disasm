@@ -476,6 +476,23 @@ struct GpuMaterial {
     depth_bias: i32,
     /// Car materials: light-layer parameters and the method's plane / index channels.
     light: Option<nfs_assets::car_light::CarMaterialLight>,
+    /// Car wheel pass (`R3DCarLOD_DrawParts` 0x43c830 with mask 0x20, recorded:
+    /// replay-car-wheel-draw.py): 1 = a `CarWheel` page of the tyre / rim parts, 2 = another
+    /// `CarWheel` page (the `WheelShadow*` quads), 0 = everything else. See [`WheelPass`].
+    wheel_pass: WheelPass,
+}
+
+/// Where a car material is drawn in the original's exterior passes (0x444e00): body parts
+/// (mask 0x50) first, then the wheels pass (0x20): the wheel parts in part order, each part's
+/// `pr` groups in index order, then the four `WheelShadow*` quads, with no distance sort
+/// (recorded: `tests/original_car_wheel_state.rs`). The shadow quads lie just outside the
+/// tyre's outer face and write depth (BlendTest): drawn before the tyre they hid it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum WheelPass {
+    #[default]
+    Body,
+    Wheel,
+    Shadow,
 }
 
 /// A prop instance draw call: model matrix + range of mesh indices to draw.
@@ -767,6 +784,8 @@ struct CarRenderState {
     materials: Vec<GpuMaterial>,
     chassis_mesh_indices: Vec<usize>,
     wheels: Vec<CarWheelRender>,
+    /// The `WheelShadow*` quads (wheels pass, after the wheels; not in `chassis_mesh_indices`).
+    wheel_shadow_mesh_indices: Vec<usize>,
     /// Source body bounds in driving coordinates, before the physics adapter.
     body_bounds: Option<[Vec3; 2]>,
     /// In-car parts drawn instead of the car in BumperCam2 (`docs/re/cockpit.md`).
@@ -1677,6 +1696,7 @@ impl Renderer {
                 double_sided: material.double_sided,
                 depth_bias: material.depth_bias,
                 light: material.light,
+                wheel_pass: WheelPass::Body,
             });
         }
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -2100,6 +2120,7 @@ impl Renderer {
                     double_sided: false,
                     depth_bias: 0,
                     light: None,
+                    wheel_pass: WheelPass::Body,
                 });
             }
 
@@ -2143,6 +2164,7 @@ impl Renderer {
                 materials: car_materials,
                 chassis_mesh_indices: (0..geom.parts.len()).collect(),
                 wheels: Vec::new(),
+                wheel_shadow_mesh_indices: Vec::new(),
                 body_bounds: None,
                 in_car: Vec::new(),
                 driver: Vec::new(),
@@ -2642,7 +2664,22 @@ impl Renderer {
         let distance = |i: &usize| {
             mesh_at(*i).map_or(0.0, |m| model_matrix.transform_point3(m.center).distance_squared(eye))
         };
-        glass.sort_by(|a, b| distance(b).total_cmp(&distance(a)));
+        let pass = |i: &usize| {
+            mesh_at(*i)
+                .and_then(|m| materials.get(m.material))
+                .map_or(WheelPass::Body, |m| m.wheel_pass)
+        };
+        // Blended body parts far to near; the wheel pages as the original's wheels pass draws
+        // them (wheel parts, then the shadow quads, each in `pr` order: no sort).
+        glass.sort_by(|a, b| {
+            pass(a).cmp(&pass(b)).then_with(|| {
+                if pass(a) == WheelPass::Body {
+                    distance(b).total_cmp(&distance(a))
+                } else {
+                    a.cmp(b)
+                }
+            })
+        });
         order.extend(glass);
         // Runs of meshes with the same sky-map loop (`env_axis_v.w`: 1 = the swapped operands
         // of 0x445dca, `car_light::sky_uv_path`), one uniform write and pass each.
@@ -3502,6 +3539,7 @@ impl Renderer {
                         &wheel.mesh_indices,
                     );
                 }
+                self.draw_car_meshes(target, "original car wheel shadows", car_render, body_matrix, &car_render.wheel_shadow_mesh_indices);
             } else if let (Some(sim), true) = (&self.sim_car, self.sim_mode) {
                 let body_matrix = sim.body.transform_matrix()
                     * Mat4::from_translation(car_chassis_adapter_body(sim, car_render));
@@ -3536,6 +3574,7 @@ impl Renderer {
                         &wheel.mesh_indices,
                     );
                 }
+                self.draw_car_meshes(target, "sim car wheel shadows", car_render, body_matrix, &car_render.wheel_shadow_mesh_indices);
             } else {
                 let all_meshes: Vec<usize> = car_render.visible();
                 self.draw_car_body(
@@ -3593,6 +3632,7 @@ impl Renderer {
                         &wheel.mesh_indices,
                     );
                 }
+                self.draw_car_meshes(target, "ai wheel shadows", car_render, model_matrix, &car_render.wheel_shadow_mesh_indices);
                 self.end_car_env();
             }
 
@@ -7406,6 +7446,11 @@ impl Renderer {
         }
 
         let mut car_materials = Vec::new();
+        let wheel_part_materials: BTreeSet<usize> = scene
+            .car_wheels
+            .iter()
+            .flat_map(|w| w.mesh_indices.iter().map(|&m| scene.meshes[m].material))
+            .collect();
         for (i, material) in scene.materials.iter().enumerate() {
             let view = match material.texture {
                 Some(idx) => texture_views.get(idx).unwrap_or(&white),
@@ -7472,6 +7517,13 @@ impl Renderer {
                 double_sided: material.double_sided,
                 depth_bias: material.depth_bias,
                 light: material.light,
+                wheel_pass: if wheel_part_materials.contains(&i) {
+                    WheelPass::Wheel
+                } else if material.name.ends_with(":CarWheel") {
+                    WheelPass::Shadow
+                } else {
+                    WheelPass::Body
+                },
             });
         }
 
@@ -7622,10 +7674,10 @@ impl Renderer {
                 .flat_map(|p| p.base.iter().copied())
                 .collect()
         };
-        let chassis_mesh_indices: Vec<usize> = chassis_mesh_indices
+        let (wheel_shadow_mesh_indices, chassis_mesh_indices): (Vec<usize>, Vec<usize>) = chassis_mesh_indices
             .into_iter()
             .filter(|i| !hidden.contains(i))
-            .collect();
+            .partition(|&i| car_materials[car_meshes[i].material].wheel_pass == WheelPass::Shadow);
         // Race meshes map raw CRP (x, y, z) to body (-x, y, z), see CAR_SCALE above.
         let intro = self.player_camera.intro_handle();
         self.player_camera = nfs_assets::camera::PlayerCamera::new(
@@ -7658,6 +7710,7 @@ impl Renderer {
             materials: car_materials,
             chassis_mesh_indices,
             wheels,
+            wheel_shadow_mesh_indices,
             body_bounds: (body_min.is_finite()
                 && body_max.is_finite()
                 && (body_max - body_min).min_element() > 0.0)
